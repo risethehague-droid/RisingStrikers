@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR\"/tools/sync.sh --start",
-            "timeout": 120
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/tools/sync.sh --start; bash \"$CLAUDE_PROJECT_DIR\"/tools/agent.sh status",
+            "timeout": 150
           }
         ]
       }

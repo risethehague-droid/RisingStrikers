@@ -9,6 +9,14 @@ All tests drive the real game headless (Node + Playwright + Chromium, time stepp
 | `bash tools/sync.sh --start` | brings in the latest `main` (runs automatically at session start and resume) |
 | `bash tools/sync.sh` or `/sync` | the same, then the smoke test on its own port (8799) |
 
+## Agents
+| Command | What it does |
+| --- | --- |
+| `bash tools/agent.sh status` | open tasks per agent and reports waiting for review (also printed at session start) |
+| `bash tools/agent.sh tasks <agent>` / `show <path>` | an agent's briefs and their state / one file from the agents folder |
+| `bash tools/agent.sh report <agent> <task> <status> <file>` | send a report (done, blocked, question, progress) |
+| `bash tools/agent.sh inbox` / `next-id` / `assign` / `review` | taskmaster only: see `docs/agents.md` |
+
 ## Tests
 | Command | What it checks |
 | --- | --- |

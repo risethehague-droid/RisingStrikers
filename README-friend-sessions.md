@@ -63,6 +63,21 @@ All art is made in PixelLab and Aseprite. The official game and its Test Lab are
    - **Not yet:** fix it on the same branch and push. The card moves back to Needs OK on its own at the next check.
    - **No:** the branch is closed.
 
+## Your second session: worker-f
+
+Next to your main session you run **worker-f**, a general worker: it does whatever task the taskmaster assigns it
+(code, tests, docs or art) and reports back into the agents folder. You don't manage its tasks: the taskmaster does.
+
+- **Start it** at claude.ai/code: a new session with only the `RisingStrikers` repository, then paste:
+  > You are **worker-f**, a general worker for HC2 Football on the co-designer's account. Read
+  > `README-friend-sessions.md`, `CLAUDE.md` and `docs/agents.md`, then run `/work`. Report everything through
+  > `bash tools/agent.sh`; the taskmaster reviews it.
+- **Keep it going:** when it says it has no tasks, leave it. Say "work" in it later, or check the status line every
+  session prints when it starts (`[agents] open tasks: ...`).
+- It shares your account's usage limits with your main session.
+- Your main session can report through the folder too: `bash tools/agent.sh report co-designer note done <file>`.
+- How it all fits: `docs/agents.md`.
+
 ## Staying in sync
 
 - **Automatic:** every time a session starts or resumes, it brings in the latest `main` (`tools/sync.sh --start`, run by the hook in `.claude/settings.json`). The first thing you see is a `[sync]` line saying what came in. Hooks don't run in a session with several repositories or in a project thread: run `/sync` there.

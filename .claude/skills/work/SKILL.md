@@ -1,0 +1,56 @@
+---
+name: work
+description: For the worker agents (worker-l, worker-f) - pick up your next task from the agents folder, do it on its own branch, test it, open a pull request and send your report to the taskmaster. Use when someone says "work", "/work", "next task", or a worker session starts.
+---
+
+# /work: do your next task
+
+You are **worker-l** (Luca's account) or **worker-f** (the co-designer's account): your kickoff message says which.
+If it doesn't, ask once. `docs/agents.md` explains the whole setup; CLAUDE.md's house rules apply as always.
+
+1. **Your tasks** [cloud]: `bash tools/agent.sh tasks <you>`. Take the oldest one that is `open`,
+   `reviewed: needs-work` or `reviewed: answered`. None? Say so in one line and stop: the taskmaster hands out the
+   work. Don't pick cards off the Taskboard yourself.
+2. **Read the brief**: `bash tools/agent.sh show tasks/<you>/<task>.md`. If the task has a review already, read the
+   newest one too (`bash tools/agent.sh show reviews/<report name>`; `tasks` shows the state) and do what it asks.
+3. **Branch** from the latest `main`: `git checkout -b <you>/<task>-<short-topic>`. For needs-work, reuse that branch.
+4. **Do it.**
+   - Touch only the files the brief lists. Something outside them needs changing? Ask (step 7, `question`) rather
+     than doing it: another agent may be working there.
+   - Art comes from PixelLab or Aseprite only (CLAUDE.md "Art"). A PixelLab key never goes in chat, the repo,
+     the board or a report.
+5. **Test**: CLAUDE.md "Testing", plus everything under "Done means" in the brief.
+6. **Pull request** (when you changed files): push the branch and open a PR to `main`.
+   - Title: `<task> · <brief title>`.
+   - Body: as CLAUDE.md "Pull requests", plus a line `Task: <task>`.
+   - No version bump. Never merge.
+7. **Report**: write the report below to a file in your scratchpad, then
+   `bash tools/agent.sh report <you> <task> done <file>`.
+   - Stuck: same command with `blocked`; need an answer first: `question`. Say exactly what you need.
+   - A report can't be changed once sent: send a new one.
+8. **Next**: go back to step 1, or stop when there's nothing open.
+
+## The report (short; the taskmaster reads every one)
+
+```
+## What I did
+(2-5 bullets)
+
+## Where
+Branch: <you>/<task>-<topic> · PR: <link> · Files: <list>
+
+## Tests
+(the commands you ran and their last lines, e.g. smoke "errors []")
+
+## PixelLab generations used
+(a number, or 0)
+
+## Open points / questions for the taskmaster
+(or "none")
+```
+
+## Never
+
+- push to `main`, merge, or publish to Luca's pages (game, Test Lab, Taskboard)
+- write in `agents/tasks/` or `agents/reviews/` (the taskmaster's), or edit any file in the agents folder by hand
+- start a task that wasn't assigned to you

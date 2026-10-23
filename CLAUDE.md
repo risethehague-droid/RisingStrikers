@@ -8,8 +8,8 @@ These rules apply to every session on this repo, on either account. If you're on
 - **Luca** owns the project and gives the final OK on anything that goes live.
 - **The co-designer** (Luca's friend) runs the Design & Vision and Stadiums & maps lanes from his own account.
 - **The taskmaster** is Luca's main Claude chat. It splits work into cards on the Taskboard, checks every pull request, merges into `main` and publishes the official game. Nobody else merges or publishes.
-- **Lane agents** are separate sessions, one job each: Gameplay & AI, Art, QA overnight, Design & Vision, Stadiums & maps.
-- **The flow:** card → branch `<lane>/<topic>` → pull request → card to *Needs OK* → Luca's OK → the taskmaster merges and publishes.
+- **Agents:** four sessions, two per account. Luca's: the taskmaster and **worker-l**. The co-designer's: his main session and **worker-f**. The workers are general: they do the tasks the taskmaster assigns and report into the agents folder. `docs/agents.md` has the whole setup.
+- **The flow:** card → branch `<lane>/<topic>` (workers: `<agent>/t-NNN-<topic>`) → pull request → card to *Needs OK* → Luca's OK → the taskmaster merges and publishes. Workers also send a report, which the taskmaster reviews before the card goes to Needs OK.
   - Never push to `main`.
   - Never merge.
   - Never publish to the official pages.
@@ -56,6 +56,12 @@ These rules apply to every session on this repo, on either account. If you're on
 - **Comments:** explain *why* (the request or the bug behind a change), as the existing code does.
 - **Refactors keep behaviour identical.** Prove it: the same seeded matches give the same scores before and after.
 - **Versions:** the taskmaster bumps `GAME_VER`, adds the header line in the game source and the entry at the top of `docs/CHANGELOG.txt` when it merges. Branches don't bump versions.
+
+## Agents and the report folder
+
+- The report folder is the `agents` branch: `agents/tasks/` (briefs), `agents/reports/`, `agents/reviews/`. Never merged into `main`, no game files.
+- Use `bash tools/agent.sh` for everything there (`status`, `tasks`, `show`, `report`; the taskmaster also `assign`, `review`, `inbox`). Never edit those files by hand.
+- Workers: `/work`. The taskmaster: `/inbox` to review. Every session prints the agents' status line when it starts.
 
 ## Staying in sync with main
 
