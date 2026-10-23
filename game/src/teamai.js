@@ -133,13 +133,14 @@ hc2Mix(Match, {
         if (p.keeper) { this.keeperAI(p, dt); continue; }
         if (owner === p) { this.carrierAI(p, dt); continue; }
         if (p === marker && len(p.x - rcv.x, p.y - rcv.y) < 12) {                // stay touch-tight, goal side
-          const pt = this.intercept(rcv, rcv.top(true, false)), gs = Math.sign(team.ownGoalX - pt.x) || 1;
+          const pt = b.lob ? { x: rcv.x + rcv.vx * 0.25, y: rcv.y + rcv.vy * 0.25 } : this.intercept(rcv, rcv.top(true, false)),   // lob-mechanics: he goes with the man (he can't read the drop before the receiver does)
+            gs = Math.sign(team.ownGoalX - pt.x) || 1;
           p.sprinting = true; p.moveTo(pt.x + gs * 0.6, pt.y, p.top(true, false), dt); continue;
         }
         // the intended receiver of a pass runs onto it
         if (!owner && b.target === p && b.last === team) {
           const far = len(b.x - p.x, b.y - p.y) > 8 && p.stamina > 0.3; p.sprinting = far;
-          const v = p.top(far, false), pt = this.intercept(p, v); p.moveTo(pt.x, pt.y, v, dt); continue;
+          const v = p.top(far, false), pt = this.intercept(p, v, 0.12, b.lob ? 1.9 : 1.0); p.moveTo(pt.x, pt.y, v, dt); continue;   // lob-mechanics: attack the drop
         }
         if (owner && owner.keeper && owner.hands && owner.team !== team && len(p.x - owner.x, p.y - owner.y) < 14) {   // their keeper has it: back off
           const dx = p.x - owner.x, dy = p.y - owner.y, d = len(dx, dy) || 1;
@@ -229,12 +230,13 @@ hc2Mix(Match, {
         if (p.keeper) { this.keeperAI(p, dt); continue; }
         if (owner === p) { this.carrierAI2(p, dt); continue; }
         if (p === aerial && len(p.x - rcv.x, p.y - rcv.y) < 12) {                // stay touch-tight, goal side, to contest it
-          const pt = this.intercept(rcv, rcv.top(true, false)), gs = Math.sign(team.ownGoalX - pt.x) || 1;
+          const pt = b.lob ? { x: rcv.x + rcv.vx * 0.25, y: rcv.y + rcv.vy * 0.25 } : this.intercept(rcv, rcv.top(true, false)),   // lob-mechanics: he goes with the man (he can't read the drop before the receiver does)
+            gs = Math.sign(team.ownGoalX - pt.x) || 1;
           p.sprinting = true; p.moveTo(pt.x + gs * 0.6, pt.y, p.top(true, false), dt); continue;
         }
         if (!owner && b.target === p && b.last === team) {                       // the receiver of a pass runs onto it
           const far = len(b.x - p.x, b.y - p.y) > 8 && p.stamina > 0.3; p.sprinting = far;
-          const v = p.top(far, false), pt = this.intercept(p, v); p.moveTo(pt.x, pt.y, v, dt); continue;
+          const v = p.top(far, false), pt = this.intercept(p, v, 0.12, b.lob ? 1.9 : 1.0); p.moveTo(pt.x, pt.y, v, dt); continue;   // lob-mechanics: attack the drop
         }
         if (owner && owner.keeper && owner.hands && owner.team !== team && len(p.x - owner.x, p.y - owner.y) < 14) {   // their keeper has it: back off
           const dx = p.x - owner.x, dy = p.y - owner.y, d = len(dx, dy) || 1;
@@ -353,7 +355,7 @@ hc2Mix(Match, {
         const T = passTime(d) * 1.3 + 0.15, tq = len(pt.x - q.x, pt.y - q.y) / Math.max(5, q.top(true, false));
         opts.push({ mode: 'through', pt, d, risk: lane(pt, d, T) + race(pt, Math.max(T, tq)) * 0.8 });
       }
-      if (d0 > 14) { const T = clamp(0.7 + d0 / 25, 0.9, 1.9) + 0.2; opts.push({ mode: 'lob', pt: feet, d: d0, risk: race(feet, T) + 0.25 }); }   // over a blocked lane
+      if (d0 > 14) { const T = clamp(0.7 + d0 / 25, 0.9, 1.9) + 0.2; opts.push({ mode: 'lob', pt: feet, d: d0, risk: race(feet, T) + 0.25 }); }   // over a blocked lane (lob-mechanics: the AI's old judgement of WHEN to lob, kept on purpose)
       const o = opts.sort((u, v) => u.risk - v.risk)[0];
       let open = 8; for (const e of opp) open = Math.min(open, len(e.x - o.pt.x, e.y - o.pt.y));
       const progress = (o.pt.x - p.x) * side, sh = len(team.goalX - o.pt.x, 34 - o.pt.y) < 30 ? this.shotLook(team, o.pt.x, o.pt.y).q : 0;

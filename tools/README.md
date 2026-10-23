@@ -26,6 +26,7 @@ All tests drive the real game headless (Node + Playwright + Chromium, time stepp
 | `node tools/proxy093.js run\|def <trials> [levels]` | a scripted "you": run at goal from the centre circle / defend from kick-off, at each level |
 | `LEVELS=... node tools/train093.js probe 0 <matches> <secs>` | computer v computer strength per level (S against the old Normal) |
 | `node tools/train093.js <level> <iters> <matches> <secs>` | self-play tuning of one level's traits (writes `train093-out/`) |
+| `node tools/lobstudy.js you\|ai [N]` | open-play lobs: who wins them (you tapping LOB to a forward N times, or N minutes of computer v computer), how (header / chest / feet) and where everyone is at the drop |
 | `node tools/gk091.js` | keeper situations with the keeper's plan printed |
 | `node tools/chipgif.js` | example of recording Test Lab frames for a preview GIF |
 | `tools/train092.js` | the v0.9.2 trainer (kept for history) |

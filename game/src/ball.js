@@ -59,6 +59,11 @@ function solveGround(dist, arrive, vz) {
 // v0.8.2 how long an AI ground pass of d metres takes to arrive (cached per metre; the AI's interception check uses it)
 const PASS_T = [];
 function passTime(d) { const i = Math.round(clamp(d, 1, 50)); if (PASS_T[i] == null) { const v = solveGround(i, clamp(4.5 + i * 0.15, 5.5, 11), 0.2); PASS_T[i] = simKick(v, 0.2, i).t; } return PASS_T[i]; }
+// friend/lob-mechanics (co-designer: "it never makes sense to lob the ball - easily interrupted, glitchy"). Measured:
+// a 12 m lob peaked at 1.8 m and a 25 m one at 3.5 m, so the ball stayed at head height (under 2.7 m) for most of its
+// flight and anyone near the line headed it away (28 of 60 of your lobs). An open-play lob now climbs over the
+// players in between: 3.6 m for a short one up to 6 m for a long one; a held (power) lob 3.6 to 8 m.
+function lobApex(d, pow) { return pow != null ? 3.6 + clamp(pow, 0, 1) * 4.4 : clamp(2.9 + d * 0.07, 3.6, 6.0); }
 // lofted ball: the forward speed that makes it come down at `dist` for a given upward speed
 function solveLob(dist, vz) {
   const land = v0 => { const b = { x: 0, y: 0, z: 0.05, vx: v0, vy: 0, vz, skid: true, rollV: 0 }, h = 1 / 120;
@@ -96,6 +101,7 @@ hc2Mix(Match, {
     const mode = k.info.mode;
     if (mode === 'ground') { vz = 0.2; speed = solveGround(d, clamp(4.5 + d * 0.15, 5.5, 11), vz); }   // arrives firm, then dies
     else if (mode === 'through') { vz = 0.25; speed = solveGround(d, 4.5, vz); }                          // slows into the runner's path
+    else if (mode === 'lob' && k.info.loft) { vz = Math.sqrt(2 * G * lobApex(d, k.info.lobPow)); speed = solveLob(Math.max(4, d - (k.info.lobPow != null ? 1 : 2)), vz); }   // lob-mechanics: over their heads
     else if (mode === 'lob' && k.info.lobPow != null) { const T = 1.0 + k.info.lobPow * 1.5; vz = G * T / 2; speed = solveLob(Math.max(4, d - 1), vz); }   // v0.8.5 power lob: up to ~8 m high
     else if (mode === 'lob') { const T = clamp(0.7 + d / 25, 0.9, 1.9); vz = G * T / 2 * 1.05; speed = solveLob(Math.max(4, d - 2), vz); }
     if (k.info.chip) { const S = this.chipSolve(b, k.tx, k.ty, k.p.team, k.info.chipC || 0); speed = S.speed; vz = S.vz; }   // v0.9.2 CHIP: fast, over the keeper, dipping under the bar
@@ -107,7 +113,7 @@ hc2Mix(Match, {
     b.owner = null; b.vx = dx / d * speed; b.vy = dy / d * speed; b.vz = vz; b.z = Math.max(b.z, 0.05);
     if (k.p.kickAnim === 'super') b.z = 1.0;                                      // struck in mid-air, at the height of his boot
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
-    b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0;
+    b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft;   // lob-mechanics: an open-play lob (its drop is a duel)
     b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null;
     if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
     k.p.hands = false;
@@ -195,7 +201,7 @@ hc2Mix(Match, {
     } else { const d = mode === 'lob' ? 25 : 16; tx = p.x + dir.x * d; ty = p.y + dir.y * d; }
     if (!(p === this.human && !this.demo) && !p.keeper) { const e = this.dk(p.team).passErr; if (e > 0) {   // v0.9.2: a weaker computer side passes less accurately
       const a = rnd(-1, 1) * e, dx = tx - p.x, dy = ty - p.y, c = Math.cos(a), s = Math.sin(a); tx = p.x + dx * c - dy * s; ty = p.y + dx * s + dy * c; } }
-    this.kick(p, tx, ty, 0, 0, 0.12, { mode, target: q });
+    this.kick(p, tx, ty, 0, 0, 0.12, { mode, target: q, loft: mode === 'lob' && !p.keeper && !this.setPiece });
     if (q && p.team === this.home) { this.nextHuman = q; this.passRing = { p: q, t: 1.0 }; this.passStick = { ...Input.axis }; }
   },
   // v0.8.5 (Luca): HOLD the lob for a high ball where you point - the longer you hold, the further and higher (12-50 m)
@@ -203,7 +209,7 @@ hc2Mix(Match, {
     const l = len(dir.x, dir.y) || 1, d = 12 + c * 38, tx = clamp(p.x + dir.x / l * d, 1, PITCH_L - 1), ty = clamp(p.y + dir.y / l * d, 1, PITCH_W - 1);
     const q = p.team.players.filter(m => m !== p && !m.sentOff && !m.keeper).sort((a, b) => len(a.x - tx, a.y - ty) - len(b.x - tx, b.y - ty))[0];
     const target = q && len(q.x - tx, q.y - ty) < 9 ? q : null;
-    this.kick(p, tx, ty, 0, 0, 0.14, { mode: 'lob', target, lobPow: c });
+    this.kick(p, tx, ty, 0, 0, 0.14, { mode: 'lob', target, lobPow: c, loft: !p.keeper && !this.setPiece });
     if (target && p.team === this.home) { this.nextHuman = target; this.passRing = { p: target, t: 1.0 }; this.passStick = { ...Input.axis }; }
   },
   lobSpot(p) { const ax = Input.axis, dv = len(ax.x, ax.y) > 0.1 ? ax : dirVec(p.face), l = len(dv.x, dv.y) || 1, d = 12 + this.lobCharge * 38;
@@ -226,9 +232,9 @@ hc2Mix(Match, {
     return out;
   },
   // the first point on the ball's path this player can reach in time
-  intercept(p, speed, react = 0.12) {
+  intercept(p, speed, react = 0.12, zmax = 1.0) {                                 // lob-mechanics: zmax 1.9 = meet a lob at chest / head height
     const P = this.path, b = this.ball; if (!P) return { x: b.x, y: b.y };
-    for (const pt of P) { if (pt.z > 1.0) continue; if (react + len(pt.x - p.x, pt.y - p.y) / speed <= pt.t) return pt; }
+    for (const pt of P) { if (pt.z > zmax) continue; if (react + len(pt.x - p.x, pt.y - p.y) / speed <= pt.t) return pt; }
     return P[P.length - 1];
   },
   placeAtFeet() {
@@ -370,6 +376,10 @@ hc2Mix(Match, {
         }
       }
       if (p.cool > 0 || p.stun > 0 || p.state === 'slide') { if (!(p.keeper && p.spSave && (b.special || b.saveable))) continue; }
+      if (b.lob && b.vz > 0 && b.z < 1.6 && p.team !== b.last) {                   // lob-mechanics: a lob leaving the boot - a presser could take it off his
+        const sv = len(b.vx, b.vy) || 1, along = ((p.x - b.x) * b.vx + (p.y - b.y) * b.vy) / sv, lat = Math.abs(((p.x - b.x) * b.vy - (p.y - b.y) * b.vx) / sv);   // foot from
+        if (!(along > 0.1 && lat < 0.45)) continue;                                // behind or the side (a third of the computer's lobs). Now only a man
+      }                                                                            // square in front of it can block it
       const box = p.keeper && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
       const reach = box ? 1.3 : (b.target === p && b.last === p.team ? 1.25 : 0.8), zmax = box ? 2.6 : 0.9;   // v0.7: the man you passed to reaches for it
       if (p.keeper && p.spSave && ((b.special && b.spTeam && p.team !== b.spTeam) || (!b.special && b.saveable && b.saveable !== p.team))) {   // v0.8.6 SPECIAL SAVE v SPECIAL SHOT, on his line (v0.9.0: or v a normal shot)
@@ -421,7 +431,7 @@ hc2Mix(Match, {
       const d = len(b.x - hit.x, b.y - hit.y) || 0.01, nx = (b.x - hit.x) / d, ny = (b.y - hit.y) / d, vn = b.vx * nx + b.vy * ny;
       if (vn < 0) { b.vx -= 1.4 * vn * nx; b.vy -= 1.4 * vn * ny; }
       b.vx *= 0.6; b.vy *= 0.6; b.vz = Math.abs(b.vz) * 0.3 + 0.6; b.z = Math.max(b.z, 0.05);
-      b.skid = true; b.rollV = 0; hit.cool = 0.25; b.last = hit.team; b.target = null;
+      b.skid = true; b.rollV = 0; hit.cool = 0.25; b.last = hit.team; b.target = null; b.lob = false;
     }
   },
   gain(p, incoming) {
@@ -432,7 +442,7 @@ hc2Mix(Match, {
     if (b.shotBy && b.shotBy.team !== p.team && p.keeper) this.missedChance(b.shotBy.team, 'held'); else b.shotBy = null;
     const back = p.keeper && b.last === p.team && b.lastP && b.lastP !== p && b.how && b.how.kind === 'pass';   // v0.9.1 (IFAB Law 12): a team-mate's pass / throw-in back to him - feet only
     const box = p.keeper && !back && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
-    b.owner = p; b.last = p.team; b.target = null; b.save = null;
+    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false;
     if (prev) { prev.cool = 0.4; }
     if (box) {
       if (len(b.vx, b.vy) > 2 && p.state !== 'dive') p.face = dirIndex(-b.vx, -b.vy);
