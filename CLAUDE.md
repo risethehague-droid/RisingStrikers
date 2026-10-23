@@ -89,4 +89,4 @@ Tests use Node with Playwright and Chromium, run headless; time is stepped by ha
   - test results
   - any PixelLab generations it used
 - Then put the PR link on the card and move the card to *Needs OK*.
-  - Exception: PRs from `friend/` branches get their Needs OK card automatically (the "HC2 PR cards" scheduled task on Luca's account, every 2 hours 09:00 to 23:00 Dutch time). The co-designer's account can't write to the board.
+  - Exception: PRs from `friend/` branches get their Needs OK card automatically (the "HC2 taskmaster check" scheduled task on Luca's account, every 2 hours 09:00 to 23:00 Dutch time, which also reviews the agents' reports). The co-designer's account can't write to the board.
