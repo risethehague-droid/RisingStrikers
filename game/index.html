@@ -1,0 +1,198 @@
+<title>HC2 Football</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{ --bg:#e9e4d6; --ink:#0c0a0e; --paper:#f4f0e4; --pink:#ff2878; --yellow:#ffde1e; --cyan:#28c8e6; --dot:#d6cfbd; }
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){ --bg:#0c0a0e; --dot:#1d1a22; } }
+:root[data-theme="dark"]{ --bg:#0c0a0e; --dot:#1d1a22; }
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
+  background-image:radial-gradient(var(--dot) 1px,transparent 1.2px);background-size:12px 12px;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#game{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#game canvas{image-rendering:pixelated;image-rendering:crisp-edges;box-shadow:0 0 0 3px var(--ink),6px 6px 0 3px var(--ink)}
+#start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:12px;overflow-y:auto;
+  background:rgba(12,10,14,.55);color:var(--paper);font:12px/1.8 "Press Start 2P",monospace;text-align:center;cursor:pointer;z-index:5;padding:16px}
+#start b{font-size:16px;background:var(--yellow);color:var(--ink);padding:10px 16px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+#start small{font-size:8px;line-height:1.7;opacity:.85;max-width:640px}
+#start{cursor:default}
+#start .pick{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;max-width:640px}
+#start .pick span{min-width:64px;text-align:right;font-size:10px}
+#start .pick button{font:10px "Press Start 2P",monospace;padding:8px 9px;border:3px solid var(--ink);background:var(--paper);color:var(--ink);
+  cursor:pointer;box-shadow:3px 3px 0 var(--ink);display:inline-flex;align-items:center;gap:6px}
+#start .pick button i{width:10px;height:10px;border:2px solid var(--ink);display:inline-block}
+#start .pick button[aria-pressed="true"]{background:var(--yellow);transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+#start #play{font:16px "Press Start 2P",monospace;background:var(--yellow);color:var(--ink);padding:10px 16px;border:3px solid var(--ink);
+  box-shadow:4px 4px 0 var(--ink);cursor:pointer}
+#start #play:disabled,#start #battle:disabled,#start #cupbtn:disabled{opacity:.6}
+#start #cupbtn{font:12px "Press Start 2P",monospace;background:var(--cyan);color:var(--ink);padding:12px 14px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);cursor:pointer}
+#start #battle{font:12px "Press Start 2P",monospace;background:var(--pink);color:#fff;padding:12px 14px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);cursor:pointer}
+#touch{position:fixed;inset:0;z-index:4;touch-action:none;pointer-events:none}
+#touch[hidden]{display:none}
+#stickzone{position:absolute;left:0;top:0;bottom:0;width:50%;pointer-events:auto;touch-action:none}
+#stick{position:absolute;left:24px;bottom:24px;top:auto;width:140px;height:140px;border-radius:50%;border:3px solid rgba(244,240,228,.55);
+  background:rgba(12,10,14,.25);pointer-events:none;opacity:.6}
+#stick.on{opacity:1}
+#knob{position:absolute;left:44px;top:44px;width:52px;height:52px;border-radius:50%;background:rgba(244,240,228,.8);border:3px solid var(--ink)}
+.btns{position:absolute;right:18px;bottom:18px;width:230px;height:220px;pointer-events:none}
+.btns button{position:absolute;width:72px;height:72px;border-radius:50%;border:3px solid var(--ink);font:12px "Press Start 2P",monospace;
+  color:var(--ink);pointer-events:auto;touch-action:none;box-shadow:3px 3px 0 var(--ink);padding:0}
+.btns button.down{transform:translate(3px,3px);box-shadow:none}
+.b-shoot{right:0;bottom:56px;background:var(--pink);color:#fff!important}
+.b-pass{right:76px;bottom:0;background:var(--yellow)}
+.b-lob{right:76px;bottom:112px;background:var(--cyan)}
+.b-thr{right:150px;bottom:56px;background:var(--paper)}
+.b-spr{right:150px!important;bottom:150px!important;width:58px!important;height:58px!important;font-size:8px!important;background:var(--paper)}
+.b-pause{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:auto!important;height:auto!important;border-radius:6px!important;padding:8px 12px!important;background:var(--paper)}
+.top{position:absolute;inset:0;pointer-events:none}
+.b-sp{right:0!important;bottom:150px!important;width:58px!important;height:58px!important;font-size:9px!important;background:#ff7a1e;color:#fff!important}
+.btns{right:max(18px,env(safe-area-inset-right,0px))!important;bottom:max(18px,env(safe-area-inset-bottom,0px))!important}
+#stickzone{left:env(safe-area-inset-left,0px)}
+#rotate{display:none}
+@media (orientation:portrait) and (pointer:coarse){
+  #rotate{display:flex;position:fixed;inset:0;z-index:9;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;
+    background:rgba(12,10,14,.92);color:var(--paper);font:12px/1.9 "Press Start 2P",monospace;text-align:center}
+  #rotate i{font-style:normal;font-size:44px;line-height:1;display:inline-block;animation:rot 1.6s ease-in-out infinite}
+  @keyframes rot{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(90deg)}}
+}
+</style>
+
+<script>
+  // v0.7.6 CRASH CHECK (phones): every few seconds the game notes where it is. If the page was killed (iOS does that when
+  // it runs out of memory) the note is still there next time: the start screen says where it stopped and SAFE MODE comes
+  // on by itself (plain canvas, small graphics, no demo behind the menu). Errors are printed on screen too.
+  (function () {
+    var K = 'hc2-run', last = null, touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+    try { last = JSON.parse(localStorage.getItem(K) || 'null'); } catch (e) {}
+    var safe = /(^|#|&)safe\b/.test(location.hash), off = /(^|#|&)nosafe\b/.test(location.hash);
+    try { if (localStorage.getItem('hc2-safe') === '1') safe = true; } catch (e) {}
+    var crashed = !!(last && !last.ok && Date.now() - last.t < 60 * 60 * 1000);
+    if (crashed && touch && !off) { safe = true; try { localStorage.setItem('hc2-safe', '1'); } catch (e) {} }
+    if (off) { safe = false; try { localStorage.removeItem('hc2-safe'); } catch (e) {} }
+    window.HC2_SAFE = safe; window.HC2_LAST = crashed ? last.s : '';
+    window.HC2_CRUMB = function (s) { try { localStorage.setItem(K, JSON.stringify({ s: s, t: Date.now(), ok: s === 'closed' })); } catch (e) {} };
+    window.HC2_CRUMB('page opened');
+    addEventListener('pagehide', function () { window.HC2_CRUMB('closed'); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) window.HC2_CRUMB('closed'); });
+    function show(msg) {
+      var d = document.getElementById('diag');
+      if (!d) { d = document.createElement('pre'); d.id = 'diag'; d.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:20;margin:0;padding:8px;max-height:40vh;overflow:auto;white-space:pre-wrap;background:#c8102e;color:#fff;font:11px/1.4 monospace;border:3px solid #0c0a0e'; (document.body || document.documentElement).appendChild(d); }
+      d.textContent += msg + '\n';
+    }
+    addEventListener('error', function (e) { show('ERROR: ' + e.message + ' (' + String(e.filename || '').split('/').pop() + ':' + e.lineno + ')'); window.HC2_CRUMB('error: ' + e.message); });
+    addEventListener('unhandledrejection', function (e) { show('ERROR (promise): ' + (e.reason && e.reason.message || e.reason)); });
+  })();
+</script>
+<div id="game"></div>
+
+<div id="start">
+  <b>HELP OUT HAGUE CUP II &middot; HET KLEINE LOO</b>
+  <div class="pick" id="pick-home" role="group" aria-label="Home team (you)"><span>YOU</span></div>
+  <div class="pick" id="pick-away" role="group" aria-label="Away team (computer)"><span>VS</span></div>
+  <div class="pick" id="pick-keys" role="group" aria-label="Controls"><span>KEYS</span></div>
+  <div class="pick" id="pick-pen" role="group" aria-label="Penalty style"><span>PENALTIES</span></div>
+  <div class="pick" id="pick-ai" role="group" aria-label="Team AI"><span>TEAM AI</span></div>
+  <div class="pick" id="pick-diff" role="group" aria-label="Difficulty"><span>DIFFICULTY</span></div>
+  <div id="safebox" hidden style="font-size:9px;line-height:1.8;max-width:640px"></div>
+  <div class="pick"><button id="play">PLAY &#9654;</button><button id="cupbtn" type="button">HAGUE CUP &#9654;</button><button id="battle" type="button">1V1 PENALTY BATTLE &#9654;</button></div>
+  <small><span id="keyhelp"></span><br>HAGUE CUP: ALL SIX TEAMS, TWO GROUPS OF THREE, GROUP WINNERS PLAY THE FINAL (LEVEL = PENALTIES) &middot; YOU PLAY AS YOUR 'YOU' TEAM<br>1V1 PENALTY BATTLE: P1 = WASD + K &middot; P2 = ARROWS + . (OR RIGHT SHIFT) &middot; BOTH PICK IN SECRET, THEN IT PLAYS OUT<br>A GAMEPAD WORKS TOO: A PASS, B SHOOT, X THROUGH, Y LOB, RB SPRINT, LB SPECIAL<br>v0.8.8 &middot; FIX: A HEADER OFF A SPENT SPECIAL FLIES LIKE A NORMAL BALL &middot; TEST LAB: EVERY MOVE ON A BUTTON &middot; v0.8.7 &middot; NEW: BUG WATCH - THE GAME CHECKS ITS OWN FOOTAGE AND KEEPS A CLIP OF ANYTHING WRONG (PAUSE MENU &rarr; BUG WATCH, OR B AT FULL TIME) &middot; FIXED: PLAYERS / KEEPERS FLICKERING, AERIAL SPECIALS MISSING THE BALL &middot; v0.8.6 &middot; POWER SPECIALS GO THROUGH DEFENDERS (LV1 ONE, LV2 TWO, LV3 FIVE) AND FADE WITH DISTANCE &middot; KEEPER SPECIAL SAVES (PRESS SPECIAL WHEN SAVE! FLASHES) &middot; AERIAL SPECIALS OFF A HIGH BALL &middot; v0.8.5 &middot; MATCH SETTINGS (ARENA, TIME OF DAY, WEATHER, WHAT HAPPENS IF IT'S LEVEL: EXTRA TIME / GOLDEN GOAL / PENALTIES) &middot; COIN TOSS FOR KICK-OFF &middot; PAUSE MENU (TEAM + SUBS, MOVES, OPTIONS) &middot; WIDER CAMERA &middot; HOLD L FOR A HIGH LOB &middot; INJURIES &middot; v0.8.4 &middot; TEAM SHEET BEFORE KICK-OFF &middot; WALK-OUT &middot; ADDED TIME + THE REF LETS AN ATTACK FINISH &middot; HALF TIME WITH STATS + SUBS &middot; v0.8.3 &middot; FIXES: THE COMPUTER TACKLES YOU WHEN YOU SHIELD THE BALL (NO MORE STALLED MATCHES) &middot; YOUR KEEPER STAYS IN HIS BOX WITH THE BALL &middot; THE COMPUTER ATTACKS PROPERLY (SHOOTS THROUGH OPEN LANES, SAFE PASSES, TAKES MEN ON) &middot; DEFENDERS JOCKEY YOU (PIXELLAB) &middot; WON CHALLENGES STAY WON &middot; HEAD-ON SLIDE = BLOCK TACKLE &middot; THE COMPUTER FOULS TOO &middot; REPLAY FIXES (AGAIN, PAUSE, 120/144 HZ SCREENS)</small>
+</div>
+
+<div id="rotate" role="status"><i>&#128241;</i>TURN YOUR PHONE SIDEWAYS<br>TO PLAY</div>
+<div id="touch" hidden>
+  <div id="stickzone"><div id="stick"><div id="knob"></div></div></div>
+  <div class="top">
+    <button class="b-pause" data-act="start" style="pointer-events:auto" aria-label="Pause">II</button>
+  </div>
+  <div class="btns">
+    <button class="b-shoot" data-act="shoot" aria-label="Shoot">B</button>
+    <button class="b-pass" data-act="pass" aria-label="Pass">A</button>
+    <button class="b-lob" data-act="lob" aria-label="Lob or switch">Y</button>
+    <button class="b-thr" data-act="through" aria-label="Through ball">X</button>
+    <button class="b-spr" data-act="sprint" aria-label="Sprint">RUN</button>
+    <button class="b-sp" data-act="special" aria-label="Special move">SP</button>
+  </div>
+</div>
+
+<script>
+  // the start screen gives the page keyboard focus (needed inside a frame) and later unlocks sound
+  (function () {
+    const s = document.getElementById('start');
+    const TEAMS = [['IS', '#f4f0e4'], ['IRO', '#e8343c'], ['USCS', '#f6c828'], ['LUC', '#ec96be'], ['THUAS', '#8cde78'], ['AUC', '#ce282c']];
+    const pick = { home: 'IS', away: 'IRO' };
+    for (const side of ['home', 'away']) {
+      const row = document.getElementById('pick-' + side);
+      for (const [t, c] of TEAMS) {
+        const btn = document.createElement('button'); btn.type = 'button'; btn.innerHTML = '<i style="background:' + c + '"></i>' + t;
+        btn.setAttribute('aria-pressed', String(pick[side] === t));
+        btn.addEventListener('click', () => {
+          pick[side] = t; const other = side === 'home' ? 'away' : 'home';
+          if (pick[other] === t) pick[other] = TEAMS.find(x => x[0] !== t)[0];                        // can't play yourself
+          for (const sd of ['home', 'away']) for (const b of document.querySelectorAll('#pick-' + sd + ' button'))
+            b.setAttribute('aria-pressed', String(b.textContent === pick[sd]));
+        });
+        row.appendChild(btn);
+      }
+    }
+    // controls: both key sets always work; the pick decides which one the hints name (remembered on this browser)
+    const KEYS = {
+      wasd: ['WASD + J K L I', 'WASD MOVE &middot; J PASS / CHALLENGE &middot; K (OR SPACE) SHOOT, HOLD FOR POWER, W/S TO AIM / SLIDE TACKLE &middot; L LOB / SWITCH &middot; I THROUGH BALL &middot; LEFT SHIFT SPRINT (USES ENERGY) &middot; U SPECIAL (SPENDS YOUR SP BARS) &middot; T METER LOOK &middot; ENTER PAUSE<br>BALL IN THE AIR: J / K TO HEAD IT, K ON A LOW BALL = VOLLEY OR DIVING HEADER, SHIFT + K ON A HIGH BALL NEAR GOAL (OR K WITH YOUR BACK TO GOAL) = OVERHEAD KICK &middot; SET PIECES: WASD AIM, J PASS, L LOB, HOLD K TO SHOOT &middot; L: TAP = LOB TO A TEAM-MATE, HOLD = HIGH BALL WHERE YOU POINT &middot; PAUSE (ENTER): MENU, L LAST GOAL, J HIGHLIGHTS'],
+      arrows: ['ARROWS + Z X C V', 'ARROWS MOVE &middot; Z PASS / CHALLENGE &middot; X SHOOT (HOLD FOR POWER, UP/DOWN TO AIM) / SLIDE TACKLE &middot; C LOB / SWITCH &middot; V THROUGH BALL &middot; SHIFT SPRINT (USES ENERGY) &middot; B SPECIAL (SPENDS YOUR SP BARS) &middot; T METER LOOK &middot; ENTER PAUSE<br>BALL IN THE AIR: Z / X TO HEAD IT, X ON A LOW BALL = VOLLEY OR DIVING HEADER, SHIFT + X ON A HIGH BALL NEAR GOAL (OR X WITH YOUR BACK TO GOAL) = OVERHEAD KICK &middot; SET PIECES: ARROWS AIM, Z PASS, C LOB, HOLD X TO SHOOT &middot; C: TAP = LOB TO A TEAM-MATE, HOLD = HIGH BALL WHERE YOU POINT &middot; PAUSE (ENTER): MENU, C LAST GOAL, Z HIGHLIGHTS'],
+    };
+    let keys = 'wasd';
+    try { const k = localStorage.getItem('hc2-keys'); if (KEYS[k]) keys = k; } catch (e) {}
+    const krow = document.getElementById('pick-keys'), khelp = document.getElementById('keyhelp');
+    const setKeys = k => {
+      keys = k; window.HC2_KEYS = k; khelp.innerHTML = 'KEYS: ' + KEYS[k][1];
+      for (const b of krow.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k));
+      try { localStorage.setItem('hc2-keys', k); } catch (e) {}
+    };
+    for (const k of Object.keys(KEYS)) {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = KEYS[k][0];
+      btn.addEventListener('click', () => setKeys(k)); krow.appendChild(btn);
+    }
+    setKeys(keys);
+    // penalty style: BASE (secret zones), WILD (power + stretch, slow-mo), TECHNICAL (free aim + meter, chips, reads)
+    const PENS = { base: 'BASE', wild: 'WILD', tech: 'TECHNICAL' };
+    let pen = 'base';
+    try { const k = localStorage.getItem('hc2-pen'); if (PENS[k]) pen = k; } catch (e) {}
+    const prow = document.getElementById('pick-pen');
+    const setPen = k => { pen = k; window.HC2_PEN = k; for (const b of prow.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k)); try { localStorage.setItem('hc2-pen', k); } catch (e) {} };
+    for (const k of Object.keys(PENS)) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = PENS[k]; btn.addEventListener('click', () => setPen(k)); prow.appendChild(btn); }
+    setPen(pen);
+    // v0.8.2 team AI: NEW (built on Google Research Football / YSoccer / RoboCup positioning) or CLASSIC (v0.7.6)
+    const arow = document.getElementById('pick-ai'), AIS = { new: 'NEW', classic: 'CLASSIC (v0.7.6)' };
+    let aim = 'new'; try { aim = localStorage.getItem('hc2-ai') || 'new'; } catch (e) {}
+    const setAi = k => { aim = k; for (const b of arow.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k)); try { localStorage.setItem('hc2-ai', k); } catch (e) {} if (typeof setAiMode === 'function') setAiMode(k); };
+    for (const k of Object.keys(AIS)) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = AIS[k]; btn.addEventListener('click', () => setAi(k)); arow.appendChild(btn); }
+    setAi(aim);
+    // v0.9.2 DIFFICULTY: how the computer's side thinks (EASY / NORMAL / HARD / RISE WARRIOR); your team-mates stay NORMAL
+    const drow = document.getElementById('pick-diff'), DIFS = { easy: 'EASY', normal: 'NORMAL', hard: 'HARD', rise: 'RISE WARRIOR' };
+    let dif = 'normal'; try { const v = localStorage.getItem('hc2-diff'); if (DIFS[v]) dif = v; } catch (e) {}
+    const setDif = k => { dif = k; for (const b of drow.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k)); try { localStorage.setItem('hc2-diff', k); } catch (e) {} if (typeof setDiff === 'function') setDiff(k); };
+    for (const k of Object.keys(DIFS)) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = DIFS[k]; btn.addEventListener('click', () => setDif(k)); drow.appendChild(btn); }
+    setDif(dif);
+    const play = document.getElementById('play'), battle = document.getElementById('battle'), cupb = document.getElementById('cupbtn');
+    const go = () => { s.remove(); window.focus(); window.HC2_STARTED = true; if (window.__hc2) window.__hc2.freeze = Math.max(window.__hc2.freeze, 0.6); };
+    const start = (shootout, cup) => {
+      if (play.disabled) return; play.disabled = battle.disabled = cupb.disabled = true; (cup ? cupb : shootout ? battle : play).textContent = 'LOADING THE KITS...';
+      const tryIt = () => { if (!window.__hc2) return setTimeout(tryIt, 200); if (cup) { go(); window.__hc2.cupStart(pick.home); return; } window.__hc2.setTeams(pick.home, pick.away, () => { go(); if (shootout) window.__hc2.startShootout(); else window.__hc2.preMatch(); /* v0.8.4: team sheet + walk-out */ }); };
+      tryIt();
+    };
+    play.addEventListener('click', () => start(false));
+    battle.addEventListener('click', () => start(true));
+    cupb.addEventListener('click', () => start(false, true));
+    s.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') start(false); });
+    setTimeout(() => play.focus(), 50);
+    // v0.7.6 safe mode note + switch
+    const sb = document.getElementById('safebox'), touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+    if (touch || window.HC2_SAFE || window.HC2_LAST) {
+      sb.hidden = false;
+      sb.innerHTML = (window.HC2_LAST ? 'LAST TIME THE GAME STOPPED AT: <b style="font-size:9px;padding:2px 6px;box-shadow:none;border-width:2px">' + window.HC2_LAST.toUpperCase() + '</b><br>' : '') +
+        'PHONE SAFE MODE: ' + (window.HC2_SAFE ? 'ON (SIMPLER GRAPHICS)' : 'OFF') + ' <button type="button" id="safetog" style="font:9px \'Press Start 2P\',monospace;padding:6px 8px;border:3px solid #0c0a0e;background:#f4f0e4;color:#0c0a0e">' + (window.HC2_SAFE ? 'TURN OFF' : 'TURN ON') + '</button>';
+      document.getElementById('safetog').onclick = () => { try { if (window.HC2_SAFE) localStorage.removeItem('hc2-safe'); else localStorage.setItem('hc2-safe', '1'); localStorage.removeItem('hc2-run'); } catch (e) {} location.reload(); };
+    }
+  })();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="game.js"></script>

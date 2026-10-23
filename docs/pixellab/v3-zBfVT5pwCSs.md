@@ -1,0 +1,15 @@
+# V3 zBfVT5pwCSs - How to animate pixel art using a skeleton (Aseprite/Pixelorama tool)
+- "Animation to animation": pick your character as reference -> skeleton is found automatically; fix wrong points (the UI names the selected point: left arm, right arm...).
+- Pick the frames of an existing animation -> "set animation" -> it makes skeletons for every frame. Fix them with "edit pose".
+- Match sizes: increase/decrease height, width, move left/right, rescale; "show reference" to compare. Not perfect is fine, you can rescale again.
+- Advanced: head size, and FIXED HEAD (reference head pasted on every frame -> face stays the same). Default is on when reference and template face the same way. Recommended.
+- Check camera view (side scroller / low top-down) and direction (south) before generating.
+- BLACK in the frame preview = that frame will be fully changed; visible character = kept.
+- Generation modes: freeze 1 + generate 3; "custom" (only the black frames change -> fix one bad frame by blacking just that frame on the inpainting layer); freeze 3 + generate 1 (stand on frame 2 -> frames 2,3,4 frozen, 5 made). Reference stays frame 1 (cleanest, facing south).
+- Fix every frame before the next generation: earlier frames steer later ones.
+- Inpainting alone = model can't see what's underneath (good when unsure what you want). Inpainting + INIT IMAGE = model keeps your colours/shapes.
+- Init image strength: 300 is a good start; raise it step by step as the image gets better. Too high + a pose the model doesn't like -> lower it and let it be freer.
+- Keep the reference layer visible and generate from the right frame (mistakes there confuse it).
+- Template skeleton route: set reference -> template scales to your character -> pick e.g. walk -> nudge points so they match -> insert. Only the points matter; don't let points overlap.
+- Output method "modify current layer" avoids piling up layers.
+- Hand-copying a good face/hand between frames is normal and fast.

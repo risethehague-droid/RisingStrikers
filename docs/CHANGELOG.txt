@@ -1,0 +1,480 @@
+HC2 WEB GAME - v0.9.4 (23 Oct) - THE CHIP IS ON IN MATCHES (Luca 15:47: "computer chips too and pixellab first")
+- [PixelLab] batch 15: the chip on the IS player (PixMiniMax, ball-free prompt, 8 frames + idle): short step, plant, stab
+  under it, lean back, the leg lifts. Made E / NE / SE / S (5 generations). N uses the NE frames (PixelLab drew a ball
+  into the N feet); W / NW / SW are mirrors. Painted onto every kit. Contact on the 4th frame, 20 fps.
+- How to chip: LOB (C / L) in their box while facing the goal. Facing away = a normal lob. The computer chips too, by
+  level (a keeper well off his line, 3-12 m away) - rare, like the real thing (1 in 20 min of CPU v CPU).
+- Export: pixellab-in\batch15\HC2-PL-batch15-outfield.zip (+ raw and in-game contact sheets).
+- Previews: previews-v0.9.4\ (Lab CH1 + CH3).
+- Checked: Lab chip group CH 2x (all as before), smoke at every level, all kits checked by eye.
+
+HC2 WEB GAME - v0.9.3 (23 Oct) - DIFFICULTY ONE NOTCH UP (Luca 15:53: "The difficulties are too easy. Hard poses barely
+a challenge. Adjust." - then 16:09: he'd been on the CLASSIC AI, which ignores most of the level; he picked "one notch up")
+- The real gap: the computer had FIXED handicaps against YOU at every level - its tackles on you up to 30% weaker, it
+  blocked your dribble less, went in on you 40% less, never doubled up. Self-play can't see those (no human in it), so
+  the levels never touched them. Now each level sets them (DIFF_YOU in game.js):
+    EASY    a little softer than before          NORMAL  most of the old handicaps, a bit smaller
+    HARD    almost none, it DOUBLE-TEAMS you (the cover man steps in), shields the ball from your tackles, tires 10% slower
+    RISE    reversed: tackles you BETTER than its own kind, double-teams hard, shields more, tires 25% slower
+- Brains: Easy / Normal as before (Easy nudged back up); Hard = old Hard + a little (self-play S +1.8 v the old Normal);
+  Rise = a step past old Rise (S +3.2 to +4.4). Trait caps opened so traits past 1.6 still count; a smart side times its
+  take-on bursts and still plays forward passes.
+- Your team-mates always play at the old Normal (base).
+- Classic AI on: the match screen and pause menu say the level barely applies.
+- Checked: a scripted "you" running at goal from the centre circle reaches their box - old Normal 40%, Easy 43%,
+  Normal 37%, Hard 12%, Rise 7% (60 tries each, tools/proxy093.js); smoke at all levels, Lab GK + CH groups: no errors.
+
+HC2 WEB GAME - v0.9.2 (23 Oct) - DIFFICULTY (Easy / Normal / Hard / Rise Warrior, start screen + pause menu) + CHIP
+- Difficulty: 4 trait sets (reaction, attack, defending, keeper) trained by self-play (tools/train092.js), the computer's
+  side only. CHIP: lob in their box facing goal = chip (fast, dips hard); the computer chips too, more cleverly per
+  level. In the Test Lab only (group CH) until its PixelLab animation is made.
+
+HC2 WEB GAME - v0.9.1 (23 Oct) - KEEPER AI, TOP PRIORITY (Luca 14:56: "move gk ai dev to top priority we need to test it
++ include walking up etc when needed")
+- Built on goalkeeping coaching (keeperstop.com positioning guide, FIFA's World Cup 2022 keeper analysis, FIFA's
+  "defending the goal or the space" session). What he does, in order:
+  ANGLE  on the line that halves the angle between the ball and his posts; ~2 m off his line for a ball 6 m away,
+         ~5 m for one 25-30 m away.
+  UP / SWEEPER  ball far away: he WALKS UP to the top of his box and beyond (~18 m behind his last defender, max 21 m;
+         3 m more when his team has it in their final third). FIFA WC2022 average: 13.1 m - ours averages 11.6 m.
+  SET    an attacker on the ball within 25 m: still, in his ready stance (PixelLab 'kset').
+  RUSH / BLOCK  1v1 (a dribbler running at goal, nobody goal-side): comes out on the ball line, slows inside 10 m,
+         stops ~5 m from him low and big.
+  SMOTHER / SWEEP  a loose ball / through ball he reaches first (before the attacker, and his defenders can't):
+         in the box he gathers it, outside he clears it with his feet.
+  BACK   a lob over him while he's up: runs back.
+  Speed  walks when nothing is on, jogs back into place, runs when they break; backs off facing the ball (the walk
+         plays backwards).
+- Back-pass rule (IFAB Law 12): a team-mate's pass / throw-in back to him = feet only. Under pressure he clears it long.
+- Test Lab: new group GK (11 situations) + GK VIEW (FREE PLAY switch): the angle lines, a yellow diamond where he wants
+  to be, a label with what he's doing and how far out.
+- Checked: all 11 GK tests do what they should; the 40 keeper shot tests save about the same as before (25/40 vs 26/40,
+  within the dice); 12 min CPU v CPU + 3-match bot soak: no crashes / stuck matches.
+
+HC2 WEB GAME - v0.9.0 (23 Oct) - KEEPER SPECIAL SAVES STOP NORMAL SHOTS TOO (Luca 14:43: "Teams should be able to use
+their Iron Wall-like special abilities to also block normal shots (K). Only goalkeepers, no defenders can use defensive
+special abilities, yet.")
+- A normal shot, volley, header or diving header on target: the defending side can spend its bars on the keeper's
+  special save (LV = bars in the bank: IRON WALL / THUNDER GLOVE / RISING SHIELD). Against a normal shot it always
+  stops it (he holds it); the same cut scene + save rig as against a special.
+- YOUR keeper: "SPECIAL SAVE? PRESS B/U" flashes on any shot on target while you have a bar. Ignore it and nothing is spent.
+- The COMPUTER's keeper: only on a shot he wouldn't reach, about half the time (8 min of CPU v CPU: 1 of 13 shots on target).
+- Keepers only: defenders still have no defensive special.
+- Not for penalties. A save that's ready is cancelled the moment anyone else gets the ball.
+- Test Lab: SM8-9 (their keeper LV1 / LV2 v your normal shot), SM10 (your keeper, the Lab presses), SM11 (you press);
+  FREE PLAY's KEEPER SAVE switch now answers your normal shots too.
+- Checked: all SM tests + power-special tests + bug-watch rules pass; 4-match bot soak clean (15 normal-shot saves by
+  the bot, no crashes, no stuck matches).
+
+HC2 WEB GAME - v0.8.9 (23 Oct) - ROUGH RIGS for the new special moves (Luca 13:35: "rig 3 cruder new animations for 3
+new aerial special shots so the game has working moves, same for the saves, make cut scenes for the special saves too")
+- Placeholders until the real ones are made in PixelLab: our PixelLab frames moved / turned / squashed by code, plus our
+  PixelLab effects (flames, bolts, rings, orb) and after-images in the level's colour.
+- AERIAL SPECIALS: LV1 BLAZING SCISSOR (leap, lean back, scissor volley), LV2 THUNDER OVERHEAD (back to goal, overhead
+  kick, lands on his back), LV3 PHOENIX DIVE (huge leap, hangs, dives onto the ball). The ball hangs where his boot meets it.
+- KEEPER SAVES at the clash: LV1 IRON WALL, LV2 THUNDER GLOVE, LV3 RISING SHIELD. A keeper with a save ready burns in
+  its colour while the special flies at him.
+- SPECIAL SAVE CUT SCENE: play stops ~1.5 s, a band in the level's colour, the keeper big with flames, the save's name.
+  ENTER skips it. Replays keep the turns / squash.
+- Test Lab: new group SM (SPECIAL MOVES, 7 tests) + CS13-15 (the three save cut scenes on their own).
+- Ideas board (claude.ai artifact "HC2 Special Moves"): the rough rigs playing + 2 final ideas each, pick A / B there.
+- Checked: SM1-7 + CS13-15 all play, no errors; power-special tests unchanged; bug-watch rules still fire; 4-match bot
+  soak clean (no crashes, no stuck matches). Previews: previews-v0.8.9/*.webp
+
+HC2 WEB GAME - v0.8.8 (23 Oct) - TEST LAB FREE PLAY: every move on a button (Luca 13:04: "add the aerial moves and
+anything else to test lab in buttons, clean the overlay a bit")
+- IN THE AIR (a ball comes in, he does the move himself): HEADER, VOLLEY, DIVE HEADER, OVERHEAD, CHEST TRAP.
+- SPECIALS: LV1-3 from the feet + AIR LV1-3 (the aerial specials). ON THE GROUND adds POWER LOB 30 / 60 / 100%.
+- BALL TO YOU (you press the key): HEAD, WAIST, FEET (a firm pass for your first touch).
+- SETTINGS: INJURED (limps, 75% speed), WEATHER dry / rain / snow, KEEPER SAVE off / LV1 / LV2 / LV3 (what their
+  keeper answers your special with), plus FULL SP, MAX SHOT, FULL ENERGY, NO KEEPER.
+- Tidier: sections with labels, buttons in an even grid, ANIMATIONS + TUNING fold away (remembered), the result box
+  says what just happened, lighter hit-box rings, the keeper's read shows for a moment instead of for ever.
+- Balls thrown in never start on top of their keeper (they come from the side instead).
+- Game fix: a header / diving header off a spent special is an ordinary ball again (it kept the special's flight).
+- Checked: every air button from 8 facings x 3 spots = 216/216; power-special Lab tests unchanged.
+
+HC2 WEB GAME - v0.8.7 (23 Oct, overnight) - BUG WATCH (Luca 06:04: "the ai keeps checking the footage played and
+checks for errors, pulls them up, we review") + the Test Lab gets everything
+- BUG WATCH: while a match runs (yours, the demo behind the menu, Claude's overnight test matches) the game checks its
+  own state every frame against ~25 rules: the ball leaving the stadium, broken numbers, out but play goes on, a goal
+  not given / a goal that wasn't, the ball far from the man who "has" it, players jumping, a keeper handling outside
+  his box, invisible players, stoppages that never end, players stuck in a move, a ball nobody goes for, plus "looks
+  odd" ones (flickering animations, keepers miles from goal, back-and-forth passing, fouls from a distance...).
+  When one trips it keeps the CLIP: the last 4 s of footage + 1.5 s after, the numbers behind it and a 6 s trace.
+- REVIEW: pause menu -> BUG WATCH (or B at full time). Each clip: WATCH THE CLIP (the player it's about circled, slow
+  motion round the moment, "HERE" when it happens), then 1 THAT'S A BUG / 2 LOOKS FINE / 3 NOT SURE + a note. Real
+  bugs flash a small note under the clock while you play; the "looks odd" ones wait quietly in the list.
+  Every clip is saved to the game's database (Claude can read them) and this browser keeps the last 8.
+  OPTIONS -> BUG WATCH ON / OFF.
+- FOUND + FIXED OVERNIGHT (the bug watch over ~260 matches, and the new Lab tests):
+  * FLICKER: keepers and slow players flipped between two facings and between idle / walk / shuffle several times a
+    second (the keeper "watches the ball" and "faces where he runs" fought every frame). Facing now has a little
+    hysteresis (no flip at the edge of two directions, a new way must hold 0.12 s - not for YOU) and each running
+    animation shows at least 0.14 s. Measured per match: facing flips 162 -> 0, one-frame animation blips 3,433 -> 271.
+  * The remaining "blips" are mostly the computer changing its mind (run left, run right) - in the Lab to judge.
+  * AI FIDGETING: a man standing in his spot stepped off and back every time the spot moved a little. Settled men now
+    wait until the spot is clearly away.
+  * AERIAL SPECIALS MISSED THE BALL (v0.8.6 bug, found by the new Lab tests): the ball flew on during the wind-up and
+    the strike hit air (bars gone). The ball now stops at his foot for the strike. BUG WATCH also watches for it now.
+  * LV3 "FROM ANYWHERE" DIDN'T GET THERE (Lab test PW4): from your own half it died on the grass ~18 m short. A special now flies like
+    an energy shot (a quarter of the air drag, a flatter arc, it skims the grass) - within its range. Out of range
+    (LV1 from far, LV2 from your own half) it's just a hard shot.
+- HOW IT WAS CHECKED [cloud]: ~200 computer-v-computer matches (all six teams, dry / rain / snow) + ~60 matches with a
+  bot playing as YOU through the real flow (settings, sheet, walk-out, toss, half time, extra time, golden goal,
+  penalties, pause menu, power lobs, specials, the SAVE! prompt). Zero crashes, zero stuck games, zero wrong goals.
+  Every hard check was also forced on purpose once (broken numbers, ball out but play on, goal that wasn't, keeper
+  handling outside his box, stoppage that never ends, stuck move, invisible player, special missing the ball...)
+  - each one trips. The old test suite still passes (keeper / cross Lab outcomes identical to v0.8.5).
+  A last check on the published build (115 more matches) caught one SPECIAL MISSED THE BALL: the man was tackled
+  in his wind-up - fair play, so that case no longer counts as a bug (the bars are still spent - say if that's wrong).
+  The overnight scripts are in tools/ (soak.js = computer matches, monkey.js = the bot that plays as you).
+- TEST LAB: new groups - v0.8.5 (power lob at 3 lengths + yours, pass / shot / bounce in rain and snow, running
+  injured), v0.8.6 POWER SPECIALS (LV1 / LV2 / LV3 through blockers, from far out, keeper special saves at each level,
+  YOUR SAVE! prompt, aerial specials), CUT SCENES (walk-out, coin toss, quick toss, half time, goal + replay, foul +
+  yellow, red card, injury, full time, golden goal, RISE UP, trophy ceremony - in full, R replays), and BUG WATCH
+  CLIPS (watch each clip, 1 = the game was right, 2 = a bug, ASK CLAUDE for a second opinion: Claude looks at three
+  frames + the numbers).
+
+HC2 WEB GAME - v0.8.6 (23 Oct, ~06:15) - the power system (Luca 04:09)
+- SPECIALS GO THROUGH BLOCKERS: LV1 knocks one man down (the next one right in front can block it), LV2 goes through two
+  (losing less power each time), LV3 through five. A blasted defender flies, the ball keeps going.
+- DISTANCE: LV1 is close range only (it fades past ~22 m), LV2 can be hit from their half (fades slowly; from your own
+  half it's weak), LV3 from anywhere (it only loses power behind halfway, more the further back).
+- KEEPER SPECIAL SAVES (LV1 IRON WALL / LV2 THUNDER GLOVE / LV3 RISING SHIELD): when a special comes at YOUR keeper a
+  SAVE! prompt flashes - press SPECIAL to spend your bars. Same level = saved. Higher = saved. Lower = a chance:
+  (save/shot)^3 - LV1 v LV3 about 1 in 8, LV2 v LV3 about 1 in 3. The computer uses its bars most of the time.
+- AERIAL SPECIALS: a high ball from a team-mate dropping on you shows the SPECIAL popup (the RISE arrow coin) - press
+  SPECIAL: a volley, an overhead kick (LV2, ball high) or the LV3 leap.
+
+HC2 WEB GAME - v0.8.5 (23 Oct, ~05:30) - Luca's 04:09 notes: menus, endings, coin toss, wider camera
+- MATCH SETTINGS before the team sheet (placeholders until the art): ARENA (Het Kleine Loo / Epic Stadium / VUC ground
+  - a name + a colour grade for now), TIME OF DAY (day / sunset / night = a tint), WEATHER (clear / rain / snow: on
+  screen + ball physics - wet grass the ball skids on, snow it dies quicker and bounces less), and LEVEL AT 90?:
+  a draw / extra time / golden goal + pens / extra time + pens / penalties. Arrows or WASD + ENTER, or click.
+  Remembered for next time. In the cup: group games can end level, the FINAL goes to extra time, then penalties.
+- ENDINGS: EXTRA TIME = 2 x 15 (clock ET1 / ET2, 1-3 min added each), a new coin toss first, no break at 105'.
+  GOLDEN GOAL: the first goal in extra time wins it on the spot. Still level -> PENALTIES (you v the computer);
+  after a match shoot-out ENTER = AGAIN.
+- COIN TOSS [PixelLab coin]: after the walk-out the referee + both captains meet at the centre spot. You call it
+  (RISE or the RISE ARROW, arrows + ENTER, or click), the coin flips (spins, slows, lands), the winner picks who kicks
+  off. K skips it. The other side kicks off the second half.
+- PAUSE MENU (ENTER): RESUME, TEAM + SUBS (3 a match, also from here), THE MOVES (every key, the specials by SP bars),
+  OPTIONS (sound, SP meter look, team AI), LAST GOAL (L), HIGHLIGHTS (J), QUIT TO MENU. ESC resumes / goes back.
+- WIDER CAMERA: the game now shows 1152 x 648 (was 960 x 540) = 20% more pitch around you, and it fills the screen
+  (no more small game in a big window). Penalties look the same as before.
+- LOB POWER: tap L = the usual lob to a team-mate; HOLD L = a high ball where you point: 12-50 m, up to ~6 m high
+  (a cyan ring shows where it lands, a cyan bar the power).
+- RADAR: the ball is a white dot with a black edge and a pulsing pink ring (it got lost in yellow kits).
+- INJURIES: a bad foul can leave a man limping (25-30% slower) - more likely on a card or from behind. The computer
+  brings a sub on for him; for yours you're told, the team sheet shows him with a red +, sub him from the pause menu.
+- TEST LAB: players went invisible after the first few tests (fixed); the menus are in a side panel now (nothing over
+  the pitch) + a CAMERA ZOOM slider (- / = / \ keys).
+
+HC2 WEB GAME - v0.8.4 (23 Oct, ~04:30) - Luca's 02:55 notes: it runs like a real match now
+- TEAM SHEET before kick-off (placeholder look until the final art): your 11 on a pitch in the 4-4-2 + a bench of 5
+  (12 = spare keeper). Tap two players to swap them - positions, or the bench. ENTER / KICK OFF when done. Your sheet
+  is kept for your next match (and through the cup).
+- WALK-OUT: the camera sweeps the main stand (crowd cheering), the referee and both teams come out of the tunnel under
+  the stand and line up facing the camera, then kick-off. Any key skips it. Existing art only.
+- ADDED TIME (IFAB Law 7): at 45:00 / 90:00 a +N board shows the time lost - goals, cards, fouls, penalties - and the
+  clock runs on (46:12...). First half +1 to +5, second half +2 to +8, a bit more when it's tight.
+- WHEN TIME IS UP the referee doesn't blow in the middle of something (what FIFA games and most referees do): an attack
+  in the final third, a shot or a ball into the box plays out; a corner or a free kick near goal is taken first; a
+  penalty is always completed (the law); a goal in the last seconds gets its replay, then the whistle. In midfield he
+  blows straight away. His patience: ~14 s.
+- HALF TIME: two whistles, the players walk off to the tunnel, the camera goes to the stand, then the HALF TIME card
+  (possession, shots, corners, fouls, cards). SUBS (shoot key): tap a player, then who comes on - 3 subs a match,
+  fresh legs, no coming back. ENTER for the second half (or it starts by itself after 25 s). The computer may take off
+  a tired man too. Everyone gets some energy back at the break.
+- The demo behind the menu has added time too, but skips the sheet / walk-out / half-time card.
+
+HC2 WEB GAME - v0.8.3 (23 Oct, ~00:45) - bug fixes from a 2nd outside check (no feel changes)
+- STALLED MATCHES: if you stood on the ball shielding it (your back to the defender), the computer parked on your side
+  and never tackled - one test match had the same man on the ball for 175 s. Now he goes round to the ball's open side
+  (and has a go anyway if it drags on). Whole matches with an idle player: no spell over 12 s (13 of 14 had 20 s+).
+- YOUR KEEPER with the ball in his hands could walk anywhere (70 m upfield, even off the pitch) and nobody could touch
+  him. Now he stays inside his box and lets go after 6 s at the latest.
+- 1V1 PENALTY BATTLE where nobody touches anything never ended (always centre v centre = saved). Time-out picks are
+  random now.
+- REFEREE stayed parked on an old foul spot after you clicked PLAY / CUP during a demo foul.
+- HAGUE CUP clicked while the demo was showing a goal replay: the first ENTER did nothing.
+- Checked and fine: 30 whole computer matches, 10 red cards, set pieces, penalties, half / full time, cup final
+  penalties, the Test Lab (96 tests + every free-play button), phone / safe modes.
+
+HC2 WEB GAME - v0.8.2 (22 Oct, ~23:30) - review of v0.8.1 against your 20:45 notes + an outside check
+- THE COMPUTER ATTACKS PROPERLY (Buckland's Simple Soccer + Google Research Football): it shoots when it can see the
+  goal past the defenders and the keeper, only plays a pass nobody can get to first (it judges every pass - to feet,
+  through, lobbed - by who wins the race to the ball), one team-mate moves to the best open spot near the ball, and a
+  defender square in front gets taken on (a cut away from him + a burst). Computer v computer, ~6 min of play:
+  v0.8.1 made 0-2 shots and got into the box 0-1 times; now 7-18 shots, 3-15 box entries, 1-3 goals. Lobs that the
+  old AI tried as a way out completed 2 times in 21.
+- DEFENDERS JOCKEY YOU [PixelLab]: the man on the ball stays low and side-on facing you, backing off 2 m; he runs
+  round you onto the goal side instead of through you. With the ball the team now stretches (~40 m deep), without it
+  stays compact (~28 m), and the midfield screens the space instead of standing on the ball.
+- TACKLES: a won CHALLENGE stays won (carrying on upfield you used to lose it back 63 times in 63, now 5 in 62).
+  SLIDE aims where the ball will be (it hit the man: 22-26 fouls in 60 from the side, now 0); head-on it's a block
+  tackle - you both stop and the ball's yours (33-36 in 60; before, he got it back every time); from behind = foul.
+- THE COMPUTER FOULS TOO: beaten defenders make recovery slides / lunges (1-3 fouls a match, the odd card), so foul
+  scenes and foul replays happen for its tackles, not only yours.
+- REPLAYS (found by an outside check): AGAIN at full time froze the game on the next replay (fixed; AGAIN also keeps
+  your teams and starts a clean highlights list); pausing just after a goal broke its replay and the kick-off ran
+  while paused (now it waits for you); on 120 / 144 Hz screens bookings were never replayed (recorder is 60 a second
+  on any screen now).
+- BALL: grass grips a skimming ball harder - FIFA's angled test (50 km/h at 15 deg) keeps 45-70% of the pace: 77%
+  before, 60% now; a skimming 25 m/s shot stops at 32 m (was 37).
+- STALL FIXED (also in v0.8.1): if you stood still on the ball, or shielded it with your back to him, the computer's
+  defender held off 2 m forever and never tackled (with your player idle a whole match had 3 changes of possession).
+  Now he steps in on a slow dribbler and goes round to the ball when you shield it; he only lunges from behind when
+  you're getting away.
+- CLASSIC (start screen) = v0.7.6 positioning and decisions, with the new challenge / slide rules.
+
+HC2 WEB GAME - v0.8.1 (22 Oct, ~22:30) - Luca's 20:45 notes
+- TEAM AI REBUILT on how established football games do it (researched: Google Research Football's engine, YSoccer
+  (Sensible Soccer remake), Buckland's Simple Soccer, RoboCup positioning): ONE man presses (goal-side, kept unless
+  someone is clearly closer), ONE covers behind him, up to 3 mark the most dangerous runners, everyone else holds his
+  zone and keeps 6 m from team-mates; attackers step away from markers to get open. Measured: 3+ defenders crowding
+  the ball 59% of the time in v0.8.0 -> 5% now. Start screen: TEAM AI  NEW / CLASSIC (v0.7.6) to compare.
+- CHALLENGE (pass key J / Z) = standing tackle when you're close, in front or to the side: win it and the ball is at your
+  feet. SLIDE (shoot key K / X) in the direction you push: a perfect head-on slide can stop the ball dead for you,
+  otherwise the ball rolls on the way the tackle sends it.
+- DRIBBLE: the ball rides just in front of the boot, touched on in rhythm with the stride; he turns in smooth arcs.
+- BALL: bounce from real numbers (FIFA natural-pitch rebound test), grass soaks up hard landings, a bounce loses speed.
+  8 m drop now bounces 1.6 -> 0.55 -> 0.2 m (was 3.2 -> 1.4 -> 0.6).
+- SP: fills with time only (no more SP for passes, saves or winning it back).
+- REPLAYS: the camera always comes back to normal after a replay (it stayed zoomed if you skipped one); a goal replay
+  from the demo / an old match can't fire in a new one; save replays only for real saves and never back to back.
+- FOUL REPLAYS: card fouls and penalties get a slow-mo replay of the tackle before the free kick.
+- [PixelLab] KEEPER PUNT (5 directions): long balls out of his hands are drop-kicks now (throws stay for short ones).
+
+HC2 WEB GAME - v0.8.0 "feel pass" (22 Oct, ~20:00)
+- TACKLES: standing tackle (K next to him) wins it clean far more often, from in front best (85%), the side 65%,
+  behind 35%. Standing in the dribbler's path BLOCKS the ball off him (you win it by marking). Fewer fouls (behind
+  35%, otherwise 7%; slides that get the ball first are fair).
+- DRIBBLE: ball stays closer (0.6 m on average, was 1.0); sprint pushes it further. SPRINT has a short burst at the
+  start and costs more energy, so you can't sprint all game.
+- BALL: grips the grass more (less slide), bounces more.
+- DEFENCE: marks the dangerous attackers goal-side and steps up with the ball instead of dropping off.
+- SP ENERGY: no more SP for goals. It comes from passes in a row (3+ = a chain, "N PASSES!"), winning it back, saves
+  and a slow regen for both sides.
+- KEEPER GUARD: power shots (and specials) that hit the keeper wear down a hidden guard; when it breaks the shot goes
+  through him (GUARD BROKEN!). Placed shots work as normal. A save off a good shot still gives the attacker SP.
+  A small bar over the keeper shows his guard (stand-in look until the final art).
+- FOUL SCENE: whistle, he goes down, play stops; the referee runs over and shows the card to the fouler, Rami has a
+  line, the fouler protests, the victim stays down. Then a TV wipe to the free kick with both teams lined up (wall on
+  9.15 m, attackers on the edge of the box with a marker each); they jog the last metres into place. Any action key
+  skips the scene. Red cards: sent off after the card.
+- SET PIECES: a faint marker over every team-mate + the ring/arrow on the one your ball would find; a ground ball goes
+  to his feet. The camera keeps the taker in shot at free kicks.
+- Art in: pass N / NE and shot N redone in PixelLab (ball-free).
+- TEST LAB: new FREE PLAY group (first in the list): you + a keeper, E resets the ball, Q hides the panel. Toggles:
+  FULL SP, MAX SHOT, ENDLESS SPRINT, NO KEEPER. Buttons for every move (passes, shots, the 3 specials, slide, a ball to
+  your head / waist), any animation on its own (+ loop), tuning sliders (ball grip, bounce, sprint speed, shot power -
+  lab only) with SAVE FOR CLAUDE / COPY TUNING.
+
+HC2 WEB GAME - v0.7.6 (22 Oct, ~18:00)
+- iPhone: still shows "This browser isn't supported" in the Claude app (parked by Luca). Done so far: phones load
+  half-size textures (assets-lo/, lo_build.py: 4x less graphics memory), crash check on the start screen (where it
+  stopped last time), SAFE MODE (canvas renderer, no demo) that switches itself on after a crash.
+- Keepers clear the ball with their FOOT in any direction (new PixelLab move) - before they used the side-on goal kick.
+
+HC2 WEB GAME - v0.7.4 "walk + trophy lift + phone" (22 Oct, ~17:00)
+- PASS PREVIEW: while you have the ball, a thin cyan ring + arrow marks the team-mate a pass would go to RIGHT NOW
+  (off screen: a cyan arrow on the screen edge points at him). The mate you see is the one you pass to (it doesn't
+  flicker between two players). Test: preview == actual pass 7/7.
+- [PixelLab] WALK for players, keepers and the referee (slow movement no longer looks like slow-motion running).
+- [PixelLab] keeper SIDE-SHUFFLE along his line while he watches the ball.
+- [PixelLab] TROPHY LIFT + on-pitch ceremony after the cup final: captain lifts the cup at the centre spot, team-mates
+  celebrate behind him, the pitch dims, PixelLab fireworks + confetti, Rami. ENTER -> the cup table.
+- PHONES: SP (special) button added to the touch controls, 'turn your phone sideways' screen in portrait, buttons clear
+  the iPhone notch, radar moved under the away SP meter. Checked on an iPhone 14-size touch screen (cloud Chromium).
+- Referee walks when play is close, runs to catch up.
+- Builds: kit_build.py (walk, trophy with taller 128 x 186 frames + tmask.py keeps the cup gold on every kit),
+  keeper_build.py (walk, shuffle), ref_build.py (walk on its own canvas, aligned by its box).
+
+HC2 WEB GAME - v0.7.3 "trophy night" (22 Oct, ~16:30)
+- [PixelLab] 16-item ceremony set (trophy, medals, confetti, fireworks, streamers, laurel, whistle, yellow card, crown...)
+- Cup champion screen: the PixelLab trophy bobs, fireworks + confetti go off when YOUR team wins it.
+- Fouls: the PixelLab card pops up over the booked player (red is the yellow repainted), sticks to him.
+- Kickoff: the referee blows the whistle.
+
+HC2 WEB GAME - v0.7.2 "Hague Cup" (22 Oct, ~16:00)
+- HAGUE CUP mode (start screen, cyan button): all six teams, two groups of three (you + 2 random teams in group A),
+  every team plays the other two; your matches are played, the rest are simulated; the two group winners meet in the
+  FINAL; a level final goes to penalties (you vs the computer). Tables, results, champion screen + Rami. ENTER moves on.
+
+v0.7.1 "referee + special moves" (22 Oct, ~15:45)
+- REFEREE (PixelLab, new character): keeps 12-16 m from the ball on the far side of play, runs, shows the yellow card
+  (red = the same move, card repainted red by ref_build.py), blows and points at fouls and goals. Shows up in replays.
+- SPECIAL MOVES (PixelLab demos, all three now): LV1 spin strike (BLAZE), LV2 thunder strike (THUNDER), LV3 leap +
+  mid-air scissor (RISING PHOENIX). Everyone stops to watch the wind-up. A parried LV2 / LV3 knocks the keeper flat
+  (PixelLab "blasted back" keeper move).
+- Sprint facing up the screen (N) redone in PixelLab (the first one came out tiny).
+- Builds: kit_build.py, keeper_build.py (blasted), ref_build.py (new) - then put meterFrame / meterSlots back in the
+  manifest if a build dropped them (see fx_build.py for fx).
+
+v0.7.0 "feel + SP energy" (22 Oct, afternoon - from Luca's 14:15 notes)
+WHAT CHANGED
+- SPRINT: new PixelLab looping sprint (leans into the stride, no standing frame in the loop) + no more flicking between
+  run and sprint around top speed (that was the jank). Dust puffs off the boots (PixelLab).
+- BALL: grips the grass (rolls ~40% less far) and bounces more (keeps 64% of its height per bounce, was 55%).
+- PASSING: the stick picks the team-mate much more strongly; the receiver runs onto the ball by himself while you
+  keep holding the direction you passed in (before, he ran off in that direction); the man you passed to reaches for it
+  (1.25 m); the ball is pulled to the boot during the swing so a pass never 'misses' the ball.
+  Test: holding the stick like a player does, 82% of passes reach a team-mate (v0.6.2: 42%).
+- KICKS: the ball leaves on the frame where the boot meets it (new PixelLab power shot + side-foot pass);
+  hit-stop (everything freezes for a few hundredths), the ball flashes, camera kick, PixelLab impact burst.
+  POWER SHOT = hold shoot past 3/4: longer freeze, harder shake, a deep thump and a hot trail behind the ball.
+- SP ENERGY METER (one per team, top left / top right): fills by playing - passes that arrive, time on the ball,
+  shots, winning it back, saves, and most when you concede. 3 bars = LV1 / LV2 / LV3, each with its own power colour
+  (fire / electric / aura). Full = RISE UP! (flaming letters + PixelLab flaming arrow-exclamation).
+  T switches the look: BASIC (clean 3-cell arcade gauge, MAX blinks) or WILD (PixelLab gauge frame, sliding stripes,
+  shakes near a level, PixelLab flames that grow per level, sparks and bolts). Remembered in this browser.
+- SPECIAL (U in the WASD set, B in the ARROWS set, LB on a pad) on the ball spends every full bar:
+  LV1 BLAZE SHOT (fire), LV2 THUNDER SHOT (electric), LV3 RISING PHOENIX = the PixelLab special-move demo
+  (crouch, leap, mid-air scissor strike, the keeper gets knocked flat if he gets a hand to it). The AI uses them too.
+- PixelLab batch 11: sprint (5 dirs), power shot (5 dirs), side-foot pass (5 dirs), special-move leap (E),
+  16 effect sprites (flames x4, flaming arrow-!, impacts, fire ring, sparks, lightning, blue + purple flames,
+  dust, whoosh, orb), the WILD gauge frame (UI Creator). Builds: kit_build.py (MAP batch 11), fx_build.py.
+
+v0.6.2 "attract mode" (22 Oct)
+Play it: the claude.ai artifact "HC2 Football" (any browser; phones get touch buttons).
+Source: index.html + game.js (Phaser 3.90 from jsdelivr) + assets\ (manifest + sprite atlases).
+The stadium tiles are in ..\HC2-web-game-v0.1.zip - unzip it, then copy this folder's files over the ones inside.
+To run it from a folder you need a tiny local web server (browsers block file:// loading), e.g.:
+    python -m http.server 8000     then open http://localhost:8000
+
+CONTROLS (both key sets always work; the KEYS pick on the start screen only changes which one the hints show)
+                      WASD set              ARROWS set
+  Move / aim          W A S D               arrows
+  Pass / tackle       J                     Z
+  Shoot / slide       K (or Space), hold    X, hold          (up/down while holding = which corner)
+  Lob / cross / switch L                    C
+  Through ball        I                     V
+  Sprint              Left Shift            Shift            (uses energy)
+  Pause               Enter / Esc / P       Enter
+  Sound on / off      M                     M
+  Special (SP bars)   U                     B                (gamepad LB)
+  Meter look          T                     T                (BASIC / WILD)
+  Ball in the air near you: pass or shoot key = header (shoot aims at goal); shoot on a low ball = volley / diving header.
+  High ball near their goal: SHIFT + shoot (or shoot with your back to goal) = overhead kick.
+  Set pieces: move keys aim the cursor, pass key = along the grass, lob key = cross, hold shoot + let go = shot.
+  Leave it 12 s and the computer takes it for you.
+  Gamepad: A pass, B shoot, X through, Y lob, RB sprint, Start pause.
+
+v0.3.1 (22 Oct, night): WASD + J K L I named on screen (start-screen KEYS pick, remembered in this browser).
+
+PENALTIES (v0.4): the camera cuts to behind the taker. Taking: move keys aim the crosshair in the goal, hold shoot for
+  power (red = too much, it can fly over), let go. Keeping: hold left or right as he shoots (nothing = stay).
+
+v0.4.1 (22 Oct) - from the Test Lab ratings
+- Keepers: no dice any more. He reads the shot (reaction + small misread, worse on hard shots), then sets, side-steps
+  or dives; only what meets his body or gloves is saved (caught if it's soft enough, else parried wide).
+  Dives fly fast and stop dead on landing. He narrows the angle off his line. Crosses: he reads them first and,
+  outside his six-yard box, only comes when he beats the attacker.
+- Ball: heavier grass - a 10 m pass stops ~15 m out (was ~25 m); shorter skid. The net gives (ripple, ball drops).
+  A ball that goes out rolls on to the boards before the restart.
+- Attackers head lower balls, volley / hit first time a fast cross near goal (no more crosses bouncing off them).
+- Test Lab (artifact "HC2 Test Lab") shows the keeper's read: when he reacts, how far he can reach vs the ball.
+
+v0.6.2 (22 Oct, ~06:55) - DEMO FIX (found by the balance test): in the demo the home side's "your player" slot held
+  the team back - the home team never took a single shot. Now both sides play the same (shots 1-1 / 2-2 in tests).
+  Only the demo was affected; when you play, you are that player.
+
+v0.6.1 (22 Oct, ~06:20) - Rami describes the goal: bullet header, diving header, volley, "FROM 28 METRES!".
+  A second 90-minute computer-vs-computer audit (both teams AI) came back clean.
+
+v0.6.0 (22 Oct, ~06:15) - DEMO MATCH: leave the start screen alone for 8 s and the computer plays itself behind the menu
+  (replays, Rami, the lot) - handy on a laptop at the tournament stand. PLAY / 1V1 BATTLE starts a fresh match.
+
+v0.5.9 (22 Oct, ~06:10) - overhead kicks now need your BACK TO GOAL or SHIFT held (otherwise shoot on a cross is
+  still a header, like before). Rami has a special line for overhead-kick goals. Test Lab: new A5 "overhead kick".
+
+v0.5.8 (22 Oct, ~06:05) - SOUND: small 16-bit-console style effects made in code (no sound files): kicks, passes,
+  headers, keeper catches, the ref's whistle (kick-off, fouls, half time, full time), net swish, the post's clang,
+  a crowd that murmurs, goes "ooh" at near misses and roars at goals. M = mute (remembered in this browser).
+  Have a listen without playing: HC2-game-sounds-preview.wav (14 s, everything in a row). Sound is a first pass -
+  say what to change, or if you'd rather have real recorded sounds.
+
+v0.5.7 (22 Oct, ~06:00) - replays slide in and out with a TV wipe; the start screen fits a laptop / phone screen again
+  (it scrolls if it has to) and lists the new controls (overhead kick, L / J in pause).
+  A 90-minute computer-vs-computer audit found nothing odd (no stuck players, no ghost goals, no keeper handballs).
+
+v0.5.6 (22 Oct, ~05:50) - PixelLab batch 10: BICYCLE KICKS - press shoot when the ball is above head height right in
+  front of you near their goal (the computer tries the odd one too; Rami loves it; it gets replayed). Keepers roll the
+  ball out underarm on short distribution (long ones are still thrown overarm).
+
+v0.5.5 (22 Oct, ~05:20) - FIX (found by watching the computer play): an attacker could tackle a keeper holding the ball
+  and walk it in. Now nobody can challenge a keeper with the ball in his hands, opponents back off 15 m, he can't be
+  pushed over his own line, and if you leave him holding it he throws it to a free team-mate after 5 s. Shots that
+  go inches wide are replayed too ("SO CLOSE!"). Rami sets the scene before a penalty.
+
+v0.5.4 (22 Oct, ~05:10) - PixelLab batch 9: at set pieces the players wait with hands on hips, the defending keeper
+  shouts and organises (corners / free kicks), the corner taker raises an arm first. After a foul the fouler protests
+  to the ref; after a carded foul the victim stays down holding his shin. New "points to the sky" celebration.
+  Keepers catch high balls with a jumping claim. Rami calls penalties and the shoot-out too (+ a few extra lines).
+  First touch NE / NW no longer shows PixelLab playing the ball with his hand.
+
+v0.5.3 (22 Oct, night) - RAMI ON THE MIC: the picked 64 px ZINE Rami (Aseprite) talks in a box bottom-left with the
+  E11 call-out lines (kick-off, GOOOAL!, goal follow-up with the scorer's number, saves, posts, misses, fouls, cards,
+  corners, half time, full time, power shots, banter) - talks while the line types, then pulls the line's face.
+  REPLAY v2: TV zoom on the slow-mo; big saves + shots off the post / bar are replayed at the next stoppage;
+  HIGHLIGHTS = every goal of the match in a row (pause: J / Z, or at full time). Captions under the picture.
+  PixelLab batch 8: aeroplane celebration, every celebration now also faces left / right (not always the camera),
+  the beaten side drops its heads (hands on knees) and the keeper punches the ground, keeper roars after a big save,
+  everyone applauds the fans at full time, the penalty taker puts the ball on the spot first.
+
+v0.5.2 (22 Oct) - INSTANT REPLAY after every goal (slow-mo on the finish; any key skips). Pause (Enter) then L / C =
+  LAST GOAL REPLAY. Penalties: keeper MIND GAMES (hold the lob key L / C - in the 1V1: P1 L, P2 , - while picking = he waves his arms and the taker's shot
+  gets shakier; the computer keeper does it in WILD), keeper high dive (hold up + a side), taker waits seen from behind.
+  New celebrations / reactions (PixelLab batch 7): knee slide, hands on head after a big chance goes wide.
+
+v0.5.1 (22 Oct) - PENALTIES: pick BASE / WILD / TECHNICAL on the start screen; 1V1 PENALTY BATTLE button
+  (P1 WASD + K shoots first, P2 ARROWS + . keeps; swap every kick; 5 each then sudden death; ENTER = again).
+  BASE: hold a direction (up = high) + press. WILD: hold a direction, hold shoot for power, let go; keeper presses
+  again as the ball reaches him = STRETCH. TECHNICAL: aim, press, stop the meter in the green; chip = L / , .
+  PixelLab batch 5-6: 24 px ball, keeper punch / set / save celebration / beaten, sprint, tackle, first touch,
+  penalty celebration / miss / power strike / chip.
+
+v0.4.2 (22 Oct) - PixelLab batch 4: new attacking header (lunge + forehead snap), keeper clean catch (ball ends in his
+  gloves at the chest), new 16 px white ball with a real rolling animation.
+
+WHAT'S NEW IN v0.3
+- Pick the teams on the start screen: IS, IRO, USCS, LUC, THUAS, AUC (you = home). Every kit is painted on the same
+  PixelLab frames, keepers too. IRO has its red sash back; LUC plays its navy alt kit when it would clash.
+- Volleys: X on a bouncing / dropping ball next to you. Diving headers: X on a low ball 2-3 m away (the AI dives too).
+- Chest traps have their own animation; throw-ins are taken overhead (ball held above the head); scorers celebrate.
+- Red cards: a second yellow sends the player off - his team plays with ten.
+- Shots can be blocked by a defender standing in the line of the shot (corners now score ~10%, was ~20%).
+- New PixelLab moves (batch 2, made 21-22 Oct): chest trap, volley, diving header, throw-in, goal celebration;
+  keeper catch, overarm throw, goal kick, and new dives drawn towards / away from the camera.
+- Where PixelLab drew the ball in his hands / on his chest (keeper catch + throw, chest trap) the game hides its own
+  ball and lets the drawing show it; the keeper keeps holding it the way he caught it until he throws.
+- Keepers face the ball now (they used to turn their back when stepping back to the line).
+
+WHAT'S NEW IN v0.2
+- Tackles: standing tackle wins the ball most of the time from a loose dribble, less from tight control;
+  the slide tackle is a real slide (new PixelLab slide), you get up afterwards (new get-up).
+- Fouls: slides that miss the ball, or come from behind, are fouls -> free kick, or a PENALTY in the box.
+  Yellow cards for fouls from behind / repeat offenders; a second yellow shows RED CARD (no sending-off yet).
+  The fouled player falls (new fall) or gets knocked (new hit reaction).
+- Set pieces: corners (bodies in the box, markers), free kicks (9.15 m, a wall near goal), penalties (keeper guesses),
+  throw-ins and goal kicks - all with the aim cursor.
+- Headers: crosses and high balls can be headed (new two-footed jump); defenders clear, attackers go for goal.
+- Team AI: with the ball the lines step up (forwards get in behind, midfield supports), without it they drop
+  and stay compact; the AI shoots from the edge of the box instead of only from close in.
+- Defending crosses: the nearest defender marks the player the ball is played to; keepers come out to claim
+  balls dropping into the six-yard area; a ball chested down with a defender on your back can run loose.
+- New PixelLab moves on both kits: kick (full strike), side-foot pass, slide, fall, get-up, jump/header, hit.
+  (Idle + run were already PixelLab in v0.1.2.)
+- New PixelLab keeper (rig = today's keeper, RISE plate removed): idle, run, diving saves both ways.
+  Catch + throw are still the v0.1 frames (same scale). IRO keeper = red/white version of the same frames.
+
+KNOWN / TO TUNE (tell me what you think)
+- Balls PixelLab drew into the moves are cleaned out where the game draws its own (kick, pass, volley, throw-in).
+  A few frames may still show a crumb of ball (kick N + NE, pass E + NE) - an Aseprite touch-up pass would fix them.
+- The keeper's ball takes the keeper's kit colour on its patches (it is painted with the kit).
+- Diving header: he lands on his front, the get-up starts sitting on his back (a small jump between the two).
+- The celebration was made facing the camera only (S); throw-ins only S + N (that's all the game needs).
+- The small IS badge on the chest shows on every team's kit for now (each team's own emblem comes with a touch-up).
+- Corners score ~10% in tests now (was ~20%). AI vs AI: about 2-4 goals a match.

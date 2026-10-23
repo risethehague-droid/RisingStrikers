@@ -1,0 +1,274 @@
+<title>HC2 Test Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+/* v0.8.5 layout (Luca): the match on the left, every lab card stacked in a sidebar on the right - nothing covers the
+   pitch. One look in both themes: it sits next to the floodlit pitch. */
+:root{
+  --ink:#0c0a0e; --paper:#f4f0e4; --pink:#ff2878; --yellow:#ffde1e; --cyan:#28c8e6; --good:#7cff9a; --dim:#9a93a6;
+  --card:#1a1720; --bg:#0c0a0e; --rail:#141118; color-scheme:dark;
+  --f-label:"Press Start 2P",ui-monospace,monospace; --f-read:"VT323",ui-monospace,Menlo,monospace;
+  --panel:clamp(330px,26vw,410px);
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--paper)}
+body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#game{position:fixed;left:0;top:0;bottom:0;right:var(--panel);display:flex;align-items:center;justify-content:center;background:#07060a}
+#game canvas{image-rendering:pixelated;image-rendering:crisp-edges}
+#panel{position:fixed;top:0;right:0;bottom:0;width:var(--panel);box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;
+  padding:calc(12px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) 12px;
+  display:flex;flex-direction:column;gap:10px;background:var(--rail);border-left:3px solid var(--ink);z-index:5;scrollbar-width:thin}
+.card{background:var(--card);border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+#test{padding:12px 14px;display:grid;gap:8px}
+.row{display:flex;gap:10px;align-items:baseline;justify-content:space-between;flex-wrap:wrap}
+#grp{font:10px/1.4 var(--f-label);color:var(--yellow);letter-spacing:.06em}
+#count,#id{font:9px var(--f-label);color:var(--dim)}
+#name{font:400 25px/1.05 var(--f-read);margin:0;text-wrap:balance;color:var(--paper)}
+#how{font:400 21px/1.1 var(--f-read);color:var(--cyan)}
+#how.you{color:var(--ink);background:var(--yellow);padding:3px 8px;justify-self:start;border:2px solid var(--ink)}
+#blurb{font:400 17px/1.15 var(--f-read);color:var(--dim)}
+#dots{display:flex;flex-wrap:wrap;gap:3px}
+#dots i{width:10px;height:10px;background:#3a3542;border:1px solid var(--ink)}
+#dots i.good{background:var(--good)} #dots i.bad{background:var(--pink)}
+#dots i.cur{outline:2px solid var(--yellow);outline-offset:1px}
+#side{padding:12px 14px;display:grid;gap:8px}
+#result{font:13px/1.5 var(--f-label);color:var(--ink);background:var(--paper);padding:8px 10px;border:2px solid var(--ink);text-wrap:balance}
+#result.done{background:var(--cyan)} #result.goal{background:var(--pink);color:#fff}
+#live{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:0;font:400 18px/1.1 var(--f-read);font-variant-numeric:tabular-nums}
+#live dt{color:var(--dim);text-transform:uppercase;letter-spacing:.04em;font-size:15px;padding-top:2px}
+#live dd{margin:0;min-width:0}
+#flags{display:flex;gap:10px;font:400 16px var(--f-read);color:var(--dim)}
+#bar{padding:10px 12px;display:grid;gap:10px}
+.keys.grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px}
+.lab-h{font:8px/1.4 var(--f-label);color:var(--dim);letter-spacing:.06em}
+.keys{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.keys .sep{display:none}
+button.k{display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:0;color:var(--paper);font:400 19px var(--f-read);cursor:pointer}
+button.k kbd{font:10px var(--f-label);color:var(--ink);background:var(--paper);padding:4px 5px;border:2px solid var(--ink);box-shadow:2px 2px 0 #3a3542}
+button.k.good kbd{background:var(--good)} button.k.bad kbd{background:var(--pink);color:#fff}
+button.k:focus-visible{outline:2px solid var(--yellow);outline-offset:3px}
+#reasons{background:var(--pink);color:#fff;padding:8px 10px;border:2px solid var(--ink)}
+#reasons b{font:10px var(--f-label);margin-right:6px}
+#reasons button.k{color:#fff}
+#reasons button.k.on kbd{background:var(--yellow)}
+.foot{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+#note{flex:1 1 100%;min-width:0;font:400 19px var(--f-read);background:#1d1a22;color:var(--paper);border:2px solid #3a3542;padding:4px 8px}
+#note:focus{outline:2px solid var(--yellow)}
+#copy{font:9px var(--f-label);background:var(--paper);color:var(--ink);border:2px solid var(--ink);padding:7px 8px;cursor:pointer}
+#status{font:400 17px var(--f-read);color:var(--dim)}
+#dump{width:100%;height:120px;font:12px ui-monospace,monospace}
+#flash{position:fixed;left:calc((100vw - var(--panel)) / 2);top:42%;transform:translate(-50%,-50%);font:20px var(--f-label);color:var(--ink);background:var(--yellow);padding:12px 16px;border:3px solid var(--ink);z-index:9;opacity:0;pointer-events:none}
+#flash.go{animation:fl .7s ease-out}
+@keyframes fl{0%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%)}}
+#menu{position:fixed;inset:0;z-index:8;background:rgba(12,10,14,.7);display:flex;align-items:center;justify-content:center;padding:16px}
+#menu .card{position:static;padding:16px 18px;width:min(560px,100%)}
+#menu h2{font:12px/1.4 var(--f-label);color:var(--yellow);margin:0 0 10px}
+#menu-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+#menu-list button{width:100%;display:flex;gap:10px;align-items:baseline;background:none;border:2px solid transparent;color:var(--paper);font:400 22px var(--f-read);padding:4px 6px;cursor:pointer;text-align:left}
+#menu-list button b{font:11px var(--f-label);color:var(--ink);background:var(--paper);padding:3px 5px}
+#menu-list button span{margin-left:auto;color:var(--dim);font-size:18px}
+#menu-list li.cur button,#menu-list button:hover{border-color:var(--yellow)}
+#menu p{font:400 18px var(--f-read);color:var(--dim);margin:10px 0 0}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:12px var(--f-label);color:var(--yellow);z-index:7;background:var(--bg)}
+/* v0.8 FREE PLAY panel: under the test card on the left */
+#fp{padding:10px 12px;display:grid;gap:8px}
+#fp.mini{} #fp.mini > :not(.fp-h){display:none} #fp.mini .fp-h b{display:none}
+body.free #blurb,body.free #count,body.free #test .row:last-child{display:none}
+body.free #test{gap:5px;padding:10px 12px}
+body.free #name{font-size:22px}
+body.free #side{gap:6px;padding:10px 12px}
+body.free #result{font-size:11px;padding:6px 8px}
+body.free #live{font-size:17px}
+.fp-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.fp-h b{font:10px var(--f-label);color:var(--yellow);letter-spacing:.06em;white-space:nowrap}
+.fp-lab{font:8px/1.5 var(--f-label);color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+.fp-row{display:flex;flex-wrap:wrap;gap:5px}
+/* v0.8.8 (Luca: "clean the overlay a bit"): sections with a hairline between, buttons in an even grid */
+.fp-sec{display:grid;gap:6px;padding-top:8px;border-top:2px solid #26222d}
+.fp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:5px}
+.fp-grid button{text-align:center;min-width:0}
+.fp-grid button.wide{grid-column:span 2;text-align:left}
+#fp .fp-grid button.air{background:#6b1a3d}
+.fp-seg{align-items:center}
+.fp-seg span{font:8px var(--f-label);color:var(--dim);letter-spacing:.06em;margin-right:4px}
+#fp summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
+#fp summary::-webkit-details-marker{display:none}
+#fp summary::before{content:"\25B8";font-size:10px;color:var(--yellow)}
+#fp details[open] summary::before{content:"\25BE"}
+#fp details[open]{gap:7px}
+#fp details:not([open]){gap:0}
+#fp button{font:400 18px/1 var(--f-read);color:var(--paper);background:#1d1a22;border:2px solid #3a3542;padding:4px 7px;cursor:pointer}
+#fp button:hover{border-color:var(--paper)}
+#fp button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+#fp button[aria-pressed="true"]{background:var(--yellow);color:var(--ink);border-color:var(--ink)}
+#fp button.hot{background:var(--pink);color:#fff;border-color:var(--ink)}
+#fp button kbd{font:8px var(--f-label);color:var(--ink);background:var(--paper);padding:2px 3px;margin-left:4px}
+#fp select{font:400 18px var(--f-read);background:#1d1a22;color:var(--paper);border:2px solid #3a3542;padding:2px 4px;min-width:0;flex:1 1 140px}
+.fp-sl{display:grid;grid-template-columns:132px 1fr;gap:8px;align-items:center}
+.fp-sl label{font:400 17px var(--f-read);color:var(--paper);display:flex;justify-content:space-between;gap:6px}
+.fp-sl output{color:var(--cyan);font-variant-numeric:tabular-nums}
+.fp-sl input{width:100%;min-width:0;accent-color:var(--yellow)}
+/* v0.8.7 BUG WATCH clip card (same look as the free-play card) */
+#bwc{padding:10px 12px;display:grid;gap:7px}
+#bwc button{font:400 18px/1 var(--f-read);color:var(--paper);background:#1d1a22;border:2px solid #3a3542;padding:4px 7px;cursor:pointer}
+#bwc button.hot{background:var(--pink);color:#fff;border-color:var(--ink)}
+#bwc button kbd{font:8px var(--f-label);color:var(--ink);background:var(--paper);padding:2px 3px;margin-left:4px}
+#bwc button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+#bw-why{font:400 18px/1.15 var(--f-read);color:var(--paper)} #bw-why b{font:8px var(--f-label);color:var(--ink);background:var(--yellow);padding:2px 5px;margin-right:4px}
+#bw-why span{color:var(--dim)} #bw-why i{color:var(--cyan);font-style:normal} #bw-why em{color:var(--good);font-style:normal}
+#bw-ans{font:400 18px/1.2 var(--f-read);color:var(--cyan);white-space:pre-wrap}
+#bw-ans:empty{display:none}
+/* camera zoom */
+.zoom{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+.zoom label{font:8px var(--f-label);color:var(--dim);letter-spacing:.06em;white-space:nowrap}
+.zoom output{font:400 18px var(--f-read);color:var(--cyan);font-variant-numeric:tabular-nums;min-width:3.2em;text-align:right}
+.zoom input{width:100%;min-width:0;accent-color:var(--yellow)}
+.zoom .zb{display:flex;gap:6px;grid-column:1/-1}
+.zoom button{font:400 17px/1 var(--f-read);color:var(--paper);background:#1d1a22;border:2px solid #3a3542;padding:3px 7px;cursor:pointer}
+.zoom button kbd{font:8px var(--f-label);color:var(--ink);background:var(--paper);padding:2px 3px;margin-left:4px}
+.zoom button:hover{border-color:var(--paper)}
+/* narrow screens: the pitch on top, the panel underneath */
+@media (max-width:760px){ #game{right:0;bottom:46vh} #panel{top:54vh;width:auto;left:0;border-left:0;border-top:3px solid var(--ink)} #flash{left:50%} }
+@media (prefers-reduced-motion:reduce){ #flash.go{animation:none;opacity:0} }
+</style>
+
+<div id="game"></div>
+<div id="loading">LOADING THE LAB…</div>
+
+<aside id="panel" aria-label="Test Lab">
+<section class="card" id="test" aria-live="polite">
+  <div class="row"><span id="grp">KEEPER · SHOTS</span><span id="count">1 / 30</span></div>
+  <h1 id="name">penalty spot (11 m) → low, TOP post</h1>
+  <div id="how">92 km/h</div>
+  <div id="blurb"></div>
+  <div class="row"><div id="dots"></div><span id="id">K01</span></div>
+</section>
+
+<section class="card" id="side">
+  <div id="result">watch…</div>
+  <dl id="live"></dl>
+  <div id="flags"><span id="slow">normal speed</span><span id="boxes">hit boxes on</span></div>
+  <div class="zoom">
+    <label for="zoom">CAMERA ZOOM</label><input id="zoom" type="range" min="0.5" max="2" step="0.05" value="1" aria-label="Camera zoom"><output id="zoomv" for="zoom">1.00×</output>
+    <div class="zb"><button type="button" id="zout">OUT<kbd>-</kbd></button><button type="button" id="zin">IN<kbd>=</kbd></button><button type="button" id="zreset">RESET<kbd>\</kbd></button></div>
+  </div>
+</section>
+
+<section class="card" id="fp" hidden aria-label="Free play controls">
+  <div class="fp-h"><b>CONTROLS</b><span class="fp-row"><button type="button" id="fp-reset">RESET BALL<kbd>E</kbd></button><button type="button" id="fp-mini">HIDE<kbd>Q</kbd></button></span></div>
+
+  <div class="fp-sec">
+    <div class="fp-lab">SETTINGS</div>
+    <div class="fp-grid">
+      <button type="button" data-tog="sp" aria-pressed="false">FULL SP</button>
+      <button type="button" data-tog="max" aria-pressed="false">MAX SHOT</button>
+      <button type="button" data-tog="stam" aria-pressed="false" title="sprint for ever, never tired">FULL ENERGY</button>
+      <button type="button" data-tog="nogk" aria-pressed="false">NO KEEPER</button>
+      <button type="button" data-tog="inj" aria-pressed="false" title="he limps: 75% speed">INJURED</button>
+      <button type="button" data-tog="gkv" aria-pressed="true" title="what the keeper is doing, where he wants to stand, the angle lines">GK VIEW</button>
+      <button type="button" data-cyc="wx" class="wide" aria-pressed="false">WEATHER: DRY</button>
+      <button type="button" data-cyc="cpu" class="wide" aria-pressed="false" title="their keeper plays at this difficulty">CPU LEVEL: NORMAL</button>
+      <button type="button" data-cyc="save" class="wide" aria-pressed="false" title="their keeper answers your shots (specials and normal shots) with a special save">KEEPER SAVE: OFF</button>
+    </div>
+  </div>
+
+  <div class="fp-sec">
+    <div class="fp-lab">ON THE GROUND</div>
+    <div class="fp-grid">
+      <button type="button" data-mv="pass">PASS</button><button type="button" data-mv="through">THROUGH</button><button type="button" data-mv="lob">LOB</button>
+      <button type="button" data-mv="shot">SHOT</button><button type="button" data-mv="power">POWER SHOT</button><button type="button" data-mv="slide">SLIDE</button><button type="button" data-mv="chip" title="in a match: LOB in their box while facing goal">CHIP</button>
+    </div>
+    <div class="fp-row fp-seg" role="group" aria-label="Power lob"><span>POWER LOB</span><button type="button" data-mv="plob30">30%</button><button type="button" data-mv="plob60">60%</button><button type="button" data-mv="plob100">100%</button></div>
+  </div>
+
+  <div class="fp-sec">
+    <div class="fp-lab">IN THE AIR · a ball comes in, he does it</div>
+    <div class="fp-grid">
+      <button type="button" data-mv="air-head">HEADER</button><button type="button" data-mv="air-volley">VOLLEY</button><button type="button" data-mv="air-dive" title="diving header">DIVE HEADER</button>
+      <button type="button" data-mv="air-bike" title="overhead / bicycle kick">OVERHEAD</button><button type="button" data-mv="air-chest">CHEST TRAP</button>
+    </div>
+  </div>
+
+  <div class="fp-sec">
+    <div class="fp-lab">SPECIALS</div>
+    <div class="fp-grid">
+      <button type="button" class="hot" data-mv="sp1">LV1 BLAZE</button><button type="button" class="hot" data-mv="sp2">LV2 THUNDER</button><button type="button" class="hot" data-mv="sp3">LV3 PHOENIX</button>
+      <button type="button" class="hot air" data-mv="air-sp1">AIR LV1</button><button type="button" class="hot air" data-mv="air-sp2">AIR LV2</button><button type="button" class="hot air" data-mv="air-sp3">AIR LV3</button>
+    </div>
+  </div>
+
+  <div class="fp-sec">
+    <div class="fp-lab">BALL TO YOU · you press the key</div>
+    <div class="fp-grid">
+      <button type="button" data-mv="head">HEAD</button><button type="button" data-mv="waist">WAIST</button><button type="button" data-mv="feet">FEET</button>
+    </div>
+  </div>
+
+  <details class="fp-sec" data-k="anim">
+    <summary class="fp-lab">ANIMATIONS</summary>
+    <div class="fp-row"><select id="fp-anim" aria-label="Animation"></select><button type="button" id="fp-play">PLAY</button><button type="button" id="fp-loop" aria-pressed="false">LOOP</button></div>
+  </details>
+
+  <details class="fp-sec" data-k="tune">
+    <summary class="fp-lab">TUNING · lab only</summary>
+    <div id="fp-tune" style="display:grid;gap:4px"></div>
+    <div class="fp-row"><button type="button" id="fp-tsave">SAVE FOR CLAUDE</button><button type="button" id="fp-tcopy">COPY TUNING</button><button type="button" id="fp-tdef">DEFAULTS</button></div>
+  </details>
+</section>
+
+<section class="card" id="bwc" hidden aria-label="Bug watch clip">
+  <div class="fp-h"><b>BUG WATCH CLIP</b><span class="fp-row"><button type="button" id="bw-again">WATCH AGAIN<kbd>R</kbd></button></span></div>
+  <div id="bw-why"></div>
+  <div class="fp-row"><button type="button" id="bw-ask" class="hot">ASK CLAUDE ABOUT THIS CLIP</button></div>
+  <div id="bw-ans" aria-live="polite"></div>
+</section>
+
+<section class="card" id="bar">
+  <div class="lab-h" id="rate-h">RATE THIS TEST</div>
+  <div class="keys grid">
+    <button type="button" class="k good" data-key="1"><kbd>1</kbd><span id="r1">looks right</span></button>
+    <button type="button" class="k bad" data-key="2"><kbd>2</kbd><span id="r2">looks wrong</span></button>
+  </div>
+  <div class="lab-h">TEST</div>
+  <div class="keys grid">
+    <button type="button" class="k" data-key="r"><kbd>R</kbd>replay</button>
+    <button type="button" class="k" data-key="f"><kbd>F</kbd>new dice</button>
+    <button type="button" class="k" data-key="b"><kbd>B</kbd>back</button>
+    <button type="button" class="k" data-key="n"><kbd>N</kbd>next</button>
+    <button type="button" class="k" data-key="h"><kbd>H</kbd>hit boxes</button>
+    <button type="button" class="k" data-key="t"><kbd>T</kbd>slow motion</button>
+    <button type="button" class="k" data-key="g"><kbd>G</kbd>all tests</button>
+  </div>
+  <div id="reasons" hidden>
+    <b>WHAT LOOKS WRONG?</b>
+    <span class="keys grid" style="margin-top:6px">
+      <button type="button" class="k" data-key="3" data-r="3"><kbd>3</kbd>keeper</button>
+      <button type="button" class="k" data-key="4" data-r="4"><kbd>4</kbd>ball physics</button>
+      <button type="button" class="k" data-key="5" data-r="5"><kbd>5</kbd>movement / feel</button>
+      <button type="button" class="k" data-key="6" data-r="6"><kbd>6</kbd>contact / hit box</button>
+      <button type="button" class="k" data-key="7" data-r="7"><kbd>7</kbd>animation / looks</button>
+      <button type="button" class="k" data-key="n"><kbd>N</kbd>save + next</button>
+    </span>
+  </div>
+  <div class="foot">
+    <label for="note" style="font:9px var(--f-label);color:var(--dim)">NOTE</label>
+    <input id="note" type="text" autocomplete="off" placeholder="optional: what you saw (goes with your next rating)">
+    <button type="button" id="copy">COPY RATINGS</button>
+    <span id="status">…</span>
+  </div>
+  <textarea id="dump" hidden readonly aria-label="Ratings as text"></textarea>
+</section>
+</aside>
+
+<div id="menu" hidden><div class="card">
+  <h2>ALL TESTS · PRESS 1-9, 0 OR CLICK (THE REST: CLICK)</h2>
+  <ul id="menu-list"></ul>
+  <p>Each test replays the same way every time (R). F rolls new dice. Your rating saves the numbers you saw with it.</p>
+</div></div>
+<div id="flash" aria-hidden="true"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script src="game.js"></script>
+<script src="lab.js"></script>

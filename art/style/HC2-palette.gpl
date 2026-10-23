@@ -1,0 +1,50 @@
+GIMP Palette
+Name: Help Out Hague Cup II
+Columns: 8
+#
+ 30  90  43	Pitch dark
+ 46 122  54	Pitch
+ 63 154  66	Pitch light
+ 93 184  78	Pitch stripe
+142 212 106	Grass highlight
+255 255 255	White
+216 220 224	Grey 1
+160 166 172	Grey 2
+ 96 102 108	Grey 3
+ 42  46  51	Grey 4
+ 12  12  12	Black
+184 199 218	IS light blue
+127 166 217	IS blue
+ 43  58 138	IS navy
+160 138  62	IS gold
+227  36  43	IRO red
+142  18  24	IRO dark red
+250 200  10	USCS yellow
+199 154   5	USCS dark yellow
+236 193 217	LUC pink
+224 127 184	LUC hot pink
+ 87  64 110	LUC purple
+ 31  42  92	LUC dark blue
+ 12  81  50	THUAS green
+ 31 122  79	THUAS mid green
+220  22  30	AUC red
+ 15 122  69	RISE green
+245 196   0	RISE yellow
+242 201 160	Skin 1
+217 160 110	Skin 2
+168 107  64	Skin 3
+110  66  40	Skin 4
+ 62  36  22	Skin 5
+ 43  26  16	Hair dark
+122  74  30	Hair brown
+217 178  92	Hair blond
+140 200 240	Sky light
+ 79 149 217	Sky
+242 166  90	Sunset orange
+255 224 138	Sunset yellow
+214  22  92	Arosa magenta
+150  32 140	Arosa purple
+122  85 224	Vuya purple
+ 26  42  30	Ball shadow
+185 178 166	Concrete
+138  90  50	Wood bench

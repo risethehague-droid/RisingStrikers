@@ -1,0 +1,101 @@
+HELP OUT HAGUE CUP II - WHAT PIXELLAB'S OWN TUTORIALS TEACH (read 21 Oct, notes in my words)
+==========================================================================================
+TOP 10 FOR US
+1. Faces stay the same: "fixed head" in skeleton animation (on by default when reference + template face the same way).
+2. Clean every frame before generating the next one; bad frames poison the rest.
+3. Fix the SKELETON, not the pixels: the model follows the points closely. Last point touched = in front.
+4. Inpainting + INIT IMAGE together = the model keeps your colours and shapes. Init strength ~300 to start.
+5. Modular pieces: Inpaint Pro on a NEW LAYER + remove background = a clean hair / shirt / beard overlay.
+6. Style image = proportions, shading, palette from ONE master sprite -> everything matches.
+7. Always write the direction ("front-facing"); state effect colours.
+8. Mirror a good direction instead of regenerating it (W <- E, NW -> NE).
+9. Loops: same frame as first AND last, then drop the duplicate.
+10. Give room: make the canvas bigger before big motions (slides, falls, bicycle kick).
+
+
+# V1 hOZzbQBjKPc - Tutorial: animate, rotate, inpaint (Pixelorama plugin; same tools as Aseprite plugin)
+- Create: "create M-XL image" (bigger model); hover any setting for a hint; tick remove background.
+- Reduce colours after generating: auto, a fixed count, or YOUR palette -> kills stray colours.
+- Rotate tool: set FROM direction + TO direction + "from image". Then either hand-fix, or use the rotated result as INIT IMAGE and regenerate in the right view.
+- Shortcuts (Pixelorama): P pencil, M move, E erase, O colour pick, G edit skeleton.
+- Animate with skeleton:
+  1. Make a skeleton template using the character as reference; nudge points (G). Better points = better frames.
+  2. Turn the template to face the same direction as the character.
+  3. Force the head points (fixed head) -> face stays the same.
+  4. Freeze 1 -> generate 2. CLEAN those frames before going on: bad frames poison the next ones.
+  5. Stand on the last good frame, freeze 2 -> generate 1 (two frames act as reference).
+- Fix a wrong limb: draw black on the INPAINTING layer where it may change + switch ON init image (else model can't see underneath). Copy-paste good parts between frames.
+- Tag the frames, set frame duration in properties, play to check.
+- Inpainting also adds equipment. Retry: a second try is often better.
+- Help: their Discord, post an image of the problem.
+
+# V2 7ChVezZPv64 - "This AI Tool Changes Pixel Art Forever" (promo overview, little how-to)
+- Ways in: Aseprite extension (generate/edit/animate inside Aseprite), browser, standalone editor, API, MCP.
+- Character creator page: 4 or 8 directions, walk/idle/attack animations, rotation handled for you.
+- Edit an existing sprite (clothes, objects, small fixes) while keeping its style.
+- Can start from a rough sketch and keep your style.
+
+# V3 zBfVT5pwCSs - How to animate pixel art using a skeleton (Aseprite/Pixelorama tool)
+- "Animation to animation": pick your character as reference -> skeleton is found automatically; fix wrong points (the UI names the selected point: left arm, right arm...).
+- Pick the frames of an existing animation -> "set animation" -> it makes skeletons for every frame. Fix them with "edit pose".
+- Match sizes: increase/decrease height, width, move left/right, rescale; "show reference" to compare. Not perfect is fine, you can rescale again.
+- Advanced: head size, and FIXED HEAD (reference head pasted on every frame -> face stays the same). Default is on when reference and template face the same way. Recommended.
+- Check camera view (side scroller / low top-down) and direction (south) before generating.
+- BLACK in the frame preview = that frame will be fully changed; visible character = kept.
+- Generation modes: freeze 1 + generate 3; "custom" (only the black frames change -> fix one bad frame by blacking just that frame on the inpainting layer); freeze 3 + generate 1 (stand on frame 2 -> frames 2,3,4 frozen, 5 made). Reference stays frame 1 (cleanest, facing south).
+- Fix every frame before the next generation: earlier frames steer later ones.
+- Inpainting alone = model can't see what's underneath (good when unsure what you want). Inpainting + INIT IMAGE = model keeps your colours/shapes.
+- Init image strength: 300 is a good start; raise it step by step as the image gets better. Too high + a pose the model doesn't like -> lower it and let it be freer.
+- Keep the reference layer visible and generate from the right frame (mistakes there confuse it).
+- Template skeleton route: set reference -> template scales to your character -> pick e.g. walk -> nudge points so they match -> insert. Only the points matter; don't let points overlap.
+- Output method "modify current layer" avoids piling up layers.
+- Hand-copying a good face/hand between frames is normal and fast.
+
+# V4 LQS4J4ub8G4 - How to quickly create punching animations
+- Generate character tool + style settings: OUTLINE, SHADING and DETAIL change the look (more detail = more realistic). Try several combos to find the style.
+- Generate the rotation, hand-fix (e.g. move a glove), then use the fixed image as INIT IMAGE -> tells the model where things go.
+- "Estimate skeleton" first, then edit it to fit the character: the inserted template is based on YOUR skeleton, so a bad neck/shoulder point ruins every frame.
+- Delete bad frames and regenerate them using the good frames as guidance.
+- Fix a pose by moving the skeleton point instead of the pixels, then go back to frame 1 and generate.
+- Last point you touch with the edit tool is drawn closest to the camera (decides which arm is in front).
+- A lost prop (glove) is quickest to copy-paste back; a painted blob/copied part also works as init image.
+- A 64x64 character can be used as init image to keep size and look.
+- Small details: just fix by hand, it takes a second.
+
+# V6 inyHAOkwDlc - How to quickly generate pixel art animations (Aseprite, from an existing hand-made animation)
+- A cropped character can be used as STYLE IMAGE + INIT IMAGE to generate a similar-looking character of the SAME SIZE.
+- Clean the generated character before animating.
+- Estimate skeleton on every frame of the source animation (go to frame, press estimate, repeat).
+- Make ROTATIONS first (e.g. a back view): when the move turns away from camera, a back-facing reference helps a lot and saves init-image work.
+- Before generating: set reference image, camera view, direction, colour palette (can be the reference image's palette), stand on the right frame, target layer EMPTY.
+- Big sudden turns (no in-between frames) confuse it -> either paint a rough colour hint (init image, fairly high strength) + inpaint, or swap the reference to the back-view rotation.
+- Hide background/reference layers that shouldn't be read while generating.
+- Fix skeleton points per frame when an arm goes wrong -> the model follows the skeleton closely, so errors are usually in the skeleton.
+- Switch the reference image back to the front view when the move faces the camera again.
+- Final step: delete unwanted frames, merge keepers onto one layer, hand-polish.
+
+# V7 Y68m9k60Lg0 - Images Pro Flash, Skeleton V3 & PixMiniMax (newest update; most relevant)
+IMAGES
+- "Create image Pro Flash" in the web Creator. Prompt body type in words (tall, skinny, small head) -> works.
+- STYLE IMAGE: drop in a sprite whose look you like -> it copies proportions, rendering, shading (not the character). Then every new asset (heroes, enemies, props, VFX) shares one look.
+- One extra word ("shorter") changes proportions but keeps the style.
+- "Edit image Pro Flash": same character, new outfit / material / state (walk, hurt, sleeping). Chain edits: feed the last result back in.
+- Always say "front-facing" (or the direction) or it may turn sideways.
+- Inpainting Pro (Aseprite/Pixelorama/map editor), model Pro Flash: paint a mask over head/torso/legs, prompt hair / shirt / pants, generate ON A NEW LAYER + remove background -> you get a clean OVERLAY piece. Mask must fully cover the area. Retry if flat.
+  -> This is exactly our modular hair / beard / kit idea: generate each piece as an overlay layer.
+ANIMATION
+- "Animate with text" + PixMiniMax: frame 1 = your image; prompt e.g. walk loop / breathing idle / slam attack; use ENHANCE PROMPT; 12-16 frames (up to 40).
+- Give room: resize canvas bigger (e.g. 64 -> 80) before big motions.
+- "Create character" button sends an image into the Character Creator; V3 generation mode makes the directions.
+- Skeleton V3: templates (walk 8 frames etc.) are now good -> recommended. Always clean up afterwards.
+- 8-direction custom animations: enhanced prompt says "towards the camera" -> wrong for NE/N/NW. Edit the prompt per direction under advanced options, re-enhance.
+- State colours of effects explicitly (it drifted purple/red).
+- MIRROR a good direction (NW -> NE) instead of regenerating = more consistent.
+- Clean LOOPS: use the same frame as first AND last frame, then drop the duplicate.
+
+# V8 owkamgYVWAs - Animation to animation (older tool)
+- Settings: number of frames (max depends on canvas size), reference image or init image, character description, action description, camera view + direction, outline/shading/detail, target palette (or none), advanced: AI freedom, robustness, guidance weight (how strictly it follows the reference/description).
+- Once a good frame comes out, set it as the reference image to keep the rest consistent.
+- Expect ~10% hand clean-up.
+
+# V5 RVVuDhyEbRI - Creating animations (3.5 min, no captions; early skeleton tool, superseded by V3/V7)

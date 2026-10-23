@@ -1,0 +1,11 @@
+# V6 inyHAOkwDlc - How to quickly generate pixel art animations (Aseprite, from an existing hand-made animation)
+- A cropped character can be used as STYLE IMAGE + INIT IMAGE to generate a similar-looking character of the SAME SIZE.
+- Clean the generated character before animating.
+- Estimate skeleton on every frame of the source animation (go to frame, press estimate, repeat).
+- Make ROTATIONS first (e.g. a back view): when the move turns away from camera, a back-facing reference helps a lot and saves init-image work.
+- Before generating: set reference image, camera view, direction, colour palette (can be the reference image's palette), stand on the right frame, target layer EMPTY.
+- Big sudden turns (no in-between frames) confuse it -> either paint a rough colour hint (init image, fairly high strength) + inpaint, or swap the reference to the back-view rotation.
+- Hide background/reference layers that shouldn't be read while generating.
+- Fix skeleton points per frame when an arm goes wrong -> the model follows the skeleton closely, so errors are usually in the skeleton.
+- Switch the reference image back to the front view when the move faces the camera again.
+- Final step: delete unwanted frames, merge keepers onto one layer, hand-polish.

@@ -1,0 +1,19 @@
+{
+ "left": {
+  "x": 513,
+  "y": 1103,
+  "w": 263,
+  "h": 485,
+  "sort_far_post_y": 182,
+  "sort_near_post_y": 461
+ },
+ "right": {
+  "x": 5653,
+  "y": 1103,
+  "w": 263,
+  "h": 485,
+  "sort_far_post_y": 182,
+  "sort_near_post_y": 461
+ },
+ "note": "x,y = top-left of the goal images on the pitch image. Draw shadow + net_back + frame_far before players whose feet are below sort_far_post_y... simplest: shadow/net_back under all players; frame_far sorted at sort_far_post_y; net_near + post_near sorted at sort_near_post_y."
+}

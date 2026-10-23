@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+train092-out/
+train093-out/
+*.log
+game/labtest.html
