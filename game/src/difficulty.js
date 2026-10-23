@@ -12,6 +12,13 @@
 const DIFF_OPTS = [['easy', 'EASY'], ['normal', 'NORMAL'], ['hard', 'HARD'], ['rise', 'RISE WARRIOR']];
 let DIFF_LEVEL = (() => { try { const v = localStorage.getItem('hc2-diff'); return DIFF_OPTS.some(o => o[0] === v) ? v : 'normal'; } catch (e) { return 'normal'; } })();
 function setDiff(v) { if (!DIFF_OPTS.some(o => o[0] === v)) return; DIFF_LEVEL = v; try { localStorage.setItem('hc2-diff', v); } catch (e) {} }
+// friend/camera-pov (co-designer: three camera distances to pick from; CLOSE is the v0.9.4 view and stays the default).
+// Only the zoom changes: the stadium is one pre-projected painting seen from the main stand, so a new ANGLE would need
+// all-new art. MEDIUM 0.75 / WIDE 0.5 (not 0.8 / 0.65) so the pixel art shrinks by even steps and the lines stay clean.
+const CAM_OPTS = [['close', 'CLOSE', 1], ['medium', 'MEDIUM', 0.75], ['wide', 'WIDE', 0.5]];
+let CAM_VIEW = (() => { try { const v = localStorage.getItem('hc2-cam'); return CAM_OPTS.some(o => o[0] === v) ? v : 'close'; } catch (e) { return 'close'; } })();
+function setCamView(v) { if (!CAM_OPTS.some(o => o[0] === v)) return; CAM_VIEW = v; try { localStorage.setItem('hc2-cam', v); } catch (e) {} }
+function camZoom() { return (CAM_OPTS.find(o => o[0] === CAM_VIEW) || CAM_OPTS[0])[2]; }
 let DIFF_TRAITS = {                                                                // TRAINED (see the header). v0.9.3: Hard and Rise one notch up
   base: { r: 1, a: 1, d: 1, k: 1 },                                                // = the AI as tuned up to v0.9.1: YOUR team-mates (and the demo)
   easy: { r: 0.56, a: 0.6, d: 0.66, k: 0.6 },                                      // v0.9.2's trained Easy (S -1.72) nudged up: v0.9.3's smarter bursts left it at -2.5

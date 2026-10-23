@@ -128,7 +128,7 @@ hc2Mix(Match, {
     }
   },
   endCeremony() {
-    this.ceremony = null; this.over = false; this.msg.setText(''); this.sub.setText(''); this.cursor.setAlpha(1); if (this.cerDim) { this.cerDim.destroy(); this.cerDim = null; } this.cameras.main.setZoom(1); this.fixUi(1);
+    this.ceremony = null; this.over = false; this.msg.setText(''); this.sub.setText(''); this.cursor.setAlpha(1); if (this.cerDim) { this.cerDim.destroy(); this.cerDim = null; } this.cameras.main.setZoom(this.baseZoom()); this.fixUi(this.baseZoom());
     for (const p of this.all) if (!p.sentOff) { p.state = 'idle'; p.stateT = 0; }
     this.cupNext();
   },

@@ -117,6 +117,10 @@ hc2Mix(Match, {
       if (spc.kind === 'FREE KICK' || spc.kind === 'GOAL KICK') tx = clamp(tx, X - (VIEW_W / 2 - 150), X + (VIEW_W / 2 - 150));   // v0.8: the taker stays in shot (corners: the box matters more)
     }
     if (this.camTarget) { tx = this.camTarget.x; ty = this.camTarget.y; }      // v0.8.4 walk-out / half time
+    if (!window.__lab) {                                                        // camera-pov: hold the picked distance (a pause-menu change lands here)
+      const z = camZoom(), ch = Math.abs(cam.zoom - z) > 1e-3; if (ch) cam.setZoom(z);
+      if (ch || z !== 1) { this.uiFix = this.uiItems(); this.fixUi(z); }        // re-listed each frame: weather and a restarted scene make new screen items
+    }
     const k = 1 - Math.exp(-dt * (this.camFast ? 10 : this.camTarget ? 2.6 : 4.5));
     this.camX = (this.camX ?? tx) + (tx - (this.camX ?? tx)) * k; this.camY = (this.camY ?? ty) + (ty - (this.camY ?? ty)) * k;
     cam.centerOn(Math.round(this.camX), Math.round(this.camY));

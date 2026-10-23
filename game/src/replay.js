@@ -302,7 +302,7 @@ hc2Mix(Match, {
     let t = 0, tg = null; for (const f of frames) { f.t0 = t; if (f.goal) tg = t; t += f.dt; }
     const slowA = (tg !== null ? tg + 0.3 : t - 1.2) - (o.slowPre ?? 1.7);              // slow-mo: the last 1.7 s before the ball crosses the line
     this.msg.setText(''); this.sub.setText('');
-    this.replay = { frames, i: 0, t: 0, real: 0, after, slowA, slowB: slowA + (o.slow ?? 2.0), label, z: 1, exit: o.exit, noZoom: !!o.noZoom, focus: o.focus ?? -1, mark: o.mark ?? -1, kits: o.kits || null };
+    this.replay = { frames, i: 0, t: 0, real: 0, after, slowA, slowB: slowA + (o.slow ?? 2.0), label, z: this.baseZoom(), exit: o.exit, noZoom: !!o.noZoom, focus: o.focus ?? -1, mark: o.mark ?? -1, kits: o.kits || null };
     if (o.kits) this.all.forEach((q, k) => { const kk = o.kits[k]; if (kk && q.spr.texture.key !== kk && this.textures.exists(kk)) q.spr.setTexture(kk); });   // v0.8.7: a BUG WATCH clip from another match
     if (label === 'GOAL') {
       this.lastReplay = frames;
@@ -338,7 +338,7 @@ hc2Mix(Match, {
     else if (label === 'SO CLOSE!') this.ramiSay('miss', { text: 'OHHH! INCHES WIDE!', expr: 'shock' }, 2);
     else if (label === 'OFF THE POST!' || label === 'OFF THE BAR!') this.ramiSay('post', label === 'OFF THE BAR!' ? { text: 'OFF THE BAR!!' } : {}, 2);
     this.wipe();
-    this.uiFix = [this.hud, this.letterbox, this.replayTxt, this.replayCap, this.rami && this.rami.c].filter(Boolean).map(g => ({ g, x: g.x, y: g.y, s: g.scaleX }));
+    this.uiFix = this.uiItems();
   },
   replayTick(dt) {
     const r = this.replay;
@@ -354,9 +354,9 @@ hc2Mix(Match, {
     this.ballSh.setPosition(f.s[0], f.s[1]).setAlpha(f.s[2]).setDepth(f.s[3]).setScale(f.s[4]);
     if (f.r && this.ref) { const sp = this.ref.spr; sp.anims.stop(); sp.setPosition(f.r[0], f.r[1]).setFrame(f.r[2]).setVisible(f.r[3]).setDepth(f.r[4]).setFlipX(f.r[5]); this.ref.anim = ''; }
     // TV zoom: in on the ball during the slow motion, back out after
-    const zt = !r.noZoom && r.t > r.slowA - 0.1 && r.t < r.slowB + 0.15 ? 1.5 : 1;
+    const zb = this.baseZoom(), zt = !r.noZoom && r.t > r.slowA - 0.1 && r.t < r.slowB + 0.15 ? zb * 1.5 : zb;   // camera-pov: 1.5x the picked distance
     r.z += (zt - r.z) * Math.min(1, dt * 5);
-    const k = (r.z - 1) / 0.5, cam = this.cameras.main;
+    const k = (r.z - zb) / (0.5 * zb), cam = this.cameras.main;
     cam.setZoom(r.z);
     if (r.label === 'BUG CLIP' && r.focus >= 0 && f.p[r.focus] && f.p[r.focus][3]) {        // v0.8.7: a clip about a player follows HIM, not the ball
       const v = f.p[r.focus], tx = v[0], ty = v[1] - 70; r.fx = r.fx == null ? tx : r.fx + (tx - r.fx) * Math.min(1, dt * 6); r.fy = r.fy == null ? ty : r.fy + (ty - r.fy) * Math.min(1, dt * 6);
@@ -381,19 +381,26 @@ hc2Mix(Match, {
         .fillStyle(0x0c0a0e).fillPoints([{ x: -560, y: 0 }, { x: 0, y: 0 }, { x: -100, y: VIEW_H }, { x: -660, y: VIEW_H }], true);
     }
     this.tweens.killTweensOf(this.wipeG);
-    this.wipeG.setVisible(true).setPosition(-360, 0).setScale(1);
-    this.tweens.add({ targets: this.wipeG, x: VIEW_W + 700, duration: 480, ease: 'Cubic.easeInOut', onComplete: () => this.wipeG.setVisible(false) });
+    const z = this.cameras.main.zoom || 1, cx = VIEW_W / 2, cy = VIEW_H / 2, at = x => cx + (x - cx) / z;   // camera-pov: screen-sized at any zoom
+    this.wipeG.setVisible(true).setPosition(at(-360), cy - cy / z).setScale(1 / z);
+    this.tweens.add({ targets: this.wipeG, x: at(VIEW_W + 700), duration: 480, ease: 'Cubic.easeInOut', onComplete: () => this.wipeG.setVisible(false) });
   },
   fixUi(z) {                                                                       // keep the HUD / bars still while the camera zooms
     const cx = VIEW_W / 2, cy = VIEW_H / 2;
-    for (const u of this.uiFix || []) u.g.setScale(u.s / z).setPosition(cx + (u.x - cx) / z, cy + (u.y - cy) / z);
+    for (const u of this.uiFix || []) { const g = u.g; if (!g || !g.scene) continue;
+      const o = g.__ui || (g.__ui = { x: u.x, y: u.y, s: u.s });                  // camera-pov: the layout at zoom 1, kept once
+      g.setScale(o.s / z).setPosition(cx + (o.x - cx) / z, cy + (o.y - cy) / z); }
   },
+  uiItems() {                                                                      // camera-pov: everything drawn in screen space
+    return [this.hud, this.letterbox, this.replayTxt, this.replayCap, this.rami && this.rami.c, this.wxG].filter(Boolean).map(g => ({ g, x: g.x, y: g.y, s: g.scaleX }));
+  },
+  baseZoom() { return window.__lab ? 1 : camZoom(); },                              // camera-pov: the picked distance (the Test Lab has its own slider)
   endReplay() {
     const r = this.replay; this.replay = null; if (!r) return;
     const menu = r.label === 'LAST GOAL' || r.label === 'HIGHLIGHT' || r.label === 'BUG CLIP';   // v0.8.2: watched from the pause menu / full time (v0.8.7: + BUG WATCH)
     if (r.kits) for (const q of this.all) if (q.spr.texture.key !== q.kit) q.spr.setTexture(q.kit);
     if (this.bwG && this.bwG.scene) this.bwG.clear().setVisible(false);
-    this.cameras.main.setZoom(1); this.fixUi(1); if (!menu) this.lastReplayEnd = this.recN || 0;   // v0.8.1: skipping mid-zoom left the camera (and HUD) zoomed for good
+    this.cameras.main.setZoom(this.baseZoom()); this.fixUi(this.baseZoom()); if (!menu) this.lastReplayEnd = this.recN || 0;   // v0.8.1: skipping mid-zoom left the camera (and HUD) zoomed for good
     for (const q of this.all) q.anim = '';                                        // let every sprite pick its animation up again
     this.wipe();
     this.letterbox.setVisible(false); this.replayTxt.setVisible(false); this.replayCap.setVisible(false);
