@@ -8,15 +8,15 @@ stamina, bursts, tackles), team AI (shape, pressing, marking, support runs, the 
 (positioning, saves, dives, special saves), specials (meters, power levels, clashes) and the four difficulty levels.
 
 ## Files you may touch
-The code areas for ball, player, team AI, keeper, specials and difficulty: `game/src/` once the split lands (see
-`game/src/README.md`), `game/game.js` before it. Test Lab tests in `game/lab.js` for your feature. Not: menus, HUD,
-stadium drawing, art, `assets/`.
+The code areas for ball, player, team AI, keeper, specials and difficulty in `game/src/`: `ball.js`, `player.js`,
+`actions.js`, `teamai.js`, `keeper.js`, `specials.js`, `difficulty.js`, `matchflow.js`, `penalties.js` (see
+`game/src/README.md`). Test Lab tests in `game/lab.js` for your feature. Not: menus, HUD, stadium drawing, art, `assets/`.
 
 ## Tests to run
 - `node tools/smoke.js`: must end `errors []`.
 - Test Lab groups that touch your change: `GROUP=P` (ball physics), `M`, `D` (movement), `T` (tackles), `A` (air
   balls), `K` / `KH` / `C` / `GK` (keepers), `YS` (shooting), `CH` (chip), `PW` / `SM` (specials), `PK` (penalties).
-  `GROUP=<id> node tools/grp.js`; add `REP=3` for anything random.
+  `bash tools/mklab.sh` once, then `GROUP=<id> node tools/grp.js`; add `REP=3` for anything random.
 - Difficulty or AI-strength changes:
   - `node tools/proxy093.js run 60` and `node tools/proxy093.js def 60`: a scripted "you" attacking and defending at every level
   - `LEVELS=easy,normal,hard,rise node tools/train093.js probe 0 40 300`: computer-v-computer strength (score S against the old Normal)

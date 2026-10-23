@@ -49,8 +49,9 @@ These rules apply to every session on this repo, on either account. If you're on
 - **Units:** the world is in metres (x along the pitch, y across, z up). The stadium art is pre-projected: `tools/stadium/cfg.py` and `docs/lanes/stadiums-maps.md` have the geometry.
 - **Layout:**
   - the game lives in `game/`
-  - the code is split by area under `game/src/` once the split lands; until then it's `game/game.js`
-  - `game/src/README.md` says which file is which
+  - the code is split by area into 17 files under `game/src/`; `game/src/README.md` says which file is which and which lane edits it
+  - new `Match` methods go inside the file's `hc2Mix(Match, { ... })` block
+  - a new file goes into all three pages (`index.html`, `lab.html`, `test.html`) in load order
 - **PC first.** The phone version is on pause; don't break it, don't extend it.
 - **Comments:** explain *why* (the request or the bug behind a change), as the existing code does.
 - **Refactors keep behaviour identical.** Prove it: the same seeded matches give the same scores before and after.
@@ -66,7 +67,7 @@ These rules apply to every session on this repo, on either account. If you're on
 
 1. Serve the game: `cd game && python3 -m http.server 8765`.
 2. Smoke test: `node tools/smoke.js` plays a match at all four difficulty levels. It must end with `errors []`.
-3. Test Lab groups: `GROUP=<id> node tools/grp.js` (GK, CH, SM, ...). Run the groups your lane brief lists.
+3. Test Lab groups: `bash tools/mklab.sh` once (and after any change to `lab.html`), then `GROUP=<id> node tools/grp.js` (GK, CH, SM, ...). Run the groups your lane brief lists.
 4. Lane-specific tests: the ones in your brief, e.g. the difficulty checks `tools/proxy093.js` and `tools/train093.js`.
 5. Anything visual: put a screenshot or a short GIF in the pull request (`tools/chipgif.js` shows how).
 

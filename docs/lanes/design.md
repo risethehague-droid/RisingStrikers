@@ -17,5 +17,6 @@ Three directions, each with: the setting and tone, what's new to play, what it n
 risk. Mark your favourite. Put the link on the card and move it to Needs OK.
 
 ## Prototyping
-You may prototype on your branch (code or art) and publish your own preview page. Keep prototypes on the branch until
+You may prototype on your branch (code or art) and publish your own preview page. Your usual code files are
+`game/src/ui.js` (menus, HUD, commentary) and `game/src/cup.js` (the cup mode); `game/src/README.md` lists the rest. Keep prototypes on the branch until
 an OK'd card says to bring them in. Art rules still apply: PixelLab / Aseprite only.

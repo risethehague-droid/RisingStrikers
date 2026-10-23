@@ -6,7 +6,7 @@
 ## Each run
 1. Fresh clone of `main`; serve `game/` on port 8765.
 2. `node tools/smoke.js` (all four levels).
-3. Every Test Lab group: `GROUP=<id> node tools/grp.js` for FP, K, KH, YS, C, P, M, D, T, A, PK, N5, PW, CH, GK, SM, CS.
+3. Every Test Lab group (after `bash tools/mklab.sh`): `GROUP=<id> node tools/grp.js` for FP, K, KH, YS, C, P, M, D, T, A, PK, N5, PW, CH, GK, SM, CS.
 4. One long computer-v-computer match (soak): no crash, no stuck state, no `errors`.
 5. Compare against the last report: what changed.
 

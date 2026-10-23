@@ -1,5 +1,5 @@
 // HC2 TEST LAB - every situation on its own, replayed at a key press, so we can judge it and fix it one by one.
-// It runs the real game (game.js): this file only sets each situation up, measures what happens, draws the hit
+// It runs the real game (game/src): this file only sets each situation up, measures what happens, draws the hit
 // boxes and saves your rating. Same dice on every replay (R), new dice with F.
 'use strict';
 (function () {
