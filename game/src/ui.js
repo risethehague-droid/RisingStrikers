@@ -459,3 +459,12 @@ hc2Mix(Match, {
       g.fillStyle(0x0c0a0e).fillCircle(bx, by, 4.5).fillStyle(0xffffff).fillCircle(bx, by, 3).lineStyle(2, 0xff2878, 0.9).strokeCircle(bx, by, pulse); }
   },
 });
+
+// ---------------------------------------------------------------- camera distance
+// friend/camera-pov (co-designer: three camera distances to pick from; CLOSE is the v0.9.4 view and stays the default).
+// Only the zoom changes: the stadium is one pre-projected painting seen from the main stand, so a new ANGLE would need
+// all-new art. MEDIUM 0.75 / WIDE 0.5 (not 0.8 / 0.65) so the pixel art shrinks by even steps and the lines stay clean.
+const CAM_OPTS = [['close', 'CLOSE', 1], ['medium', 'MEDIUM', 0.75], ['wide', 'WIDE', 0.5]];
+let CAM_VIEW = (() => { try { const v = localStorage.getItem('hc2-cam'); return CAM_OPTS.some(o => o[0] === v) ? v : 'close'; } catch (e) { return 'close'; } })();
+function setCamView(v) { if (!CAM_OPTS.some(o => o[0] === v)) return; CAM_VIEW = v; try { localStorage.setItem('hc2-cam', v); } catch (e) {} }
+function camZoom() { return (CAM_OPTS.find(o => o[0] === CAM_VIEW) || CAM_OPTS[0])[2]; }
