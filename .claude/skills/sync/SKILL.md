@@ -18,6 +18,10 @@ This command does the full version.
    - Never touch a file outside your lane to make it fit.
    - Unsure about a conflict? Run `git merge --abort` and note the clash in the pull request; the taskmaster resolves it.
    - Resolved it? Commit, then run `bash tools/sync.sh` again so the smoke test runs on the merged result.
+   - **Clash on `game/game.js` (branch made before v0.9.5):** main split that file into `game/src/` with every
+     method moved unchanged. Take this branch's own changes (`git diff $(git merge-base HEAD origin/main) HEAD -- game/game.js`),
+     find each changed line's new home (`grep -n "<the original line>" game/src/*.js`), apply the change there,
+     `git rm game/game.js`, and commit the merge. Then run `bash tools/sync.sh` again.
 4. **If the smoke test failed:** say which level failed and the last line of the error. Don't open or update a pull
    request until it passes.
 5. **Push** the branch (never `main`).
