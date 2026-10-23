@@ -3,6 +3,12 @@
 All tests drive the real game headless (Node + Playwright + Chromium, time stepped by hand). Serve the game first:
 `cd game && python3 -m http.server 8765`. Builds are Python 3 (Pillow, NumPy, SciPy).
 
+## Sync
+| Command | What it does |
+| --- | --- |
+| `bash tools/sync.sh --start` | brings in the latest `main` (runs automatically at session start and resume) |
+| `bash tools/sync.sh` or `/sync` | the same, then the smoke test on its own port (8799) |
+
 ## Tests
 | Command | What it checks |
 | --- | --- |

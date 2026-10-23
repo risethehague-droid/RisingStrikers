@@ -56,6 +56,12 @@ These rules apply to every session on this repo, on either account. If you're on
 - **Refactors keep behaviour identical.** Prove it: the same seeded matches give the same scores before and after.
 - **Versions:** the taskmaster bumps `GAME_VER`, adds the header line in the game source and the entry at the top of `docs/CHANGELOG.txt` when it merges. Branches don't bump versions.
 
+## Staying in sync with main
+
+- Sessions bring in the latest `main` automatically when they start or resume: the hook in `.claude/settings.json` runs `tools/sync.sh --start`. Read its `[sync]` lines first.
+- `/sync` (`.claude/skills/sync/`) does the full version: bring in main, run the smoke test, push the branch, republish the preview.
+- Uncommitted work or a clash: it stops and says so; it never pushes and never changes `main` on GitHub.
+
 ## Testing (before every pull request)
 
 1. Serve the game: `cd game && python3 -m http.server 8765`.

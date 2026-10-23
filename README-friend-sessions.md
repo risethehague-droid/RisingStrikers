@@ -65,8 +65,9 @@ All art is made in PixelLab and Aseprite. The official game and its Test Lab are
 
 ## Staying in sync
 
-- Before you start, and again before you open a PR, bring in the latest `main` (`git fetch origin && git merge origin/main`).
-- A conflict you can't sort out cleanly: stop and note it in the PR. The taskmaster resolves it.
+- **Automatic:** every time a session starts or resumes, it brings in the latest `main` (`tools/sync.sh --start`, run by the hook in `.claude/settings.json`). The first thing you see is a `[sync]` line saying what came in. Hooks don't run in a session with several repositories or in a project thread: run `/sync` there.
+- **`/sync`:** the full version. It brings in `main`, runs the smoke test, and then you republish your preview. Run it before you open or update a PR.
+- If it reports a clash and you can't resolve it cleanly: stop and note it in the PR. The taskmaster resolves it.
 
 ## PixelLab
 

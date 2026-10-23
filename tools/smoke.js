@@ -2,7 +2,7 @@
 const { chromium } = require('playwright');
 (async () => { const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const page = await br.newPage({ viewport: { width: 640, height: 360 } }); const errs = []; page.on('pageerror', e => errs.push(e.message));
-  await page.goto('http://localhost:8765/test.html#flow'); await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
+  await page.goto(`http://localhost:${process.env.PORT || 8765}/test.html#flow`); await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
   const out = await page.evaluate(() => { const m = window.__hc2, g = m.game; g.loop.sleep(); let T = 1e6; window.HC2_NO_DEMO = true; m.cameras.main.setVisible(false);
     for (const id of ['start', 'flow']) { const e = document.getElementById(id); if (e) e.remove(); }
     const res = {}; let chips = 0; const cs = m.chipShot.bind(m); m.chipShot = (...a) => { chips++; return cs(...a); };
