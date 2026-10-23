@@ -68,7 +68,9 @@ All art is made in PixelLab and Aseprite. The official game and its Test Lab are
 Next to your main session you run **worker-f**, a general worker: it does whatever task the taskmaster assigns it
 (code, tests, docs or art) and reports back into the agents folder. You don't manage its tasks: the taskmaster does.
 
-- **Start it** at claude.ai/code: a new session with only the `RisingStrikers` repository, then paste:
+- **Start it:** open the [worker-f link](https://claude.ai/code?prompt=You%20are%20worker-f%2C%20a%20general%20worker%20for%20HC2%20Football%20on%20the%20co-designer%27s%20account.%20Read%20README-friend-sessions.md%2C%20CLAUDE.md%20and%20docs%2Fagents.md%2C%20then%20run%20%2Fwork.%20Report%20everything%20through%20bash%20tools%2Fagent.sh%3B%20the%20taskmaster%20reviews%20it.&repositories=risethehague-droid%2FRisingStrikers) while signed in to your account: it fills in the message
+  and the repository. Keep only that one repository, choose Auto (or Accept edits), press Enter. By hand: a new
+  session at claude.ai/code with only the `RisingStrikers` repository, then paste:
   > You are **worker-f**, a general worker for HC2 Football on the co-designer's account. Read
   > `README-friend-sessions.md`, `CLAUDE.md` and `docs/agents.md`, then run `/work`. Report everything through
   > `bash tools/agent.sh`; the taskmaster reviews it.

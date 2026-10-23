@@ -76,8 +76,19 @@ Anything that saves time: where the code lives, what was tried, what to avoid.
 
 ## Starting a worker session
 
-Start a new Claude Code session at claude.ai/code with **only** the `RisingStrikers` repository selected. With one
-repository, the start-of-session sync and status line run on their own. Paste the kickoff message:
+**Quickest:** open the link for your worker while signed in to your own account. It opens claude.ai/code with the
+kickoff message and the repository already filled in. Check, then press Enter:
+- [worker-l link](https://claude.ai/code?prompt=You%20are%20worker-l%2C%20a%20general%20worker%20for%20HC2%20Football%20on%20Luca%27s%20account.%20Read%20CLAUDE.md%20and%20docs%2Fagents.md%2C%20then%20run%20%2Fwork.%20Report%20everything%20through%20bash%20tools%2Fagent.sh%3B%20the%20taskmaster%20reviews%20it.&repositories=risethehague-droid%2FRisingStrikers) (Luca's account)
+- [worker-f link](https://claude.ai/code?prompt=You%20are%20worker-f%2C%20a%20general%20worker%20for%20HC2%20Football%20on%20the%20co-designer%27s%20account.%20Read%20README-friend-sessions.md%2C%20CLAUDE.md%20and%20docs%2Fagents.md%2C%20then%20run%20%2Fwork.%20Report%20everything%20through%20bash%20tools%2Fagent.sh%3B%20the%20taskmaster%20reviews%20it.&repositories=risethehague-droid%2FRisingStrikers) (the co-designer's account)
+
+Before you press Enter:
+- **Repository:** only `risethehague-droid/RisingStrikers`, branch `main`. With two or more repositories, the
+  start-of-session sync and status line don't run.
+- **Permission mode:** Auto if it's offered, otherwise Accept edits. Plan stops for your approval on every task.
+- **Environment:** Default is fine.
+
+**By hand:** start a new session at claude.ai/code, pick the repository in the selector under the message box, and
+paste the kickoff message:
 
 **worker-l** (Luca's account):
 
