@@ -1,0 +1,1038 @@
+<title>HC2 Test Lab · preview · t-001</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+/* t-001 PROTOTYPE of the revamped Test Lab (stage 1). Not the real Lab: it runs on a snapshot of real data
+   (proto-data.js: a headless run of today's Lab on v0.9.7, new-dice reruns, a v0.9.4 baseline, the sprite atlases).
+   Layout: an app shell - top bar, a section rail on the left (a tab strip on a phone), one working area per section.
+   Dark first (it sits next to the floodlit pitch, like today's Lab), with a light theme for daylight and contrast. */
+:root{
+  --bg:#0f0d13; --panel:#17141d; --raise:#211d29; --line:#332d3f; --fg:#f4f0e4; --dim:#b8b0c4; --faint:#8a8298;
+  --accent:#ffde1e; --on-accent:#0c0a0e; --brand:#ff2878; --data:#5ad3ec; --focus:#ffde1e;
+  --pass:#7cff9a; --fail:#ff6b8e; --warn:#ffbe55; --changed:#c7a6ff; --same:#9fb4c8;
+  --pitch:#07060a; --shadow:0 1px 0 rgba(0,0,0,.4);
+  --over:rgba(12,10,14,.84); --over-fg:#f4f0e4; --over-hi:#ffde1e; --over-card:#f4f0e4; --over-ink:#0c0a0e;   /* on the game picture: the same in both themes */
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-data:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --f-pixel:"Press Start 2P",ui-monospace,monospace;
+  --s-1:12px; --s0:14px; --s1:16px; --s2:19px; --s3:24px; --s4:30px;
+  --rail:212px; --top:56px; --r:6px;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
+  --bg:#f2f0f5; --panel:#ffffff; --raise:#ebe8f0; --line:#d3cedc; --fg:#17141c; --dim:#4f4860; --faint:#625b72;
+  --accent:#ffde1e; --on-accent:#0c0a0e; --brand:#d0105a; --data:#00708a; --focus:#5a2fd0;
+  --pass:#0b7a33; --fail:#c0123f; --warn:#935400; --changed:#6a3cb5; --same:#3f5870; --pitch:#1a1720; --shadow:0 1px 0 rgba(20,10,40,.06);
+  color-scheme:light } }
+:root[data-theme="light"]{
+  --bg:#f2f0f5; --panel:#ffffff; --raise:#ebe8f0; --line:#d3cedc; --fg:#17141c; --dim:#4f4860; --faint:#625b72;
+  --accent:#ffde1e; --on-accent:#0c0a0e; --brand:#d0105a; --data:#00708a; --focus:#5a2fd0;
+  --pass:#0b7a33; --fail:#c0123f; --warn:#935400; --changed:#6a3cb5; --same:#3f5870; --pitch:#1a1720; --shadow:0 1px 0 rgba(20,10,40,.06);
+  color-scheme:light }
+:root[data-theme="dark"]{
+  --bg:#0f0d13; --panel:#17141d; --raise:#211d29; --line:#332d3f; --fg:#f4f0e4; --dim:#b8b0c4; --faint:#8a8298;
+  --accent:#ffde1e; --on-accent:#0c0a0e; --brand:#ff2878; --data:#5ad3ec; --focus:#ffde1e;
+  --pass:#7cff9a; --fail:#ff6b8e; --warn:#ffbe55; --changed:#c7a6ff; --same:#9fb4c8; --pitch:#07060a; --shadow:0 1px 0 rgba(0,0,0,.4);
+  color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:400 var(--s0)/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{margin:0;text-wrap:balance;line-height:1.2}
+h1{font-size:var(--s4);font-weight:700}
+h2{font-size:var(--s3);font-weight:700}
+h3{font-size:var(--s2);font-weight:700}
+p{margin:0;max-width:68ch}
+a{color:var(--data)}
+.num,.mono{font-family:var(--f-data);font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.skip{position:absolute;left:-999px;top:8px;z-index:50;background:var(--accent);color:var(--on-accent);padding:8px 12px;border-radius:var(--r)}
+.skip:focus{left:max(16px,env(safe-area-inset-left,0px))}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- shell */
+.app{height:100%;display:grid;grid-template-rows:var(--top) 1fr;grid-template-columns:var(--rail) minmax(0,1fr)}
+.top{grid-column:1/-1;display:flex;align-items:center;gap:14px;background:var(--panel);border-bottom:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.logo{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.logo b{font:10px/1 var(--f-pixel);letter-spacing:.08em;color:var(--fg)}
+.logo i{width:14px;height:14px;background:var(--brand);box-shadow:4px 4px 0 var(--accent);display:block}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:2px 10px;font:500 var(--s-1) var(--f-data);color:var(--dim);white-space:nowrap}
+.top .search{flex:1 1 auto;max-width:420px;margin-left:auto;position:relative}
+.top .search input{width:100%;height:36px;border-radius:var(--r);border:1px solid var(--line);background:var(--bg);padding:0 34px 0 12px}
+.top .search kbd{position:absolute;right:8px;top:8px}
+kbd{font:500 11px/1 var(--f-data);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:3px 5px;color:var(--dim);background:var(--raise)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 14px;border-radius:var(--r);border:1px solid var(--line);background:var(--raise);cursor:pointer;white-space:nowrap;font-weight:700}
+.btn:hover{border-color:var(--dim)}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.ghost{background:transparent}
+.btn.small{min-height:30px;padding:0 10px;font-size:var(--s-1)}
+.btn[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.rail{background:var(--panel);border-right:1px solid var(--line);padding:12px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.rail button{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;border-radius:var(--r);border:0;background:none;cursor:pointer;text-align:left;color:var(--dim);font-weight:700}
+.rail button:hover{background:var(--raise);color:var(--fg)}
+.rail button[aria-current="page"]{background:var(--raise);color:var(--fg);box-shadow:inset 3px 0 0 var(--accent)}
+.rail button .n{margin-left:auto;font:500 var(--s-1) var(--f-data);color:var(--faint)}
+.rail .sep{height:1px;background:var(--line);margin:8px 6px}
+.rail .cap{font:8px/1.6 var(--f-pixel);letter-spacing:.08em;color:var(--faint);padding:8px 10px 4px}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+main{overflow-y:auto;min-width:0}
+.page{padding-block:22px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:22px;max-width:1500px}
+.eyebrow{font:8px/1.6 var(--f-pixel);letter-spacing:.1em;color:var(--faint);text-transform:uppercase}
+.lede{color:var(--dim);font-size:var(--s1)}
+.head{display:grid;gap:8px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+.pad{padding:16px}
+.muted{color:var(--dim)}
+.faint{color:var(--faint)}
+
+/* ---------- pills: icon + word, colour only supports */
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:1px 9px 1px 7px;font:700 var(--s-1)/1.6 var(--f-body);white-space:nowrap;border:1px solid currentColor}
+.pill .g{font:500 12px/1 var(--f-data)}
+.v-pass{color:var(--pass)} .v-fail{color:var(--fail)} .v-warn{color:var(--warn)} .v-changed{color:var(--changed)} .v-same{color:var(--same)} .v-plain{color:var(--dim)} .v-you{color:var(--brand)} .v-dice{color:var(--warn)}
+.kind{display:inline-flex;align-items:center;gap:6px;font:700 var(--s-1)/1.6 var(--f-body);color:var(--dim);white-space:nowrap}
+.kind i{width:8px;height:8px;border-radius:2px;background:var(--dim);display:block}
+.kind.auto i{background:var(--data)} .kind.you i{background:var(--brand)} .kind.watch i{background:var(--accent)}
+.term{border:0;background:none;padding:0;color:inherit;cursor:help;text-decoration:underline dotted var(--dim);text-underline-offset:3px;font:inherit}
+.term:hover{text-decoration-color:var(--fg)}
+
+/* ---------- start */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;counter-reset:s}
+.step{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:start;padding:14px}
+.step b.k{grid-row:span 2;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--on-accent);font:10px var(--f-pixel)}
+.presets{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+.preset{display:grid;gap:10px;padding:16px;align-content:start}
+.preset .facts{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--dim);font-size:var(--s-1)}
+.preset .facts b{color:var(--fg);font-family:var(--f-data);font-weight:500}
+.preset .row{margin-top:auto}
+.stat-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.stat-strip > div{background:var(--panel);padding:12px 14px;display:grid;gap:2px}
+.stat-strip b{font:500 var(--s3)/1.1 var(--f-data)}
+.stat-strip span{color:var(--dim);font-size:var(--s-1)}
+
+/* ---------- catalogue */
+.cat{display:grid;grid-template-columns:230px minmax(0,1fr) minmax(320px,420px);gap:14px;align-items:start}
+.groups{display:grid;gap:2px;padding:8px;position:sticky;top:0}
+.groups button{display:flex;gap:8px;align-items:baseline;border:0;background:none;text-align:left;padding:7px 8px;border-radius:4px;cursor:pointer;color:var(--dim)}
+.groups button:hover{background:var(--raise);color:var(--fg)}
+.groups button[aria-pressed="true"]{background:var(--raise);color:var(--fg);box-shadow:inset 3px 0 0 var(--accent)}
+.groups button .id{font:500 var(--s-1) var(--f-data);min-width:30px;color:var(--faint)}
+.groups button .c{margin-left:auto;font:500 var(--s-1) var(--f-data);color:var(--faint)}
+.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.filters .lab{font-size:var(--s-1);color:var(--faint);margin-right:2px}
+.fchip{min-height:28px;border-radius:999px;border:1px solid var(--line);background:none;padding:0 10px;font-size:var(--s-1);font-weight:700;cursor:pointer;color:var(--dim)}
+.fchip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:var(--s-1);color:var(--faint);font-weight:700;position:sticky;top:0;background:var(--panel)}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--raise)}
+tbody tr.sel td{background:var(--raise)}
+tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.rowbtn{border:0;background:none;padding:0;text-align:left;cursor:pointer;display:block;font-weight:700}
+.rowbtn:hover{text-decoration:underline}
+td.idc{font:500 var(--s-1) var(--f-data);color:var(--dim);white-space:nowrap}
+td .nm{display:block;font-weight:700}
+td .sb{display:block;color:var(--dim);font-size:var(--s-1)}
+.case{display:grid;gap:0;position:sticky;top:0}
+.case header{padding:16px;display:grid;gap:8px;border-bottom:1px solid var(--line)}
+.case section{padding:12px 16px;border-bottom:1px solid var(--line);display:grid;gap:6px}
+.case section:last-child{border-bottom:0}
+.case h4{margin:0;font:8px/1.6 var(--f-pixel);letter-spacing:.08em;color:var(--faint);text-transform:uppercase}
+.case ol{margin:0;padding-left:20px;display:grid;gap:3px}
+dl.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0}
+dl.kv dt{color:var(--faint);font-size:var(--s-1);padding-top:2px}
+dl.kv dd{margin:0;min-width:0;font-family:var(--f-data);font-size:13px;overflow-wrap:anywhere}
+.selbar{position:sticky;bottom:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;background:var(--panel);border-top:1px solid var(--line)}
+
+/* ---------- run */
+.runwrap{display:grid;gap:14px;grid-template-columns:minmax(0,1fr) 360px;align-items:start}
+.runwrap.bench{grid-template-columns:260px minmax(0,1fr) 340px}
+.runwrap:not(.bench) .queue{display:none}
+.stage{background:var(--pitch);border-radius:var(--r);overflow:hidden;position:relative;aspect-ratio:1067/496;max-width:100%}
+.stage img{display:block;width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.hud{position:absolute;left:10px;top:10px;right:10px;display:flex;justify-content:space-between;gap:10px;pointer-events:none}
+.hud span{background:var(--over);color:var(--over-fg);padding:5px 9px;border-radius:4px;font:500 12px var(--f-data)}
+.hud span.t{font:8px/1.6 var(--f-pixel);letter-spacing:.06em;color:var(--over-hi)}
+.verdict{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);padding:8px 14px;border-radius:6px;font:700 var(--s1) var(--f-body);background:var(--over-card);color:var(--over-ink);display:flex;gap:8px;align-items:center;max-width:calc(100% - 24px)}
+.transport{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.seg button{min-height:32px;min-width:44px;border:0;border-right:1px solid var(--line);background:var(--raise);cursor:pointer;font:500 var(--s-1) var(--f-data);padding:0 8px}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.field{display:inline-flex;align-items:center;gap:8px;font-size:var(--s-1);color:var(--dim)}
+.field input[type=text],.field input[type=number],.field select{height:32px;border-radius:var(--r);border:1px solid var(--line);background:var(--bg);padding:0 8px;font-family:var(--f-data);font-size:13px}
+.field input#seed{width:120px}
+.qlist{list-style:none;margin:0;padding:6px;display:grid;gap:2px;max-height:560px;overflow-y:auto}
+.qlist li{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;padding:6px 8px;border-radius:4px;font-size:var(--s-1)}
+.qlist li.cur{background:var(--raise);box-shadow:inset 3px 0 0 var(--accent)}
+.qlist li .g{font:500 12px var(--f-data);grid-row:span 2;padding-top:2px;min-width:16px;text-align:center}
+.qlist li b{font-weight:700}
+.qlist li span:not(.g){color:var(--dim);grid-column:2}
+.progress{height:6px;background:var(--raise);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--data);width:0;transition:width .2s}
+.side{display:grid;gap:14px}
+.rate{display:grid;gap:10px}
+.rate .row .btn{flex:1 1 0}
+.reasons{display:flex;flex-wrap:wrap;gap:6px}
+.note{width:100%;min-height:36px;border-radius:var(--r);border:1px solid var(--line);background:var(--bg);padding:6px 10px}
+
+/* ---------- results */
+.runs{display:grid;gap:8px}
+.runcard{display:grid;grid-template-columns:auto 1fr auto;gap:4px 14px;align-items:center;padding:12px 14px;cursor:pointer;text-align:left;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.runcard.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.runcard .tag{font:8px/1.6 var(--f-pixel);letter-spacing:.06em;padding:5px 7px;border-radius:4px;background:var(--raise);color:var(--dim)}
+.runcard .tag.a{background:var(--accent);color:var(--on-accent)}
+.runcard .counts{display:flex;flex-wrap:wrap;gap:6px;grid-column:2/-1}
+.cmp td.delta{font-family:var(--f-data);font-size:13px;white-space:nowrap}
+.cmp td.o{font-family:var(--f-data);font-size:12.5px;min-width:200px}
+
+/* ---------- matrix */
+.mx{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start}
+.factor{display:grid;grid-template-columns:170px 1fr;gap:8px 14px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:start}
+.factor:last-child{border-bottom:0}
+.factor .fn{display:grid;gap:2px}
+.factor .fn b{font-weight:700}
+.factor .fn span{color:var(--faint);font-size:var(--s-1)}
+.vals{display:flex;flex-wrap:wrap;gap:6px}
+.count{display:grid;gap:12px;padding:16px;position:sticky;top:0}
+.bignum{font:500 44px/1 var(--f-data);color:var(--fg)}
+.choice{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:baseline;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);cursor:pointer}
+.choice:has(input:checked){border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.choice input{accent-color:var(--accent)}
+.choice .c{font:500 var(--s1) var(--f-data)}
+.choice small{grid-column:2/-1;color:var(--dim)}
+.grid-res td,.grid-res th{text-align:center;vertical-align:middle;padding:6px}
+.grid-res th[scope=row]{text-align:left}
+.cell{display:grid;gap:1px;justify-items:center;padding:6px 4px;border-radius:4px;font-size:12px;font-weight:700;border:1px solid var(--line)}
+.cell .g{font:500 14px var(--f-data)}
+.cell.goal{color:var(--fail)} .cell.save{color:var(--pass)} .cell.other{color:var(--dim)}
+
+/* ---------- actions */
+.covbar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--raise)}
+.covbar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:var(--s-1);color:var(--dim)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+td .code{font:500 12px var(--f-data);color:var(--data)}
+
+/* ---------- animations */
+.anim{display:grid;grid-template-columns:250px minmax(0,1fr);gap:14px;align-items:start}
+.alist{display:grid;gap:1px;max-height:640px;overflow-y:auto;padding:6px}
+.alist button{display:grid;grid-template-columns:1fr auto;gap:0 8px;text-align:left;border:0;background:none;padding:6px 8px;border-radius:4px;cursor:pointer;color:var(--dim)}
+.alist button:hover{background:var(--raise);color:var(--fg)}
+.alist button[aria-pressed="true"]{background:var(--raise);color:var(--fg);box-shadow:inset 3px 0 0 var(--accent)}
+.alist button b{font:500 13px var(--f-data);color:inherit}
+.alist button small{font-size:11px;color:var(--faint)}
+.alist button .fl{grid-column:1/-1;font-size:11px;color:var(--warn)}
+.compass{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;max-width:560px}
+.dcell{position:relative;border:1px solid var(--line);border-radius:var(--r);background:var(--raise);display:grid;place-items:center;padding:20px 4px 6px;cursor:pointer;min-height:120px}
+.dcell[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.dcell .d{position:absolute;left:6px;top:4px;font:500 11px var(--f-data);color:var(--faint)}
+.dcell .fc{position:absolute;right:6px;top:4px;font:500 11px var(--f-data);color:var(--faint)}
+.dcell canvas{image-rendering:pixelated;max-width:100%;height:auto}
+.dcell.miss{border-style:dashed;cursor:default;color:var(--faint);font-size:12px;text-align:center}
+.dcell.mid{cursor:default;background:none;border:0;text-align:center;font-size:var(--s-1);color:var(--dim)}
+.strip{display:flex;gap:6px;overflow-x:auto;padding:4px 2px 8px}
+.fr{flex:none;display:grid;gap:3px;justify-items:center;border:1px solid var(--line);border-radius:4px;padding:4px;background:var(--raise);cursor:pointer;min-width:52px}
+.fr[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.fr canvas{image-rendering:pixelated}
+.fr span{font:500 11px var(--f-data);color:var(--faint)}
+.fr .ct{font:700 10px var(--f-body);color:var(--on-accent);background:var(--accent);padding:0 5px;border-radius:3px}
+.checks{margin:0;padding-left:18px;display:grid;gap:4px;color:var(--dim)}
+
+/* ---------- glossary + tip + dialog + toast */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);background:var(--panel);border-left:1px solid var(--line);z-index:30;display:grid;grid-template-rows:auto 1fr;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px);box-shadow:-12px 0 40px rgba(0,0,0,.35)}
+.drawer header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.drawer .body{overflow-y:auto;padding:8px 16px 24px}
+.drawer dl{margin:0}
+.drawer dt{font-weight:700;margin-top:14px}
+.drawer dd{margin:2px 0 0;color:var(--dim)}
+.drawer dd small{display:block;color:var(--faint);margin-top:2px}
+.tip{position:fixed;z-index:40;max-width:300px;background:var(--fg);color:var(--bg);padding:10px 12px;border-radius:6px;font-size:var(--s-1);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.tip b{display:block;margin-bottom:2px}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--fg);padding:0;width:min(640px,calc(100% - 32px));max-height:calc(100% - 32px)}
+dialog::backdrop{background:rgba(8,6,12,.6)}
+dialog form{display:grid;gap:0}
+dialog header{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+dialog .body{padding:14px 18px;display:grid;gap:12px;overflow-y:auto;max-height:60vh}
+dialog footer{padding:12px 18px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+dialog label{display:grid;gap:4px;font-size:var(--s-1);color:var(--dim)}
+dialog input[type=text],dialog textarea{border:1px solid var(--line);border-radius:var(--r);background:var(--bg);padding:8px 10px;color:var(--fg)}
+dialog textarea{min-height:150px;font:12.5px/1.45 var(--f-data)}
+fieldset{border:1px solid var(--line);border-radius:var(--r);padding:8px 12px 10px;margin:0;display:flex;flex-wrap:wrap;gap:6px 14px}
+fieldset legend{font-size:var(--s-1);color:var(--dim);padding:0 4px}
+fieldset label{display:flex;flex-direction:row;align-items:center;gap:6px;color:var(--fg);min-height:28px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:45;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:6px;font-weight:700;max-width:calc(100% - 32px)}
+.callout{border:1px dashed var(--line);border-radius:var(--r);padding:12px 14px;color:var(--dim);display:grid;gap:4px}
+.callout b{color:var(--fg)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+ul.plain{margin:0;padding-left:18px;display:grid;gap:4px}
+
+/* ---------- narrow screens: rail becomes a tab strip, panes stack */
+@media (max-width:1180px){ .cat{grid-template-columns:200px minmax(0,1fr)} .cat .case{grid-column:1/-1;position:static} .runwrap.bench{grid-template-columns:minmax(0,1fr) 320px} .runwrap.bench .queue{grid-column:1/-1;order:3} }
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:var(--top) auto 1fr;height:auto;min-height:100%}
+  .rail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:6px max(16px,env(safe-area-inset-right,0px)) 6px max(16px,env(safe-area-inset-left,0px))}
+  .rail .sep,.rail .cap,.rail button .n{display:none}
+  .rail button{flex:none}
+  .rail button[aria-current="page"]{box-shadow:inset 0 -3px 0 var(--accent)}
+  main{overflow:visible}
+  .top .search{display:none}
+  .cat,.runwrap,.runwrap.bench,.mx,.anim{grid-template-columns:minmax(0,1fr)}
+  .groups,.case,.count{position:static}
+  .groups{display:flex;overflow-x:auto}
+  .groups button{flex:none}
+  .factor{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){ .top .chip.proto{display:none} .tt th:nth-child(4),.tt td:nth-child(4){display:none} }
+@media (max-width:520px){ .top .chip.ver{display:none} .logo b{font-size:8px} .top{gap:8px} }
+@media (prefers-reduced-motion:reduce){ .progress i{transition:none} }
+</style>
+
+<a class="skip" href="#main">Skip to the content</a>
+<div class="app">
+  <header class="top">
+    <div class="logo"><i aria-hidden="true"></i><b>HC2 TEST LAB</b></div>
+    <span class="chip ver" title="the game version these numbers come from">game <span id="ver">v0.9.7</span></span>
+    <span class="chip proto" style="border-color:var(--warn);color:var(--warn)">PROTOTYPE · real data snapshot</span>
+    <div class="search"><label for="q" class="sr">Search all tests</label><input id="q" type="search" placeholder="Search tests, moves, animations" autocomplete="off"><kbd>/</kbd></div>
+    <button class="btn ghost small" id="gl-open" type="button" aria-expanded="false" aria-controls="glossary">Glossary <kbd>?</kbd></button>
+    <button class="btn ghost small" id="theme" type="button" aria-label="Switch light or dark">Theme</button>
+  </header>
+  <nav class="rail" aria-label="Lab sections" id="rail"></nav>
+  <main id="main" tabindex="-1"></main>
+</div>
+
+<aside class="drawer" id="glossary" hidden aria-labelledby="gl-h">
+  <header><h2 id="gl-h" style="font-size:var(--s2)">Glossary</h2><span class="faint" style="font-size:var(--s-1)">every word, in plain words</span><button class="btn small" type="button" id="gl-close" style="margin-left:auto">Close <kbd>Esc</kbd></button></header>
+  <div class="body"><dl id="gl-list"></dl></div>
+</aside>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<dialog id="bug" aria-labelledby="bug-h">
+  <form method="dialog" id="bug-form">
+    <header><h2 id="bug-h" style="font-size:var(--s2)">Report a bug</h2><span class="faint" style="font-size:var(--s-1)">filled in from the run: check it, add what you saw</span></header>
+    <div class="body">
+      <label for="bug-title">Title (what went wrong, in one line)<input type="text" id="bug-title"></label>
+      <fieldset><legend>How bad is it? (<button class="term" type="button" data-term="severity">severity</button>)</legend>
+        <label><input type="radio" name="sev" value="Blocker"> Blocker: the game stops or can't be played</label>
+        <label><input type="radio" name="sev" value="Major" checked> Major: a rule or a core move works wrong</label>
+        <label><input type="radio" name="sev" value="Minor"> Minor: it works but feels off</label>
+        <label><input type="radio" name="sev" value="Cosmetic"> Cosmetic: it only looks wrong</label></fieldset>
+      <fieldset><legend>How soon? (<button class="term" type="button" data-term="priority">priority</button>)</legend>
+        <label><input type="radio" name="pri" value="Now"> Now, before the next version</label>
+        <label><input type="radio" name="pri" value="Next" checked> Next version</label>
+        <label><input type="radio" name="pri" value="Later"> Later</label></fieldset>
+      <label for="bug-note">What you saw (optional)<input type="text" id="bug-note" placeholder="e.g. the keeper dives after the ball is already past him"></label>
+      <label for="bug-text">The report (repro steps and the seed are filled in for you)<textarea id="bug-text" readonly></textarea></label>
+    </div>
+    <footer><button class="btn" value="cancel" type="submit">Close</button><button class="btn primary" type="button" id="bug-copy">Copy report</button></footer>
+  </form>
+</dialog>
+
+<script src="proto-data.js"></script>
+<script>
+'use strict';
+(function () {
+const D = window.PROTO;
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const store = { get(k, d) { try { const v = localStorage.getItem('hc2-proto-' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('hc2-proto-' + k, JSON.stringify(v)); } catch (e) {} } };
+
+// ======================================================================= the data, made readable
+const TESTS = [], BY = {};
+D.groups.forEach(g => g.tests.forEach(t => { t.group = g.id; t.groupName = g.name; TESTS.push(t); BY[t.id] = t; }));
+const typeOf = t => t.kind === 'cut' || t.kind === 'clip' ? 'watch' : t.kind === 'free' || t.you ? 'you' : 'auto';
+const TYPE_NAME = { auto: 'Automatic', you: 'You play', watch: 'You watch' };
+const GROUP_PLAIN = { FP: 'Play freely: every move on a button', K: 'Keeper v shots from 6 spots to 5 places', KH: 'Keeper v hard and soft shots', YS: 'You shoot at a live keeper',
+  C: 'Keeper v crosses', P: 'Ball physics: passes, lobs, bounces', M: 'Running without the ball', D: 'Dribbling', T: 'Tackles', A: 'Balls in the air to you', PK: 'Penalties',
+  N5: 'Power lob, rain, snow, injury', PW: 'Power specials through blockers', CH: 'The chip shot', GK: 'Keeper AI: where he stands and why', SM: 'Special moves and keeper saves',
+  CS: 'Every cut scene in full', BW: 'Clips the Bug Watch kept' };
+
+// draft TARGETS (expected results), written from each test's own description - for Luca to confirm (decision 3)
+const num = (s, re) => { const m = String(s || '').match(re); return m ? +m[1] : null; };
+const maxOut = o => num(o, /max ([\d.]+)/), stopAt = o => num(o, /STOPPED ([\d.]+) m/);
+const outOf = id => BY[id] && BY[id].r ? BY[id].r.outcome : '';
+const TARGETS = {
+  GK1: ['walks up to about 18-20 m off his line', o => { const v = maxOut(o); return v >= 18 && v <= 20.5; }],
+  GK2: ['up at about 9-12 m while the ball is far', o => { const v = maxOut(o); return v >= 9 && v <= 12; }],
+  GK4: ['set and still when the shot comes, 4-5 m out', o => /SET for the shot/.test(o)],
+  GK6: ['comes out and gets big (BLOCK) before the shot', o => /BLOCK/.test(o)],
+  GK7: ['gets there first and smothers it', o => /^SMOTHERED/.test(o)],
+  GK8: ['sweeps it outside his box and clears it', o => /^SWEPT/.test(o)],
+  GK9: ['does NOT come for it: holds back', o => /^HELD BACK/.test(o)],
+  GK10: ['feet only (no hands from a back pass)', o => /^FEET ONLY/.test(o)],
+  GK11: ['turns and runs back for the lob', o => /GOT BACK/.test(o)],
+  PW1: ['goes through 1 man, the 2nd blocks it', o => /THROUGH 1 · BLOCKED by blocker 2/.test(o)],
+  PW2: ['goes through 2 men, the 3rd blocks it', o => /THROUGH 2 · BLOCKED by blocker 3/.test(o)],
+  PW3: ['goes through all 5 blockers', o => /THROUGH 5/.test(o)],
+  PW6: ['the keeper\'s same-level save holds', o => /SAVE WINS/.test(o)],
+  PW8: ['the higher save always holds', o => /SAVE WINS/.test(o)],
+  PW7: ['a goal about 1 time in 8 (needs 40 runs to judge)', null],
+  'N5-5': ['in rain it runs further than the dry 20 m pass (P2)', o => stopAt(o) > stopAt(outOf('P2'))],
+  'N5-6': ['in snow it stops sooner than the dry 20 m pass (P2)', o => stopAt(o) < stopAt(outOf('P2'))],
+  'N5-7': ['in rain it rolls further than the dry hard shot (P7)', o => stopAt(o) > stopAt(outOf('P7'))],
+  'N5-8': ['in snow it rolls less far than the dry hard shot (P7)', o => stopAt(o) < stopAt(outOf('P7'))],
+  CH1: ['a chip, and it goes over him', o => /^CHIP/.test(o) && /GOAL/.test(o)],
+  CH5: ['facing away from goal it is a normal lob, not a chip', o => /^LOB \/ NOT A CHIP/.test(o)],
+  CH6: ['the computer decides to chip him', o => /^CHIP/.test(o)],
+  PK3: ['a save', o => /SAVED/.test(o)], PK4: ['a goal', o => /^GOAL/.test(o)], PK6: ['a catch', o => /caught/.test(o)], PK7: ['a goal', o => /^GOAL/.test(o)],
+  SM8: ['their keeper uses his special save and stops it', o => /HE USED IT · STOPPED/.test(o)], SM9: ['their keeper uses his special save and stops it', o => /HE USED IT · STOPPED/.test(o)],
+  SM10: ['the SAVE? prompt shows and the save stops it', o => /PROMPT SHOWN · YOU USED IT · STOPPED/.test(o)],
+};
+const cat = o => String(o || '').split(' · ')[0].replace(/[\d.]+/g, '#').trim();
+function same(a, b) { if (!a || !b) return false; return a.outcome === b.outcome && a.kmh === b.kmh && a.topHeight === b.topHeight; }
+// one verdict per test, for the "v0.9.7 · the Lab's own seeds" run
+function verdict(t, run = 'now') {
+  const ty = typeOf(t);
+  if (ty === 'you') return { k: 'you', g: '▶', w: 'You play' };
+  if (ty === 'watch') return { k: 'plain', g: '◉', w: 'You watch' };
+  const r = run === 'old' ? (t.old && t.old.r) : t.r;
+  if (!r) return { k: 'plain', g: '–', w: 'Not run' };
+  if (r.outcome === 'not finished') return { k: 'warn', g: '!', w: 'Can\'t run headless' };
+  const T = TARGETS[t.id];
+  if (T && T[1]) return T[1](r.outcome) ? { k: 'pass', g: '✓', w: 'Pass' } : { k: 'fail', g: '✗', w: 'Fail' };
+  if (T && !T[1]) return { k: 'dice', g: '≈', w: 'Needs repeats' };
+  if (run === 'now' && t.old && t.old.r) return same(t.r, t.old.r) ? { k: 'same', g: '=', w: 'Same as ' + D.oldVer } : { k: 'changed', g: 'Δ', w: 'Changed' };
+  return { k: 'plain', g: '•', w: 'Ran · no target' };
+}
+const dice = t => { if (!t.fresh || !t.r || t.r.outcome === 'not finished') return null;
+  const cs = [cat(t.r.outcome), ...t.fresh.map(f => cat(f.o))]; const n = cs.filter(c => c === cs[0]).length; return n === cs.length ? null : { n, of: cs.length }; };
+const pill = v => `<span class="pill v-${v.k}"><span class="g" aria-hidden="true">${v.g}</span>${esc(v.w)}</span>`;
+const kindTag = t => { const ty = typeOf(t); return `<span class="kind ${ty}"><i aria-hidden="true"></i>${TYPE_NAME[ty]}</span>`; };
+const secs = ms => ms < 60000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.floor(ms / 60000)} min ${String(Math.round(ms / 1000) % 60).padStart(2, '0')} s`;
+const MEAN = {}; D.groups.forEach(g => { const ms = g.tests.filter(t => t.ms).map(t => t.ms); MEAN[g.id] = ms.length ? ms.reduce((a, b) => a + b, 0) / ms.length : 5000; });
+const AUTO = TESTS.filter(t => typeOf(t) === 'auto');
+
+// the test case in ISO/IEC/IEEE 29119-3 shape: purpose, setup, steps - derived from how lab.js builds each test
+function caseOf(t) {
+  const name = t.name, sub = t.sub || '';
+  const spot = name.split(' → ')[0], tgt = name.split(' → ')[1];
+  let K = {
+    shot: t.you ? [`Their keeper is live on his line; you have the ball on the ${name.replace('you shoot from the ', '')}.`, ['You shoot however you like (hold for power, up / down picks the corner).', 'R puts you back on the same spot.']]
+      : [`Two players only: your striker (#10) with the ball on the ${spot}, their keeper on his line.`, [`At 0.7 s the striker shoots ${sub.includes('km/h') ? 'at ' + sub.replace(/^.*?(\d+ km\/h).*$/, '$1') : ''} to ${tgt || 'goal'}.`, 'The Lab watches until it is in the net, held, out, or loose for 4 s.']],
+    cross: ['A crosser on the byline, one attacker, their keeper.', ['At 0.7 s the cross goes in.', 'The attacker attacks it; the keeper decides (claim, punch, stay).', 'The Lab stops on a goal, a claim, out, or 5 s.']],
+    phys: ['One player and the ball on an empty pitch.', [`He plays it: ${name}.`, 'The Lab measures speed, height, every bounce and where it stops.']],
+    move: ['Only your player; yellow rings show where to go.', ['Move with the arrows or WASD, Shift to sprint.', 'The Lab measures top speed, how far you slide when you stop, the ball from your feet.']],
+    tackle: [`A dribbler comes at you: ${name}.`, [`Try the ${sub.toLowerCase()}.`, 'The Lab says if you won it, fouled, or he got past.']],
+    air: ['A team-mate crosses from the byline to you.', [sub, 'The Lab stops on a goal, a save, a touch, or 5 s.']],
+    pen: ['The penalty camera.', [sub]],
+    pw: ['Your striker, their keeper, and blockers where the test needs them.', [sub, 'The Lab counts who the special went through and who stopped it.']],
+    gk: ['Their keeper with the real keeper AI; everyone else is a Lab stand-in.', ['The scene plays out (passes, runs, a shot where the test has one).', 'The Lab logs his modes in order, how far off his line, how long he walked, his top speed.']],
+    cut: ['The real cut scene, which the Lab normally skips.', [sub, 'R plays it again; ENTER moves the menus on.']],
+    free: ['You, the ball and a keeper.', ['Toggles, every move on a button, any animation, tuning sliders.']],
+    clip: ['A clip the Bug Watch kept from a real match (they load from the Lab\'s database on claude.ai).', ['Watch it; 1 = the game was right, 2 = it\'s a bug; ASK CLAUDE for a second opinion.']],
+  }[t.kind] || ['', []];
+  if (t.group === 'CH') { K[0] = 'Your striker and their keeper where the test puts them (the keeper\'s distance off his line is the point).'; K[1] = [sub.charAt(0).toUpperCase() + sub.slice(1) + '.', 'The Lab measures the chip: speed, peak height, height over the keeper, and what happened.']; }
+  const T = TARGETS[t.id];
+  return { purpose: `${GROUP_PLAIN[t.group] || t.groupName}. ${sub && !['K', 'KH', 'YS'].includes(t.group) ? sub.charAt(0).toUpperCase() + sub.slice(1) + '.' : ''}`.trim(),
+    setup: K[0], steps: K[1], expected: T ? T[0] : null };
+}
+
+// ======================================================================= glossary (plain words; where the idea comes from)
+const GLOSS = [
+  ['test', 'Test', 'One situation the Lab sets up, plays and measures, the same way every time.'],
+  ['testcase', 'Test case', 'A test written down: what it checks, the setup, the steps, what should happen, what did happen.', 'ISO/IEC/IEEE 29119-3'],
+  ['preset', 'Preset', 'A saved list of tests you run together, like "Quick check before a PR".', 'Unreal Session Frontend'],
+  ['seed', 'Seed', 'The number that fixes the dice. The same seed plays the same scene, frame for frame. Put it in a bug report and anyone can replay it.'],
+  ['newdice', 'New dice', 'Run again with a fresh random seed, to see whether the outcome depends on luck.'],
+  ['expected', 'Expected result (target)', 'What should happen, written down before you run the test. Without one, a test can only say "same as before" or "changed".', 'ISTQB'],
+  ['actual', 'Actual result', 'What did happen: the outcome and the numbers behind it.', 'ISO/IEC/IEEE 29119-3'],
+  ['verdict', 'Verdict', 'PASS = target met. FAIL = target missed. SAME / CHANGED = no target yet, compared with an earlier run.'],
+  ['baseline', 'Baseline', 'An earlier run you compare against, e.g. the last version\'s results.'],
+  ['regression', 'Regression test', 'Running the old tests again after a change, to catch things that used to work and now don\'t.', 'ISTQB'],
+  ['smoke', 'Smoke test', 'A quick run of the main things, to see if a build is fit for more testing. Ours: tools/smoke.js plays a match at each level.', 'ISTQB'],
+  ['soak', 'Soak test', 'Running for a long time to find problems that only show up over time. Ours: tools/soak.js, overnight.', 'ISTQB performance testing'],
+  ['functional', 'Functional test', 'Checks that a feature does what it should (the chip goes over the keeper).', 'ISTQB'],
+  ['exploratory', 'You-play test', 'A person plays and judges. Testers call it exploratory testing.', 'ISTQB'],
+  ['factor', 'Factor and value', 'Something you can change (weather) and its settings (dry, rain, snow).', 'NIST'],
+  ['fullgrid', 'Full grid', 'Every combination of every value. Grows fast: 6 × 5 × 4 × 3 is already 360 runs.'],
+  ['pairwise', 'Pairwise', 'A short list of runs that still puts every pair of values together at least once. NIST found most bugs need only one or two factors to show up.', 'NIST combinatorial testing'],
+  ['dice', 'Dice-dependent', 'The outcome changes with new dice. Such a test needs several runs and a target like "about 1 in 8".'],
+  ['headless', 'Headless', 'The computer runs the Lab without a screen and steps time by hand, so it is fast (tools/grp.js).'],
+  ['hitbox', 'Hit boxes', 'The circles round each player: inner = his body, outer = how far he can reach the ball.'],
+  ['contact', 'Contact frame', 'The animation frame where the boot meets the ball; the ball leaves on that frame.'],
+  ['severity', 'Severity', 'How bad a bug is: Blocker, Major, Minor or Cosmetic.', 'game QA practice'],
+  ['priority', 'Priority', 'How soon to fix it: Now, Next version, Later. A Cosmetic bug can still be Now.', 'game QA practice'],
+  ['repro', 'Repro steps', 'The steps that make the bug happen again. With the seed, the Lab writes them for you.'],
+  ['coverage', 'Coverage', 'How much of the game the tests touch, e.g. how many moves have at least one test.'],
+];
+const GL = Object.fromEntries(GLOSS.map(g => [g[0], g]));
+const term = (k, label) => `<button class="term" type="button" data-term="${k}">${esc(label || GL[k][1].toLowerCase())}</button>`;
+
+// ======================================================================= presets
+const PRESETS = [
+  { id: 'quick', name: 'Quick check before a PR', kind: 'smoke', what: 'One or two tests from each area that runs by itself, plus the smoke match at every level. Run it before every pull request.',
+    tests: ['K01', 'KH4', 'C2', 'P2', 'P8', 'N5-5', 'PW1', 'PW6', 'CH1', 'GK4', 'GK9', 'SM8'], extra: '+ smoke match × 4 levels' },
+  { id: 'full', name: 'Full regression', kind: 'regression', what: 'Every test that runs by itself. Compare it with the last version to see what a change moved.', tests: AUTO.map(t => t.id) },
+  { id: 'lob', name: 'Lob & chip', kind: 'functional', what: 'Everything about balls in the air off the boot: chips, lobs, the power lob, the keeper running back.',
+    tests: ['CH1', 'CH2', 'CH3', 'CH4', 'CH5', 'CH6', 'N5-1', 'N5-2', 'N5-3', 'P5', 'P6', 'KH9', 'KH10', 'GK11'], hand: ['N5-4'] },
+  { id: 'keep', name: 'Keepers', kind: 'functional', what: 'Shots, crosses, the keeper AI and the set penalties: is the keeper believable?',
+    tests: TESTS.filter(t => ['K', 'KH', 'C', 'GK'].includes(t.group) || /^PK[3-8]$/.test(t.id)).map(t => t.id) },
+  { id: 'levels', name: 'Compare difficulty levels', kind: 'matrix', what: 'The keeper AI and the computer\'s chip at Easy, Normal, Hard and Rise Warrior, side by side.',
+    tests: ['GK1', 'GK2', 'GK3', 'GK4', 'GK5', 'GK6', 'GK7', 'GK8', 'GK9', 'GK10', 'GK11', 'CH6'], times: 4 },
+];
+const estimate = p => p.tests.reduce((a, id) => a + (BY[id].ms || MEAN[BY[id].group]), 0) * (p.times || 1);
+
+// ======================================================================= every action (from actions.js, ball.js, specials.js, keeper.js, matchflow.js, penalties.js)
+// [area, move, plain words, code, FREE PLAY button today, tests today]
+const ACTIONS = [
+  ['On the ball', 'Ground pass', 'a side-foot pass along the grass', 'ball.js · doPass ground', 'PASS', 'P1 P2 P3 P9'],
+  ['On the ball', 'Through ball', 'into space, slows for the runner', 'ball.js · doPass through', 'THROUGH', 'P4 GK8 GK9'],
+  ['On the ball', 'Lob pass', 'a lofted pass', 'ball.js · doPass lob', 'LOB', 'P5 P6 CH5'],
+  ['On the ball', 'Power lob (hold L)', 'tap = short, hold = high and far', 'ball.js · powerLob', 'POWER LOB 30/60/100%', 'N5-1 N5-2 N5-3 N5-4'],
+  ['On the ball', 'Shot', 'a normal shot', 'ball.js · doShot', 'SHOT', 'K01-K30 YS1-YS6'],
+  ['On the ball', 'Power shot', 'a held, hard shot', 'ball.js · doShot', 'POWER SHOT', 'KH1-KH6'],
+  ['On the ball', 'Chip', 'LOB in their box facing goal', 'ball.js · chipShot', 'CHIP', 'CH1-CH6'],
+  ['On the ball', 'Dribble', 'the ball runs ahead of your feet', 'ball.js · dribble, carrySteer', '', 'D1-D5'],
+  ['On the ball', 'Sprint', 'Shift: faster, uses energy', 'actions.js · controlHuman', 'FULL ENERGY (toggle)', 'M2 D2'],
+  ['On the ball', 'First touch', 'a pass or a ball rolled to your feet', 'ball.js · gain, pickups', 'BALL TO YOU · FEET', 'P9'],
+  ['On the ball', 'Switch player', 'control the team-mate nearest the ball', 'actions.js · switchHuman', '', ''],
+  ['Defending', 'Standing tackle', 'a challenge for the ball', 'actions.js · tackle, challenge', '', 'T1 T3 T5'],
+  ['Defending', 'Slide tackle', 'a slide at the ball (a foul from behind)', 'actions.js · slideTackle', 'SLIDE', 'T2 T4 T6'],
+  ['Defending', 'Block and steal', 'nicking it off a dribbler without a tackle', 'actions.js · steal, blockSteals', '', ''],
+  ['Defending', 'Knock-on', 'a tackle that knocks the ball loose', 'actions.js · knock', '', 'T1-T6 (by chance)'],
+  ['In the air', 'Header', 'shoot key as a high ball arrives', 'actions.js · header', 'HEADER', 'A1 C2 C11'],
+  ['In the air', 'Volley', 'shoot key before a dropping ball lands', 'ball.js · doShot (volley)', 'VOLLEY', 'A2'],
+  ['In the air', 'Diving header', 'a low cross in front of you', 'actions.js · divingHeader', 'DIVE HEADER', 'A3'],
+  ['In the air', 'Overhead kick', 'Shift + shoot as a high ball drops', 'actions.js · bicycle', 'OVERHEAD', 'A5'],
+  ['In the air', 'Chest trap', 'do nothing: he takes it on the chest', 'player trap state', 'CHEST TRAP', 'A4'],
+  ['Specials', 'LV1 Blaze shot', 'one bar: through 1 man, close range', 'specials.js · special', 'LV1 BLAZE', 'PW1 PW5 PW8'],
+  ['Specials', 'LV2 Thunder shot', 'two bars: through 2 men, from their half', 'specials.js · special', 'LV2 THUNDER', 'PW2 PW6'],
+  ['Specials', 'LV3 Rising Phoenix', 'three bars: through 5 men, from anywhere', 'specials.js · special', 'LV3 PHOENIX', 'PW3 PW4 PW7'],
+  ['Specials', 'Aerial specials LV1-3', 'a special struck from a cross', 'specials.js · airSpecial', 'AIR LV1 / LV2 / LV3', 'PW10 PW11 PW12 SM1 SM2 SM3'],
+  ['Specials', 'Keeper special saves LV1-3', 'Iron Wall, Thunder Glove, Rising Shield', 'specials.js · saveCall, clash', 'KEEPER SAVE (cycle)', 'SM4-SM9 PW6-PW8'],
+  ['Specials', 'SAVE? prompt (your keeper)', 'press SPECIAL to answer their shot', 'specials.js · shotSaveCall', '', 'SM10 SM11 PW9'],
+  ['Specials', 'Power through blockers', 'who the special goes through', 'specials.js · pierce', '', 'PW1 PW2 PW3'],
+  ['Specials', 'Rise Up', 'the banner when a side fills its meter', 'specials.js · riseUp', '', 'CS11'],
+  ['Keeper', 'Angle and depth', 'standing on the line between ball and goal', 'keeper.js · gkPlan, gkBisector', 'GK VIEW (overlay)', 'GK2 GK4 GK5'],
+  ['Keeper', 'Walk up (sweeper spot)', 'up the pitch when the ball is far', 'keeper.js · gkPlan', '', 'GK1 GK3'],
+  ['Keeper', 'Rush and block a 1v1', 'come out, get big', 'keeper.js · gkPlan', '', 'GK6'],
+  ['Keeper', 'Smother', 'dive on a heavy touch', 'keeper.js · gkPlan', '', 'GK7'],
+  ['Keeper', 'Sweep', 'clear a through ball outside the box', 'keeper.js · gkPlan', '', 'GK8'],
+  ['Keeper', 'Dive, catch, parry', 'reading the shot and saving it', 'keeper.js · planSave, keeperAI', '', 'K01-K30 KH1-KH10'],
+  ['Keeper', 'Claim a cross', 'come and catch a ball in the air', 'keeper.js · keeperAI (CLAIM)', '', 'C1-C12'],
+  ['Keeper', 'Punch', 'fist a ball he can\'t hold', 'keeper.js · keeperAI', '', ''],
+  ['Keeper', 'Back-pass rule', 'feet only from a team-mate\'s pass', 'keeper.js · keeperTouch', '', 'GK10'],
+  ['Keeper', 'Run back for a lob', 'turn and chase a ball over his head', 'keeper.js · gkPlan', '', 'GK11'],
+  ['Keeper', 'Throw, roll, punt, goal kick', 'how he gives the ball away', 'keeper.js · keeperOutlet', '', ''],
+  ['Referee & set pieces', 'Kick-off', 'start of a half and after a goal', 'matchflow.js · kickoff', '', ''],
+  ['Referee & set pieces', 'Throw-in', 'ball out over the side line', 'matchflow.js · restart', '', ''],
+  ['Referee & set pieces', 'Corner', 'ball out off a defender over the goal line', 'matchflow.js · restart', '', ''],
+  ['Referee & set pieces', 'Goal kick', 'ball out off an attacker over the goal line', 'matchflow.js · restart', '', ''],
+  ['Referee & set pieces', 'Free kick and wall', 'after a foul', 'matchflow.js · layoutFreeKick, spKick', '', ''],
+  ['Referee & set pieces', 'Foul', 'the referee runs in and gives it', 'matchflow.js · foul', '', 'CS6 T6'],
+  ['Referee & set pieces', 'Yellow card', 'a booking', 'matchflow.js · cardPop', '', 'CS6'],
+  ['Referee & set pieces', 'Red card', 'second yellow, he walks', 'matchflow.js · sendOff', '', 'CS7'],
+  ['Referee & set pieces', 'Injury and limp', 'he stays down, then plays at 75% speed', 'matchflow.js · injuryNews', 'INJURED (toggle)', 'CS8 N5-10'],
+  ['Referee & set pieces', 'Substitution', 'the injured player comes off', 'matchflow.js · injSub, aiSubs', '', ''],
+  ['Referee & set pieces', 'Added time', 'minutes added for time lost', 'matchflow.js · loseTime, announceAdded', '', ''],
+  ['Match flow', 'Walk-out', 'the teams come out of the tunnel', 'ui.js · startIntro', '', 'CS1'],
+  ['Match flow', 'Coin toss', 'call it, flip it', 'matchflow.js · startToss', '', 'CS2 CS3'],
+  ['Match flow', 'Half time', 'walk off, the stats card', 'matchflow.js · halfTime', '', 'CS4'],
+  ['Match flow', 'Full time', 'the whistle, the applause', 'matchflow.js · fullTime', '', 'CS9'],
+  ['Match flow', 'Extra time and golden goal', 'the next goal wins', 'matchflow.js · extraTime', '', 'CS10'],
+  ['Match flow', 'Goal, celebration, replay', 'the celebration and the TV replay', 'replay.js', '', 'CS5'],
+  ['Match flow', 'Trophy ceremony', 'the captain lifts the Hague Cup', 'cup.js · cupCeremony', '', 'CS12'],
+  ['Penalties', 'Take a penalty', 'aim, hold for power, let go', 'penalties.js · PenaltyScene', '', 'PK1'],
+  ['Penalties', 'Save a penalty', 'hold left or right as he shoots', 'penalties.js · PenaltyScene', '', 'PK2'],
+  ['Penalties', 'Set shot v set dive', 'a fixed shot against a fixed dive', 'penalties.js · startPenalty', '', 'PK3-PK8'],
+  ['Penalties', 'Shoot-out', '5 each, then sudden death', 'penalties.js · startShootout', '', ''],
+].map(([area, move, plain, code, fp, tests]) => ({ area, move, plain, code, fp, tests, st: tests && fp ? 'both' : tests ? 'test' : fp ? 'button' : 'none' }));
+
+// ======================================================================= sections
+const ICONS = {
+  start: '<path d="M4 12l8-8 8 8"/><path d="M6 10v10h12V10"/>', tests: '<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
+  run: '<path d="M7 4l12 8-12 8z"/>', results: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', matrix: '<path d="M4 4h16v16H4zM4 10h16M4 15h16M10 4v16M15 4v16"/>',
+  actions: '<path d="M5 19l5-5M14 5l5 5-9 9H5v-5z"/>', anims: '<path d="M4 6h16v12H4z"/><path d="M8 6v12M16 6v12"/>', bug: '<path d="M8 8a4 4 0 018 0v6a4 4 0 01-8 0z"/><path d="M4 12h4M16 12h4M5 6l3 2M19 6l-3 2M5 19l3-2M19 19l-3-2"/>',
+  free: '<circle cx="12" cy="12" r="8"/><path d="M12 4l3 5-3 3-3-3zM4.5 10l4.5 1 1 4-3 3M19.5 10L15 11l-1 4 3 3"/>' };
+const ico = k => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg>`;
+const NAV = [['start', 'Start here'], ['tests', 'Tests', TESTS.length], ['run', 'Run'], ['results', 'Results'], ['matrix', 'Matrix'], ['actions', 'Actions', ACTIONS.length],
+  ['anims', 'Animations', D.sheets.reduce((a, s) => a + Object.keys(s.anims).length, 0)], ['sep'], ['cap', 'KEPT AS THEY ARE'], ['bug', 'Bug Watch'], ['free', 'Free play']];
+const S = { view: 'start', group: 'K', types: new Set(), verd: new Set(), q: '', sel: 'K03', picked: new Set(), layout: store.get('layout', 'focus'), queue: null, qi: 0, playing: false,
+  speed: 1, boxes: true, runA: 'now', runB: 'old', onlyDiff: true, mx: null, anim: { sheet: 0, name: 'shot', dir: 'E', f: 0, play: !matchMedia('(prefers-reduced-motion: reduce)').matches, zoom: 1 } };
+
+function nav() {
+  $('#rail').innerHTML = NAV.map(([k, l, n]) => k === 'sep' ? '<div class="sep" role="presentation"></div>' : k === 'cap' ? `<div class="cap">${l}</div>`
+    : `<button type="button" data-v="${k}"${S.view === k ? ' aria-current="page"' : ''}>${ico(k)}<span>${l}</span>${n ? `<span class="n">${n}</span>` : ''}</button>`).join('');
+}
+function go(v, opts) { S.view = v; if (opts) Object.assign(S, opts); nav(); VIEWS[v](); $('#main').scrollTop = 0; if (opts && opts.focus !== false) $('#main').focus({ preventScroll: true }); try { if (location.hash.slice(1) !== v) history.replaceState(null, '', '#' + v); } catch (e) {} }
+const page = h => { $('#main').innerHTML = `<div class="page">${h}</div>`; };
+
+// ---------------------------------------------------------------- START HERE
+function vStart() {
+  const nAuto = AUTO.length, nYou = TESTS.filter(t => typeOf(t) === 'you').length, nWatch = TESTS.filter(t => typeOf(t) === 'watch').length;
+  const sameN = AUTO.filter(t => verdict(t).k === 'same').length, chN = AUTO.filter(t => verdict(t).k === 'changed').length;
+  const passN = AUTO.filter(t => verdict(t).k === 'pass').length, failN = AUTO.filter(t => verdict(t).k === 'fail').length;
+  const diceN = AUTO.filter(t => dice(t)).length;
+  page(`
+  <div class="head"><span class="eyebrow">Start here</span><h1>What do you want to check today?</h1>
+    <p class="lede">Every ${term('test')} replays the same way from its ${term('seed')}. Pick a ${term('preset')}, press Run, read the ${term('verdict')}. Dotted words explain themselves when you click them.</p></div>
+  <div class="steps" aria-label="Your first run, in three steps">
+    <div class="panel step"><b class="k" aria-hidden="true">1</b><h3>Pick a preset</h3><p class="muted">Start with <b>Quick check before a PR</b>. It takes about a minute.</p></div>
+    <div class="panel step"><b class="k" aria-hidden="true">2</b><h3>Watch it run</h3><p class="muted">The pitch shows each test live. Space pauses, the dot key steps one frame.</p></div>
+    <div class="panel step"><b class="k" aria-hidden="true">3</b><h3>Read the verdict, rate the feel</h3><p class="muted">✓ Pass or ✗ Fail from the numbers. Then 1 = looks right, 2 = looks wrong.</p></div>
+  </div>
+  <section class="head" aria-labelledby="pre-h"><h2 id="pre-h">Presets</h2></section>
+  <div class="presets">${PRESETS.map(p => `
+    <article class="panel preset"><span class="eyebrow">${p.kind === 'smoke' ? term('smoke', 'smoke test') : p.kind === 'regression' ? term('regression', 'regression test') : p.kind === 'matrix' ? term('factor', 'matrix') : term('functional', 'functional test')}</span>
+      <h3>${esc(p.name)}</h3><p class="muted">${esc(p.what)}</p>
+      <div class="facts"><span><b>${p.tests.length * (p.times || 1)}</b> runs${p.times ? ` (${p.tests.length} × ${p.times} levels)` : ''}</span><span>about <b>${secs(estimate(p))}</b> ${term('headless')}</span>${p.extra ? `<span>${esc(p.extra)}</span>` : ''}${p.hand ? `<span><b>${p.hand.length}</b> for you to play after</span>` : ''}</div>
+      <div class="row"><button class="btn primary" type="button" data-run="${p.id}">Run</button><button class="btn" type="button" data-see="${p.id}">See the tests</button></div>
+    </article>`).join('')}</div>
+  <section class="head" aria-labelledby="now-h"><h2 id="now-h">Where the tests stand on ${esc(D.ver)}</h2>
+    <p class="lede">From a real headless run of today's Lab (the Lab's own seeds), ${D.freshRuns} reruns with ${term('newdice', 'new dice')}${D.oldVer ? `, and the same run on ${esc(D.oldVer)} as the ${term('baseline')}` : ''}.</p></section>
+  <div class="stat-strip">
+    <div><b>${TESTS.length}</b><span>tests in 18 groups</span></div>
+    <div><b>${nAuto}</b><span>run by themselves</span></div>
+    <div><b>${nYou}</b><span>need you to play</span></div>
+    <div><b>${nWatch}</b><span>you watch (cut scenes, clips)</span></div>
+    <div><b>${Object.keys(TARGETS).length}</b><span>have a draft target</span></div>
+    <div><b><span class="v-pass">${passN}</span> / <span class="v-fail">${failN}</span></b><span>pass / fail their target</span></div>
+    ${D.oldVer ? `<div><b>${sameN}</b><span>same as ${esc(D.oldVer)}${chN ? `, ${chN} changed` : ''}</span></div>` : ''}
+    ${D.freshRuns ? `<div><b>${diceN}</b><span>depend on the dice</span></div>` : ''}
+  </div>
+  <div class="callout"><b>This is a prototype.</b><span>The numbers are real; the pitch is a still from the real Lab, and Run plays back the recorded results instead of the game. The build (stages 2-5 in docs/testlab.md) wires it to the game.</span></div>`);
+}
+
+// ---------------------------------------------------------------- TESTS (catalogue)
+function filtered() {
+  const q = S.q.trim().toLowerCase();
+  return TESTS.filter(t => (q ? (t.id + ' ' + t.name + ' ' + t.sub + ' ' + t.groupName).toLowerCase().includes(q) : t.group === S.group)
+    && (!S.types.size || S.types.has(typeOf(t))) && (!S.verd.size || S.verd.has(verdict(t).k) || (S.verd.has('dice') && dice(t))));
+}
+function vTests() {
+  const list = filtered(), sel = BY[S.sel] && list.includes(BY[S.sel]) ? BY[S.sel] : list[0]; if (sel) S.sel = sel.id;
+  const F = (set, k, l) => `<button class="fchip" type="button" data-f="${set}" data-k="${k}" aria-pressed="${S[set].has(k)}">${l}</button>`;
+  page(`
+  <div class="head"><span class="eyebrow">Tests</span><h1>Every test, in plain words</h1>
+    <p class="lede">Pick a group, or search everything. Click a test to read its ${term('testcase', 'test case')}; tick tests to run a selection.</p></div>
+  <div class="cat">
+    <nav class="panel groups" aria-label="Test groups">${D.groups.map(g => `<button type="button" data-g="${g.id}" aria-pressed="${!S.q && S.group === g.id}"><span class="id">${g.id}</span><span>${esc(GROUP_PLAIN[g.id])}</span><span class="c">${g.tests.length}</span></button>`).join('')}</nav>
+    <section class="panel" aria-label="Tests in this group" style="min-width:0">
+      <div class="filters"><span class="lab">Type</span>${F('types', 'auto', 'Automatic')}${F('types', 'you', 'You play')}${F('types', 'watch', 'You watch')}
+        <span class="lab" style="margin-left:8px">Verdict</span>${F('verd', 'pass', '✓ Pass')}${F('verd', 'fail', '✗ Fail')}${F('verd', 'changed', 'Δ Changed')}${F('verd', 'dice', '≈ Dice')}${F('verd', 'warn', '! Can\'t run')}</div>
+      <div class="tablewrap"><table class="tt" aria-label="Tests"><thead><tr><th scope="col"><span class="sr">Pick</span></th><th scope="col">ID</th><th scope="col">Test</th><th scope="col">Type</th><th scope="col">Verdict on ${esc(D.ver)}</th></tr></thead>
+      <tbody>${list.map(t => { const v = verdict(t), dz = dice(t); return `<tr data-t="${t.id}" class="${t.id === S.sel ? 'sel' : ''}">
+        <td><input type="checkbox" aria-label="Pick ${esc(t.id)}" data-pick="${t.id}" ${S.picked.has(t.id) ? 'checked' : ''}></td>
+        <td class="idc">${t.id}</td><td><button class="rowbtn" type="button" data-t="${t.id}"${t.id === S.sel ? ' aria-current="true"' : ''}>${esc(t.name)}</button><span class="sb">${esc(t.sub)}</span></td><td>${kindTag(t)}</td><td>${pill(v)}${dz ? `<br><span class="pill v-dice" style="margin-top:4px"><span class="g" aria-hidden="true">≈</span>${dz.n} of ${dz.of} runs agree</span>` : ''}</td></tr>`; }).join('')
+        || `<tr><td colspan="5" class="muted">No test matches. Clear the filters or the search.</td></tr>`}</tbody></table></div>
+      <div class="selbar" ${S.picked.size ? '' : 'hidden'}><b id="pickn">${S.picked.size} picked</b><span class="muted">about ${secs([...S.picked].reduce((a, id) => a + (BY[id].ms || MEAN[BY[id].group]), 0))}</span>
+        <button class="btn primary small" type="button" id="run-picked">Run picked</button><button class="btn small" type="button" id="clear-picked">Clear</button></div>
+    </section>
+    ${sel ? caseCard(sel) : ''}
+  </div>`);
+}
+const LABEL = { t: 'match time (s)', plan: 'keeper\'s read', atLine: 'at his line', kmh: 'struck at (km/h)', topHeight: 'top height (m)', atRings: 'at the ring', bounces: 'bounce peaks (m)' };
+const fmtVal = v => Array.isArray(v) ? v.map(fmtVal).join(v.length && typeof v[0] === 'object' ? ' | ' : ' → ') : v && typeof v === 'object' ? Object.entries(v).map(([k, x]) => `${k} ${x}`).join(' · ') : String(v);
+function caseCard(t) {
+  const c = caseOf(t), v = verdict(t), r = t.r, dz = dice(t);
+  const nums = r ? Object.entries(r).filter(([k]) => k !== 'outcome' && k !== 'events').map(([k, val]) => `<dt>${esc(LABEL[k] || k)}</dt><dd>${esc(fmtVal(val))}</dd>`).join('') : '';
+  return `<article class="panel case" aria-label="Test case ${esc(t.id)}">
+    <header><div class="row"><span class="chip">${esc(t.id)}</span>${kindTag(t)}<span class="faint" style="font-size:var(--s-1)">${esc(t.groupName)}</span></div>
+      <h2 style="font-size:var(--s2)">${esc(t.name)}</h2><p class="muted">${esc(c.purpose)}</p></header>
+    <section><h4>Setup</h4><p>${esc(c.setup)}</p></section>
+    <section><h4>Steps</h4><ol>${c.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></section>
+    <section><h4>${term('expected', 'Expected result')}</h4>${c.expected ? `<p>${esc(c.expected)} <span class="faint">(draft target)</span></p>` : `<p class="muted">No target yet. Until it has one, the verdict compares with the ${term('baseline')}.</p>`}</section>
+    <section><h4>${term('actual', 'Actual result')} · ${esc(D.ver)}</h4>
+      ${r ? `<p class="mono" style="font-size:13px">${esc(r.outcome)}</p><div class="row">${pill(v)}${dz ? `<span class="pill v-dice"><span class="g" aria-hidden="true">≈</span>${dz.n} of ${dz.of} runs agree</span>` : ''}</div>
+        ${nums ? `<dl class="kv">${nums}</dl>` : ''}
+        ${t.fresh ? `<p class="faint" style="font-size:var(--s-1)">With new dice: ${t.fresh.map(f => esc(f.o.split(' · ').slice(0, 2).join(' · '))).join(' | ')}</p>` : ''}
+        ${t.old && t.old.r ? `<p class="faint" style="font-size:var(--s-1)">On ${esc(D.oldVer)}: ${esc(t.old.r.outcome)}</p>` : ''}`
+      : `<div class="row">${pill(v)}</div><p class="muted">${typeOf(t) === 'auto' ? 'Not in this snapshot.' : 'A person judges this one: play or watch it, then rate it.'}</p>`}</section>
+    <section><h4>Evidence</h4><dl class="kv"><dt>${term('seed')}</dt><dd>${t.seed != null ? t.seed : 'set when you run it'}</dd><dt>version</dt><dd>${esc(D.ver)}</dd><dt>headless time</dt><dd>${t.ms ? secs(t.ms) : '–'}</dd></dl>
+      <div class="row"><button class="btn primary small" type="button" data-run1="${t.id}">Run</button><button class="btn small" type="button" data-run10="${t.id}">Run × 10 with new dice</button><button class="btn small" type="button" data-bug="${t.id}">Report a bug</button></div></section>
+  </article>`;
+}
+
+// ---------------------------------------------------------------- RUN
+function startQueue(ids, label, times) {
+  const q = []; for (let k = 0; k < (times || 1); k++) for (const id of ids) q.push({ id, lvl: times ? ['Easy', 'Normal', 'Hard', 'Rise Warrior'][k] : null, done: null });
+  S.queue = { label, items: q }; S.qi = 0; S.playing = true; go('run'); tickQueue();
+}
+let qTimer = null;
+function tickQueue() {
+  clearTimeout(qTimer); const Q = S.queue; if (!Q || !S.playing) return;
+  if (S.qi >= Q.items.length) { S.playing = false; renderRun(); toast(`${Q.label}: ${Q.items.length} runs done`); return; }
+  const it = Q.items[S.qi], t = BY[it.id];
+  renderRun();
+  qTimer = setTimeout(() => { it.done = verdict(t); S.qi++; tickQueue(); }, Math.max(380, Math.min(1400, (t.ms || 3000) / 6)) / S.speed);
+}
+function liveRows(t) {
+  const r = t && t.r; if (!r) return '<dt>ball</dt><dd>–</dd>';
+  const L = [];
+  if (r.kmh != null) L.push(['struck at', `${r.kmh} km/h · top ${r.topHeight} m`]);
+  if (r.plan) L.push(['keeper\'s read', `${r.plan.act || 'reading'} · reacts after ${r.plan.react} s · ${r.plan.fromHim} m from him, covers ${r.plan.canCover} m (${r.plan.kind})`]);
+  if (r.atLine) L.push(['at his line', `ball ${r.atLine.gap} m from him, ${r.atLine.height} m up · he was ${r.atLine.keeper}`]);
+  if (r.atRings) L.push(['at the ring', r.atRings.map(h => `${h.t} s · ${h.kmh} km/h · ${h.z} m up`).join(' / ')]);
+  if (r.bounces && r.bounces.length > 1) L.push(['bounces', r.bounces.join(' → ') + ' m']);
+  if (r.events && r.events.length) L.push(['called', r.events.slice(-3).join(' · ')]);
+  L.push(['time', `${r.t} s of match time`]);
+  return L.map(([a, b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join('');
+}
+function vRun() { renderRun(); }
+// one picture element for every render, so the still never flashes while the queue ticks
+const PITCH = Object.assign(new Image(), { src: 'proto-pitch.jpg', alt: 'Still from the real Test Lab: their keeper set 4.5 m off his line as a striker dribbles in (test GK4), with hit-box rings round each player' });
+function renderRun() {
+  if (S.view !== 'run') return;
+  const Q = S.queue, it = Q ? Q.items[Math.min(S.qi, Q.items.length - 1)] : null, t = it ? BY[it.id] : BY[S.sel] || BY.K03;
+  const fin = Q && S.qi >= Q.items.length, done = Q ? Q.items.filter(x => x.done) : [];
+  const cnt = k => done.filter(x => x.done.k === k).length;
+  const v = Q ? (it && it.done ? it.done : null) : verdict(t);
+  const sp = [0.25, 0.5, 1, 2, 4];
+  page(`
+  <div class="head"><span class="eyebrow">Run</span><h1>${Q ? esc(Q.label) : 'Run a test'}</h1>
+    <div class="row"><span class="muted">Layout:</span><span class="seg" role="group" aria-label="Layout"><button type="button" data-lay="focus" aria-pressed="${S.layout === 'focus'}">Focus</button><button type="button" data-lay="bench" aria-pressed="${S.layout === 'bench'}">Workbench</button></span>
+      <span class="faint" style="font-size:var(--s-1)">${S.layout === 'focus' ? 'Focus: the pitch big, one panel beside it (decision 1, option B).' : 'Workbench: the queue, the pitch and the numbers side by side (decision 1, option A).'}</span></div></div>
+  <div class="runwrap ${S.layout === 'bench' ? 'bench' : ''}">
+    <section class="panel queue" aria-label="Run queue"><div class="pad" style="display:grid;gap:8px"><b>${Q ? `${Math.min(S.qi, Q.items.length)} of ${Q.items.length} done` : 'Nothing queued'}</b><div class="progress" aria-hidden="true"><i style="width:${Q ? 100 * Math.min(S.qi, Q.items.length) / Q.items.length : 0}%"></i></div></div>
+      <ol class="qlist">${Q ? Q.items.map((x, j) => `<li class="${j === S.qi ? 'cur' : ''}"><span class="g ${x.done ? 'v-' + x.done.k : 'faint'}" aria-hidden="true">${x.done ? x.done.g : j === S.qi && !fin ? '▶' : '·'}</span><b>${esc(x.id)}${x.lvl ? ' · ' + x.lvl : ''}</b><span>${x.done ? esc(x.done.w) : esc(BY[x.id].name)}</span></li>`).join('') : '<li class="muted">Pick a preset on Start here, or tick tests in Tests.</li>'}</ol></section>
+    <div style="display:grid;gap:10px;min-width:0">
+      <div class="stage"><span id="pitch-slot"></span>
+        <div class="hud"><span class="t">${esc(t.id)} · ${esc(t.groupName)}</span><span>seed ${t.seed != null ? t.seed : '–'} · ${S.speed}×${S.boxes ? ' · hit boxes' : ''}</span></div>
+        ${v ? `<div class="verdict" role="status"><span aria-hidden="true">${v.g}</span>${esc(v.w)}${t.r ? ` · <span class="mono" style="font-size:12px;font-weight:500">${esc(t.r.outcome.slice(0, 70))}</span>` : ''}</div>` : ''}</div>
+      <div class="panel transport" role="group" aria-label="Playback">
+        <button class="btn small" type="button" data-tp="restart" title="R">Replay <kbd>R</kbd></button>
+        <button class="btn small primary" type="button" data-tp="play">${S.playing ? 'Pause' : 'Play'} <kbd>Space</kbd></button>
+        <button class="btn small" type="button" data-tp="step">Step 1 frame <kbd>.</kbd></button>
+        <span class="seg" role="group" aria-label="Speed">${sp.map(x => `<button type="button" data-sp="${x}" aria-pressed="${S.speed === x}">${x}×</button>`).join('')}</span>
+        <span class="field"><label for="seed">${term('seed', 'Seed')}</label><input id="seed" type="text" inputmode="numeric" value="${t.seed != null ? t.seed : ''}"></span>
+        <button class="btn small" type="button" data-tp="dice">New dice <kbd>F</kbd></button>
+        <button class="btn small" type="button" data-tp="boxes" aria-pressed="${S.boxes}">Hit boxes <kbd>H</kbd></button>
+        <span class="faint" style="font-size:var(--s-1)">What is ${term('newdice', 'new dice')}? ${term('hitbox', 'hit boxes')}?</span>
+      </div>
+    </div>
+    <div class="side">
+      <section class="panel pad" aria-label="Live numbers" style="display:grid;gap:10px"><h3 style="font-size:var(--s1)">${esc(t.name)}</h3><p class="muted" style="font-size:var(--s-1)">${esc(t.sub)}</p><dl class="kv">${liveRows(t)}</dl></section>
+      ${Q ? `<section class="panel pad" aria-live="polite" style="display:grid;gap:8px"><b>So far</b><div class="row">${['pass', 'fail', 'same', 'changed', 'warn', 'dice', 'plain'].filter(k => cnt(k)).map(k => pill(Object.assign({}, done.find(x => x.done.k === k).done, { w: cnt(k) + ' ' + done.find(x => x.done.k === k).done.w.toLowerCase() }))).join('') || '<span class="muted">starting…</span>'}</div>
+        ${fin ? `<button class="btn primary small" type="button" data-go="results">Open in Results</button>` : ''}</section>` : ''}
+      <section class="panel pad rate" aria-label="Rate the feel"><b>Rate the feel</b><p class="muted" style="font-size:var(--s-1)">The numbers say what happened. You say if it looked right.</p>
+        <div class="row"><button class="btn" type="button" data-rate="1"><kbd>1</kbd> Looks right</button><button class="btn" type="button" data-rate="2"><kbd>2</kbd> Looks wrong</button></div>
+        <div class="reasons" id="reasons" hidden>${['keeper', 'ball physics', 'movement / feel', 'contact / hit box', 'animation / looks'].map((x, j) => `<button class="fchip" type="button" aria-pressed="false" data-reason="${j + 3}"><kbd>${j + 3}</kbd> ${x}</button>`).join('')}</div>
+        <label for="note" class="sr">Note</label><input class="note" id="note" type="text" placeholder="Optional: what you saw (goes with your rating)">
+        <button class="btn small" type="button" data-bug="${t.id}">Report a bug from this run</button></section>
+    </div>
+  </div>`);
+  const slot = $('#pitch-slot'); if (slot) slot.replaceWith(PITCH);
+}
+
+// ---------------------------------------------------------------- RESULTS
+const RUNS = () => [
+  { id: 'now', tag: D.ver, a: true, name: 'Full regression · the Lab\'s own seeds', note: 'real headless run, 24 Oct', v: t => verdict(t), o: t => t.r && t.r.outcome },
+  ...(D.oldVer ? [{ id: 'old', tag: D.oldVer, name: 'Full regression · the Lab\'s own seeds', note: 'the same run on the older version', v: t => verdict(t, 'old'), o: t => t.old && t.old.r && t.old.r.outcome }] : []),
+  ...(D.freshRuns ? [0, 1].slice(0, D.freshRuns).map(i => ({ id: 'f' + i, tag: D.ver, name: `New dice · pass ${i + 1}`, note: 'every automatic test with a random seed', v: t => t.fresh && t.fresh[i] ? (cat(t.fresh[i].o) === cat(t.r && t.r.outcome) ? { k: 'same', g: '=', w: 'Same outcome' } : { k: 'changed', g: 'Δ', w: 'Different outcome' }) : verdict(t), o: t => t.fresh && t.fresh[i] && t.fresh[i].o })) : []),
+];
+function vResults() {
+  const R = RUNS(), A = R.find(r => r.id === S.runA) || R[0], B = R.find(r => r.id === S.runB) || R[1] || R[0];
+  const counts = run => { const c = {}; AUTO.forEach(t => { const v = run.v(t); c[v.k] = (c[v.k] || 0) + 1; }); return c; };
+  const rows = AUTO.map(t => ({ t, a: A.o(t), b: B.o(t) })).filter(x => !S.onlyDiff || x.a !== x.b);
+  const dn = (x, y) => (x != null && y != null && x !== y) ? `${y > x ? '+' : ''}${(y - x).toFixed(2).replace(/\.?0+$/, '')}` : '';
+  page(`
+  <div class="head"><span class="eyebrow">Results</span><h1>Runs, side by side</h1>
+    <p class="lede">Every run is kept with its version and seeds. Pick two to compare: the table shows only what moved. Copy the numbers out as CSV or JSON.</p></div>
+  <div class="two">
+    <section aria-labelledby="hist-h" style="display:grid;gap:10px"><h2 id="hist-h" style="font-size:var(--s2)">Run history</h2>
+      <div class="runs">${R.map(r => { const c = counts(r); return `<div class="runcard${r.id === A.id || r.id === B.id ? ' on' : ''}" role="group" aria-label="${esc(r.tag + ' ' + r.name)}">
+        <span class="tag ${r.a ? 'a' : ''}">${esc(r.tag)}</span><div><b>${esc(r.name)}</b><div class="faint" style="font-size:var(--s-1)">${esc(r.note)} · ${AUTO.length} tests</div></div>
+        <div class="row"><button class="btn small" type="button" data-ra="${r.id}" aria-pressed="${r.id === A.id}">A</button><button class="btn small" type="button" data-rb="${r.id}" aria-pressed="${r.id === B.id}">B</button></div>
+        <div class="counts">${Object.entries(c).sort((x, y) => y[1] - x[1]).map(([k, n]) => `<span class="pill v-${k}">${n} ${esc(({ pass: 'pass', fail: 'fail', same: 'same', changed: 'changed', warn: 'can\'t run', dice: 'need repeats', plain: 'no target' })[k] || k)}</span>`).join('')}</div></div>`; }).join('')}</div></section>
+    <section aria-labelledby="exp-h" class="panel pad" style="display:grid;gap:10px;align-content:start"><h2 id="exp-h" style="font-size:var(--s2)">Take the data out</h2>
+      <p class="muted">Every number behind every run: outcome, speeds, heights, the keeper's read, bounces, timings, seeds.</p>
+      <div class="row"><button class="btn" type="button" data-copy="csv">Copy CSV</button><button class="btn" type="button" data-copy="json">Copy JSON</button></div>
+      <textarea id="dump" class="note" style="min-height:90px;font:12px var(--f-data)" hidden readonly aria-label="Copied data"></textarea>
+      <div class="callout"><b>Where runs are kept is decision 2.</b><span>Recommended: the Lab's database for runs you do by hand, plus one baseline file per version from the headless runner, so "compare with the last version" works for people and for the QA check.</span></div></section>
+  </div>
+  <section class="panel" aria-labelledby="cmp-h" style="min-width:0">
+    <div class="filters"><h2 id="cmp-h" style="font-size:var(--s1);margin-right:auto">A: ${esc(A.tag + ' · ' + A.name)}  →  B: ${esc(B.tag + ' · ' + B.name)}</h2>
+      <button class="fchip" type="button" id="onlydiff" aria-pressed="${S.onlyDiff}">Only what moved (${AUTO.filter(t => A.o(t) !== B.o(t)).length})</button></div>
+    <div class="tablewrap"><table class="cmp"><thead><tr><th scope="col">Test</th><th scope="col">A</th><th scope="col">B</th><th scope="col">Δ km/h</th><th scope="col">Δ top height</th><th scope="col"><span class="sr">Report</span></th></tr></thead>
+    <tbody>${rows.slice(0, 160).map(({ t, a, b }) => { const ra = A.id === 'old' ? t.old && t.old.r : t.r, rb = B.id === 'old' ? t.old && t.old.r : B.id === 'now' ? t.r : null;
+      return `<tr><td><span class="nm">${esc(t.id)}</span><span class="sb">${esc(t.name)}</span></td><td class="o">${esc(a || '–')}</td><td class="o">${esc(b || '–')}</td>
+      <td class="delta">${ra && rb ? dn(ra.kmh, rb.kmh) : ''}</td><td class="delta">${ra && rb ? dn(ra.topHeight, rb.topHeight) : ''}</td><td><button class="btn small" type="button" data-bug="${t.id}">Report</button></td></tr>`; }).join('')
+      || `<tr><td colspan="6"><b>Nothing moved.</b> <span class="muted">Every automatic test gives the same outcome in A and B${A.id === 'old' || B.id === 'old' ? `: the v0.9.5 split and the versions after it changed nothing in play, which is what the house rules ask a refactor to prove` : ''}.</span></td></tr>`}</tbody></table></div>
+  </section>`);
+}
+function exportText(kind) {
+  const rows = AUTO.map(t => ({ id: t.id, group: t.group, name: t.name, seed: t.seed, version: D.ver, verdict: verdict(t).w, outcome: t.r && t.r.outcome, kmh: t.r && t.r.kmh, topHeight: t.r && t.r.topHeight, t: t.r && t.r.t, headlessMs: t.ms }));
+  if (kind === 'json') return JSON.stringify(AUTO.map(t => ({ id: t.id, seed: t.seed, version: D.ver, verdict: verdict(t).w, result: t.r })), null, 1);
+  const cols = Object.keys(rows[0]), q = v => v == null ? '' : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+  return [cols.join(','), ...rows.map(r => cols.map(c => q(r[c])).join(','))].join('\n');
+}
+
+// ---------------------------------------------------------------- MATRIX (pairwise generator, real)
+const rngOf = seed => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+function pairwise(sizes, seed = 7) {                  // greedy covering array, strength 2 (AETG-style): every pair of values at least once
+  const n = sizes.length; if (!n) return []; if (n === 1) return Array.from({ length: sizes[0] }, (_, i) => [i]);
+  const R = rngOf(seed), unc = new Set(), key = (a, va, b, vb) => `${a}:${va}:${b}:${vb}`;
+  for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) for (let va = 0; va < sizes[a]; va++) for (let vb = 0; vb < sizes[b]; vb++) unc.add(key(a, va, b, vb));
+  const rows = [];
+  while (unc.size) {
+    const pool = [...unc]; let best = null, bestG = -1;
+    for (let c = 0; c < 24; c++) {
+      const [a, va, b, vb] = pool[Math.floor(R() * pool.length)].split(':').map(Number), row = Array(n).fill(-1); row[a] = va; row[b] = vb;
+      const order = [...Array(n).keys()].filter(f => f !== a && f !== b).sort(() => R() - 0.5);
+      for (const f of order) { let bv = 0, bg = -1; for (let v = 0; v < sizes[f]; v++) { let g = 0; for (let o = 0; o < n; o++) if (row[o] >= 0 && o !== f) g += unc.has(o < f ? key(o, row[o], f, v) : key(f, v, o, row[o])) ? 1 : 0; if (g > bg || (g === bg && R() < 0.3)) { bg = g; bv = v; } } row[f] = bv; }
+      let g = 0; for (let x = 0; x < n; x++) for (let y = x + 1; y < n; y++) if (unc.has(key(x, row[x], y, row[y]))) g++;
+      if (g > bestG) { bestG = g; best = row; }
+    }
+    rows.push(best); for (let x = 0; x < n; x++) for (let y = x + 1; y < n; y++) unc.delete(key(x, best[x], y, best[y]));
+  }
+  return rows;
+}
+const SPOTS = ['penalty spot (11 m)', 'edge of the box (17 m)', 'angle, top side', 'angle, bottom side', 'close range (6 m)', 'long range (25 m)'];
+const TGTS = ['low, TOP post', 'low, BOTTOM post', 'high, TOP corner', 'high, BOTTOM corner', 'straight at him, chest high'];
+const LEVELS = ['Easy', 'Normal', 'Hard', 'Rise Warrior'], WX = ['Dry', 'Rain', 'Snow'], TOD = ['Day', 'Sunset', 'Night'], CAM = ['Close', 'Medium', 'Wide'], KITS = ['IS', 'IRO', 'USCS', 'LUC', 'THUAS', 'AUC'];
+const TEMPLATES = {
+  K: { name: 'Keeper v a shot', base: 'K', factors: [['Shot spot', 'where the striker shoots from', SPOTS, 'all'], ['Target', 'where he aims', TGTS, 'all'], ['Shot speed', 'km/h', ['43', '92', '108'], [1]],
+    ['Their keeper\'s level', 'the trained difficulty', LEVELS, 'all'], ['Team AI', 'Classic ignores the level', ['New', 'Classic'], [0]], ['Weather', 'changes the ball on the grass', WX, 'all'],
+    ['Light', 'looks only', TOD, [0]], ['Camera', 'looks only', CAM, [0]], ['Keeper kit', 'looks only: the colours', KITS, [1]]] },
+  CH: { name: 'The chip', base: 'CH', factors: [['Striker distance', 'from goal', ['12 m', '14 m', '16 m'], 'all'], ['Keeper position', 'off his line', ['on his line', '3 m out', '7 m out', '10 m out'], 'all'],
+    ['How long LOB is held', 'tap to long hold', ['10%', '50%', '80%'], 'all'], ['Their keeper\'s level', 'the trained difficulty', LEVELS, 'all'], ['Weather', 'changes the ball', WX, [0]]] },
+  GK: { name: 'Keeper AI situation', base: 'GK', factors: [['Situation', 'GK1-GK11', ['GK1 walk up', 'GK2 halfway', 'GK3 counter', 'GK4 dribble + shot', 'GK5 wide', 'GK6 1v1', 'GK7 heavy touch', 'GK8 sweep', 'GK9 hold back', 'GK10 back pass', 'GK11 lob'], 'all'],
+    ['Their keeper\'s level', 'the trained difficulty', LEVELS, 'all'], ['Team AI', 'Classic ignores the level', ['New', 'Classic'], 'all'], ['Weather', 'changes the ball', WX, 'all']] },
+};
+function mxInit(tk) { const T = TEMPLATES[tk]; S.mx = { tk, how: 'pair', rep: 1, sel: T.factors.map(f => new Set(f[3] === 'all' ? f[2].map((_, i) => i) : f[3])), rows: null }; }
+function mxCounts() {
+  const T = TEMPLATES[S.mx.tk], act = T.factors.map((f, i) => ({ f, i, vals: [...S.mx.sel[i]].sort((a, b) => a - b) })).filter(x => x.vals.length);
+  const full = act.reduce((a, x) => a * x.vals.length, 1), pw = pairwise(act.filter(x => x.vals.length > 1).map(x => x.vals.length));
+  return { act, full, pair: Math.max(1, pw.length), pw };
+}
+function vMatrix() {
+  if (!S.mx) mxInit('K');
+  const T = TEMPLATES[S.mx.tk], C = mxCounts(), ms = MEAN[T.base], n = (S.mx.how === 'pair' ? C.pair : C.full) * S.mx.rep;
+  const kGrid = SPOTS.map((s, i) => TGTS.map((g, j) => BY['K' + String(i * 5 + j + 1).padStart(2, '0')]));
+  const cellOf = t => { const o = t && t.r ? t.r.outcome : ''; const k = /^GOAL/.test(o) ? 'goal' : /^SAVED/.test(o) ? 'save' : 'other'; const dz = dice(t);
+    return `<div class="cell ${k}"><span class="g" aria-hidden="true">${k === 'goal' ? '●' : k === 'save' ? '✓' : '·'}</span>${k === 'goal' ? 'Goal' : k === 'save' ? (o.includes('parried') ? 'Parried' : 'Caught') : esc(cat(o))}${dz ? `<span class="faint" style="font-weight:400">≈ ${dz.n}/${dz.of}</span>` : ''}</div>`; };
+  page(`
+  <div class="head"><span class="eyebrow">Matrix</span><h1>Test the combinations</h1>
+    <p class="lede">Pick the ${term('factor', 'factors')} and values. You see how many runs it takes before anything runs: every combination (${term('fullgrid', 'full grid')}) or every pair (${term('pairwise')}).</p></div>
+  <div class="row"><span class="field"><label for="tmpl">What to test</label><select id="tmpl">${Object.entries(TEMPLATES).map(([k, t]) => `<option value="${k}"${k === S.mx.tk ? ' selected' : ''}>${esc(t.name)} (based on ${t.base})</option>`).join('')}</select></span></div>
+  <div class="mx">
+    <section class="panel" aria-label="Factors">${T.factors.map((f, i) => `<div class="factor"><div class="fn"><b>${esc(f[0])}</b><span>${esc(f[1])} · ${S.mx.sel[i].size} of ${f[2].length}</span></div>
+      <div class="vals" role="group" aria-label="${esc(f[0])}">${f[2].map((v, j) => `<button class="fchip" type="button" data-mf="${i}" data-mv="${j}" aria-pressed="${S.mx.sel[i].has(j)}">${esc(v)}</button>`).join('')}</div></div>`).join('')}</section>
+    <aside class="panel count" aria-live="polite" aria-label="How many runs">
+      <span class="eyebrow">How many runs</span><div class="bignum">${n.toLocaleString('en-GB')}</div><span class="muted">runs · about ${secs(n * ms)} headless</span>
+      <label class="choice"><input type="radio" name="how" value="pair" ${S.mx.how === 'pair' ? 'checked' : ''}><b>Every pair</b><span class="c">${C.pair}</span><small>Every two values meet at least once. The short list.</small></label>
+      <label class="choice"><input type="radio" name="how" value="full" ${S.mx.how === 'full' ? 'checked' : ''}><b>Every combination</b><span class="c">${C.full.toLocaleString('en-GB')}</span><small>${C.act.map(x => x.vals.length).join(' × ')}. Complete, slow.</small></label>
+      <span class="field"><label for="rep">Repeat each with new dice</label><select id="rep">${[1, 3, 10, 40].map(r => `<option${r === S.mx.rep ? ' selected' : ''}>${r}</option>`).join('')}</select></span>
+      <p class="faint" style="font-size:var(--s-1)">NIST: most bugs need only one or two factors to show up, a few need three to six. Pairwise catches the first kind in a fraction of the runs.</p>
+      <div class="row"><button class="btn primary" type="button" id="mx-make">List the runs</button><button class="btn" type="button" id="mx-run">Run them</button></div>
+    </aside>
+  </div>
+  ${S.mx.rows ? `<section class="panel" aria-labelledby="mxl-h" style="min-width:0"><div class="filters"><h2 id="mxl-h" style="font-size:var(--s1)">The ${S.mx.rows.length} runs${S.mx.how === 'pair' ? ' (every pair covered)' : ''}</h2></div>
+    <div class="tablewrap" style="max-height:340px;overflow:auto"><table><thead><tr><th scope="col">#</th>${C.act.map(x => `<th scope="col">${esc(x.f[0])}</th>`).join('')}<th scope="col">${term('seed')}</th></tr></thead>
+    <tbody>${S.mx.rows.slice(0, 400).map((r, j) => `<tr><td class="idc">${j + 1}</td>${r.map(v => `<td>${esc(v)}</td>`).join('')}<td class="idc">${(2654435761 * (j + 1)) >>> 0}</td></tr>`).join('')}</tbody></table></div></section>` : ''}
+  <section class="panel" aria-labelledby="grid-h" style="min-width:0"><div class="pad" style="display:grid;gap:6px"><h2 id="grid-h" style="font-size:var(--s2)">What a result grid looks like</h2>
+    <p class="muted">Today's K group is already a full grid: 6 spots × 5 targets at 92 km/h. Real results on ${esc(D.ver)}${D.freshRuns ? `; ≈ n/${D.freshRuns + 1} marks cells where new dice changed the outcome` : ''}. ● goal, ✓ save.</p></div>
+    <div class="tablewrap"><table class="grid-res"><thead><tr><th scope="col">Spot ↓ · target →</th>${TGTS.map(g => `<th scope="col">${esc(g)}</th>`).join('')}</tr></thead>
+    <tbody>${kGrid.map((row, i) => `<tr><th scope="row">${esc(SPOTS[i])}</th>${row.map(t => `<td>${cellOf(t)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`);
+}
+function mxRows() { const C = mxCounts(); const act = C.act;
+  if (S.mx.how === 'full') { let rows = [[]]; for (const x of act) rows = rows.flatMap(r => x.vals.map(v => [...r, x.f[2][v]])); return rows; }
+  const multi = act.filter(x => x.vals.length > 1);
+  return (C.pw.length ? C.pw : [[]]).map(r => act.map(x => { const k = multi.indexOf(x); return x.f[2][k >= 0 ? x.vals[r[k]] : x.vals[0]]; })); }
+
+// ---------------------------------------------------------------- ACTIONS (coverage)
+function vActions() {
+  const c = { both: 0, test: 0, button: 0, none: 0 }; ACTIONS.forEach(a => c[a.st]++);
+  const areas = [...new Set(ACTIONS.map(a => a.area))], col = { both: 'var(--pass)', test: 'var(--data)', button: 'var(--warn)', none: 'var(--fail)' };
+  const st = { both: { k: 'pass', g: '✓', w: 'Test + button' }, test: { k: 'same', g: '✓', w: 'Test only' }, button: { k: 'warn', g: '◐', w: 'Button only' }, none: { k: 'fail', g: '○', w: 'Nothing yet' } };
+  page(`
+  <div class="head"><span class="eyebrow">Actions</span><h1>Every move the game has</h1>
+    <p class="lede">${ACTIONS.length} moves and match events, read from the game code. For each one: where it lives, the FREE PLAY button that fires it today, and the tests that cover it (${term('coverage')}).</p></div>
+  <div class="panel pad" style="display:grid;gap:10px"><div class="covbar" role="img" aria-label="${c.both} have a test and a FREE PLAY button, ${c.test} a test only, ${c.button} a button only, ${c.none} nothing yet">${['both', 'test', 'button', 'none'].filter(k => c[k]).map(k => `<i style="width:${100 * c[k] / ACTIONS.length}%;background:${col[k]}"></i>`).join('')}</div>
+    <div class="legend"><span><i style="background:var(--pass)"></i>${c.both} a test and a FREE PLAY button</span><span><i style="background:var(--data)"></i>${c.test} a test only (no button to fire it by hand)</span>${c.button ? `<span><i style="background:var(--warn)"></i>${c.button} a button only</span>` : ''}<span><i style="background:var(--fail)"></i>${c.none} nothing yet: set pieces, keeper distribution, the shoot-out</span></div></div>
+  ${areas.map(ar => `<section class="panel" aria-labelledby="ar-${ar.replace(/\W/g, '')}" style="min-width:0"><div class="filters"><h2 id="ar-${ar.replace(/\W/g, '')}" style="font-size:var(--s1)">${esc(ar)}</h2></div>
+    <div class="tablewrap"><table><thead><tr><th scope="col">Move</th><th scope="col">In the code</th><th scope="col">FREE PLAY today</th><th scope="col">Tests today</th><th scope="col">Coverage</th><th scope="col"><span class="sr">Try</span></th></tr></thead><tbody>
+    ${ACTIONS.filter(a => a.area === ar).map(a => `<tr><td><span class="nm">${esc(a.move)}</span><span class="sb">${esc(a.plain)}</span></td><td><span class="code">${esc(a.code)}</span></td><td>${a.fp ? esc(a.fp) : '<span class="faint">–</span>'}</td><td class="idc">${a.tests ? esc(a.tests) : '–'}</td><td>${pill(st[a.st])}</td>
+      <td><button class="btn small" type="button" data-try="${esc(a.move)}">Try it</button></td></tr>`).join('')}</tbody></table></div></section>`).join('')}`);
+}
+
+// ---------------------------------------------------------------- ANIMATIONS (real atlases)
+const IMG = {};
+function atlas(sh, cb) {
+  if (IMG[sh.key]) { if (IMG[sh.key].ok) cb(IMG[sh.key].img); else IMG[sh.key].wait.push(cb); return; }
+  const rec = IMG[sh.key] = { img: new Image(), ok: false, wait: [cb] }, tries = ['../assets/sprites/' + sh.img, 'sprites/' + sh.img]; let k = 0;
+  rec.img.onload = () => { rec.ok = true; rec.wait.splice(0).forEach(f => f(rec.img)); };
+  rec.img.onerror = () => { if (++k < tries.length) rec.img.src = tries[k]; else rec.failed = true; };
+  rec.img.src = tries[0];
+}
+const DIRV = i => ({ x: Math.cos(-i * Math.PI / 4) });
+function bboxOf(sh, A) { let x0 = 1e9, y0 = 1e9, x1 = 0, y1 = 0; for (const d in A) for (const fi of A[d]) { const f = sh.frames[fi]; x0 = Math.min(x0, f[4]); y0 = Math.min(y0, f[5]); x1 = Math.max(x1, f[4] + f[2]); y1 = Math.max(y1, f[5] + f[3]); } return { x0, y0, w: x1 - x0, h: y1 - y0 }; }
+function drawFrame(cv, img, sh, fi, bb, z) { const f = sh.frames[fi], g = cv.getContext('2d'); g.imageSmoothingEnabled = false; g.clearRect(0, 0, cv.width, cv.height); g.drawImage(img, f[0], f[1], f[2], f[3], (f[4] - bb.x0) * z, (f[5] - bb.y0) * z, f[2] * z, f[3] * z); }
+function animFlags(A) {
+  const ds = Object.keys(A), counts = ds.map(d => A[d].length), out = [];
+  if (ds.length < 8) out.push(`${ds.length} of 8 directions (${ds.join(', ')})`);
+  if (new Set(counts).size > 1) out.push('frame count differs by direction: ' + ds.map(d => `${d} ${A[d].length}`).join(', '));
+  return out;
+}
+let animTimer = null;
+function vAnims() {
+  clearInterval(animTimer);
+  const A0 = S.anim, sh = D.sheets[A0.sheet], names = Object.keys(sh.anims); if (!sh.anims[A0.name]) A0.name = names.includes('idle') ? 'idle' : names[0];
+  const A = sh.anims[A0.name]; if (!A[A0.dir]) A0.dir = Object.keys(A)[0]; A0.f = Math.min(A0.f, A[A0.dir].length - 1);
+  const hit = D.kickHit[A0.name], fps = D.kickRate[A0.name] || 12, bb = bboxOf(sh, A), z = bb.h > 150 ? 1 : 2, zs = 1;
+  const pos = ['NW', 'N', 'NE', 'W', 'mid', 'E', 'SW', 'S', 'SE'];
+  const fall = d => { const i = D.dirs.indexOf(d); return [d, DIRV(i).x >= 0 ? 'E' : 'W', 'S'].find(k => A[k]); };
+  const flags = animFlags(A), totalClips = D.sheets.reduce((a, s) => a + Object.values(s.anims).reduce((b, x) => b + Object.keys(x).length, 0), 0);
+  page(`
+  <div class="head"><span class="eyebrow">Animations</span><h1>Every animation, frame by frame</h1>
+    <p class="lede">The real sprite sheets from PixelLab. All 8 directions play at once; click one to step through its frames. The ${term('contact', 'contact frame')} is marked where the game records one.</p></div>
+  <div class="row"><span class="field"><label for="sheet">Sheet</label><select id="sheet">${D.sheets.map((s, i) => `<option value="${i}"${i === A0.sheet ? ' selected' : ''}>${esc(s.label)} · ${Object.keys(s.anims).length} animations</option>`).join('')}</select></span>
+    <span class="faint" style="font-size:var(--s-1)">${sh.kits.length > 1 ? `Same frames on ${sh.kits.length} kits (${sh.kits.join(', ')}); the build adds a kit switch to check the colours.` : ''} ${totalClips} clips across these 3 sheets.</span></div>
+  <div class="anim">
+    <nav class="panel" aria-label="Animations"><div class="pad" style="padding-bottom:6px"><label for="aq" class="sr">Filter animations</label><input id="aq" class="note" type="search" placeholder="Filter, e.g. dive" value="${esc(A0.q || '')}"></div>
+      <div class="alist">${names.filter(n => !A0.q || n.toLowerCase().includes(A0.q.toLowerCase())).map(n => { const X = sh.anims[n], ds = Object.keys(X), fl = animFlags(X);
+        return `<button type="button" data-an="${esc(n)}" aria-pressed="${n === A0.name}"><b>${esc(n)}</b><small>${ds.length} dir · ${X[ds[0]].length} fr${D.kickHit[n] != null ? ' · contact' : ''}</small>${fl.length ? `<span class="fl">◐ ${esc(fl[0].split(':')[0])}</span>` : ''}</button>`; }).join('')}</div></nav>
+    <div style="display:grid;gap:14px;min-width:0">
+      <section class="panel pad" style="display:grid;gap:12px" aria-label="${esc(A0.name)} in every direction">
+        <div class="row"><h2 style="font-size:var(--s2)" class="mono">${esc(A0.name)}</h2><span class="chip">${fps} fps${D.kickRate[A0.name] ? ' (KICK_RATE)' : ' (Lab default)'}</span>${hit != null ? `<span class="chip" style="border-color:var(--accent);color:var(--fg)">contact on frame ${hit + 1}</span>` : '<span class="chip">no contact frame recorded</span>'}
+          <button class="btn small" type="button" id="aplay" style="margin-left:auto">${A0.play ? 'Pause' : 'Play'} <kbd>Space</kbd></button></div>
+        <div class="compass">${pos.map(d => d === 'mid' ? `<div class="dcell mid"><span>${Object.keys(A).length} of 8 directions<br>${A[Object.keys(A)[0]].length} frames</span></div>`
+          : A[d] ? `<button class="dcell" type="button" data-dir="${d}" aria-pressed="${d === A0.dir}" aria-label="${d}, ${A[d].length} frames"><span class="d">${d}</span><span class="fc">${A[d].length}</span><canvas data-cv="${d}" width="${bb.w * z}" height="${bb.h * z}"></canvas></button>`
+          : `<div class="dcell miss"><span class="d">${d}</span><span>No ${d} frames.<br>The Lab's player falls back to ${fall(d) || '–'}.</span></div>`).join('')}</div>
+      </section>
+      <section class="panel pad" style="display:grid;gap:10px" aria-label="Frames">
+        <div class="row"><h3 style="font-size:var(--s1)">${esc(A0.dir)} · frame <span id="fno">${A0.f + 1}</span> of ${A[A0.dir].length}</h3>
+          <button class="btn small" type="button" data-fs="-1" aria-label="Previous frame">◀ <kbd>,</kbd></button><button class="btn small" type="button" data-fs="1" aria-label="Next frame"><kbd>.</kbd> ▶</button></div>
+        <div class="strip" role="list">${A[A0.dir].map((fi, j) => `<button class="fr" type="button" role="listitem" data-fj="${j}" aria-current="${j === A0.f}" aria-label="Frame ${j + 1}${j === hit ? ', contact frame' : ''}"><canvas data-fr="${j}" width="${Math.round(bb.w * zs * 0.6)}" height="${Math.round(bb.h * zs * 0.6)}"></canvas><span>${j + 1}</span>${j === hit ? '<span class="ct">CONTACT</span>' : ''}</button>`).join('')}</div>
+        ${flags.length || hit == null ? `<div class="callout"><b>Worth a look</b><ul class="checks">${flags.map(f => `<li>${esc(f)}</li>`).join('')}${hit == null && /header|volley|bicycle|dheader|slide|tackle|punch|catch|claim|kick|throw|roll/.test(A0.name) ? '<li>This move touches the ball but has no contact frame in KICK_HIT: the build adds one, so the Lab can check the ball leaves on it.</li>' : ''}</ul></div>` : ''}
+      </section>
+    </div>
+  </div>`);
+  atlas(sh, img => {
+    if (S.view !== 'anims') return; let k = 0;
+    const paint = () => { for (const d in A) { const cv = document.querySelector(`[data-cv="${d}"]`); if (cv) drawFrame(cv, img, sh, A[d][k % A[d].length], bb, z); }
+      $$('[data-fr]').forEach(cv => drawFrame(cv, img, sh, A[A0.dir][+cv.dataset.fr], bb, zs * 0.6)); };
+    paint();
+    const big = () => { for (const d in A) { const cv = document.querySelector(`[data-cv="${d}"]`); if (cv) drawFrame(cv, img, sh, A[d][(d === A0.dir ? A0.f : k) % A[d].length], bb, z); } };
+    S.animPaint = () => { big(); $$('.fr').forEach(b => b.setAttribute('aria-current', String(+b.dataset.fj === A0.f))); const n = $('#fno'); if (n) n.textContent = A0.f + 1; };
+    big();
+    if (A0.play) animTimer = setInterval(() => { if (S.view !== 'anims') return clearInterval(animTimer); k++; A0.f = (A0.f + 1) % A[A0.dir].length; S.animPaint(); }, 1000 / fps);
+  });
+}
+
+// ---------------------------------------------------------------- KEPT: Bug Watch, Free play
+function vBug() { page(`<div class="head"><span class="eyebrow">Kept as it is</span><h1>Bug Watch clips</h1><p class="lede">The clips the game's watchdog keeps (about 25 rules) and the overnight QA runs send. Nothing changes in how they work; they move into the new frame.</p></div>
+  <div class="two"><div class="panel pad" style="display:grid;gap:8px"><h3>What stays</h3><ul class="plain"><li>Clips load from the Lab's database (collection <span class="mono">bugwatch</span>), not rated first.</li><li>Watch again (R), rate: 1 = the game was right, 2 = it's a bug, with the reason keys 3-7 and a note.</li><li>Ask Claude about this clip: three frames + the state + the trace.</li><li>The verdict is written back on the clip (<span class="mono">review</span>), which the QA check reads.</li></ul></div>
+  <div class="panel pad" style="display:grid;gap:8px"><h3>What the new frame adds</h3><ul class="plain"><li>Clips get the same verdict pills and filters as tests.</li><li>A clip marked "it's a bug" opens Report a bug with its seed and repro line filled in.</li><li>Bug Watch codes link to the test that covers that move, where there is one.</li></ul></div></div>`); }
+function vFree() { page(`<div class="head"><span class="eyebrow">Kept as it is</span><h1>Free play</h1><p class="lede">You, the ball and a keeper. Every toggle, move button, the animation player and the tuning sliders stay, in the same places.</p></div>
+  <div class="two"><div class="panel pad" style="display:grid;gap:8px"><h3>What stays</h3><ul class="plain"><li>Toggles: full SP, max shot, full energy, no keeper, injured, GK view; weather, CPU level, keeper save.</li><li>Every move on a button: on the ground, in the air, specials, ball to you.</li><li>Tuning sliders (grip, bounce, sprint, shot power), SAVE FOR CLAUDE writes to <span class="mono">tuning</span>.</li><li>Camera zoom, E resets the ball, Q hides the panel.</li></ul></div>
+  <div class="panel pad" style="display:grid;gap:8px"><h3>What the new frame adds</h3><ul class="plain"><li>The Actions page fires any move straight into free play.</li><li>The Animations page plays any animation on your player.</li><li>Each tuning save records the version (today it is always labelled v0.9.0).</li></ul></div></div>`); }
+
+const VIEWS = { start: vStart, tests: vTests, run: vRun, results: vResults, matrix: vMatrix, actions: vActions, anims: vAnims, bug: vBug, free: vFree };
+
+// ======================================================================= glossary, tooltips, toast, bug report
+function glossary(open) { const g = $('#glossary'); g.hidden = !open; $('#gl-open').setAttribute('aria-expanded', String(open)); if (open) { $('#gl-close').focus(); } }
+$('#gl-list').innerHTML = GLOSS.map(([k, w, d, src]) => `<dt id="gl-${k}">${esc(w)}</dt><dd>${esc(d)}${src ? `<small>from: ${esc(src)}</small>` : ''}</dd>`).join('');
+function tip(btn) {
+  const k = btn.dataset.term, g = GL[k], T = $('#tip'); if (!g) return;
+  if (!T.hidden && T.dataset.for === k) { T.hidden = true; btn.setAttribute('aria-expanded', 'false'); return; }
+  T.innerHTML = `<b>${esc(g[1])}</b>${esc(g[2])}`; T.dataset.for = k; T.hidden = false; btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('aria-describedby', 'tip');
+  const r = btn.getBoundingClientRect(), w = Math.min(300, innerWidth - 32); T.style.width = w + 'px';
+  T.style.left = Math.max(16, Math.min(innerWidth - w - 16, r.left)) + 'px'; T.style.top = (r.bottom + 8 + T.offsetHeight > innerHeight ? r.top - T.offsetHeight - 8 : r.bottom + 8) + 'px';
+}
+let toastT = null;
+function toast(t) { const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2600); }
+function copyText(text, el) {
+  const fallback = () => { if (el) { el.hidden = false; el.value = text; el.focus(); el.select(); } toast('Select all and copy it yourself: the browser blocked copying'); };
+  try { navigator.clipboard.writeText(text).then(() => toast('Copied'), fallback); } catch (e) { fallback(); }
+}
+function bugReport(id) {
+  const t = BY[id], c = caseOf(t), d = $('#bug'), v = verdict(t);
+  const make = () => { const sev = (d.querySelector('[name=sev]:checked') || {}).value, pri = (d.querySelector('[name=pri]:checked') || {}).value;
+    $('#bug-text').value = [`TITLE: ${$('#bug-title').value}`, `SEVERITY: ${sev} · PRIORITY: ${pri}`, `VERSION: ${D.ver} · TEST: ${t.id} (${t.groupName}) · SEED: ${t.seed != null ? t.seed : '(set when run)'}`, '',
+      'STEPS TO REPRODUCE', `1. Open the Test Lab, Tests, group ${t.group}, test ${t.id}.`, `2. Set the seed to ${t.seed != null ? t.seed : 'the one in the run'} and press Run (or: GROUP=${t.group} node tools/grp.js).`, ...c.steps.map((s, j) => `${j + 3}. ${s}`), '',
+      `EXPECTED: ${c.expected || '(no target yet) as on the baseline'}`, `ACTUAL: ${t.r ? t.r.outcome : '(you play this one: say what happened)'} → ${v.w}`, `WHAT I SAW: ${$('#bug-note').value || '-'}`, '',
+      `EVIDENCE: ${t.r ? JSON.stringify(t.r) : '-'}`].join('\n'); };
+  $('#bug-title').value = `${t.id}: ${t.name}${t.r ? ' → ' + t.r.outcome.split(' · ')[0] : ''}`; $('#bug-note').value = '';
+  make(); d.oninput = make; d.onchange = make; d.showModal();
+}
+$('#bug-copy').addEventListener('click', () => copyText($('#bug-text').value, $('#bug-text')));
+
+// ======================================================================= events (one delegated handler)
+document.addEventListener('click', e => {
+  const b = e.target.closest('button,[data-t],input[type=checkbox]'); if (!b) { if (!$('#tip').hidden && !e.target.closest('#tip')) $('#tip').hidden = true; return; }
+  const ds = b.dataset;
+  if (ds.term) { e.preventDefault(); e.stopPropagation(); tip(b); return; }
+  if (!$('#tip').hidden) $('#tip').hidden = true;
+  if (ds.v) return go(ds.v, {});
+  if (ds.go) return go(ds.go, {});
+  if (ds.run) { const p = PRESETS.find(x => x.id === ds.run); return startQueue(p.tests, p.name, p.times); }
+  if (ds.see) { const p = PRESETS.find(x => x.id === ds.see); S.picked = new Set(p.tests); S.q = ''; S.group = BY[p.tests[0]].group; return go('tests', { sel: p.tests[0] }); }
+  if (ds.g) { S.q = ''; $('#q').value = ''; S.group = ds.g; S.sel = (D.groups.find(g => g.id === ds.g).tests[0] || {}).id; return vTests(); }
+  if (ds.f) { const set = S[ds.f]; set.has(ds.k) ? set.delete(ds.k) : set.add(ds.k); return vTests(); }
+  if (ds.pick) { b.checked ? S.picked.add(ds.pick) : S.picked.delete(ds.pick); e.stopPropagation(); const bar = $('.selbar'); bar.hidden = !S.picked.size; $('#pickn').textContent = S.picked.size + ' picked'; return; }
+  if (b.id === 'run-picked') return startQueue([...S.picked], `${S.picked.size} picked tests`);
+  if (b.id === 'clear-picked') { S.picked.clear(); return vTests(); }
+  if (ds.t) { S.sel = ds.t; vTests(); const f = document.querySelector(`.rowbtn[data-t="${ds.t}"]`); if (f && b.tagName === 'BUTTON') f.focus(); return; }
+  if (ds.run1) return startQueue([ds.run1], `${ds.run1} · ${BY[ds.run1].name}`);
+  if (ds.run10) { const t = BY[ds.run10]; S.queue = null; toast(`In the build: ${t.id} runs 10 times with new dice and shows how often each outcome came up`); return; }
+  if (ds.bug) return bugReport(ds.bug);
+  if (ds.lay) { S.layout = ds.lay; store.set('layout', S.layout); return renderRun(); }
+  if (ds.sp) { S.speed = +ds.sp; return renderRun(); }
+  if (ds.tp) { const k = ds.tp;
+    if (k === 'play') { if (S.queue && S.qi < S.queue.items.length) { S.playing = !S.playing; S.playing ? tickQueue() : renderRun(); } else toast('Nothing queued: pick a preset or tests first'); return; }
+    if (k === 'boxes') { S.boxes = !S.boxes; return renderRun(); }
+    toast({ restart: 'In the build: R replays this test with the same seed, frame for frame', step: 'In the build: the game moves on exactly one frame (1/60 s)', dice: 'In the build: F replays with a new random seed and shows it here' }[k]); return; }
+  if (ds.rate) { if (ds.rate === '2') { $('#reasons').hidden = false; toast('Pick what looks wrong (3-7), then the next test saves it'); } else toast('Saved: looks right, with the numbers and the seed'); return; }
+  if (ds.reason) { b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); return; }
+  if (ds.ra) { S.runA = ds.ra; return vResults(); }
+  if (ds.rb) { S.runB = ds.rb; return vResults(); }
+  if (b.id === 'onlydiff') { S.onlyDiff = !S.onlyDiff; return vResults(); }
+  if (ds.copy) return copyText(exportText(ds.copy), $('#dump'));
+  if (ds.mf != null) { const s = S.mx.sel[+ds.mf], v = +ds.mv; if (s.has(v)) { if (s.size > 1) s.delete(v); } else s.add(v); S.mx.rows = null; return vMatrix(); }
+  if (b.id === 'mx-make') { S.mx.rows = mxRows(); vMatrix(); toast(`${S.mx.rows.length} runs listed`); return; }
+  if (b.id === 'mx-run') { const n = (S.mx.how === 'pair' ? mxCounts().pair : mxCounts().full) * S.mx.rep; toast(`In the build: ${n} runs go to the queue, the results fill a grid like the one below`); return; }
+  if (ds.try) { toast(`In the build: "${ds.try}" fires on your player in free play`); return; }
+  if (ds.an) { S.anim.name = ds.an; S.anim.f = 0; return vAnims(); }
+  if (ds.dir) { S.anim.dir = ds.dir; S.anim.f = 0; return vAnims(); }
+  if (ds.fj != null) { S.anim.f = +ds.fj; S.anim.play = false; return vAnims(); }
+  if (ds.fs) { stepFrame(+ds.fs); return; }
+  if (b.id === 'aplay') { S.anim.play = !S.anim.play; return vAnims(); }
+  if (b.id === 'gl-open') return glossary($('#glossary').hidden);
+  if (b.id === 'gl-close') return glossary(false);
+  if (b.id === 'theme') { const r = document.documentElement, cur = r.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); r.dataset.theme = cur === 'light' ? 'dark' : 'light'; store.set('theme', r.dataset.theme); return; }
+});
+function stepFrame(d) { const A = D.sheets[S.anim.sheet].anims[S.anim.name][S.anim.dir]; S.anim.play = false; S.anim.f = (S.anim.f + d + A.length) % A.length; clearInterval(animTimer); if (S.animPaint) S.animPaint(); const p = $('#aplay'); if (p) p.innerHTML = 'Play <kbd>Space</kbd>'; }
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'tmpl') { mxInit(t.value); return vMatrix(); }
+  if (t.name === 'how') { S.mx.how = t.value; S.mx.rows = null; return vMatrix(); }
+  if (t.id === 'rep') { S.mx.rep = +t.value; return vMatrix(); }
+  if (t.id === 'sheet') { S.anim.sheet = +t.value; S.anim.name = 'idle'; S.anim.f = 0; return vAnims(); }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'q') { S.q = e.target.value; if (S.view !== 'tests') go('tests', { focus: false }); else vTests(); const q = $('#q'); q.focus(); return; }
+  if (e.target.id === 'aq') { S.anim.q = e.target.value; const pos = e.target.selectionStart; vAnims(); const n = $('#aq'); n.focus(); n.setSelectionRange(pos, pos); }
+});
+document.addEventListener('keydown', e => {
+  const tg = e.target, typing = tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT');
+  if (e.key === 'Escape') { if (!$('#tip').hidden) { $('#tip').hidden = true; return; } if (!$('#glossary').hidden) { glossary(false); $('#gl-open').focus(); } return; }
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (tg && tg.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+  if (e.key === '/') { e.preventDefault(); $('#q').focus(); return; }
+  if (e.key === '?') { glossary($('#glossary').hidden); return; }
+  if (S.view === 'anims') { if (e.key === '.' || e.key === ',') { e.preventDefault(); stepFrame(e.key === '.' ? 1 : -1); } else if (e.key === ' ') { e.preventDefault(); S.anim.play = !S.anim.play; vAnims(); } return; }
+  if (S.view === 'run') { const map = { ' ': 'play', r: 'restart', '.': 'step', f: 'dice', h: 'boxes' }, k = map[e.key.toLowerCase()];
+    if (k) { e.preventDefault(); const btn = document.querySelector(`[data-tp="${k}"]`); if (btn) btn.click(); }
+    if (e.key === '1' || e.key === '2') { const btn = document.querySelector(`[data-rate="${e.key}"]`); if (btn) btn.click(); } }
+});
+
+// ======================================================================= boot
+try { const th = store.get('theme', null); if (th) document.documentElement.dataset.theme = th; } catch (e) {}
+$('#ver').textContent = D.ver;
+const start = location.hash.slice(1); go(VIEWS[start] ? start : 'start', { focus: false });
+addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEWS[v] && v !== S.view) go(v, {}); });   // a #section link or the back button
+})();
+</script>
