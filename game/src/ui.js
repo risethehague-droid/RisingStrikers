@@ -320,6 +320,7 @@ hc2Mix(Match, {
       { k: 'opts', l: 'OPTIONS', act: () => { P.page = 'opts'; P.i = 0; } },
       ...(this.lastReplay ? [{ k: 'last', l: 'LAST GOAL', key: k.lob, act: () => this.pauseReplay('last') }] : []),
       ...(H ? [{ k: 'hl', l: `HIGHLIGHTS (${H})`, key: k.pass, act: () => this.pauseReplay('hl') }] : []),
+      ...(this.watch ? this.watchItems() : []),                                    // watch mode: speed, mark this moment
       { k: 'bw', l: `BUG WATCH (${BWn}${BWnew ? ` · ${BWnew} TO CHECK` : ''})`, act: () => this.bwOpen('pause') },
       { k: 'quit', l: P.quit ? 'SURE? PRESS AGAIN TO QUIT' : 'QUIT TO MENU', act: () => { if (P.quit) { try { location.reload(); } catch (e) {} } else P.quit = true; } }];
   },

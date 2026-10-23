@@ -12,11 +12,11 @@
 #                                                                no one has reported on yet)
 #   bash tools/agent.sh review <report> <verdict> <file>        (taskmaster) post a review (verdict: ok | needs-work |
 #                                                                answered | for-luca | dropped)
-# Agents: worker-l (Luca's account), worker-f (the co-designer's account), co-designer. How it all fits: docs/agents.md.
+# Agents: worker-l (Luca's account), worker-f (the co-designer's account), co-designer, qa (the nightly QA run). How it all fits: docs/agents.md.
 set -u
 ORIG="$PWD"; abs() { case "$1" in /*|"") echo "$1";; *) echo "$ORIG/$1";; esac; }   # file paths are relative to where you ran it
 cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" || exit 0
-AGENTS="worker-l worker-f co-designer"
+AGENTS="worker-l worker-f co-designer qa"
 REF=refs/remotes/origin/agents
 say() { echo "[agents] $*"; }
 die() { echo "[agents] $*" >&2; exit 1; }

@@ -9,6 +9,15 @@ All tests drive the real game headless (Node + Playwright + Chromium, time stepp
 | `bash tools/sync.sh --start` | brings in the latest `main` (runs automatically at session start and resume) |
 | `bash tools/sync.sh` or `/sync` | the same, then the smoke test on its own port (8799) |
 
+## Simulations and watch mode
+| Command | What it does |
+| --- | --- |
+| `node tools/soak.js` | 12 seeded computer-v-computer matches across teams, levels, AI, weather, light, with BUG WATCH on: every trip, stall and page error, a repro line per match (`MATCHES=30`, `OUT=soak-out`) |
+| `ONE='seed=... home=... away=... lvl=... ai=... weather=... tod=...' node tools/soak.js` | replay one match exactly, to check a fix |
+
+In the game, **WATCH** on the start screen: the computer plays both sides; ENTER pauses, 1-4 = speed, N marks a moment,
+the review opens at full time. Marks and notes reach the taskmaster through the game's database.
+
 ## Agents
 | Command | What it does |
 | --- | --- |

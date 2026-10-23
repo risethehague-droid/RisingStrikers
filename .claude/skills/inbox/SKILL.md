@@ -29,11 +29,16 @@ ArtifactData, pinning every write to an existing card with `if_version`.
    - `for-luca`: a decision only Luca can make. Card → kind `question`, status `review`, the question in its notes.
    - `dropped`: the task is no longer needed. Card → status `dropped`.
    - A `progress` report needs no check: verdict `answered`, with a short "noted" review.
+   - **The nightly QA report** (agent `qa`, task `note`): check each fix PR it lists like a `done` report (files, the
+     repro no longer trips with `ONE='<repro>' node tools/soak.js`, smoke). Its cards are `qa-<date>-<n>`: ok → keep
+     them in Needs OK with your review at the top of the notes; needs-work → status `ready` + the reason. Bugs it
+     only describes: make a `t-NNN` task (brief + card) for a worker if Luca has asked for that kind of fix, else a
+     card for Luca. Verdict on the report itself: `ok` when everything in it is handled.
    - Set `AGENT_COMMIT_TRAILER` to the commit attribution lines when posting, if this session has them.
 5. **Sum up** in three lines or fewer: reviewed, verdicts, what's waiting for Luca.
 
 ## Never
 
 - merge, push to `main` or publish from here. Merging happens in Luca's main chat after his OK on the card.
-- change a card that isn't a `t-NNN` card, or delete one
+- change a card that isn't a `t-NNN` or `qa-*` card, or delete one
 - edit an agent's report: answer in the review instead

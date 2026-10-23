@@ -4,7 +4,7 @@ A 16-bit pixel football game for the **Help Out Hague Cup II**, a football event
 Six teams (IS, IRO, USCS, LUC, THUAS, AUC), four difficulty levels (Easy, Normal, Hard, Rise Warrior), special moves,
 keeper saves, chips, penalties, Rami on commentary. Plain JavaScript on Phaser 3.90, all art from PixelLab and Aseprite.
 
-Current version: **v0.9.6** (see `docs/CHANGELOG.txt`).
+Current version: **v0.9.7** (see `docs/CHANGELOG.txt`).
 
 ## Play it locally
 
@@ -24,7 +24,7 @@ The official game and Test Lab are pages on Luca's claude.ai account; the taskma
 | --- | --- |
 | `CLAUDE.md` | House rules for every Claude session |
 | `README-friend-sessions.md` | Start here for sessions on the co-designer's account |
-| `game/` | The game: `index.html`, `lab.html` (Test Lab), `test.html` (test harness page), the code in `src/` (17 files by area, see `game/src/README.md`), `lab.js`, `assets/`, `assets-lo/` (phone copies) |
+| `game/` | The game: `index.html`, `lab.html` (Test Lab), `test.html` (test harness page), the code in `src/` (18 files by area, see `game/src/README.md`), `lab.js`, `assets/`, `assets-lo/` (phone copies) |
 | `tools/` | Tests (smoke, Lab groups, difficulty checks) and builds (kits from PixelLab exports, phone assets, stadium tiles). See `tools/README.md` |
 | `docs/lanes/` | One brief per lane: scope, files, tests, what done means |
 | `docs/pixellab/` | PixelLab notes: what worked, tutorial notes |

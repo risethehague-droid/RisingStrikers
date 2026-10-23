@@ -1,3 +1,16 @@
+HC2 WEB GAME - v0.9.7 (23 Oct) - WATCH MODE + BACKGROUND SIMULATIONS (Luca 22:36: "a 1v1 computer game that
+simulates games... manual so i can pause etc plus manually comment on after for bug etc but also run simulations of
+the games in the background catching any bugs and improving")
+- WATCH on the start screen: the computer plays both sides (your side at Normal, theirs at the level you picked, as in
+  a match). ENTER pauses (the pause menu has SPEED and MARK THIS MOMENT), 1-4 = 0.5x / 1x / 2x / 4x, N keeps the moment
+  as a Bug Watch clip (4 s before + 1.5 s after). At full time the review opens by itself: your marks + what Bug Watch
+  caught, each with WATCH THE CLIP, BUG / FINE / NOT SURE and a note. It all goes to the game's database: Claude reads it.
+- tools/soak.js: seeded computer-v-computer matches one after another (about 13 s each headless) across teams, levels,
+  AI, weather and light, with Bug Watch on; every trip, stall and page error, plus a repro line to replay any match.
+  The nightly QA runs it, reads your marks, fixes small clear bugs on qa/ branches for your OK.
+- First finding: ANIMATION FLICKER trips 150-220 times a match (players standing still flip their facing). For QA.
+- Normal matches unchanged: 8 seeded matches identical to v0.9.6.
+
 HC2 WEB GAME - v0.9.6 (23 Oct) - CAMERA: CLOSE / MEDIUM / WIDE (the co-designer's first PR, #1 friend/camera-pov)
 - Pick how close the camera sits: CLOSE (the view so far, still the default), MEDIUM (0.75) or WIDE (0.5) to see more
   of the pitch. Start screen: the new CAMERA row under DIFFICULTY. In a match: Pause > Options > CAMERA, live.
