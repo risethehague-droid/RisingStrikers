@@ -7,7 +7,7 @@ These rules apply to every session on this repo, on either account. If you're on
 
 - **Luca** owns the project and gives the final OK on anything that goes live.
 - **The co-designer** (Luca's friend) runs the Design & Vision and Stadiums & maps lanes from his own account.
-- **The taskmaster** is Luca's main Claude chat. It splits work into cards on the Taskboard, checks every pull request, merges into `main` and publishes the official game. Nobody else merges or publishes.
+- **The taskmaster** is Luca's main Claude chat. It splits work into cards on the Taskboard, checks every pull request, merges into `main` and publishes the official game. Nobody else merges or publishes. A new taskmaster chat starts with `docs/taskmaster.md` (and `/publish`).
 - **Agents:** four sessions, two per account. Luca's: the taskmaster and **worker-l**. The co-designer's: his main session and **worker-f**. The workers are general: they do the tasks the taskmaster assigns and report into the agents folder. `docs/agents.md` has the whole setup.
 - **The flow:** card → branch `<lane>/<topic>` (workers: `<agent>/t-NNN-<topic>`) → pull request → card to *Needs OK* → Luca's OK → the taskmaster merges and publishes. Workers also send a report, which the taskmaster reviews before the card goes to Needs OK.
   - Never push to `main`.
