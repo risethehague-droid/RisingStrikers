@@ -8,7 +8,8 @@
 #   bash tools/agent.sh report <agent> <task> <status> <file>   send a report (status: done | blocked | question | progress)
 #   bash tools/agent.sh inbox                                   (taskmaster) reports that have no review yet
 #   bash tools/agent.sh next-id                                 (taskmaster) the next free task id
-#   bash tools/agent.sh assign <agent> <task> <file>            (taskmaster) post a brief
+#   bash tools/agent.sh assign <agent> <task> <file> [--replace] (taskmaster) post a brief (--replace: rewrite one
+#                                                                no one has reported on yet)
 #   bash tools/agent.sh review <report> <verdict> <file>        (taskmaster) post a review (verdict: ok | needs-work |
 #                                                                answered | for-luca | dropped)
 # Agents: worker-l (Luca's account), worker-f (the co-designer's account), co-designer. How it all fits: docs/agents.md.
@@ -96,9 +97,14 @@ case "$cmd" in
     [[ "$t" =~ ^t-[0-9]{3,}$ ]] || die "task id looks like t-001 (bash tools/agent.sh next-id)"
     [ -s "$f" ] || die "the brief file '$f' is missing or empty"; grep -q '^title: ' "$f" || die "the brief needs a 'title: ...' line"
     fetch || die "couldn't reach GitHub"
-    [ -z "$(git ls-tree -r --name-only $REF -- agents/tasks 2>/dev/null | grep "/$t\.md$")" ] || die "$t is already taken"
-    tmpf="$(mktemp)"; { echo "---"; echo "task: $t"; echo "agent: $a"; echo "assigned: $(now)"; cat "$f"; } > "$tmpf"
-    publish "tasks/$a/$t.md" "$tmpf" "brief: $t for $a"; rm -f "$tmpf";;
+    taken="$(git ls-tree -r --name-only $REF -- agents/tasks 2>/dev/null | grep "/$t\.md$")"
+    if [ -n "$taken" ]; then
+      [ "${4:-}" = --replace ] || die "$t is already taken (add --replace to rewrite its brief before anyone reports on it)"
+      [ "$taken" = "agents/tasks/$a/$t.md" ] || die "$t belongs to another agent: $taken"
+      [ -z "$(last_report "$t")" ] || die "$t already has a report - assign a new task instead"
+    fi
+    tmpf="$(mktemp)"; { echo "---"; echo "task: $t"; echo "agent: $a"; echo "assigned: $(now)${taken:+ (brief rewritten)}"; cat "$f"; } > "$tmpf"
+    publish "tasks/$a/$t.md" "$tmpf" "brief: $t for $a${taken:+ (rewritten)}"; rm -f "$tmpf";;
   review)
     r="${1:-}"; v="${2:-}"; f="$(abs "${3:-}")"; r="${r#agents/}"; r="${r#reports/}"
     case "$v" in ok|needs-work|answered|for-luca|dropped) ;; *) die "verdict must be ok, needs-work, answered, for-luca or dropped";; esac
