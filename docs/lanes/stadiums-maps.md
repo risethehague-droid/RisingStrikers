@@ -55,6 +55,11 @@ wall and the pitch-side boards. `art/stadiums/README-environment.txt` has the fu
    - Run on the OG layers it reproduces today's tiles byte for byte.
 4. Play a match and the Test Lab on your preview page; check the tunnel walk-out, goals at both ends, and a corner on each side.
 
+## Code
+The stadium is drawn in code by `game/src/world.js` (the `Stadium` class: tiles, crowd frames, goals, flags, sky and
+weather). The projection helpers `wx`, `wy` and `scaleAt` are in `game/src/core.js`; change them only with an OK'd card,
+since every lane depends on them.
+
 ## Rules
 - Art only from PixelLab or Aseprite.
 - Boards show sponsors and the venue only. "RISE" appears only where it already is.

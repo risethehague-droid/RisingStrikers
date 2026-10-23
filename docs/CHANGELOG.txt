@@ -1,3 +1,11 @@
+HC2 WEB GAME - v0.9.5 (23 Oct) - THE CODE IS SPLIT BY AREA (Luca 18:08: "it should be split during the move")
+- game.js (4,833 lines) is now 17 files in game/src/, one area each: core, io, player, match, world, ball, actions,
+  teamai, keeper, difficulty, specials, matchflow, penalties, cup, ui, replay, boot. game/src/README.md has the table:
+  what's in each file and which lane usually edits it. Lanes can work in parallel without clashing in one big file.
+- Nothing changes in play. Checked: every statement and method byte-identical (parser check); 8 seeded 5-minute
+  matches (Normal + Rise) identical to the old build to the millimetre; Test Lab groups identical; smoke at every level.
+- New: tools/mklab.sh builds the local Test Lab page the headless tests use.
+
 HC2 WEB GAME - v0.9.4 (23 Oct) - THE CHIP IS ON IN MATCHES (Luca 15:47: "computer chips too and pixellab first")
 - [PixelLab] batch 15: the chip on the IS player (PixMiniMax, ball-free prompt, 8 frames + idle): short step, plant, stab
   under it, lean back, the leg lifts. Made E / NE / SE / S (5 generations). N uses the NE frames (PixelLab drew a ball

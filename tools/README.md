@@ -13,6 +13,7 @@ All tests drive the real game headless (Node + Playwright + Chromium, time stepp
 | Command | What it checks |
 | --- | --- |
 | `node tools/smoke.js` | a match at Easy, Normal, Hard and Rise Warrior; must end `errors []` |
+| `bash tools/mklab.sh` | builds `game/labtest.html` (the Test Lab as a local page) for `grp.js`, `gk091.js`, `chipgif.js`; rerun after changing `lab.html` |
 | `GROUP=<id> [REP=3] node tools/grp.js` | one Test Lab group, every test, outcome per test. Groups: FP, K, KH, YS, C, P, M, D, T, A, PK, N5, PW, CH, GK, SM, CS, BW |
 | `node tools/proxy093.js run\|def <trials> [levels]` | a scripted "you": run at goal from the centre circle / defend from kick-off, at each level |
 | `LEVELS=... node tools/train093.js probe 0 <matches> <secs>` | computer v computer strength per level (S against the old Normal) |

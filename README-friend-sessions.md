@@ -44,7 +44,7 @@ All art is made in PixelLab and Aseprite. The official game and its Test Lab are
 
 ## How you work
 
-1. **Card:** take your card on the Taskboard and move it to *In progress*. No card yet? Add one, and the taskmaster sorts it.
+1. **Card:** your account can view the Taskboard but can't change it, so you don't manage cards. Pick the card you're working on and mention it in the pull request. No card yet? Just open the PR; it gets one (step 7).
 2. **Branch:** start from the latest `main`: `git checkout -b friend/<topic>`.
 3. **Change:** keep it small and focused. Touch only the files your lane brief lists. If you must touch another area's file, say why in the pull request.
 4. **Test:** run the tests above and the ones in your brief.
@@ -57,10 +57,10 @@ All art is made in PixelLab and Aseprite. The official game and its Test Lab are
    - which files it touches
    - a screenshot or GIF
    - how many PixelLab generations it used
-7. **Card again:** add the PR link (and the preview link) to the card, set *Who says OK* to Luca, and move it to **Needs OK**.
+7. **Card: automatic.** Every open PR from a `friend/` branch gets a **Needs OK** card on its own, with the PR's title, description and link. A scheduled task on Luca's account checks GitHub every 2 hours, 09:00 to 23:00 Dutch time, so allow up to 2 hours. Put the preview link in the PR description so it lands on the card too.
 8. **Review:** the taskmaster checks it and writes a verdict on the card. Luca decides:
    - **OK:** the taskmaster merges and publishes.
-   - **Not yet:** fix it on the same branch, push, and move the card back to Needs OK.
+   - **Not yet:** fix it on the same branch and push. The card moves back to Needs OK on its own at the next check.
    - **No:** the branch is closed.
 
 ## Staying in sync
@@ -68,6 +68,7 @@ All art is made in PixelLab and Aseprite. The official game and its Test Lab are
 - **Automatic:** every time a session starts or resumes, it brings in the latest `main` (`tools/sync.sh --start`, run by the hook in `.claude/settings.json`). The first thing you see is a `[sync]` line saying what came in. Hooks don't run in a session with several repositories or in a project thread: run `/sync` there.
 - **`/sync`:** the full version. It brings in `main`, runs the smoke test, and then you republish your preview. Run it before you open or update a PR.
 - If it reports a clash and you can't resolve it cleanly: stop and note it in the PR. The taskmaster resolves it.
+- **Branches made before v0.9.5:** `main` split `game/game.js` into `game/src/` (17 files, every method moved unchanged). `/sync` on such a branch reports a clash on `game/game.js`. Fix: move each of your `game.js` changes into the file that now holds that code (`grep -n "<a line you changed>" game/src/*.js` finds it), delete `game/game.js`, then run `/sync` again.
 
 ## PixelLab
 
