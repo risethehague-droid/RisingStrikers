@@ -75,7 +75,7 @@ class Match extends Phaser.Scene {
     if (this.penaltyMode) { this.stadium.update(dt); return; }               // the penalty scene has the screen (and the keys)
     Input.poll();
     if (this.bwUI) { this.bwInput(); if (this.replay || !this.bwUI) return; this.stadium.update(dt); this.render(dt); this.ramiTick(dt); return; }   // v0.8.7 BUG WATCH review
-    if (this.bw) this.bw.frame(deltaMs);
+    if (this.bw && !(this.watch && this.watch.speed > 1)) this.bw.frame(deltaMs);   // (watch mode sped up: long frames on purpose)
     if (this.pre) { if (this.setup) this.setupInput(); else if (this.sheet && (Input.pressed('start') || Input.pressed('pass'))) this.closeSheet(); this.stadium.update(dt); this.render(dt); this.ramiTick(dt); return; }   // v0.8.4 team sheet (v0.8.5: settings first)
     if (this.cutInQ && !this.cutIn && !(this.hitStop > 0) && !this.paused && !this.replay) { this.cutIn = this.cutInBuild(this.cutInQ); this.cutInQ = null; }
     if (this.cutIn) { this.anims.globalTimeScale = 0.0001; this.stadium.update(dt); this.cutInTick(dt); this.render(dt); this.ramiTick(dt); return; }   // v0.8.9 special-save cut scene: play waits
@@ -84,8 +84,8 @@ class Match extends Phaser.Scene {
     if (this.paused && !this.over) { this.pauseInput(); if (this.replay) return; }   // v0.8.5 PAUSE MENU
     else if (Input.pressed('start') && !flowBusy) {
       if (this.over && this.cup && this.cupLive) { if (!this.cupPens) this.cupResult(); return; }        // v0.7.2: back to the cup table (a level final waits for its penalties)
-      if (this.over) { if (!this.matchPens) this.setTeams(this.home.name, this.away.name, () => this.preMatch()); return; }   // v0.8.2: AGAIN = same teams, fresh match - v0.8.4: team sheet + walk-out
-      if (window.HC2_STARTED && !this.demo) this.openPause();
+      if (this.over) { if (!this.matchPens) this.setTeams(this.home.name, this.away.name, () => (this.watch ? this.watchStart() : this.preMatch())); return; }   // (watch mode: watch another)   // v0.8.2: AGAIN = same teams, fresh match - v0.8.4: team sheet + walk-out
+      if (window.HC2_STARTED && (!this.demo || this.watch)) this.openPause();   // (watch mode pauses too)
     }
     if (this.over && !this.paused && this.bw && this.bw.list.length && Input.taps.has('KeyB') && !(this.so && !this.so.done)) { this.bwOpen('ft'); return; }   // v0.8.7: B at full time = BUG WATCH
     if (this.over && this.highlights && this.highlights.length && Input.pressed('pass')) {
@@ -103,8 +103,13 @@ class Match extends Phaser.Scene {
       if (Input.pressed('special')) { const gk = A.team.players[0]; gk.spSave = this.meterOf(A.team).spend(); this.saveFx(gk); this.saveAsk = null; }
       else if (A.t <= 0 || (A.normal ? !this.ball.saveable || this.ball.owner || this.ball.inNet : !this.ball.special)) this.saveAsk = null;   // (v0.9.0: a normal shot too)
     }
-    if (!this.paused && !this.over) { const sl = this.slowMo > 0; if (sl) this.slowMo -= dt; this.sim(sl ? dt * 0.4 : dt); if (this.bw) this.bw.tick(dt); }   // v0.8.7 BUG WATCH checks every frame (v0.9.2: chip slow motion)
-    if (this.demo && this.over && (this.demoOver = (this.demoOver || 0) + dt) > 7) {   // the demo just starts again
+    if (!this.paused && !this.over) {                                            // v0.8.7 BUG WATCH checks every step (v0.9.2: chip slow motion)
+      const W = this.watch ? this.watchSteps() : { n: 1, k: 1 };                  // (watch mode: 0.5x-4x = shorter or more steps a frame)
+      for (let i = 0; i < W.n && (i === 0 || (!this.over && !this.replay)); i++) {   // (one step a frame as before; extra steps only in watch mode)
+        const d = dt * W.k, sl = this.slowMo > 0; if (sl) this.slowMo -= d; this.sim(sl ? d * 0.4 : d); if (this.bw) this.bw.tick(d); }
+    }
+    if (this.watch) { if (!this.paused && !this.bwUI && !this.replay) this.watchInput(); this.watchTick(dt); }   // watch mode: speed keys, N = mark, the review at full time
+    if (this.demo && !this.watch && this.over && (this.demoOver = (this.demoOver || 0) + dt) > 7) {   // the demo just starts again (watch mode waits for you)
       this.demoOver = 0; this.over = false; this.home.score = this.away.score = 0; this.clock = 0; this.half = 1; this.highlights = []; this.resetHalfTime(); this.mstats = {};
       for (const mt of this.meters || []) mt.reset();
       for (const p of this.all) if (!p.sentOff) p.setState('idle', 0); this.kickoff(this.home);
@@ -123,8 +128,8 @@ class Match extends Phaser.Scene {
     const b = this.ball;
     if (this.demo) this.human = this.ghost || (this.ghost = { x: -99, y: -99, team: this.home, keeper: false, stamina: 1, tired: false, state: 'idle', busy: () => false });   // demo: nobody on the pitch waits for your keys
     if (this.hitStop > 0) { this.hitStop -= dt; this.anims.globalTimeScale = this.hitStop > 0 ? 0.0001 : 1; return; }
-    { const ts = this.slowMo > 0 ? 0.4 : 1; if (this.anims.globalTimeScale !== ts) this.anims.globalTimeScale = ts; }   // (v0.9.2: slow motion as a chip goes over the keeper)
-    if (b.chip && !b.chipSlow && !window.__diffTeams && !window.HC2_TEST_FAST) { const k = (b.last && b.last.opp || this.away).players[0];
+    { const ts = (this.slowMo > 0 ? 0.4 : 1) * (this.watch ? this.watch.speed : 1); if (this.anims.globalTimeScale !== ts) this.anims.globalTimeScale = ts; }   // (watch mode: animations at its speed)   // (v0.9.2: slow motion as a chip goes over the keeper)
+    if (b.chip && !b.chipSlow && (!window.__diffTeams || this.watch) && !window.HC2_TEST_FAST) { const k = (b.last && b.last.opp || this.away).players[0];
       if (k && !k.sentOff && b.z > 1.8 && Math.abs(b.x - k.x) < 1.2 && len(b.x - k.x, b.y - k.y) < 4) { b.chipSlow = true; this.slowMo = 0.55; } }
     if (this.passRing) { this.passRing.t -= dt; if (this.passRing.t <= 0) this.passRing = null; }
     if (this.intro) { this.introTick(dt); return; }                             // v0.8.4 walk-out

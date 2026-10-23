@@ -1,4 +1,5 @@
-// HELP OUT HAGUE CUP II - web game v0.9.6 (co-designer, PR #1 friend/camera-pov: CAMERA distance - CLOSE = the old view and the default, MEDIUM 0.75, WIDE 0.5 - on the start screen and in Pause > Options; only the zoom changes, the HUD stays screen-sized, replays zoom in from the picked distance; remembered per browser)
+// HELP OUT HAGUE CUP II - web game v0.9.7 (Luca 22:36: "set up a 1v1 computer game that simulates games, make one that's manual so i can pause etc plus manually comment on after for bug etc but also run simulations of the games in the background catching any bugs": WATCH on the start screen - the computer plays both sides at your level v base, ENTER pauses, 1-4 = 0.5x / 1x / 2x / 4x, N keeps the moment as a Bug Watch clip, the review opens at full time (BUG / FINE / NOT SURE + a note, to the database); tools/soak.js plays seeded computer-v-computer matches across teams, levels, AI, weather and light for the nightly QA)
+// v0.9.6 (co-designer, PR #1 friend/camera-pov: CAMERA distance - CLOSE = the old view and the default, MEDIUM 0.75, WIDE 0.5 - on the start screen and in Pause > Options; only the zoom changes, the HUD stays screen-sized, replays zoom in from the picked distance; remembered per browser)
 // v0.9.5 (Luca 18:08: "it should be split during the move": the code is split by area into 17 files in src/ for the shared repo, one lane per file - nothing changes in play: the same seeded matches give the same scores, the same Test Lab results)
 // v0.9.4 (Luca 15:47: "computer chips too and pixellab first": the CHIP is ON in matches - PixelLab batch 15 made the chip on the IS rig (PixMiniMax, ball-free prompt: short step, stab under it, lean back, the leg lifts; E / NE / SE / S made, N = the NE frames, W / NW / SW mirrored), painted onto every kit; contact on the 4th frame at 20 fps)
 // v0.9.3 (Luca: "The difficulties are too easy. Hard poses barely a challenge. Adjust." - then: he had been on the CLASSIC AI, which ignores most of the level, and picked "one notch up": the edges you had over the computer at EVERY level (its tackles on you up to 30% weaker, slower to go in, never a double team) now come from the level (DIFF_YOU: Easy softer than before, Hard mostly gone, Rise reversed + it shields the ball, double-teams you, tires slower); Hard = v0.9.2's Rise, Rise a step past it; a smart side times its take-on bursts and still releases a pass under pressure; the trait caps opened up; your team-mates play at base = the old Normal; the menus say when the Classic AI is on)
@@ -79,7 +80,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.9.6';
+const GAME_VER = 'v0.9.7';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)

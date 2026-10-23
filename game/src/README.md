@@ -23,4 +23,5 @@ the class body. A new file goes into all three pages, after `match.js` if it add
 | 14 | `cup.js` | Cup (tournament) mode: table, fixtures, simulated games, trophy ceremony | Design & Vision (friend) |
 | 15 | `ui.js` | Menus and HUD: setup, pause, team sheet, walk-out intro, Rami commentary, radar, on-screen feedback | Design & Vision (friend), Lead |
 | 16 | `replay.js` | Replays, highlights, BUG WATCH (the game checking its own footage) | QA overnight |
-| 17 | `boot.js` | Starts the game on page load (canvas size, scenes) | Lead |
+| 17 | `watch.js` | WATCH mode: the computer plays both sides, pause, speed 0.5x-4x, N marks a moment, the review at full time | QA, Lead |
+| 18 | `boot.js` | Starts the game on page load (canvas size, scenes) | Lead |

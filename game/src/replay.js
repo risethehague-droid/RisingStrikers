@@ -10,6 +10,7 @@
 // with the spot circled, mark it BUG / FINE / NOT SURE, add a note. Clips also go to the game's database (when the page
 // has one), so Claude can read them back and fix what's real. This browser keeps the last 8 either way.
 const BW_CHECKS = {
+  MANUAL:      { t: 'YOU MARKED THIS', sev: 'mark', why: 'you pressed N while watching (watch mode)' },
   CRASH:       { t: 'GAME ERROR', sev: 'bug', why: 'the code threw an error' },
   NAN:         { t: 'BROKEN NUMBERS', sev: 'bug', why: 'a position or a speed stopped being a number' },
   BALL_GONE:   { t: 'BALL LEFT THE STADIUM', sev: 'bug', why: 'the ball is far outside the pitch' },
@@ -191,10 +192,10 @@ class BugWatch {
     if (this.seen[code] != null && now - this.seen[code] < BW_GAP) return;
     this.seen[code] = now;
     if (this.list.filter(x => !x.old).length >= BW_MAX) return;
-    if (BW_CHECKS[code].sev !== 'bug' && (this.perCode[code] = (this.perCode[code] || 0) + 1) > 2) return;   // (2 clips a match of each 'looks odd' kind is plenty)
+    if (BW_CHECKS[code].sev !== 'bug' && BW_CHECKS[code].sev !== 'mark' && (this.perCode[code] = (this.perCode[code] || 0) + 1) > 2) return;   // (2 clips a match of each 'looks odd' kind is plenty)
     const C = BW_CHECKS[code], p = o.p || null, b = m.ball;
     const inc = { id: `bw-${Date.now().toString(36)}-${Math.floor(Math.random() * 46656).toString(36)}`, code, title: C.t, sev: C.sev, why: C.why, msg,
-      game: GAME_VER, at: new Date().toISOString(), mode: window.HC2_SOAK ? 'soak' : window.__labWatch ? 'lab' : m.demo ? 'demo' : 'match',
+      game: GAME_VER, at: new Date().toISOString(), mode: window.HC2_SOAK ? 'soak' : window.__labWatch ? 'lab' : m.watch ? 'watch' : m.demo ? 'demo' : 'match',
       home: m.home.name, away: m.away.name, score: `${m.home.score}-${m.away.score}`, half: m.half, min: Math.min(m.half > 2 ? 120 : 90, Math.floor(m.clock / 60) + 1),
       who: p ? m.all.indexOf(p) : -1, whoName: this.who(p), where: p ? [+p.x.toFixed(1), +p.y.toFixed(1)] : [+bwF1(b.x), +bwF1(b.y)],
       weather: (m.mset && m.mset.weather) || 'clear', state: this.snapshot(), trace: this.trace.slice(), stack: String(o.stack || '').slice(0, 1500),
@@ -425,7 +426,7 @@ hc2Mix(Match, {
     return this._bwDb;
   },
   bwBadge(inc) {                                           // a small note under the clock, never in the way
-    if (!window.HC2_STARTED || this.demo || window.__lab || !this.hud || inc.sev !== 'bug') return;   // (the odd ones wait quietly in the list)
+    if (!window.HC2_STARTED || (this.demo && !this.watch) || window.__lab || !this.hud || inc.sev !== 'bug') return;   // (the odd ones wait quietly in the list)
     if (!this.bwTxt || !this.bwTxt.scene) {
       this.bwTxt = this.add.text(16, 88, '', { fontFamily: '"Press Start 2P"', fontSize: '8px', color: '#f4f0e4', backgroundColor: '#ff2878', padding: { x: 6, y: 4 } }).setScrollFactor(0);
       this.hud.add(this.bwTxt);
@@ -469,7 +470,7 @@ hc2Mix(Match, {
       st.textContent = `#flow .bw{width:min(640px,100%);display:grid;gap:8px;text-align:left}
         #flow .bw .card{background:#1d1a22;border:3px solid #0c0a0e;box-shadow:4px 4px 0 #0c0a0e;padding:10px 12px;display:grid;gap:6px}
         #flow .bw .card p{margin:0;font-size:9px;line-height:1.9} #flow .bw .card .n{color:#28c8e6;word-break:break-word}
-        #flow .bw .sev{display:inline-block;padding:2px 6px;margin-right:6px;font-size:8px;color:#0c0a0e;background:#ffde1e} #flow .bw .sev.bug{background:#ff2878;color:#fff} #flow .bw .sev.perf{background:#28c8e6}
+        #flow .bw .sev{display:inline-block;padding:2px 6px;margin-right:6px;font-size:8px;color:#0c0a0e;background:#ffde1e} #flow .bw .sev.bug{background:#ff2878;color:#fff} #flow .bw .sev.perf{background:#28c8e6} #flow .bw .sev.mark{background:#4cff7a}
         #flow .bw input{font:9px "Press Start 2P",monospace;padding:8px;border:3px solid #0c0a0e;background:#f4f0e4;color:#0c0a0e;width:100%;box-sizing:border-box}
         #flow .bw .menu{width:100%} #flow .bw .menu button em{font-style:normal;font-size:8px;padding:2px 5px;background:#0c0a0e;color:#ffde1e}
         #flow .bw .menu button em.BUG{color:#ff2878} #flow .bw .menu button em.FINE{color:#4cff7a} #flow .bw .menu button em.NEW{color:#28c8e6}
@@ -480,8 +481,8 @@ hc2Mix(Match, {
     if (U.page === 'one') {
       const x = U.sel, rv = x.review, saved = x.saved === 'db' ? 'SAVED · CLAUDE CAN READ IT' : x.saved === 'local' ? 'KEPT IN THIS BROWSER' : x.ready ? 'SAVING…' : 'STILL RECORDING…';
       el.innerHTML = `<h2>BUG WATCH</h2><div class="bw"><div class="card">
-        <p><span class="sev ${x.sev}">${x.sev === 'bug' ? 'LOOKS LIKE A BUG' : x.sev === 'perf' ? 'SPEED' : 'LOOKS ODD'}</span>${x.title}</p>
-        <p>${x.min}' · ${['1ST HALF', '2ND HALF', 'EXTRA TIME 1', 'EXTRA TIME 2'][(x.half || 1) - 1]} · ${x.home} ${x.score} ${x.away}${x.mode === 'demo' ? ' · THE DEMO' : ''}</p>
+        <p><span class="sev ${x.sev}">${x.sev === 'bug' ? 'LOOKS LIKE A BUG' : x.sev === 'mark' ? 'YOUR MARK' : x.sev === 'perf' ? 'SPEED' : 'LOOKS ODD'}</span>${x.title}</p>
+        <p>${x.min}' · ${['1ST HALF', '2ND HALF', 'EXTRA TIME 1', 'EXTRA TIME 2'][(x.half || 1) - 1]} · ${x.home} ${x.score} ${x.away}${x.mode === 'demo' ? ' · THE DEMO' : x.mode === 'watch' ? ' · WATCH MODE' : ''}</p>
         <p>WHAT TRIPPED: ${x.why}</p><p class="n">${String(x.msg).replace(/[<>&]/g, '')}</p>
         <p>${rv ? `YOU SAID: ${BW_VERDICT[rv.verdict]}${rv.note ? ' · ' + rv.note.replace(/[<>&]/g, '') : ''} · ` : ''}${saved}</p>
         <input id="bwnote" maxlength="200" placeholder="NOTE (OPTIONAL) - WHAT LOOKS WRONG?" value="${rv && rv.note ? rv.note.replace(/["<>&]/g, '') : ''}">
