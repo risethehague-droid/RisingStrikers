@@ -25,8 +25,8 @@ const SAVE_NAMES = ['IRON WALL', 'THUNDER GLOVE', 'RISING SHIELD'];
 const CURVE_MOVE = { ground: 'cpass', through: 'cthru', lob: 'clob' };
 const CURVE_NAMES = { ground: 'CURLER!', through: 'OUTSIDE CURL!', lob: 'BANANA LOB!' };
 const CURVE_COL = { ground: [0xffffff, 0xc8fbff, 0x8cf0ff, 0x3ed8f0, 0x28c8e6, 0x1ea0c8, 0x1e78b4, 0x1e50a0, 0x1e3c8c],
-  through: [0xffffff, 0xe6ffc8, 0xc8ff8c, 0x9af05a, 0x6ee63e, 0x46c83c, 0x2ea03c, 0x1e7a3c, 0x1e5a3c],
-  lob: [0xffffff, 0xfff4c8, 0xffe68c, 0xffd25a, 0xffbe3e, 0xff9a2e, 0xf0782e, 0xd2582e, 0xb43c2e] };
+  through: [0xffffff, 0xfff8c8, 0xfff08c, 0xffe65a, 0xffde1e, 0xffc81e, 0xf0aa1e, 0xd28c1e, 0xb46e1e],   // (gold: green and pink vanish on the grass)
+  lob: [0xffffff, 0xffe6c8, 0xffbe8c, 0xff965a, 0xff6e3e, 0xf04a2e, 0xd2322e, 0xb41e2e, 0x961e3c] };
 // ======================================================================= v0.8.9 ROUGH RIGS (Luca 23 Oct 13:35: "rig 3 cruder new
 // animations for 3 new aerial special shots so the game has working moves, same for the saves, make cut scenes for the
 // special saves too"). PLACEHOLDERS until the real ones are made in PixelLab: each move is put together from PixelLab
@@ -501,7 +501,7 @@ hc2Mix(Match, {
     const live = !b.owner && !this.replay && F.t < CURVE.trail && this.ballSpr;
     if (live) { F.hist.unshift([this.ballSpr.x, this.ballSpr.y, this.ballSpr.frame.name, this.ballSpr.depth]); F.hist.length = Math.min(F.hist.length, 30); }
     tr.forEach((im, i) => { const h = live && F.hist[(i + 1) * 3]; if (!h) { im.setVisible(false); return; }
-      im.setVisible(true).setPosition(h[0], h[1]).setFrame(h[2]).setDepth(h[3] - 0.1).setScale(this.ballSpr.scaleX * (1 - i * 0.07)).setAlpha(0.85 - i * 0.08).setTintFill(F.cols[Math.min(i, F.cols.length - 1)]); });
+      im.setVisible(true).setPosition(h[0], h[1]).setFrame(h[2]).setDepth(h[3] - 0.1).setScale(this.ballSpr.scaleX * (1 - i * 0.07)).setAlpha(0.95 - i * 0.08).setTintFill(F.cols[Math.min(i, F.cols.length - 1)]); });
     const camOn = live && F.t < CURVE.cam && (!this.camTarget || this.camTarget === F.cam);
     if (camOn) { const X = wx(F.tx, F.ty), Y = wy(F.ty);
       F.cam = F.cam || {}; F.cam.x = this.ballSpr.x + (X - this.ballSpr.x) * 0.35; F.cam.y = this.ballSpr.y + (Y - this.ballSpr.y) * 0.35; this.camTarget = F.cam; }
