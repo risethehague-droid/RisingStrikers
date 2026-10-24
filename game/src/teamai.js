@@ -14,6 +14,17 @@ const AI = { ROLE_DT: 0.4, RATIO: 0.8, PAD: 0.5, HOLD: 0.6, GOALSIDE: 0.95, COVE
   HOME_Y_ATT: [0, -27, -9, 9, 27, -26, -8, 8, 26, -7, 7],                                // wide with it
   OPEN: 5, APART: 3 };                                                                  // ...and nobody stands on top of an opponent (3 m)                                                                             // with the ball: step away from markers inside 5 m (find space)
 // ------------------------------------------------------------------ players
+// t-012 WING PLAY (Luca 24 Oct 06:22, "VERY important": "make the attacking ai look for more wing plays where they play
+// lobs and try to get arial shot i think the game would feel more dynamic and inclusive of the whole arsenal of special
+// moves"). Measured first (tools/soak.js, 12 matches of 2 x 3 min): 0.4 open-play crosses and 0.7 aerial shots a match -
+// a wide carrier always drifted inside, nobody ran into the box, and the only lofted balls went to a team-mate's feet.
+// Now a wide man keeps his lane and goes down the flank, his full-back overlaps, team-mates run near post / far post /
+// the spot / the edge of the box (aiWingRuns), and from wide in the final third he crosses at a runner (crossLook):
+// whipped to the near post or the spot, floated to the far post, laid back to the edge - never into the keeper's reach.
+// Spots are in the team's frame (aiFrame: metres from the centre line, the goal line at 52.5) and metres across from the
+// centre towards the ball's side (+) or away from it (-).
+const WING = { WIDE: 11, RUNS: { near: [45.5, 3.5], far: [45, -6], spot: [41.5, -1], edge: [35.5, -2.5] }, BACK: 8,
+  GK_REACH: 5.5, SIX: 46.8 };
 const FORMATION = [ // 4-4-2 for a team attacking towards x = 105 (metres)
   [3, 34], [17, 10], [15, 26], [15, 42], [17, 58], [33, 12], [31, 28], [31, 40], [33, 56], [46, 29], [46, 40]];
 
@@ -60,8 +71,9 @@ hc2Mix(Match, {
     if (team.inPoss) return;                                                     // a loose ball we had: one man goes for it, the rest keep shape
     // markers: the most dangerous runners (closest to a point between our goal and the ball), goal-side of each
     const aim = { x: 0.8 * gx + 0.2 * b.x, y: 0.8 * 34 + 0.2 * b.y };
-    const threats = team.opp.players.filter(o => !o.keeper && !o.sentOff && o !== owner && len(o.x - gx, o.y - 34) < 40)
-      .sort((u, v) => len(u.x - aim.x, u.y - aim.y) - len(v.x - aim.x, v.y - aim.y)).slice(0, AI.MARKERS);
+    const wide = owner && they && Math.abs(owner.y - 34) > WING.WIDE && Math.abs(owner.x - gx) < 35;   // t-012: their man out wide near our box - the box
+    const threats = team.opp.players.filter(o => !o.keeper && !o.sentOff && o !== owner && len(o.x - gx, o.y - 34) < 40)   // gets one more marker (their runs
+      .sort((u, v) => len(u.x - aim.x, u.y - aim.y) - len(v.x - aim.x, v.y - aim.y)).slice(0, AI.MARKERS + (wide ? 1 : 0));   // came in four-up against three)
     const free = team.players.filter(p => this.aiFree(p) && p.i <= 8 && p !== team.presser && p !== team.cover && p !== human);
     for (const o of threats) {
       let pick = null, bq = 1e9;
@@ -181,6 +193,10 @@ hc2Mix(Match, {
       if (team.roleT <= 0 || (team.presser && !this.aiFree(team.presser) && team.presser !== this.human)) { team.roleT = AI.ROLE_DT * this.dk(team).role; this.aiRoles(team); }   // (v0.9.2: how quickly the team re-reads the play)
       if (owner && owner.team === team && !owner.keeper) { team.supT = (team.supT ?? 0) - dt; if (team.supT <= 0 || (team.support && !this.aiFree(team.support))) { team.supT = AI.ROLE_DT; this.aiSupport(team, owner); } }
       else { team.support = null; team.supportPt = null; team.supT = 0; }
+      // t-012 the runs for a wide man (kept while his cross is in the air, so the runners keep attacking it)
+      if (owner && owner.team === team && !owner.keeper) { team.wingT = (team.wingT ?? 0) - dt; if (team.wingT <= 0) { team.wingT = AI.ROLE_DT; this.aiWingRuns(team, owner); } }
+      else if (!this.crossLive(team)) { team.wing = null; team.wingBy = null; team.wingT = 0; }
+      if (owner) b.crossBy = null;                                                 // (t-012: someone has it - the cross is over)
       const rcv = (!owner && b.target && b.target.team !== team && (b.z > 0.4 || b.vz > 1)) ? b.target : null;   // a ball in the air to one of THEIR players
       const aerial = rcv ? team.players.filter(p => this.aiFree(p) && p !== this.human && p !== team.presser)
         .sort((u, v) => len(u.x - rcv.x, u.y - rcv.y) - len(v.x - rcv.x, v.y - rcv.y))[0] : null;
@@ -198,15 +214,17 @@ hc2Mix(Match, {
           t = { x: t.x + (m.x - t.x) * w, y: t.y + (m.y - t.y) * w };
         } else if (p === team.support && team.supportPt) {                       // v0.8.2 support: the best open spot near the ball
           t = { x: team.supportPt.x, y: team.supportPt.y };
+        } else if (team.wing && team.wing.has(p)) {                               // t-012: a run for the cross (or an overlap)
+          const w = team.wing.get(p); t = { x: w.x, y: w.y };
         } else if (team.inPoss && owner && owner.team === team && p.i >= 9) {     // with the ball: a forward offers a run in behind
           const runT = (team.runT = (team.runT ?? 0) - dt / 2);
           if (runT <= 0) { team.runT = 1.5; team.runner = team.players.filter(q => q.i >= 9 && !q.sentOff).sort((u, v) => len(u.x - owner.x, u.y - owner.y) - len(v.x - owner.x, v.y - owner.y))[0]; }
           if (team.runner === p) { const ahead = this.aiFrame(team, owner.x) + 18; t = { x: this.aiWorld(team, Math.min(ahead, (team.offX ?? 99) - 0.6)), y: clamp(owner.y + (34 - owner.y) * 0.5, 6, 62) }; }
         }
-        if (team.marks && team.marks.get(p) || p === team.cover || (p === team.support && team.supportPt)) fixed.push({ x: t.x, y: t.y, fixedT: true });
+        if (team.marks && team.marks.get(p) || p === team.cover || (p === team.support && team.supportPt) || (team.wing && team.wing.has(p))) fixed.push({ x: t.x, y: t.y, fixedT: true });
         tgt.set(p, t);
       }
-      const zones = [...tgt.entries()].filter(([p]) => !(team.marks && team.marks.get(p)) && p !== team.cover && !(p === team.support && team.supportPt));
+      const zones = [...tgt.entries()].filter(([p]) => !(team.marks && team.marks.get(p)) && p !== team.cover && !(p === team.support && team.supportPt) && !(team.wing && team.wing.has(p)));
       if (owner && owner.team !== team && team.presser) for (const [, t] of zones) {   // v0.8.2: one man presses - the rest screen the
         const dx = t.x - b.x, dy = t.y - b.y, d = len(dx, dy), R = 6.5;          // space, they don't stand on the ball (no clutter)
         if (d < R) { const ux = d > 0.01 ? dx / d : -team.side, uy = d > 0.01 ? dy / d : 0; t.x = b.x + ux * R; t.y = clamp(b.y + uy * R, 3, PITCH_W - 3); }
@@ -235,8 +253,12 @@ hc2Mix(Match, {
           p.sprinting = true; p.moveTo(pt.x + gs * 0.6, pt.y, p.top(true, false), dt); continue;
         }
         if (!owner && b.target === p && b.last === team) {                       // the receiver of a pass runs onto it
-          const far = len(b.x - p.x, b.y - p.y) > 8 && p.stamina > 0.3; p.sprinting = far;
-          const v = p.top(far, false), pt = this.intercept(p, v, 0.12, b.lob ? 1.9 : 1.0); p.moveTo(pt.x, pt.y, v, dt); continue;   // lob-mechanics: attack the drop
+          const far = len(b.x - p.x, b.y - p.y) > 8 && p.stamina > 0.3; p.sprinting = far || (this.crossLive(team) && p.stamina > 0.15);
+          const v = p.top(p.sprinting, false), pt = this.crossLive(team) ? this.meetCross(p, v) || this.intercept(p, v, 0.12, 2.1) : this.intercept(p, v, 0.12, b.lob ? 1.9 : 1.0); p.moveTo(pt.x, pt.y, v, dt); continue;   // lob-mechanics: attack the drop (t-012: a cross at head height)
+        }
+        if (team.wing && team.wing.has(p) && this.crossLive(team)) {               // t-012: the other runners attack the cross too (the far post, the second ball)
+          const v = p.top(p.stamina > 0.15, false), pt = this.meetCross(p, v);
+          if (pt) { p.sprinting = p.stamina > 0.15; p.moveTo(pt.x, pt.y, v, dt); continue; }
         }
         if (owner && owner.keeper && owner.hands && owner.team !== team && len(p.x - owner.x, p.y - owner.y) < 14) {   // their keeper has it: back off
           const dx = p.x - owner.x, dy = p.y - owner.y, d = len(dx, dy) || 1;
@@ -254,9 +276,9 @@ hc2Mix(Match, {
         const d = len(t.x - p.x, t.y - p.y), dead = Math.max(0.8, 0.06 * len(b.x - p.x, b.y - p.y));
         const settled = (p.settledAt ?? -1e9) > this.time.now - 60;                // v0.8.7: settled men only move again once the spot is well away
         if (d < (settled ? dead * 1.8 : dead)) { p.settledAt = this.time.now; p.steer(0, 0, dt); if (p.speed < 0.4) p.look(b.x - p.x, b.y - p.y); continue; }   // in position: stand and watch the ball (BUG WATCH: no more step-stop-step fidgeting at the edge)
-        const back = this.aiFrame(team, t.x) < this.aiFrame(team, p.x) - 4, hurry = back && d > 10;
-        p.sprinting = hurry && d > 18 && p.stamina > 0.5;
-        const cap = p.sprinting ? p.top(true, false) : hurry ? RUN : d > 14 ? RUN * 0.9 : JOG;
+        const back = this.aiFrame(team, t.x) < this.aiFrame(team, p.x) - 4, hurry = back && d > 10, run = team.wing && team.wing.get(p);
+        p.sprinting = (hurry && d > 18 && p.stamina > 0.5) || (!!run && run.go && d > 3 && p.stamina > 0.3);   // (t-012: a run into the box is made flat out)
+        const cap = p.sprinting ? p.top(true, false) : hurry || run ? RUN : d > 14 ? RUN * 0.9 : JOG;
         p.moveTo(t.x, t.y, Math.min(cap, AI.ARRIVE * d + 0.4), dt);
       }
     }
@@ -293,6 +315,11 @@ hc2Mix(Match, {
       const ox = (o.x - p.x) * side, oy = o.y - p.y, d = len(ox, oy); near = Math.min(near, d);
       if (ox > -0.5 && d < 7 && Math.abs(oy) < ox * 1.2 + 1.5 && d < fd) { fd = d; front = o; } }
     let dx = side, dy = clamp((34 - p.y) / 30, -0.6, 0.6);
+    { const fl = this.aiFrame(team, p.x), off = p.y - 34;                         // t-012: a wide man keeps his lane down the flank
+      if (Math.abs(off) > WING.WIDE && fl > -12 && fl < 50) {                      // while the middle is crowded (it always drifted inside);
+        let crowd = 0; for (const o of team.opp.players) if (!o.sentOff && !o.keeper && Math.abs(o.y - 34) < 12 && this.aiFrame(team, o.x) > fl - 2) crowd++;
+        if (crowd >= 2 || fl < 28) { const lane = 34 + Math.sign(off) * (fl > 38 ? 17 : clamp(Math.abs(off), 18, 28)), w = clamp(this.dk(team).cross - 0.4, 0, 1);   // deep in their half: in towards the corner of the box
+          dy += (clamp((lane - p.y) / 12, -0.5, 0.5) - dy) * w; } } }   // (how firmly by level: Easy still wanders inside - tools/proxy093 def: its wing play made it as hard to stop as Hard)
     if (front && fd < 6 && toGoal > 9) {                                         // take him on: cut away from him, not into the line
       if (p.takeT <= 0) { const lat = front.y - p.y, edge = p.y < 9 ? 1 : p.y > PITCH_W - 9 ? -1 : 0;
         p.takeSide = edge || (Math.abs(lat) > 0.5 ? -Math.sign(lat) : (Math.sign(34 - p.y) || 1)); p.takeT = rnd(0.9, 1.5); }
@@ -316,8 +343,99 @@ hc2Mix(Match, {
       const pw = toGoal < 14 ? rnd(0.5, 0.72) : toGoal < 22 ? rnd(0.62, 0.84) : rnd(0.76, 0.9);
       this.doShot(p, pw, clamp(sh.aim + rnd(-0.15, 0.15), -1, 1)); return;
     }
+    if (this.aiCrossTry(p, K, front && fd < 3.2)) return;                        // t-012: from wide in the final third, a cross at a runner
+    if (p.crossOn && !(front && fd < 3.2) && Math.random() < 0.7 * Math.min(1, K.cross)) return;        // (...and while one's on, he keeps going to the line rather than giving it back)
     const pressed = front && fd < 3.2, best = this.passLook(p);                // (only a pass a defender can't get to - Buckland)
     if (best && best.risk < (pressed ? Math.max(K.risk, 0.6) : K.risk) && ((pressed && best.score > -0.4 && Math.random() < 0.8) || (best.shot > sh.q + 0.25 && best.score > 0.6 && Math.random() < 0.6) || (best.score > 1.4 && Math.random() < 0.3))) this.doPass(p, best.dir, best.mode, best.q);
+  },
+  // t-012 THE RUNS for a wide man in their half: the nearest striker to the near post, the other to the far post, the
+  // far-side winger to the spot, a central midfielder to the edge of the box (the knock-down, the cut-back), and the
+  // full-back on his side overlaps him outside. The deeper the crosser, the deeper they wait (8 m back at their
+  // halfway line, at the spot by the time he's 20 m from the line), so they arrive with the ball, not before it.
+  // You're never sent: when you're the one out wide, your computer team-mates make the runs.
+  aiWingRuns(team, owner) {
+    team.wing = null; const fl = this.aiFrame(team, owner.x), off = owner.y - 34, sgn = Math.sign(off) || 1;
+    if (Math.abs(off) < WING.WIDE - 1 || fl < 10) return;
+    const human = team === this.home && !this.demo ? this.human : null, W = new Map(), a = clamp((fl - 12) / 20, 0, 1);
+    const free = team.players.filter(q => q !== owner && q !== human && !q.keeper && this.aiFree(q) && q !== team.support && q.stamina > 0.12);
+    const homeSide = q => Math.sign(AI.HOME_Y_ATT[q.i] || 0);
+    const run = (name, pool) => { const [X, o] = WING.RUNS[name], pt = { x: this.aiWorld(team, X - (1 - a) * WING.BACK), y: clamp(34 + sgn * o, 3, PITCH_W - 3), run: name, go: a > 0.45 };
+      const q = pool.filter(x => !W.has(x)).sort((u, v) => len(u.x - pt.x, u.y - pt.y) - len(v.x - pt.x, v.y - pt.y))[0]; if (q) W.set(q, pt); return q; };
+    const fwd = free.filter(q => q.i >= 9), wideFar = free.filter(q => (q.i === 5 || q.i === 8) && homeSide(q) === -sgn), mid = free.filter(q => q.i === 6 || q.i === 7);
+    run('near', fwd); run('far', fwd.length > 1 ? fwd : [...fwd, ...wideFar]);
+    if (a > 0.6) run('spot', [...wideFar, ...fwd]);                             // (a third man only late on: four in the box flooded it - more goals, not more crosses)
+    run('edge', mid);
+    if (fl < 32 && !(owner.i >= 1 && owner.i <= 4)) {                           // the overlap: his full-back goes past him on the outside
+      const fb = free.find(q => q.i >= 1 && q.i <= 4 && homeSide(q) === sgn && !W.has(q) && q.stamina > 0.4);
+      if (fb && this.aiFrame(team, fb.x) > fl - 25) W.set(fb, { x: this.aiWorld(team, Math.min(fl + 10, 47)), y: clamp(34 + sgn * Math.min(Math.abs(off) + 5, 31), 3, PITCH_W - 3), run: 'overlap', go: true });
+    }
+    team.wing = W.size ? W : null; team.wingBy = W.size ? owner : null;
+  },
+  // is our cross in the air? (nobody has touched it since he hit it). The computer's crosses are marked at the kick
+  // (b.crossBy); yours, or any lofted ball from the man whose runs were on, count while they're still coming down in
+  // their box - so your team-mates keep attacking your cross instead of jogging back to their zones
+  crossLive(team) {
+    const b = this.ball, by = b.lastP; if (b.owner || b.inNet || !by || by.team !== team) return false;
+    if (b.crossBy === by) return true;
+    if (team.wingBy !== by || !(b.lob || b.z > 0.3)) return false;
+    const P = this.path, L = P && (P.land || P[P.length - 1]); return !!L && Math.abs(L.x - team.goalX) < 18 && Math.abs(L.y - 34) < 21;
+  },
+  // t-012 where a runner meets the cross: the first point on its flight at head height (0.9-2.3 m) he can reach in
+  // time, else where it comes down low (the Lab's attackBall, which the C crosses were tuned with)
+  meetCross(p, v) {
+    const P = this.path; if (!P) return null;
+    return P.find(q => q.z > 0.9 && q.z < 2.3 && 0.1 + len(q.x - p.x, q.y - p.y) / v <= q.t) || P.find(q => q.z <= 0.9 && 0.1 + len(q.x - p.x, q.y - p.y) / v <= q.t) || null;
+  },
+  // t-012 THE CROSS: wide (10 m+ off the middle), in the last 32 m, not yet in the box. crossLook finds the best runner
+  // to hit; he crosses when it's a good one (a smarter side waits for a better look: K.crossRead), always at the
+  // byline or with a man in his face, and how often by level (K.cross: Easy crosses less)
+  aiCrossTry(p, K, pressed) {
+    const team = p.team, fl = this.aiFrame(team, p.x), off = Math.abs(p.y - 34);
+    p.crossOn = false; if (off < WING.WIDE - 1 || fl < 20 || (fl > 36 && off < 20)) return false;
+    const c = this.crossLook(p); p.crossOn = !!c && c.score > K.crossRead - 0.9; if (!c) return false;
+    const early = fl < 28 ? 0.4 : 0;                                              // an early cross (25-32 m from the line) only for a good look
+    const want = (fl > 46 || pressed) && c.score > K.crossRead - 1.2 ? 0.85 : c.score > K.crossRead + early ? 0.85 : c.score > K.crossRead + early - 1.0 ? 0.4 : 0;
+    if (!(Math.random() < want * K.cross)) return false;
+    this.aiCross(p, c, K); return true;
+  },
+  // every team-mate in or running into the box as a cross: where he'll be (his run's spot), whipped or floated.
+  // score = he gets there in time + the defenders don't + his shot from there - the keeper's reach - bodies in a low lane
+  crossLook(p) {
+    const team = p.team, gk = team.opp.players[0], defs = team.opp.players.filter(o => !o.sentOff && !o.keeper); let best = null;
+    for (const q of team.players) {
+      if (q === p || q.keeper || q.sentOff || q.stun > 0) continue;
+      const w = team.wing && team.wing.get(q), name = w ? w.run : '', at0 = w && name !== 'overlap' ? w : { x: q.x + q.vx * 0.6, y: q.y + q.vy * 0.6 };
+      const X = this.aiFrame(team, at0.x), off = Math.abs(at0.y - 34);
+      if (X < 33 || X > 50 || off > 15) continue;                                  // in the box or at its edge
+      const d0 = len(at0.x - p.x, at0.y - p.y); if (d0 < 8 || d0 > 42) continue;
+      const kinds = name === 'edge' ? ['cut'] : name === 'far' ? ['float', 'whip'] : name ? ['whip', 'float'] : ['whip', 'float'];
+      for (const kind of kinds) {
+        let at = at0, d = d0;
+        if (kind === 'whip' && w) {                                                // whipped: into his path, where his run has got to when it arrives
+          const rx = at0.x - q.x, ry = at0.y - q.y, rl = len(rx, ry), reach = Math.max(0, (0.25 + d0 / 21 - 0.3) * 0.85 * q.top(true, false));
+          if (rl > reach) { at = { x: q.x + rx / rl * reach, y: q.y + ry / rl * reach }; d = len(at.x - p.x, at.y - p.y); if (this.aiFrame(team, at.x) < 36) continue; } }
+        const Tb = kind === 'float' ? 1.1 + d / 28 : kind === 'cut' ? passTime(d) + 0.15 : 0.25 + d / 21;
+        const tq = 0.3 + len(at.x - q.x, at.y - q.y) / (0.85 * q.top(true, false)),   // (he has to get going: ~85% of his top speed on average)
+           arrive = clamp(1 - Math.max(0, tq - Tb) / 0.5, -1, 1);   // (late = worse than nobody: he hits empty grass)
+        let defT = 9, lane = 0; for (const o of defs) { defT = Math.min(defT, 0.3 + Math.max(0, len(o.x - at.x, o.y - at.y) - 1.2) / 6.5);
+          if (kind !== 'float') { const lx = at.x - p.x, ly = at.y - p.y, t = ((o.x - p.x) * lx + (o.y - p.y) * ly) / (d * d);
+            if (t > 0.08 && t < (kind === 'cut' ? 0.95 : 0.35)) { const lat = Math.abs((o.x - p.x) * ly - (o.y - p.y) * lx) / d; if (lat < 1.3) lane += 1 - lat / 1.3; } } }
+        const race = clamp(defT - Math.max(tq, Tb) + 0.4, -1, 1.2);
+        let gkPen = 0; if (gk && !gk.sentOff && kind !== 'cut') { const gd = len(gk.x - at.x, gk.y - at.y); if (gd < WING.GK_REACH + (kind === 'float' ? 2 : 0)) gkPen += 1.2 * (1 - gd / (WING.GK_REACH + 2)) + 0.4; if (this.aiFrame(team, at.x) > WING.SIX && Math.abs(at.y - 34) < 9.2) gkPen += 0.8; }   // never into his reach / his six-yard box
+        const sh = this.shotLook(team, at.x, at.y).q, score = arrive * 1.1 + race + sh * 0.8 * Math.max(0, arrive) - gkPen - lane * 0.9 + (kind === 'cut' ? -0.2 : kind === 'whip' && (name === 'near' || name === 'spot' || !name) && arrive > 0.7 ? 0.45 : kind === 'float' && name === 'far' ? 0.6 : 0);   // (a man arriving at the near post / spot wants it whipped, the far post floated over everyone)
+        if (!best || score > best.score) best = { q, pt: { x: at.x, y: at.y }, kind, score, run: name };
+      }
+    }
+    return best;
+  },
+  // t-012 the computer's cross: off by up to K.crossErr metres (Easy crosses worse), then the kick (its flight is in
+  // ball.js: releaseKick's `cross`). Floated = the open-play lob (its drop is lobDuel); whipped = driven, coming down
+  // through head height at the spot; cut = a ground pass back to the edge of the box
+  aiCross(p, c, K) {
+    if (c.kind === 'cut') { this.doPass(p, { x: (c.q.x - p.x) / (len(c.q.x - p.x, c.q.y - p.y) || 1), y: (c.q.y - p.y) / (len(c.q.x - p.x, c.q.y - p.y) || 1) }, 'ground', c.q); return; }
+    const e = K.crossErr * rnd(0.2, 1), a = rnd(0, Math.PI * 2), tx = clamp(c.pt.x + Math.cos(a) * e, 1, PITCH_L - 1), ty = clamp(c.pt.y + Math.sin(a) * e, 2, PITCH_W - 2);
+    if (c.kind === 'float') this.kick(p, tx, ty, 0, 0, 0.12, { mode: 'lob', target: c.q, loft: true, cross: 'float' });
+    else this.kick(p, tx, ty, 0, 0, 0.12, { target: c.q, cross: 'whip' });
   },
   // how good a shot is from (x, y): the goal angle he can see x a clear lane x the gap to the keeper; best aim -1..1
   shotLook(team, x, y) {
@@ -359,7 +477,8 @@ hc2Mix(Match, {
       const o = opts.sort((u, v) => u.risk - v.risk)[0];
       let open = 8; for (const e of opp) open = Math.min(open, len(e.x - o.pt.x, e.y - o.pt.y));
       const progress = (o.pt.x - p.x) * side, sh = len(team.goalX - o.pt.x, 34 - o.pt.y) < 30 ? this.shotLook(team, o.pt.x, o.pt.y).q : 0;
-      const score = progress / 14 + Math.min(open, 7) / 6 + sh * 1.2 - o.risk * 1.6 - o.d / 45;
+      const wide = Math.abs(o.pt.y - 34) > WING.WIDE + 1 && this.aiFrame(team, o.pt.x) > 14 && Math.abs(p.y - 34) < Math.abs(o.pt.y - 34) ? 0.8 * this.dk(team).cross : 0;   // t-012: out to a wide man in their half (wing play)
+      const score = progress / 14 + Math.min(open, 7) / 6 + sh * 1.2 - o.risk * 1.6 - o.d / 45 + wide;
       if (!best || score > best.score) best = { q, score, mode: o.mode, shot: sh, risk: o.risk, dir: { x: (q.x - p.x) / d0, y: (q.y - p.y) / d0 } };
     }
     return best;
