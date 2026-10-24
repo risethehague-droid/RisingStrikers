@@ -112,8 +112,8 @@ hc2Mix(Match, {
         } else { tx = bl.x + ubx * 0.6; ty = bl.y + uby * 0.6; }
       }
       v = Math.min(p.top(false, false) * 1.05, len(carrier.vx, carrier.vy) + 1.2 + d * 0.5); p.look(carrier.x - p.x, carrier.y - p.y); }
-    p.moveTo(tx, ty, v * this.dk(team).press * paceK().pressK, dt);           // (v0.9.2: how hard he closes down, by level; arcade-2: ARCADE harder - the dash
-                                                                                   // mustn't make dribbling past the computer easier)
+    p.moveTo(tx, ty, v * this.dk(team).press * (team === this.home && !this.demo ? 1 : paceK().pressK), dt);   // (v0.9.2: how hard he closes down, by level; arcade-2:
+                                                                                   // ARCADE the computer's side harder - the dash mustn't make dribbling past it easier)
     p.watch = d < AI.MIRROR ? carrier : null;                                    // close: jockey him, facing him
     if (d < AI.MIRROR && p.speed < 2.5) p.look(carrier.x - p.x, carrier.y - p.y);
     // commit only from in front (or on a heavy touch), not every time he's near
