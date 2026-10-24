@@ -75,6 +75,7 @@ class Match extends Phaser.Scene {
       else this.startShootout(this.so.cpu); } this.stadium.update(dt); this.ramiTick(dt); return; }   // shoot-out over
     if (this.penaltyMode) { this.stadium.update(dt); return; }               // the penalty scene has the screen (and the keys)
     Input.poll();
+    if (this.flagUI || (Input.pressed('flag') && this.flagCan())) { this.flagTick(dt); return; }   // t-006 INSTA FLAG (F / pad BACK / the HUD's FLAG button): play waits while you write
     if (this.bwUI) { this.bwInput(); if (this.replay || !this.bwUI) return; this.stadium.update(dt); this.render(dt); this.ramiTick(dt); return; }   // v0.8.7 BUG WATCH review
     if (this.bw && !(this.watch && this.watch.speed > 1)) this.bw.frame(deltaMs);   // (watch mode sped up: long frames on purpose)
     if (this.pre) { if (this.setup) this.setupInput(); else if (this.sheet && (Input.pressed('start') || Input.pressed('pass'))) this.closeSheet(); this.stadium.update(dt); this.render(dt); this.ramiTick(dt); return; }   // v0.8.4 team sheet (v0.8.5: settings first)

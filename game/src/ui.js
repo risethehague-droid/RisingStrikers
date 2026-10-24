@@ -79,6 +79,11 @@ hc2Mix(Match, {
     this.ring = this.add.graphics().setDepth(-4e5);   // pass-target ring sits on the grass, under the players
     this.helpUntil = 9000;
     if (window.HC2_TOUCH) this.help.setVisible(false);
+    // t-006 INSTA FLAG: a small FLAG button next to the score (a click does what F does); shown while you play or watch
+    this.flagBtn = this.add.text(326, 14, 'FLAG \u00b7 F', { fontFamily: F, fontSize: '9px', color: '#ffffff', backgroundColor: '#ff2878', padding: { x: 8, y: 7 } }).setScrollFactor(0).setVisible(false);   // (scroll factor 0 on the button itself: the click test uses it)
+    this.flagBtn.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.flagOpen());
+    hud.add(this.flagBtn);
+    this.events.on('postupdate', () => { const fb = this.flagBtn; if (fb && fb.scene) fb.setVisible(!!window.HC2_STARTED && !window.HC2_TOUCH && !window.__lab && !this.replay && !this.flagUI && !this.pre && !this.intro && !this.penaltyMode && !this.cupScreen && !this.ceremony); });
   },
   pauseLine() { const k = keyset(), H = this.highlights && this.highlights.length;
     return `PRESS ENTER / START${this.lastReplay ? ` · ${k.lob}: LAST GOAL` : ''}${H ? ` · ${k.pass}: HIGHLIGHTS (${H})` : ''}`; },
@@ -96,7 +101,7 @@ hc2Mix(Match, {
   // ---------- RAMI ON THE MIC (see class RamiBox)
   buildRami() { this.rami = RamiBox.make(this); },
   ramiSay(key, v, prio) { if (this.rami) this.rami.say(key, v, prio); },
-  ramiTick(dt) { if (this.rami) this.rami.tick(dt, this.replay ? 52 : (this.help && this.help.visible ? 40 : 0)); },
+  ramiTick(dt) { if (this.rami) this.rami.tick(dt, this.replay ? (this.replay.ctl ? 92 : 52) : (this.help && this.help.visible ? 40 : 0)); },
   // ---- the overlay (team sheet / half time card): DOM, same look as the cup table
   flowEl(kind) {
     let el = document.getElementById('flow');
@@ -319,6 +324,7 @@ hc2Mix(Match, {
       { k: 'team', l: `TEAM · SUBS (${3 - Q.subs} LEFT)`, act: () => this.openSheet('pause') },
       { k: 'moves', l: 'MOVES', act: () => { P.page = 'moves'; P.i = 0; } },
       { k: 'opts', l: 'OPTIONS', act: () => { P.page = 'opts'; P.i = 0; } },
+      ...((this.rec || []).length >= 60 ? [{ k: 'rec', l: 'REPLAY (LAST 10 S)', act: () => this.pauseReplay('rec') }] : []),   // t-006: the replay player on the last 10 seconds
       ...(this.lastReplay ? [{ k: 'last', l: 'LAST GOAL', key: k.lob, act: () => this.pauseReplay('last') }] : []),
       ...(H ? [{ k: 'hl', l: `HIGHLIGHTS (${H})`, key: k.pass, act: () => this.pauseReplay('hl') }] : []),
       ...(this.watch ? this.watchItems() : []),                                    // watch mode: speed, mark this moment
@@ -333,7 +339,7 @@ hc2Mix(Match, {
       [k.lob, 'LOB / CROSS · SWITCH PLAYER'], [k.through, 'THROUGH BALL'], [k.special, 'SPECIAL: SPENDS YOUR FULL SP BARS'],
       ['1 BAR', SP_NAMES[0]], ['2 BARS', SP_NAMES[1]], ['3 BARS', SP_NAMES[2]],
       [`${k.ud} + ${k.shoot}`, 'AIM HIGH / LOW'], [`${k.pass} / ${k.shoot}`, 'BALL IN THE AIR: HEADER · VOLLEY · DIVING HEADER'],
-      [`SHIFT + ${k.shoot}`, 'HIGH BALL NEAR GOAL: OVERHEAD KICK'], ['T', 'SP METER LOOK'], ['M', 'SOUND ON / OFF'], ['ENTER', 'PAUSE']].map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join('')}</table>`;
+      [`SHIFT + ${k.shoot}`, 'HIGH BALL NEAR GOAL: OVERHEAD KICK'], ['T', 'SP METER LOOK'], ['M', 'SOUND ON / OFF'], ['F', 'FLAG A PROBLEM: THE LAST 8 S + YOUR NOTE'], ['ENTER', 'PAUSE']].map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join('')}</table>`;
     el.innerHTML = `<h2>${P.page === 'opts' ? 'OPTIONS' : P.page === 'moves' ? 'THE MOVES' : 'PAUSED'}</h2>
       <div class="sc">${this.home.name} ${this.home.score} - ${this.away.score} ${this.away.name} · ${this.halfLabel()} ${String(Math.floor(this.clock / 60)).padStart(2, '0')}'</div>${moves}
       <div class="menu">${items.map((it, j) => `<button type="button" data-j="${j}" class="${j === P.i ? 'on' : ''}">${it.l}${it.key ? `<kbd>${it.key}</kbd>` : ''}</button>`).join('')}</div>
@@ -344,7 +350,8 @@ hc2Mix(Match, {
   pauseReplay(which) {
     const back = () => { if (this.paused) { this.say('PAUSED', this.pauseLine(), 9999); this.msg.setVisible(false); this.sub.setVisible(false); this.pm = this.pm || { page: 'main', i: 0 }; this.drawPause(); } };
     this.closeFlowEl(); this.msg.setText(''); this.sub.setText(''); this.msg.setVisible(true); this.sub.setVisible(true);
-    if (which === 'last') this.startReplay('LAST GOAL', back, this.lastReplay, { caption: 'LAST GOAL' }); else this.playHighlights(back);
+    if (which === 'rec') this.startReplay('REPLAY', back, (this.rec || []).slice(-600).map(f => Object.assign({}, f)), { caption: 'REPLAY \u00b7 THE LAST 10 SECONDS', ctl: true });   // (copies: the match timeline goes on after)
+    else if (which === 'last') this.startReplay('LAST GOAL', back, this.lastReplay, { caption: 'LAST GOAL', ctl: true }); else this.playHighlights(back);   // (t-006: in the replay player)
   },
   pauseInput() {
     const P = this.pm; if (!P) { this.pm = { page: 'main', i: 0 }; return this.drawPause(); }
@@ -358,6 +365,109 @@ hc2Mix(Match, {
     if (P.page === 'opts' && n.x && items[P.i] && items[P.i].k !== 'back') this.pauseAct();
     if (Input.pressed('start')) this.pauseAct();
   },
+  // ---- t-006 INSTA FLAG overlay (the saving + the fixer's wake-up are in replay.js flagSend). The game stops while it's up;
+  // the note box takes every key (the game never sees them: typing WASD moves nobody). Works in your matches and watch
+  // mode, from the pause menu too; not in the Test Lab, the menus before kick-off, half time or the penalty scene.
+  flagCan() {
+    return !!(window.HC2_STARTED && this.home && this.bw && !window.__lab && !this.replay && !this.bwUI && !this.pre && !this.setup && !this.sheet
+      && !this.ht && !this.intro && !this.toss && !this.cutIn && !this.cupScreen && !this.ceremony && !this.penaltyMode);
+  },
+  flagOpen() {
+    if (this.flagUI || !this.flagCan()) return false;
+    this.flagUI = { t: 0, phase: 'edit', pm: !!(this.paused && this.pm) };
+    Input.keys.clear(); SFX.click();                                              // (keys held when F went down don't carry on)
+    this.msg.setVisible(false); this.sub.setVisible(false);
+    const el = this.flowEl('flag');
+    if (!document.getElementById('flagcss')) {
+      const st = document.createElement('style'); st.id = 'flagcss';
+      st.textContent = `#flow .flag{width:min(560px,100%);display:grid;gap:10px;text-align:left}
+        #flow .flag .card{background:#1d1a22;border:3px solid #0c0a0e;box-shadow:4px 4px 0 #0c0a0e;padding:10px 12px;display:grid;gap:8px}
+        #flow .flag p{margin:0;font-size:9px;line-height:1.9} #flow .flag .hint{color:#28c8e6;font-size:8px}
+        #flow .flag textarea{font:10px/1.8 "Press Start 2P",monospace;padding:8px;border:3px solid #0c0a0e;background:#f4f0e4;color:#0c0a0e;width:100%;box-sizing:border-box;min-height:84px;resize:vertical}
+        #flow .flag .row{justify-content:flex-start}`;
+      document.head.appendChild(st);
+    }
+    el.innerHTML = `<h2>FLAG A PROBLEM</h2><div class="flag"><div class="card">
+        <p>WHAT LOOKS WRONG? SEND KEEPS THE LAST ${FLAG_SECS} SECONDS WITH YOUR NOTE, AND THE FIXER GETS TO WORK.</p>
+        <textarea id="flagnote" maxlength="500" placeholder="E.G. THE KEEPER WALKED THROUGH THE POST"></textarea>
+        <p class="hint">SPEAK INSTEAD: WIN + H (WINDOWS) / FN FN (MAC) TYPES WHAT YOU SAY</p></div>
+      <div class="row"><button type="button" class="go" data-k="send">SEND</button><button type="button" data-k="cancel">CANCEL</button></div></div>
+      <small>ENTER: SEND &middot; ESC: CANCEL</small>`;
+    const ta = el.querySelector('#flagnote');
+    if (ta) {
+      ta.addEventListener('keydown', e => {                                       // every key stays in the box (and out of the game)
+        e.stopPropagation();
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.flagSubmit(); } else if (e.key === 'Escape') { e.preventDefault(); this.flagClose(); }
+      });
+      try { ta.focus(); } catch (e) {}
+    }
+    el.querySelector('[data-k=send]').onclick = () => this.flagSubmit();
+    el.querySelector('[data-k=cancel]').onclick = () => this.flagClose();
+    return true;
+  },
+  flagTick(dt) {
+    if (!this.flagUI && !this.flagOpen()) return;
+    const U = this.flagUI; U.t += dt;
+    if (U.phase === 'sent') { U.left -= dt; if (U.left <= 0) this.flagClose(); }
+    else if (U.t > 0.2) {                                                         // (the key that opened it doesn't close it again)
+      const T = Input.taps;
+      if (T.has('Escape') || Input.pressed('flag')) this.flagClose();             // pad BACK again: cancel
+      else if (T.has('Enter') || (Input.pressed('start') && !T.has('KeyP'))) this.flagSubmit();   // pad START: send
+    }
+    this.stadium.update(dt); this.render(dt); this.ramiTick(dt);
+  },
+  flagSubmit() {
+    const U = this.flagUI; if (!U || U.phase !== 'edit') return;
+    const ta = document.getElementById('flagnote'), note = ta ? ta.value : '';
+    try { U.inc = this.flagSend(note); } catch (e) { CRUMB('flag: not saved ' + e.message); }
+    U.phase = 'sent'; U.left = 1.1; SFX.click();
+    if (ta) ta.blur();
+    const el = this.flowEl('flag');
+    el.innerHTML = `<h2>FLAGGED &#10003; &middot; THANKS</h2><small>${U.inc ? 'THE CLIP IS IN BUG WATCH (PAUSE MENU)' : 'COULD NOT KEEP THE CLIP'}</small>`;
+  },
+  flagClose() {
+    const U = this.flagUI; this.flagUI = null; this.closeFlowEl();
+    const a = document.activeElement; if (a && a.id === 'flagnote' && a.blur) a.blur();
+    if (U && U.pm && this.paused && this.pm) { this.drawPause(); return; }       // (opened from the pause menu: back to it)
+    this.msg.setVisible(true); this.sub.setVisible(true);
+  },
+  // ---- t-006 the replay player's bar (replay.js replayCtl does the work): clickable buttons + a bar you click or drag to
+  // jump. Laid out in the game's own pixels on top of the canvas, in the deeper bottom band the player draws.
+  rpBarDraw(r) {
+    let el = document.getElementById('rpbar');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'rpbar'; document.body.appendChild(el);
+      const st = document.createElement('style'); st.textContent = `#rpbar{position:fixed;z-index:5;width:800px;display:none;flex-direction:column;gap:6px;transform-origin:0 0;
+          font:9px "Press Start 2P",monospace;color:#f4f0e4;user-select:none;-webkit-user-select:none}
+        #rpbar .tr{position:relative;height:14px;background:#1d1a22;border:2px solid #f4f0e4;cursor:pointer;touch-action:none}
+        #rpbar .tr i{position:absolute;left:0;top:0;bottom:0;background:#ff2878;pointer-events:none} #rpbar .tr b{position:absolute;top:-4px;bottom:-4px;width:3px;background:#ffde1e;pointer-events:none}
+        #rpbar .bt{display:flex;gap:6px;align-items:center} #rpbar button{font:9px "Press Start 2P",monospace;background:#f4f0e4;color:#0c0a0e;padding:6px 8px;border:2px solid #0c0a0e;box-shadow:2px 2px 0 #ff2878;cursor:pointer}
+        #rpbar button.go{background:#ffde1e} #rpbar .tm{margin-left:auto;color:#ffde1e} #rpbar small{font-size:7px;opacity:.8}`;
+      el.appendChild(st);
+      el.insertAdjacentHTML('beforeend', `<div class="tr"><i></i><b></b></div><div class="bt">
+        <button type="button" data-a="restart" title="LOB / R">&#8634; START</button><button type="button" data-a="back" title="LEFT">&#9664; FRAME</button>
+        <button type="button" data-a="play" class="go" title="PASS / SPACE">PAUSE</button><button type="button" data-a="fwd" title="RIGHT">FRAME &#9654;</button>
+        <button type="button" data-a="speed" title="UP / DOWN">1X</button><button type="button" data-a="exit" title="ENTER / SHOOT">EXIT</button><span class="tm"></span></div>
+        <small></small>`);
+      const push = a => { const R = this.replay; if (R && R.ctl) R.ctl.q.push(a); };
+      el.querySelectorAll('button').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); push(b.dataset.a); }));   // (no focus: ENTER stays the game's)
+      const tr = el.querySelector('.tr'), seek = e => { const R = tr.getBoundingClientRect(); push({ seek: (e.clientX - R.left) / Math.max(1, R.width) }); };
+      tr.addEventListener('pointerdown', e => { e.preventDefault(); try { tr.setPointerCapture(e.pointerId); } catch (x) {} tr.__drag = true; seek(e); });
+      tr.addEventListener('pointermove', e => { if (tr.__drag) seek(e); });
+      const up = () => { tr.__drag = false; }; tr.addEventListener('pointerup', up); tr.addEventListener('pointercancel', up);
+    }
+    const cv = this.game.canvas, R = cv ? cv.getBoundingClientRect() : { left: 0, top: 0, width: VIEW_W }, k = R.width / VIEW_W;
+    el.style.display = 'flex'; el.style.left = `${R.left + (VIEW_W / 2 - 400) * k}px`; el.style.top = `${R.top + (VIEW_H - 78) * k}px`; el.style.transform = `scale(${k})`;
+    const C = r.ctl, n = r.frames.length, end = r.frames[n - 1].t0 || 1, u = clamp(r.t / end, 0, 1), ky = keyset();
+    const s = `${C.play ? 'PAUSE' : C.end ? 'AGAIN' : 'PLAY'}|${RP_SPEEDS[C.sp]}|${r.i}|${n}|${k}`;
+    if (el.__s === s) return; el.__s = s;                                            // (only touch the page when something changed)
+    el.querySelector('.tr i').style.width = `${(u * 100).toFixed(2)}%`; el.querySelector('.tr b').style.left = `calc(${(u * 100).toFixed(2)}% - 1px)`;
+    el.querySelector('[data-a=play]').textContent = C.play ? 'PAUSE' : C.end ? 'AGAIN' : 'PLAY';
+    el.querySelector('[data-a=speed]').textContent = `${RP_SPEEDS[C.sp]}X`;
+    el.querySelector('.tm').textContent = `${r.t.toFixed(1)} / ${end.toFixed(1)} S · FRAME ${r.i + 1}/${n}`;
+    el.querySelector('small').textContent = `${ky.pass}/SPACE PLAY · UP/DOWN SPEED · LEFT/RIGHT FRAME (HOLD: SCRUB) · ${ky.lob}/R START · ENTER/${ky.shoot} EXIT`;
+  },
+  rpBarHide() { const el = document.getElementById('rpbar'); if (el) { el.style.display = 'none'; el.__s = ''; } },
   // plain code-drawn placeholders (no art): energy bar, pass ring, shot aim arrow + power bar.
   // If you want pixel-art versions, they get made in Aseprite and swapped in.
   drawFeedback() {
