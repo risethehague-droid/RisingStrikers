@@ -25,6 +25,7 @@ else git -C "$TMP/wt" merge --abort 2>/dev/null || true; git -C "$TMP/wt" checko
 G="$TMP/wt/game"
 cp -r "$G/src" "$G/lab.js" "$G/assets" "$OUT/"
 find "$OUT/assets" -type f -name '*-pre*' -delete                               # old manifests / sheets the game never loads
+find "$OUT" -type f -name '*.md' -delete                                         # notes (src/README.md) aren't part of the page
 python3 -I - "$G" "$OUT" "$NUM" "$SHA" "$TITLE" "$BASE" <<'PY'
 import sys, json, os, html
 g, out, num, sha, title, base = sys.argv[1:7]
