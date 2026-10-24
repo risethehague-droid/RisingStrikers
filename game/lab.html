@@ -110,6 +110,26 @@ body.free #live{font-size:17px}
 .fp-sl label{font:400 17px var(--f-read);color:var(--paper);display:flex;justify-content:space-between;gap:6px}
 .fp-sl output{color:var(--cyan);font-variant-numeric:tabular-nums}
 .fp-sl input{width:100%;min-width:0;accent-color:var(--yellow)}
+/* v0.9.9 the training-ground knobs (from the Test Lab v3 prototype): tabs, one knob per block, plain words */
+.fp-tabs button{font:8px/1.4 var(--f-label)!important;letter-spacing:.04em;padding:6px 7px!important}
+.fp-knobs{display:grid;gap:8px}
+.fp-knob{display:grid;gap:3px;padding:6px 8px;background:#151219;border:2px solid #26222d}
+.fp-knob.chg{border-color:var(--yellow)}
+.fp-kh{display:flex;align-items:baseline;gap:8px}
+.fp-kh b{font:400 19px/1 var(--f-read);color:var(--paper);flex:1;min-width:0}
+.fp-kh output{font:400 17px var(--f-read);color:var(--cyan);font-variant-numeric:tabular-nums;white-space:nowrap}
+#fp .fp-kh button{font:400 15px/1 var(--f-read);padding:2px 6px}
+.fp-kd,.fp-kl{font:400 16px/1.15 var(--f-read);color:var(--dim)}
+.fp-kl{color:var(--paper)}
+.fp-knob input[type=range]{width:100%;min-width:0;accent-color:var(--yellow);margin:2px 0 0}
+.fp-ks{position:relative;height:14px;font:400 14px/1 var(--f-read);color:var(--dim)}
+.fp-ks span{position:absolute;top:0;white-space:nowrap}
+.fp-ks .l{left:0} .fp-ks .r{right:0} .fp-ks .n{transform:translateX(-50%);color:var(--yellow)}
+.fp-knob.off{opacity:.6}
+.fp-chg{font:400 17px/1.2 var(--f-read);color:var(--dim)}
+.fp-chg b{color:var(--yellow);font-weight:400}
+#fp textarea{font:400 17px/1.2 var(--f-read);background:#1d1a22;color:var(--paper);border:2px solid #3a3542;padding:4px 6px;resize:vertical;min-width:0;width:100%}
+.fp-hint{font:400 15px/1.2 var(--f-read);color:var(--dim)}
 /* v0.8.7 BUG WATCH clip card (same look as the free-play card) */
 #bwc{padding:10px 12px;display:grid;gap:7px}
 #bwc button{font:400 18px/1 var(--f-read);color:var(--paper);background:#1d1a22;border:2px solid #3a3542;padding:4px 7px;cursor:pointer}
@@ -174,6 +194,18 @@ body.free #live{font-size:17px}
     </div>
   </div>
 
+  <!-- v0.9.9 (Luca 02:50: "add the sliders from the training ground to the classic version"): the knobs from the
+       Test Lab v3 prototype, in tabs, each in plain words. They change only this Lab's FREE PLAY, never the game. -->
+  <details class="fp-sec" data-k="tune" open>
+    <summary class="fp-lab">CHANGE HOW IT FEELS · lab only</summary>
+    <div class="fp-row fp-tabs" id="fp-ttabs" role="tablist" aria-label="Knobs"></div>
+    <div id="fp-tune" class="fp-knobs" role="tabpanel"></div>
+    <div class="fp-chg" id="fp-tchg" aria-live="polite"></div>
+    <textarea id="fp-tnote" rows="2" placeholder="How does it feel now? e.g. sprinting feels floaty" aria-label="Your comment on the changes"></textarea>
+    <div class="fp-row"><button type="button" id="fp-tsave">SUGGEST THIS FOR THE GAME</button><button type="button" id="fp-tcopy">COPY</button><button type="button" id="fp-tdef">RESET ALL</button></div>
+    <div class="fp-hint">Your changes stay in this browser until RESET ALL. They only change FREE PLAY here, never the real game: SUGGEST sends them to Claude with your comment.</div>
+  </details>
+
   <div class="fp-sec">
     <div class="fp-lab">ON THE GROUND</div>
     <div class="fp-grid">
@@ -211,11 +243,6 @@ body.free #live{font-size:17px}
     <div class="fp-row"><select id="fp-anim" aria-label="Animation"></select><button type="button" id="fp-play">PLAY</button><button type="button" id="fp-loop" aria-pressed="false">LOOP</button></div>
   </details>
 
-  <details class="fp-sec" data-k="tune">
-    <summary class="fp-lab">TUNING · lab only</summary>
-    <div id="fp-tune" style="display:grid;gap:4px"></div>
-    <div class="fp-row"><button type="button" id="fp-tsave">SAVE FOR CLAUDE</button><button type="button" id="fp-tcopy">COPY TUNING</button><button type="button" id="fp-tdef">DEFAULTS</button></div>
-  </details>
 </section>
 
 <section class="card" id="bwc" hidden aria-label="Bug watch clip">

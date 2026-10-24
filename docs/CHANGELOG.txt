@@ -1,3 +1,18 @@
+HC2 WEB GAME - v0.9.9 (24 Oct) - THE TRAINING-GROUND KNOBS IN THE CLASSIC TEST LAB (Luca 02:50: "add the sliders from
+the training ground to the classic version and lets go with that for now")
+- Test Lab > FREE PLAY > CHANGE HOW IT FEELS: the knobs from the Test Lab v3 prototype, in 5 tabs. PLAYER: run speed,
+  sprint speed, energy, getting energy back. BALL: magnetism (how close it sticks to the feet), grass grip, bounce.
+  LOBS & CHIPS: lob height, power-lob distance, chip dip. SHOTS: shot power (curve isn't in the game yet). KEEPER: level,
+  reaction time, reach, dive speed.
+- Each knob says what it does and what the number means on the pitch ("30 metres takes about 3.9 seconds"), with
+  Less / Normal / More and a reset; a strip shows what you changed, a comment box, RESET ALL, and SUGGEST THIS FOR THE
+  GAME (saved for Claude with your comment; the game only changes after a card you OK).
+- The knobs change FREE PLAY only: every other test plays the game's own values.
+- Game code: RUN, JOG, SPRINT_DRAIN, REST_GAIN, RUN_GAIN, CHIP_DIP, GK_REACH, GK_DIVE_V are let now, and three inline
+  numbers have names (BALL_MAG, LOB_H, LOB_MAX). The game plays exactly as before: 8 seeded matches identical, Test Lab
+  groups K, KH, CH, N5, PW, C identical (SM wobbles run to run on the old version too).
+- The Test Lab revamp (prototypes v1-v3) is parked for now; Test Lab classic (frozen v0.9.7) is kept.
+
 HC2 WEB GAME - v0.9.8 (24 Oct) - LOBS THAT MAKE SENSE (the co-designer, PR #2: "it never makes sense to lob the ball -
 easily interrupted, glitchy")
 - An open-play lob now climbs over the players in between: 3.6 m for a short one up to 6 m for a long one; a held (power)

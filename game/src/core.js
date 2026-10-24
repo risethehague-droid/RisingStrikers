@@ -1,4 +1,5 @@
-// HELP OUT HAGUE CUP II - web game v0.9.8 (co-designer, PR #2 friend/lob-mechanics: LOBS that make sense - an open-play lob climbs over the players in between, 3.6-6 m (a held power lob 3.6-8 m; set pieces and keepers unchanged); the drop is a fair aerial duel (nearer + the run on it + luck, ordinary headers nearest first): your winner heads at goal near the box, chests it, cushions it down or nods it on; theirs heads it clear; the defender marks the man instead of the landing spot; a rising lob can only be blocked by a man square in front of it; your header window 0.35 -> 0.7 s. Measured with tools/lobstudy.js: your lobs kept 45% -> 75%, the computer's 33% -> 50%)
+// HELP OUT HAGUE CUP II - web game v0.9.9 (Luca 02:50: "add the sliders from the training ground to the classic version and lets go with that for now": the classic Test Lab's FREE PLAY gets the Test Lab v3 knobs - run / sprint speed, energy, getting energy back, ball magnetism, grip, bounce, lob height, power-lob distance, chip dip, shot power, keeper level / reaction / reach / dive speed - in tabs, in plain words, Less / Normal / More + reset, a comment and SUGGEST THIS FOR THE GAME. For that, RUN / JOG / SPRINT_DRAIN / REST_GAIN / RUN_GAIN / CHIP_DIP / GK_REACH / GK_DIVE_V are let, and three inline numbers are named: BALL_MAG, LOB_H, LOB_MAX. The game plays exactly as before: 8 seeded matches identical)
+// v0.9.8 (co-designer, PR #2 friend/lob-mechanics: LOBS that make sense - an open-play lob climbs over the players in between, 3.6-6 m (a held power lob 3.6-8 m; set pieces and keepers unchanged); the drop is a fair aerial duel (nearer + the run on it + luck, ordinary headers nearest first): your winner heads at goal near the box, chests it, cushions it down or nods it on; theirs heads it clear; the defender marks the man instead of the landing spot; a rising lob can only be blocked by a man square in front of it; your header window 0.35 -> 0.7 s. Measured with tools/lobstudy.js: your lobs kept 45% -> 75%, the computer's 33% -> 50%)
 // v0.9.7 (Luca 22:36: "set up a 1v1 computer game that simulates games, make one that's manual so i can pause etc plus manually comment on after for bug etc but also run simulations of the games in the background catching any bugs": WATCH on the start screen - the computer plays both sides at your level v base, ENTER pauses, 1-4 = 0.5x / 1x / 2x / 4x, N keeps the moment as a Bug Watch clip, the review opens at full time (BUG / FINE / NOT SURE + a note, to the database); tools/soak.js plays seeded computer-v-computer matches across teams, levels, AI, weather and light for the nightly QA)
 // v0.9.6 (co-designer, PR #1 friend/camera-pov: CAMERA distance - CLOSE = the old view and the default, MEDIUM 0.75, WIDE 0.5 - on the start screen and in Pause > Options; only the zoom changes, the HUD stays screen-sized, replays zoom in from the picked distance; remembered per browser)
 // v0.9.5 (Luca 18:08: "it should be split during the move": the code is split by area into 17 files in src/ for the shared repo, one lane per file - nothing changes in play: the same seeded matches give the same scores, the same Test Lab results)
@@ -21,7 +22,7 @@ const VIEW_W = 1152, VIEW_H = 648;                 // v0.8.5 (Luca: more of the 
 const PEN_W = 960, PEN_H = 540;                    // the penalty scene keeps its 960 x 540 layout (its camera zooms it up)
 const PITCH_L = 105, PITCH_W = 68, PX_X = 48, PX_Y = 38, PX_H = 60, S_FAR = 0.87, S_NEAR = 1.13, RUNOFF_Y = 3.5;
 const GOAL_Y0 = 34 - 3.66, GOAL_Y1 = 34 + 3.66, BAR_Z = 2.44;
-const CHIP_DIP = 1.9;
+let CHIP_DIP = 1.9;                                // v0.9.9: let, so the Test Lab's FREE PLAY knobs can change it live (same value in the game)
 const CHIP_ON = true;                                                          // v0.9.4: ON in matches - the PixelLab chip animation is in (batch 15)
 const DIRS = ['E', 'NE', 'N', 'NW', 'W', 'SW', 'S', 'SE'];
 const HALF_REAL_SECONDS = 180;                     // 3 real minutes per half (match length option later)
@@ -34,11 +35,12 @@ const TEAMS = {
 const TEAM_COL = Object.fromEntries(Object.entries(TEAMS).map(([k, v]) => [k, v.col]));
 const ALT_KIT = { LUC: 'LUC-alt' };                              // second kit for a colour clash
 // movement (metres per second, m/s²)
-const RUN = 5.2, JOG = 3.8, WITH_BALL = 0.9, ACC = 12, DEC = 26;
+let RUN = 5.2, JOG = 3.8;                          // v0.9.9 (Luca: the training-ground knobs in the classic Test Lab): let, for the Lab's knobs
+const WITH_BALL = 0.9, ACC = 12, DEC = 26;
 let SPRINT = 7.7;                                  // v0.8: let (not const) so the Test Lab's FREE PLAY sliders can tune it live
 const WALK_V = 2.3;                                // v0.7.4: below this (m/s) a player walks (PixelLab walk) instead of running in slow motion
 const STRIDE_PX = 22;                              // planted-foot travel per run frame (PixelLab 8-frame run, measured ~16-30 px)
-const SPRINT_DRAIN = 0.23, REST_GAIN = 0.16, RUN_GAIN = 0.07;   // stamina per second (0..1)
+let SPRINT_DRAIN = 0.23, REST_GAIN = 0.16, RUN_GAIN = 0.07;   // stamina per second (0..1)
 // ball (a real football: air drag ~0.013/m; grass: skids first, then rolls)
 const G = 9.81, AIR_K = 0.012, ROLL_K = 0.03, DRIB_DEC = 5.0, KICK_MAX = 30;
 let SKID_DEC = 8.6, ROLL_DEC = 5.4, SHOT_K = 1;   // v0.8: tunable from the Test Lab (grip, shot power)   // v0.7: grippier grass (Luca: less slide)
@@ -49,6 +51,11 @@ let SKID_DEC = 8.6, ROLL_DEC = 5.4, SHOT_K = 1;   // v0.8: tunable from the Test
 // v0.8.2: grass grips a skimming ball harder (MU 0.5 -> 0.9): FIFA's angled test (50 km/h at 15 deg) keeps 45-70% of the
 // pace; it kept 77% and a skimming 25 m/s shot ran on for 37 m. Steep landings are unchanged (capped at rolling speed).
 let BOUNCE_Z = 0.64, BOUNCE_X = 0.84, BOUNCE_MIN = 1.1, BOUNCE_DROP = 0.16, BOUNCE_MU = 0.9;   // v0.8: less slide, more bounce (Luca)                       // v0.7: livelier bounce (was 0.55 / 0.8 / 1.2)
+// v0.9.9 (Luca: "increase or decrease ... magnetism of ball to legs, different lobs" in the Test Lab): numbers that
+// were written inline, named so the Lab's FREE PLAY knobs can change them. At these values the game plays exactly as before.
+let BALL_MAG = 1;                                  // how close the dribbled ball stays to the feet (ball.js dribble)
+let LOB_H = 1;                                     // lob height: scales the arc of open-play and power lobs (ball.js lobApex)
+let LOB_MAX = 50;                                  // how far a fully held power lob goes, metres (a tap: 12 m)
 const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the weather scales these (clear = as tuned)
 const HALF_END = [45, 90, 105, 120];                                // v0.8.5: the minute each half ends (3 + 4 = extra time)
 const RULE_OPTS = {                                                 // v0.8.5 match settings (arenas / light / weather: placeholders for the art)
@@ -66,7 +73,7 @@ const KICK_HIT = { pass: 2, kick: 2, shot: 3, super: 8, sp1: 6, sp2: 8, punt: 6,
 const KICK_RATE = { pass: 22, shot: 22, super: 14, sp1: 18, sp2: 16, punt: 16, chip: 20 };          // sp1 spin strike, sp2 thunder strike (batch 11b)                               // batch 11 strips play a little faster (super: the leap takes its time)
 const kickRate = a => KICK_RATE[a] || KICK_FPS;
 // keeper: how fast he flies sideways in a dive (m/s) and how far past his centre his hands reach when stretched (m)
-const GK_DIVE_V = 5.2, GK_REACH = 1.0;
+let GK_DIVE_V = 5.2, GK_REACH = 1.0;               // v0.9.9: let, for the Test Lab's keeper knobs
 // the ball is drawn bigger than life, like every arcade football game (about a quarter of a player's height)
 const BALL_S = 1.75, PEN_BALL_S = 1.9;
 const ballPx = () => MAN.ballPx || 16;                  // the PixelLab ball's size (16 or 24 px); drawn natively when it is 24
@@ -81,7 +88,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.9.8';
+const GAME_VER = 'v0.9.9';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)

@@ -363,49 +363,127 @@
     }
   }
   // tuning (lab only - the real game keeps its values until we copy yours over)
+  // v0.9.9 (Luca 02:50: "add the sliders from the training ground to the classic version"): the knobs of the Test Lab v3
+  // prototype's training ground, in 5 tabs, each in plain words: what it does, what the number means on the pitch, Less /
+  // Normal / More and a reset. Normal = the game's own value, read at start-up. They only change FREE PLAY.
+  const TUNE_TABS = [['player', 'PLAYER'], ['ball', 'BALL'], ['lob', 'LOBS & CHIPS'], ['shot', 'SHOTS'], ['keeper', 'KEEPER']];
   const TUNE = [
-    { k: 'grip', label: 'BALL GRIP', min: 0.5, max: 1.6, step: 0.05, fmt: v => `×${v.toFixed(2)}`, tip: 'how fast the ball slows on the grass' },
-    { k: 'bounce', label: 'BOUNCE', min: 0.4, max: 0.85, step: 0.01, fmt: v => v.toFixed(2), tip: 'how much of its height a bounce keeps' },
-    { k: 'sprint', label: 'SPRINT SPEED', min: 6.5, max: 9.5, step: 0.1, fmt: v => `${v.toFixed(1)} m/s`, tip: 'top speed with Shift' },
-    { k: 'shot', label: 'SHOT POWER', min: 0.8, max: 1.3, step: 0.05, fmt: v => `×${v.toFixed(2)}`, tip: 'every shot, harder or softer' },
+    { k: 'run', tab: 'player', name: 'Run speed', what: 'How fast he runs without Shift.', min: 4, max: 6.6, step: 0.1, c: 'RUN',
+      fmt: v => `${v.toFixed(1)} m/s`, line: v => `30 metres takes about ${(30 / v).toFixed(1)} seconds.` },
+    { k: 'sprint', tab: 'player', name: 'Sprint speed', what: 'How fast he goes with Shift held.', min: 6.5, max: 9.5, step: 0.1, c: 'SPRINT',
+      fmt: v => `${v.toFixed(1)} m/s`, line: v => `30 metres takes about ${(30 / v).toFixed(1)} seconds.` },
+    { k: 'drain', tab: 'player', name: 'Energy', what: 'How fast sprinting tires him out.', min: 0.08, max: 0.5, step: 0.01, c: 'SPRINT_DRAIN', lo: 'lasts longer', hi: 'tires faster',
+      fmt: v => `${v.toFixed(2)} a second`, line: v => `Full to empty in about ${(1 / v).toFixed(1)} seconds of sprinting.` },
+    { k: 'recover', tab: 'player', name: 'Getting energy back', what: 'How fast his energy comes back when he slows down.', min: 0.05, max: 0.4, step: 0.01, c: 'REST_GAIN', lo: 'slower', hi: 'faster',
+      fmt: v => `${v.toFixed(2)} a second`, line: v => `Empty to full in about ${Math.round(1 / v)} seconds of walking.` },
+    { k: 'mag', tab: 'ball', name: 'Magnetism', what: 'How close the ball stays to his feet when he dribbles.', min: 0.5, max: 2, step: 0.05, c: 'BALL_MAG', lo: 'looser', hi: 'stickier',
+      fmt: v => `×${v.toFixed(2)}`, line: v => v > 1.02 ? 'Closer to his boots: harder to lose, harder to nick off him.' : v < 0.98 ? 'Further ahead of him: easier to lose, easier to nick.' : 'As in the game.' },
+    { k: 'grip', tab: 'ball', name: 'Grass grip', what: 'How fast the ball slows down on the grass.', min: 0.5, max: 1.6, step: 0.05, c: 'SKID_DEC / ROLL_DEC', phys: true, lo: 'rolls on', hi: 'stops sooner',
+      fmt: v => `×${v.toFixed(2)}`, line: v => `A ball rolling at 20 km/h stops after about ${(5.56 * 5.56 / (2 * LAB.base.roll * v)).toFixed(1)} m.` },
+    { k: 'bounce', tab: 'ball', name: 'Bounce', what: 'How much of its height a bounce keeps.', min: 0.4, max: 0.85, step: 0.01, c: 'BOUNCE_Z', phys: true, lo: 'dead', hi: 'lively',
+      fmt: v => v.toFixed(2), line: v => `Dropped from 2 m, it bounces back up to about ${(2 * v * v).toFixed(1)} m.` },
+    { k: 'lobh', tab: 'lob', name: 'Lob height', what: 'How high a lob (and a held power lob) climbs.', min: 0.6, max: 1.6, step: 0.05, c: 'LOB_H', lo: 'flatter', hi: 'higher',
+      fmt: v => `×${v.toFixed(2)}`, line: v => `A 25 m lob aims for about ${(lobApex(25, null) / LOB_H * v).toFixed(1)} m at its highest.` },
+    { k: 'lobd', tab: 'lob', name: 'Power lob distance', what: 'How far a fully held power lob goes.', min: 30, max: 70, step: 1, c: 'LOB_MAX', lo: 'shorter', hi: 'longer',
+      fmt: v => `${v.toFixed(0)} m`, line: v => `A tap goes 12 m; held all the way it lands about ${v.toFixed(0)} m away.` },
+    { k: 'chip', tab: 'lob', name: 'Chip dip', what: 'How hard a chip drops after its highest point.', min: 0, max: 4, step: 0.1, c: 'CHIP_DIP', lo: 'floats', hi: 'drops hard',
+      fmt: v => v.toFixed(1), line: v => v < 0.05 ? 'No extra dip: it falls like any ball.' : `It falls about ${(1 + v).toFixed(1)}× as fast as a normal ball once it starts coming down.` },
+    { k: 'shot', tab: 'shot', name: 'Shot power', what: 'Every shot, harder or softer.', min: 0.8, max: 1.3, step: 0.05, c: 'SHOT_K', lo: 'softer', hi: 'harder',
+      fmt: v => `×${v.toFixed(2)}`, line: v => `A normal shot leaves the boot at about ${Math.round((16 + 0.6 * 16) * v * 3.6)} km/h.` },
+    { k: 'curve', tab: 'shot', name: 'Curve', what: 'Bend on a shot. Not in the game yet: shots fly straight. Ask for it as a card if you want it.', off: true },
+    { k: 'react', tab: 'keeper', name: 'Reaction time', what: 'How long their keeper takes to react, on top of his level.', min: -0.1, max: 0.15, step: 0.01, c: 'gkReact (difficulty.js)', lo: 'quicker', hi: 'slower',
+      fmt: v => `${v >= 0 ? '+' : ''}${v.toFixed(2)} s`, line: v => Math.abs(v) < 0.005 ? 'As his level plays him.' : `${Math.abs(v).toFixed(2)} s ${v < 0 ? 'quicker' : 'slower'} than his level.` },
+    { k: 'reach', tab: 'keeper', name: 'Reach', what: 'How far past his body a keeper gets a glove to the ball.', min: 0.6, max: 1.6, step: 0.05, c: 'GK_REACH', lo: 'short', hi: 'long',
+      fmt: v => `${v.toFixed(2)} m`, line: v => `He gets a glove to balls up to about ${v.toFixed(2)} m from his body.` },
+    { k: 'dive', tab: 'keeper', name: 'Dive speed', what: 'How fast a keeper flies sideways in a dive.', min: 3.5, max: 7, step: 0.1, c: 'GK_DIVE_V', lo: 'slower', hi: 'faster',
+      fmt: v => `${v.toFixed(1)} m/s`, line: v => `In half a second of diving he covers about ${(v * 0.5).toFixed(1)} m.` },
   ];
-  function applyTune(t) {
+  const LEVELS = [['easy', 'EASY'], ['normal', 'NORMAL'], ['hard', 'HARD'], ['rise', 'RISE WARRIOR']];
+  function applyTune(t, phys = true) {                                           // phys: the grass / bounce knobs (the weather sets those itself)
     const B = LAB.base; if (!B) return;
-    SKID_DEC = B.skid * t.grip; ROLL_DEC = B.roll * t.grip; BOUNCE_Z = t.bounce; SPRINT = t.sprint; SHOT_K = t.shot;
+    if (phys) { SKID_DEC = B.skid * t.grip; ROLL_DEC = B.roll * t.grip; BOUNCE_Z = t.bounce; }
+    SPRINT = t.sprint; SHOT_K = t.shot; RUN = t.run; SPRINT_DRAIN = t.drain; REST_GAIN = t.recover;
+    RUN_GAIN = t.recover === B.recover ? B.runGain : B.runGain * t.recover / B.recover;   // (the jogging regain moves with it)
+    BALL_MAG = t.mag; LOB_H = t.lobh; LOB_MAX = t.lobd; CHIP_DIP = t.chip; GK_REACH = t.reach; GK_DIVE_V = t.dive; LAB.react = t.react;
   }
-  function tuneText() { const t = LAB.tune; return JSON.stringify({ game: 'v0.9.0', grip: t.grip, bounce: t.bounce, sprint: t.sprint, shot: t.shot,
-    means: { SKID_DEC: +(LAB.base.skid * t.grip).toFixed(2), ROLL_DEC: +(LAB.base.roll * t.grip).toFixed(2), BOUNCE_Z: t.bounce, SPRINT: t.sprint, SHOT_K: t.shot } }); }
+  const tuneChanged = () => TUNE.filter(k => !k.off && Math.abs(LAB.tune[k.k] - LAB.def[k.k]) > 1e-9);
+  function tuneText() { const t = LAB.tune;
+    return JSON.stringify({ game: GAME_VER, from: 'Test Lab classic · FREE PLAY knobs', note: ($('fp-tnote') && $('fp-tnote').value.trim()) || '',
+      changed: tuneChanged().map(k => ({ knob: k.name, value: +(+t[k.k]).toFixed(3), normal: +(+LAB.def[k.k]).toFixed(3), means: k.line(t[k.k]), constant: k.c })),
+      all: Object.fromEntries(TUNE.filter(k => !k.off).map(k => [k.k, +(+t[k.k]).toFixed(3)])), keeperLevel: LAB.fp.cpu, weather: LAB.fp.wx,
+      means: { SKID_DEC: +(LAB.base.skid * t.grip).toFixed(2), ROLL_DEC: +(LAB.base.roll * t.grip).toFixed(2), BOUNCE_Z: t.bounce, SPRINT: t.sprint, SHOT_K: t.shot, RUN: t.run,
+        SPRINT_DRAIN: t.drain, REST_GAIN: t.recover, BALL_MAG: t.mag, LOB_H: t.lobh, LOB_MAX: t.lobd, CHIP_DIP: t.chip, GK_REACH: t.reach, GK_DIVE_V: t.dive, gkReactExtra: t.react } }); }
+  function tuneUI() {                                                            // the knob tab that's open, the changed strip
+    const tab = LAB.tuneTab || 'player', box = $('fp-tune');
+    $('fp-ttabs').innerHTML = TUNE_TABS.map(([id, n]) => `<button type="button" role="tab" data-tt="${id}" aria-selected="${id === tab}" aria-pressed="${id === tab}">${n}</button>`).join('');
+    for (const b of document.querySelectorAll('#fp-ttabs button')) b.addEventListener('click', () => { LAB.tuneTab = b.dataset.tt; try { localStorage.setItem('hc2-lab-ttab', LAB.tuneTab); } catch (e) {} tuneUI(); b.blur(); });
+    const pct = k => 100 * (LAB.def[k.k] - k.min) / (k.max - k.min);
+    box.innerHTML = (tab === 'keeper' ? `<div class="fp-knob"><div class="fp-kh"><b>Keeper level</b></div><div class="fp-kd">Their keeper plays at this difficulty (the same switch as CPU LEVEL).</div>
+        <div class="fp-row" role="group" aria-label="Keeper level">${LEVELS.map(([v, n]) => `<button type="button" data-lvl="${v}" aria-pressed="${LAB.fp.cpu === v}">${n}</button>`).join('')}</div></div>` : '') +
+      TUNE.filter(k => k.tab === tab).map(k => k.off ? `<div class="fp-knob off"><div class="fp-kh"><b>${k.name}</b><output>—</output></div><div class="fp-kd">${k.what}</div></div>` :
+        `<div class="fp-knob" data-kn="${k.k}"><div class="fp-kh"><b>${k.name}</b><output id="o-${k.k}"></output><button type="button" data-kr="${k.k}" title="Back to normal" aria-label="${k.name}: back to normal">↺</button></div>
+        <div class="fp-kd">${k.what}</div>
+        <input type="range" id="t-${k.k}" min="${k.min}" max="${k.max}" step="${k.step}" aria-label="${k.name}">
+        <div class="fp-ks" aria-hidden="true"><span class="l">${k.lo || 'less'}</span><span class="n" style="left:${pct(k).toFixed(1)}%">▲ normal</span><span class="r">${k.hi || 'more'}</span></div>
+        <div class="fp-kl" id="l-${k.k}"></div></div>`).join('');
+    for (const b of box.querySelectorAll('[data-lvl]')) b.addEventListener('click', () => { LAB.fp.cpu = b.dataset.lvl; syncCyc(); tuneUI(); b.blur(); });
+    for (const k of TUNE.filter(k => k.tab === tab && !k.off)) {
+      const el = $(`t-${k.k}`); el.value = LAB.tune[k.k];
+      el.addEventListener('input', () => setKnob(k, +el.value));
+      el.addEventListener('keydown', e => e.stopPropagation());                 // (the arrows move the slider, not your player)
+      el.addEventListener('change', () => el.blur()); el.addEventListener('pointerup', () => el.blur());
+    }
+    for (const b of box.querySelectorAll('[data-kr]')) b.addEventListener('click', () => { const k = TUNE.find(x => x.k === b.dataset.kr); setKnob(k, LAB.def[k.k]); $(`t-${k.k}`).value = LAB.def[k.k]; b.blur(); });
+    tuneShow();
+  }
+  function setKnob(k, v) {
+    LAB.tune[k.k] = v; try { localStorage.setItem('hc2-lab-tune', JSON.stringify(LAB.tune)); } catch (x) {}
+    if (LAB.run && LAB.run.sc.kind === 'free') applyTune(LAB.tune, LAB.fp.wx === 'clear');
+    tuneShow();
+  }
+  function tuneShow() {
+    for (const k of TUNE.filter(k => k.tab === (LAB.tuneTab || 'player') && !k.off)) {
+      const v = +LAB.tune[k.k], chg = Math.abs(v - LAB.def[k.k]) > 1e-9, row = document.querySelector(`[data-kn="${k.k}"]`); if (!row) continue;
+      $(`o-${k.k}`).textContent = k.fmt(v) + (chg ? '' : ' · normal'); $(`l-${k.k}`).textContent = k.line(v);
+      row.classList.toggle('chg', chg); row.querySelector('[data-kr]').hidden = !chg;
+    }
+    const c = tuneChanged();
+    $('fp-tchg').innerHTML = c.length ? `<b>CHANGED ${c.length}:</b> ${c.map(k => k.name).join(', ')}${c.some(k => k.phys) && LAB.fp.wx !== 'clear' ? ' (grip and bounce wait for DRY weather)' : ''}` : 'Nothing changed: everything plays as in the game.';
+    $('fp-tnote').placeholder = c.length ? `You changed ${c[c.length - 1].name.toLowerCase()}. How does it feel now?` : 'How does it feel? e.g. sprinting feels floaty';
+  }
+  let syncCyc = () => {};                                                        // (set by fpUI: redraws the CPU LEVEL switch)
   function fpUI() {
-    LAB.base = { skid: SKID_DEC, roll: ROLL_DEC, bounce: BOUNCE_Z, sprint: SPRINT, shot: SHOT_K };
-    LAB.def = { grip: 1, bounce: BOUNCE_Z, sprint: SPRINT, shot: 1 };
+    LAB.base = { skid: SKID_DEC, roll: ROLL_DEC, bounce: BOUNCE_Z, sprint: SPRINT, shot: SHOT_K, recover: REST_GAIN, runGain: RUN_GAIN };
+    LAB.def = { grip: 1, bounce: BOUNCE_Z, sprint: SPRINT, shot: 1, run: RUN, drain: SPRINT_DRAIN, recover: REST_GAIN, mag: BALL_MAG, lobh: LOB_H, lobd: LOB_MAX,
+      chip: CHIP_DIP, react: 0, reach: GK_REACH, dive: GK_DIVE_V };                // (the game's own values: Normal)
     try { LAB.tune = Object.assign({}, LAB.def, JSON.parse(localStorage.getItem('hc2-lab-tune') || '{}')); } catch (e) { LAB.tune = Object.assign({}, LAB.def); }
-    const box = $('fp-tune');
-    box.innerHTML = TUNE.map(t => `<div class="fp-sl"><label for="t-${t.k}">${t.label} <output id="o-${t.k}"></output></label><input type="range" id="t-${t.k}" min="${t.min}" max="${t.max}" step="${t.step}" title="${t.tip}"></div>`).join('');
-    const show = () => { for (const t of TUNE) { $(`t-${t.k}`).value = LAB.tune[t.k]; $(`o-${t.k}`).textContent = t.fmt(+LAB.tune[t.k]); } };
-    for (const t of TUNE) $(`t-${t.k}`).addEventListener('input', e => { LAB.tune[t.k] = +e.target.value; $(`o-${t.k}`).textContent = t.fmt(LAB.tune[t.k]);
-      try { localStorage.setItem('hc2-lab-tune', JSON.stringify(LAB.tune)); } catch (x) {} if (LAB.run && LAB.run.sc.kind === 'free' && LAB.fp.wx === 'clear') applyTune(LAB.tune); });
-    show();
-    $('fp-tdef').addEventListener('click', () => { LAB.tune = Object.assign({}, LAB.def); try { localStorage.removeItem('hc2-lab-tune'); } catch (x) {} show(); applyTune(LAB.tune); flash('defaults'); });
+    for (const k of TUNE) if (!k.off && !(Number.isFinite(+LAB.tune[k.k]) && LAB.tune[k.k] >= k.min && LAB.tune[k.k] <= k.max)) LAB.tune[k.k] = LAB.def[k.k];   // (an old or broken saved value: back to normal)
+    try { LAB.tuneTab = localStorage.getItem('hc2-lab-ttab') || 'player'; } catch (e) { LAB.tuneTab = 'player'; }
+    tuneUI();
+    $('fp-tdef').addEventListener('click', () => { LAB.tune = Object.assign({}, LAB.def); try { localStorage.removeItem('hc2-lab-tune'); } catch (x) {} applyTune(LAB.tune); tuneUI(); flash('all back to normal'); });
     $('fp-tcopy').addEventListener('click', () => { const text = tuneText();
       try { navigator.clipboard.writeText(text).then(() => flash('copied'), () => { $('dump').hidden = false; $('dump').value = text; $('dump').select(); }); }
       catch (e) { $('dump').hidden = false; $('dump').value = text; $('dump').select(); } });
     $('fp-tsave').addEventListener('click', async () => {
-      const doc = Object.assign(JSON.parse(tuneText()), { note: $('note').value.trim(), at: new Date().toISOString() });
-      if (LAB.db) { try { await LAB.db.collection('tuning').add(doc); flash('saved'); status('tuning saved, Claude can read it'); $('note').value = ''; return; } catch (e) {} }
-      flash('use COPY'); status('no lab database here: COPY TUNING and paste it to Claude');
+      const doc = Object.assign(JSON.parse(tuneText()), { at: new Date().toISOString() });
+      if (!doc.changed.length && !doc.note) { flash('change a knob first'); return; }
+      if (LAB.db) { try { await LAB.db.collection('tuning').add(doc); flash('sent to Claude'); status('suggestion saved: Claude reads it, nothing in the game changes until you OK a card'); $('fp-tnote').value = ''; return; } catch (e) {} }
+      flash('use COPY'); status('no lab database here: COPY and paste it to Claude');
     });
     for (const b of document.querySelectorAll('#fp [data-tog]')) b.addEventListener('click', () => { const k = b.dataset.tog; LAB.fp[k] = !LAB.fp[k]; b.setAttribute('aria-pressed', LAB.fp[k]); b.blur(); });
     for (const b of document.querySelectorAll('#fp [data-mv]')) b.addEventListener('click', () => { fpMove(b.dataset.mv); b.blur(); });
     // v0.8.8 cycling switches: WEATHER (dry / rain / snow - the ball physics and the look) and KEEPER SAVE (off / LV1-3)
     const CYC = { wx: { vals: ['clear', 'rain', 'snow'], label: v => `WEATHER: ${{ clear: 'DRY', rain: 'RAIN', snow: 'SNOW' }[v]}`,
-                        set: v => { setWx(v); if (v === 'clear' && LAB.tune) applyTune(LAB.tune); } },
+                        set: v => { setWx(v); if (LAB.tune) applyTune(LAB.tune, v === 'clear'); } },
                   save: { vals: [0, 1, 2, 3], label: v => `KEEPER SAVE: ${v ? 'LV' + v : 'OFF'}`, set: () => {} },
                   cpu: { vals: ['normal', 'hard', 'rise', 'easy'], label: v => `CPU LEVEL: ${{ easy: 'EASY', normal: 'NORMAL', hard: 'HARD', rise: 'RISE WARRIOR' }[v]}`, set: () => {} } };   // v0.9.2 their keeper at each difficulty
+    const cycShow = [];
     for (const b of document.querySelectorAll('#fp [data-cyc]')) {
       const C = CYC[b.dataset.cyc], show = () => { const v = LAB.fp[b.dataset.cyc]; b.textContent = C.label(v); b.setAttribute('aria-pressed', v !== C.vals[0]); };
-      show(); b.addEventListener('click', () => { const k = b.dataset.cyc, v = C.vals[(C.vals.indexOf(LAB.fp[k]) + 1) % C.vals.length]; LAB.fp[k] = v;
-        if (LAB.run && LAB.run.sc.kind === 'free') C.set(v); show(); b.blur(); });
+      show(); cycShow.push(show); b.addEventListener('click', () => { const k = b.dataset.cyc, v = C.vals[(C.vals.indexOf(LAB.fp[k]) + 1) % C.vals.length]; LAB.fp[k] = v;
+        if (LAB.run && LAB.run.sc.kind === 'free') C.set(v); show(); if (k === 'cpu' || k === 'wx') tuneUI(); b.blur(); });
     }
+    syncCyc = () => cycShow.forEach(f => f());
     // the folding sections (tuning, animation) remember whether you left them open
     for (const d of document.querySelectorAll('#fp details[data-k]')) {
       try { const v = localStorage.getItem('hc2-lab-' + d.dataset.k); if (v != null) d.open = v === '1'; } catch (e) {}
@@ -942,7 +1020,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       charge: -1, headBuf: 0, penaltyKick: false, over: false, paused: false, msgT: 0, aimPt: null });
     m.msg.setText(''); m.sub.setText(''); m.home.score = m.away.score = 0; m.clock = 600; m.half = 1;
     const wx = (sc.kind === 'free' ? LAB.fp.wx : sc.wx) || 'clear'; setWx(wx);                                   // v0.8.7 weather tests
-    if (LAB.tune && wx === 'clear') applyTune(sc.kind === 'free' ? LAB.tune : LAB.def);
+    if (LAB.tune) applyTune(sc.kind === 'free' ? LAB.tune : LAB.def, wx === 'clear');   // (v0.9.9: every other test plays the game's own values)
     for (const mt of m.meters || []) mt.e = 0;
     sc.setup(r);
     m.human = r.human; m.camX = m.camY = undefined;
@@ -1030,7 +1108,10 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     m.planSave = function (gk) { plan(gk); const r = LAB.run, s = m.ball.save; if (r && s) r.plan = planInfo(s); };
     const shot = m.doShot.bind(m);
     m.doShot = function (p, power, aimY) { const r = LAB.run; return shot(p, r && r.sc.kind === 'free' && LAB.fp.max && p === r.human ? Math.max(power, 0.88) : power, aimY); };   // MAX SHOT: the hardest that stays on target
-    m.dk = function (team) { const r = LAB.run; return diffK(r && r.sc.kind === 'free' && team === m.away ? LAB.fp.cpu : 'base'); };   // v0.9.2: the Lab plays the base AI (FREE PLAY: the CPU LEVEL switch)
+    m.dk = function (team) { const r = LAB.run, free = r && r.sc.kind === 'free' && team === m.away, K = diffK(free ? LAB.fp.cpu : 'base');   // v0.9.2: the Lab plays the base AI (FREE PLAY: the CPU LEVEL switch)
+      if (!free || !LAB.react) return K;                                         // v0.9.9 the REACTION TIME knob, on top of his level
+      const c = LAB.reactK; if (c && c.src === K && c.d === LAB.react) return c.K;
+      LAB.reactK = { src: K, d: LAB.react, K: Object.assign({}, K, { gkReact: K.gkReact + LAB.react }) }; return LAB.reactK.K; };
     m.dkY = function (team) { const r = LAB.run; return DIFF_YOU[r && r.sc.kind === 'free' && team === m.away ? LAB.fp.cpu : 'base']; };   // v0.9.3: its edges v you, same switch
     const clash = m.clash.bind(m);                                             // v0.8.9 SM tests: the save made to win / lose, so each one can be seen
     m.clash = function (gk) { const r = LAB.run, f = r && r.sc.force; if (!f) return clash(gk); const R = Math.random; Math.random = () => (f === 'win' ? 0 : 0.9999); try { return clash(gk); } finally { Math.random = R; } };
