@@ -47,11 +47,36 @@ const TEAM_COL = Object.fromEntries(Object.entries(TEAMS).map(([k, v]) => [k, v.
 const ALT_KIT = { LUC: 'LUC-alt' };                              // second kit for a colour clash
 // movement (metres per second, m/s²)
 let RUN = 5.2, JOG = 3.8;                          // v0.9.9 (Luca: the training-ground knobs in the classic Test Lab): let, for the Lab's knobs
-const WITH_BALL = 0.9, ACC = 12, DEC = 26;
+let WITH_BALL = 0.9, WITH_BALL_SPRINT = 0.94, ACC = 12, DEC = 26;   // t-004: let, so the PACE preset can set them (Classic = these)
 let SPRINT = 7.7;                                  // v0.8: let (not const) so the Test Lab's FREE PLAY sliders can tune it live
 const WALK_V = 2.3;                                // v0.7.4: below this (m/s) a player walks (PixelLab walk) instead of running in slow motion
 const STRIDE_PX = 22;                              // planted-foot travel per run frame (PixelLab 8-frame run, measured ~16-30 px)
 let SPRINT_DRAIN = 0.23, REST_GAIN = 0.16, RUN_GAIN = 0.07;   // stamina per second (0..1)
+// t-004 ARCADE PACE (Luca OK'd the co-designer's request, HQ card t-004, 24 Oct 03:15: "more decisions per minute,
+// fewer seconds of waiting, and every touch feels strong" - design/arcade-pace.md). PACE: CLASSIC (today, the default)
+// or ARCADE, on the start screen and in Pause > Options. Part 1 = the design's A (movement) and D (less waiting).
+// The movement dials ARE the tunable globals above: applyPace() writes them, so the Test Lab's FREE PLAY knobs still
+// win there. The Lab always plays CLASSIC (paceK() and applyPace() ignore the setting on the Lab page).
+const PACE_OPTS = [['classic', 'CLASSIC'], ['arcade', 'ARCADE']];
+const PACE = {
+  classic: { RUN: 5.2, SPRINT: 7.7, ACC: 12, DEC: 26, SPRINT_DRAIN: 0.23, WITH_BALL: 0.9, WITH_BALL_SPRINT: 0.94,
+    koFreeze: 1.2, half2Freeze: 1.6, spFreeze: 0.5, deadT: 1, aiTake: 1.3, htOff: 3.2, htCard: 25, htAnyKey: false,
+    goalWaitMs: 1450, goalFrames: 330, goalSlowPre: 1.7, goalSlow: 2.0, skipAfter: 0.4, evReplays: true },
+  // A: end to end in ~12 s, snappier starts and turns, sprint more, dribbles that go somewhere. D: kick-off 0.6 s,
+  // restarts taken after ~0.8 s, one short (~4 s) goal replay skippable at once, saves / near misses only in
+  // HIGHLIGHTS, half time an 8 s card that any key skips
+  arcade: { RUN: 6.0, SPRINT: 8.8, ACC: 16, DEC: 32, SPRINT_DRAIN: 0.15, WITH_BALL: 0.95, WITH_BALL_SPRINT: 0.97,
+    koFreeze: 0.6, half2Freeze: 0.8, spFreeze: 0.3, deadT: 0.4, aiTake: 0.25, htOff: 1.2, htCard: 8, htAnyKey: true,
+    goalWaitMs: 900, goalFrames: 160, goalSlowPre: 1.0, goalSlow: 0.9, skipAfter: -1, evReplays: false },
+};
+let PACE_MODE = (() => { try { const v = localStorage.getItem('hc2-pace'); return PACE[v] ? v : 'classic'; } catch (e) { return 'classic'; } })();
+function paceK() { return window.__lab ? PACE.classic : PACE[PACE_MODE] || PACE.classic; }
+// (called by setPace and at every kick-off: the start screen's script runs before this file loads. It writes only when
+// the picked preset isn't the one in the globals, so a CLASSIC page never touches them - nor a tool's own tuning.)
+let PACE_SET = 'classic';
+function applyPace() { if (window.__lab || PACE_MODE === PACE_SET || !PACE[PACE_MODE]) return; const P = PACE[PACE_MODE];
+  RUN = P.RUN; SPRINT = P.SPRINT; ACC = P.ACC; DEC = P.DEC; SPRINT_DRAIN = P.SPRINT_DRAIN; WITH_BALL = P.WITH_BALL; WITH_BALL_SPRINT = P.WITH_BALL_SPRINT; PACE_SET = PACE_MODE; }
+function setPace(v) { if (!PACE[v]) return; PACE_MODE = v; try { localStorage.setItem('hc2-pace', v); } catch (e) {} applyPace(); }
 // ball (a real football: air drag ~0.013/m; grass: skids first, then rolls)
 const G = 9.81, AIR_K = 0.012, ROLL_K = 0.03, DRIB_DEC = 5.0, KICK_MAX = 30;
 let SKID_DEC = 8.6, ROLL_DEC = 5.4, SHOT_K = 1;   // v0.8: tunable from the Test Lab (grip, shot power)   // v0.7: grippier grass (Luca: less slide)

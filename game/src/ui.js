@@ -309,6 +309,7 @@ hc2Mix(Match, {
       { k: 'ai', l: `TEAM AI: ${AI_MODE === 'classic' ? 'CLASSIC (v0.7.6)' : 'NEW'}`, act: () => setAiMode(AI_MODE === 'classic' ? 'new' : 'classic') },
       { k: 'diff', l: `DIFFICULTY: ${(DIFF_OPTS.find(o => o[0] === DIFF_LEVEL) || DIFF_OPTS[1])[1]}${AI_MODE === 'classic' ? ' (NEEDS THE NEW AI)' : ''}`, act: () => setDiff(DIFF_OPTS[(DIFF_OPTS.findIndex(o => o[0] === DIFF_LEVEL) + 1) % DIFF_OPTS.length][0]) },   // v0.9.2
       { k: 'cam', l: `CAMERA: ${(CAM_OPTS.find(o => o[0] === CAM_VIEW) || CAM_OPTS[0])[1]}`, act: () => setCamView(CAM_OPTS[(CAM_OPTS.findIndex(o => o[0] === CAM_VIEW) + 1) % CAM_OPTS.length][0]) },   // camera-pov
+      { k: 'pace', l: `PACE: ${(PACE_OPTS.find(o => o[0] === PACE_MODE) || PACE_OPTS[0])[1]}`, act: () => setPace(PACE_OPTS[(PACE_OPTS.findIndex(o => o[0] === PACE_MODE) + 1) % PACE_OPTS.length][0]) },   // t-004 ARCADE PACE
       { k: 'bwon', l: `BUG WATCH: ${BW_ON ? 'ON' : 'OFF'}`, act: () => setBwOn(!BW_ON) },
       { k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 3; } }];
     const BWn = this.bw ? this.bw.list.length : 0, BWnew = this.bw ? this.bw.list.filter(x => !x.review).length : 0;

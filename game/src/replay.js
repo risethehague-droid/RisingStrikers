@@ -287,13 +287,14 @@ hc2Mix(Match, {
     this.evReplay = null;
     const rec = this.rec || [], i = this.recIndex(e.n); if (i < 0 || i >= rec.length) return;
     const a = Math.max(0, i - 170), frames = rec.slice(a); frames[i - a].goal = true;
+    if (!paceK().evReplays) { (this.highlights = this.highlights || []).push({ frames, cap: e.label }); return; }   // t-004 ARCADE: a big save / near miss waits for HIGHLIGHTS
     const gk = e.gk, roar = () => { if (gk && !gk.hands && !gk.busy() && MAN.kits[gk.kit].anims['kroar-S']) { gk.setState('roar', 1.3); gk.face = 6; gk.vx = gk.vy = 0; } };
     this.startReplay(e.label, roar, frames, { caption: e.label });
   },
   goalQTick() {                                                                   // v0.8.2: a goal replay waiting for the pause / another replay to end
     const q = this.goalQ; if (!q || this.replay || this.paused) return;
     this.goalQ = null; if (q.ep !== this.epoch) return;
-    this.startReplay('GOAL', q.after, q.frames);
+    const P = paceK(); this.startReplay('GOAL', q.after, q.frames, { slowPre: P.goalSlowPre, slow: P.goalSlow });   // (t-004: ARCADE a short slow-mo)
   },
   startReplay(label, after, frames, o = {}) {
     const rec = this.rec || [];
@@ -344,7 +345,7 @@ hc2Mix(Match, {
   replayTick(dt) {
     const r = this.replay;
     if (r.real > 0.4 && r.exit && Input.pressed('start')) { const ex = r.exit; r.after = null; this.endReplay(); ex(); return; }
-    if (r.real > 0.4 && (Input.pressed('shoot') || Input.pressed('pass') || Input.pressed('start') || Input.pressed('lob'))) return this.endReplay();
+    if (r.real > paceK().skipAfter && (Input.pressed('shoot') || Input.pressed('pass') || Input.pressed('start') || Input.pressed('lob'))) return this.endReplay();   // (t-004: ARCADE skips at once)
     r.real += dt;
     const slow = r.t > r.slowA && r.t < r.slowB; r.t += dt * (slow ? 0.35 : 1);
     while (r.i < r.frames.length - 1 && r.frames[r.i + 1].t0 <= r.t) r.i++;

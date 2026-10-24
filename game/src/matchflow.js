@@ -61,7 +61,7 @@ hc2Mix(Match, {
     if (this.ref) { this.ref.x = 52.5 + 3; this.ref.y = 22; this.ref.vx = this.ref.vy = 0; this.ref.act('whistle', 0.9); }   // v0.7.1: the referee starts it
     if (team === this.home) this.human = k;
     this.setPiece = null; this.pending = null;
-    this.freeze = 1.2; this.say('KICK-OFF', team.name + ' TO START', 1.2); SFX.whistle(1);
+    applyPace(); this.freeze = paceK().koFreeze; this.say('KICK-OFF', team.name + ' TO START', 1.2); SFX.whistle(1);   // (t-004: ARCADE 0.6 s)
   },
   // dead-ball restarts become SET PIECES: play stops, the taker stands over the ball and aims with a cursor
   restart(kind, team, x, y, note, opts = {}) {
@@ -85,7 +85,7 @@ hc2Mix(Match, {
     if (team === this.home) this.human = taker;
     this.setPiece = { kind, team, taker, t: 0, kicked: false };
     this.charge = -1; this.nextHuman = null;
-    this.freeze = 0.5; this.say(kind, note || (team === this.home ? (k => `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`)(keyset()) : team.name), team === this.home ? 2.4 : 1.4);
+    this.freeze = paceK().spFreeze; this.say(kind, note || (team === this.home ? (k => `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`)(keyset()) : team.name), team === this.home ? 2.4 : 1.4);
   },
   defaultAim(kind, team, taker, x, y) {
     const gx = team.goalX, s = team.side;
@@ -178,7 +178,7 @@ hc2Mix(Match, {
       if (Input.released('shoot') && this.charge >= 0) { const c = this.charge; this.charge = -1; return this.spKick(atGoal || sp.kind === 'PENALTY' ? 'shot' : 'lob', c); }
       return true;
     }
-    if (sp.t < 1.3) return true;                                                 // AI takes a breath, then takes it
+    if (sp.t < paceK().aiTake) return true;                                      // AI takes a breath, then takes it (t-004: ARCADE quickly)
     const mates = sp.team.players.filter(q => q !== p && !q.keeper && !q.sentOff);
     if (sp.kind === 'PENALTY' || (sp.kind === 'FREE KICK' && len(gx - b.x, 34 - b.y) < 28 && Math.random() < 0.7)) {
       Object.assign(A, { x: gx + s * 0.5, y: 34 + rnd(-1, 1) * 3 }); return this.spKick('shot', rnd(0.6, 0.85));
@@ -276,14 +276,15 @@ hc2Mix(Match, {
       for (const p of this.all) { if (p.sentOff) continue; p.moveTo(52.5 + (p.team.side < 0 ? 1.2 : -1.2) + (p.i % 3 - 1) * 0.5, -4.5, 1.9, dt); p.step(dt); if (p.y < -3.5) p.hide = true; }
       if (this.ref) { this.ref.goTo = { x: 52.5, y: -4.5 }; this.ref.step(dt); }
       this.camTarget = { x: wx(52.5, -2), y: wy(-9) };
-      if (H.phase === 'off' && H.t > 3.2) { H.phase = 'card'; H.auto = 25; this.htCard(); }
+      if (H.phase === 'off' && H.t > paceK().htOff) { H.phase = 'card'; H.auto = paceK().htCard; this.htCard(); }   // (t-004: ARCADE an 8 s card)
       if (H.phase === 'card') { H.auto -= dt; if (H.auto <= 0) this.htDone(); }
     }
     Object.assign(this.ball, { x: 52.5, y: 34, z: 0, vx: 0, vy: 0, owner: null });
   },
   htInput() {
     const H = this.ht; if (!H) return;
-    if (H.phase === 'card') { if (Input.pressed('start') || Input.pressed('pass')) this.htDone(); else if (Input.pressed('shoot')) this.openSheet('ht'); }
+    if (H.phase === 'card') { if (Input.pressed('start') || Input.pressed('pass') || (paceK().htAnyKey && (Input.pressed('lob') || Input.pressed('through') || Input.pressed('special') || Input.pressed('sprint')))) this.htDone();   // (t-004: ARCADE any key; SHOOT still opens SUBS)
+    else if (Input.pressed('shoot')) this.openSheet('ht'); }
     else if (H.phase === 'subs') { if (Input.pressed('start') || Input.pressed('pass')) this.closeSheet(); }
   },
   htCard() {
@@ -308,7 +309,7 @@ hc2Mix(Match, {
     const second = (this.firstKick || this.home).opp; this.kickoff(second);   // v0.8.5: the side that didn't start the match
     if (fast) { this.say('HALF TIME', `${this.home.name} ${this.home.score} - ${this.away.score} ${this.away.name}`, 2.5); this.freeze = 2.6; return; }
     this.say('SECOND HALF', `${second.name} TO START`, 1.6);
-    this.ramiSay('banter', { text: 'HERE WE GO,\nTHE SECOND HALF!', expr: 'talk' }, 2); this.freeze = 1.6;
+    this.ramiSay('banter', { text: 'HERE WE GO,\nTHE SECOND HALF!', expr: 'talk' }, 2); this.freeze = paceK().half2Freeze;
   },
   // ---- squads: 11 on the pitch + a bench of 5 (12 = the spare keeper). A player's identity (shirt, legs, cards) moves
   // between slots when you swap; the slot is the position (0 keeper, 1-4 back four, 5-8 midfield, 9-10 up front)
@@ -632,21 +633,21 @@ hc2Mix(Match, {
           how: b.how && b.how.kind, far: b.how ? len(b.how.x - (left ? 0 : PITCH_L), b.how.y - 34) : 0 };
         this.ramiSay('goal', {}, 3); this.loseTime(45);                         // v0.8.4: celebrations cost time
         { const ep = this.epoch;                                                 // celebrate, then the replay
-          this.time.delayedCall(1450, () => { if (ep !== this.epoch || this.over && !this.cupPens) return;
+          this.time.delayedCall(paceK().goalWaitMs, () => { if (ep !== this.epoch || this.over && !this.cupPens) return;   // (t-004: ARCADE sooner, and a shorter replay)
             // v0.8.2: the frames are taken NOW (a pause-menu replay can't empty them later); if you've paused or another
             // replay is on, it waits its turn - and so does the kick-off after it
-            const rec = this.rec || [], frames = rec.slice(-330), gi = this.recIndex(this.goalAt || 0) - (rec.length - frames.length); if (frames[gi]) frames[gi].goal = true;
+            const rec = this.rec || [], frames = rec.slice(-paceK().goalFrames), gi = this.recIndex(this.goalAt || 0) - (rec.length - frames.length); if (frames[gi]) frames[gi].goal = true;
             this.goalQ = { ep, frames, after: () => this.afterGoal(defending) }; this.goalQTick(); }); }   // v0.8.4: a goal in the last seconds - then the whistle
         this.freeze = 99; return;
       }
-      if (b.last === defending) this.dead = { kind: 'CORNER', team: defending.opp, x: left ? 0.4 : PITCH_L - 0.4, y: b.y < 34 ? 0.4 : PITCH_W - 0.4, t: 0.8 };
+      if (b.last === defending) this.dead = { kind: 'CORNER', team: defending.opp, x: left ? 0.4 : PITCH_L - 0.4, y: b.y < 34 ? 0.4 : PITCH_W - 0.4, t: 0.8 * paceK().deadT };   // (t-004: ARCADE restarts sooner)
       else {
         const close = b.shotBy && b.shotBy.team === defending.opp && Math.min(Math.abs(b.y - GOAL_Y0), Math.abs(b.y - GOAL_Y1)) < 1.3 && b.z < BAR_Z + 0.8;
         if (close) { this.flagReplay('SO CLOSE!'); SFX.ooh(); }                                   // inches wide: worth a second look
-        this.dead = { kind: 'GOAL KICK', team: defending, x: left ? 5.5 : PITCH_L - 5.5, y: 34, t: 0.8 }; this.missedChance(defending.opp);
+        this.dead = { kind: 'GOAL KICK', team: defending, x: left ? 5.5 : PITCH_L - 5.5, y: 34, t: 0.8 * paceK().deadT }; this.missedChance(defending.opp);
       }
       return;
     }
-    if (b.y < 0 || b.y > PITCH_W) { const t = b.last === this.home ? this.away : this.home; this.dead = { kind: 'THROW-IN', team: t, x: clamp(b.x, 1, PITCH_L - 1), y: b.y < 0 ? 0.2 : PITCH_W - 0.2, t: 0.6 }; }
+    if (b.y < 0 || b.y > PITCH_W) { const t = b.last === this.home ? this.away : this.home; this.dead = { kind: 'THROW-IN', team: t, x: clamp(b.x, 1, PITCH_L - 1), y: b.y < 0 ? 0.2 : PITCH_W - 0.2, t: 0.6 * paceK().deadT }; }
   },
 });
