@@ -1,3 +1,14 @@
+HC2 WEB GAME - v0.10.0 (24 Oct) - THE LOB AND CHIP REVAMP STARTS (t-002 stage 1, worker-f, PR #3)
+- The plan is in: docs/lob-chip.md (real ball flight, how football games do it, a measured audit, three directions).
+- Three prototypes, OFF in the game. Try one by opening the game with #lobA, #lobB or #lobC on the end of the link:
+  A = today's lobs, fixed; B = real backspin with three lofted kicks (a floated lob, SPRINT + LOB = a driven lob, a
+  chip that floats); C = B plus steering the ball for 0.4 s after the kick.
+- Luca's picks (24 Oct): B, in steps. 1) Lobs that really reach their height, a shrinking shadow, a landing ring that
+  stays, the keeper reads a lob by level. 2) The spin and the three kicks; the chip stays arcade (fast, hard dip) and
+  moves to LOB + SHOOT; the driven lob goes in behind a switch first. 3) The keeper's backpedal and tip over the bar
+  (new PixelLab moves) and the computer's choice of kick.
+- With the prototypes off the game plays exactly as v0.9.9 (8 seeded matches identical).
+
 HC2 WEB GAME - v0.9.9 (24 Oct) - THE TRAINING-GROUND KNOBS IN THE CLASSIC TEST LAB (Luca 02:50: "add the sliders from
 the training ground to the classic version and lets go with that for now")
 - Test Lab > FREE PLAY > CHANGE HOW IT FEELS: the knobs from the Test Lab v3 prototype, in 5 tabs. PLAYER: run speed,

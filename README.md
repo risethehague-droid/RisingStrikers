@@ -4,7 +4,7 @@ A 16-bit pixel football game for the **Help Out Hague Cup II**, a football event
 Six teams (IS, IRO, USCS, LUC, THUAS, AUC), four difficulty levels (Easy, Normal, Hard, Rise Warrior), special moves,
 keeper saves, chips, penalties, Rami on commentary. Plain JavaScript on Phaser 3.90, all art from PixelLab and Aseprite.
 
-Current version: **v0.9.9** (see `docs/CHANGELOG.txt`).
+Current version: **v0.10.0** (see `docs/CHANGELOG.txt`).
 
 ## Play it locally
 
