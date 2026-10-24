@@ -100,6 +100,32 @@ let BALL_MAG = 1;                                  // how close the dribbled bal
 let LOB_H = 1;                                     // lob height: scales the arc of open-play and power lobs (ball.js lobApex)
 let LOB_MAX = 50;                                  // how far a fully held power lob goes, metres (a tap: 12 m)
 const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the weather scales these (clear = as tuned)
+// t-013 GOAL PHYSICS (Luca 24 Oct 14:04: "a net through which the ball can interact with slight give ... more dynamic
+// feedback when the ball hits the post ... the keeper, when he blocks a lot of shots but can't grab it, but it breaks his
+// guard, a lot should go more up dramatically ... be moderate"): the net catches the ball like a spring, the posts and bar
+// are round with real rebounds, a parry or a broken guard can pop the ball up. All of it behind GOAL_PHYS:
+// null = ON in the Test Lab, OFF in matches (until Luca's OK); true / false forces it (tools/soak.js GOAL_PHYS=1).
+let GOAL_PHYS = null;
+const gpOn = () => GOAL_PHYS ?? !!window.__lab;
+// every number in one place, to tune in the Lab (ball.js gpNet / gpWood / gpPop, world.js netDraw)
+const GP = {
+  // the net (metres, per kg of ball): as deep as the art draws it - 2 m back at the grass, the back 2 m high, the roof
+  // sloping down to it from the bar. A ball pushing into it meets a spring (K) with damping (C, half of critical): a
+  // 110 km/h shot stretches it ~65 cm, a 55 km/h one ~35 cm (netMax at most); at the deepest point the mesh holds it a
+  // beat (netHold s, at most, for a hard one) and lets it drop; while it lies against the mesh the mesh grips it (netFric)
+  netD: 2.0, netBZ: 2.0, netK: 600, netC: 25, netMax: 0.9, netFric: 5, netHold: 0.32, holdDamp: 12,
+  // the drawn net: the bulge's radius (m, it widens as it stretches), the mesh's own ringing once the ball is gone
+  // (Hz, damping ratio), the most a cell moves (px), the cells' size (px), a small ripple running out from the hit
+  netSig: 0.7, netHz: 3.2, netZeta: 0.2, drawMax: 28, cell: 8, ripPx: 2.5, ripV: 170, ripL: 26, ripTau: 0.55,
+  // woodwork: posts / bar 12 cm across (Law 1); restitution off the aluminium falls from woodE on a soft touch to
+  // woodE - woodEDrop on a hard one (the ball squashes more); friction woodMu gives spin, which grips on the next
+  // bounce (spinGrip); a square, hard hit on the round post lifts the ball a little (postLift x speed in, barLift
+  // for the bar) so a rebound comes back at a height a player can meet. A second touch within 0.4 s loses more (no ping-pong)
+  postR: 0.06, ballR: 0.11, woodE: 0.68, woodEDrop: 0.24, woodMu: 0.25, spinGrip: 0.55, postLift: 0.2, barLift: 0.08, woodAgain: 0.6,
+  // the keeper's touch: the chance a parry (by its pace) or a broken guard loops the ball UP, and how; on EASY the
+  // computer's side gets fewer of the pop-ups that help it (easyK)
+  parryPop: 0.42, breakPop: 0.45, popVz: [5.5, 8], popOut: [1.5, 4.5], popSide: [0.5, 3], breakOn: [1.2, 4], breakBack: [2, 4.5], easyK: 0.5,
+};
 const HALF_END = [45, 90, 105, 120];                                // v0.8.5: the minute each half ends (3 + 4 = extra time)
 const RULE_OPTS = {                                                 // v0.8.5 match settings (arenas / light / weather: placeholders for the art)
   arena: [['loo', 'HET KLEINE LOO'], ['epic', 'EPIC STADIUM'], ['vuc', 'VUC GROUND']],

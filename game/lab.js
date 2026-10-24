@@ -550,6 +550,68 @@
         return null;
       } };
   }
+  // ---- t-013 GOAL PHYSICS (Luca 24 Oct: "a net through which the ball can interact with slight give ... more dynamic
+  // feedback when the ball hits the post ... the keeper ... breaks his guard, a lot should go more up"). GP1-6 have no
+  // keeper (the frame and the net on their own); every line says what the ball did. GP7-8 force the pop-up (its dice
+  // decide in a match), so you always see it.
+  function gpShot(id, name, sub, from, tgt, speed, o = {}) {
+    return { id, group: 'GP', name, sub, kind: 'shot', forcePop: o.pop, forceParry: o.parry,
+      setup(r) {
+        const s = m.home.players[9], gk = m.away.players[0], a = m.home.players[8], f = dirIndex(GX - from[0], tgt.y - from[1]), dv = dirVec(f);
+        cast(o.gk ? (o.att ? [s, gk, a] : [s, gk]) : [s]);
+        put(s, from[0] - dv.x * 0.5, from[1] - dv.y * 0.42, f); ballAt(from[0], from[1], 0, s);
+        Object.assign(r, { human: s, shooter: s, gk: o.gk ? gk : null, att: o.att ? a : null, marks: [{ x: GX, y: tgt.y, r: 0.3 }] });
+        if (o.gk) put(gk, LINE_X, o.gk, 4);
+        if (o.att) { put(a, o.att[0], o.att[1], 0); r.bots.set(a, (p, dt) => { if (m.gpLastPop && m.gpLastPop.t >= r.gp0) attackBall(p, dt); else p.moveTo(GX - 7, 34 + (o.att[1] - 34) * 0.5, RUN, dt); }); }
+        m.gpLast = null; m.gpLastPop = null; r.gp0 = (m.gpT || 0) + 0.01;
+        r.action = { at: 0.7, fire: () => fireShot(r, tgt, speed, o.power ?? 0.6) };
+      },
+      check: gpCheck };
+  }
+  // what the ball did: off the woodwork / the keeper, where it came back, the net's give
+  function gpCheck(r) {
+    const b = m.ball, W = m.gpLast && m.gpLast.t >= r.gp0 ? m.gpLast : null, P = m.gpLastPop && m.gpLastPop.t >= r.gp0 ? m.gpLastPop : null;
+    if (r.shotT == null) { if (!b.owner && r.fired && !m.pending && b.lastP === r.shooter) r.shotT = r.t; else return null; }
+    if (r.att && (r.att.state === 'header' || r.att.state === 'dheader' || r.att.kickAnim === 'volley' || r.att.state === 'bike')) r.met = r.met || r.att.state;
+    if (W && r.bn == null) r.bn = b.bounced || 0;
+    if (W && !r.land && (b.bounced || 0) > r.bn) r.land = { d: (GX - b.x), y: b.y };                                     // its first bounce after the woodwork
+    const land = r.land ? `, lands ${Math.abs(r.land.d).toFixed(1)} m ${r.land.d >= 0 ? 'out' : 'in'}` : '';
+    const pre = (W ? `OFF THE ${W.what.toUpperCase()} (${W.sq > 0.7 ? 'square' : W.sq > 0.35 ? 'half on' : 'glancing'} ${Math.round(W.sq * 100)}%, ${kmh(W.vin)} → ${kmh(W.vout)} km/h${land}) → ` : '') +
+      (P ? `${P.kind === 'parry' ? 'PARRIED' : 'GUARD BROKEN'}, IT LOOPS UP (${P.vz.toFixed(1)} m/s up) → ` : '') + (r.met ? `${r.met === 'header' || r.met === 'dheader' ? 'HEADER' : 'VOLLEY'} → ` : '');
+    const toLine = Math.abs(GX - b.x);
+    if ((W || P) && !r.back && !b.inNet && toLine > 5.5 && r.wasIn) r.back = { z: b.z, t: r.t };                       // back out over the six-yard line
+    if (toLine < 5.5) r.wasIn = true;
+    if (b.inNet) {
+      if (r.goalT == null) r.goalT = r.t;
+      const L = (m.netS && m.netS.R) || [], pk = L.reduce((x, q) => Math.max(x, q.peak), r.netPk || 0); r.netPk = pk;
+      if (r.t - r.goalT < 1.6) return null;                                                                        // let the net catch it
+      const keys = [...new Set(L.map(q => q.key))].join(' + ');
+      return { o: pre + `GOAL · the net gave ${Math.round(pk * 100)} cm${keys ? ` (${keys})` : ''}, the ball ${b.z < 0.15 ? 'dropped to the grass' : `is ${b.z.toFixed(1)} m up`}`, hold: 0.4 };
+    }
+    const back = r.back ? ` · back over the six-yard line at ${r.back.z.toFixed(1)} m up${r.back.z > 1.1 && r.back.z < 2.7 ? ' (head height)' : r.back.z <= 1.1 && r.back.z > 0.3 ? ' (volley height)' : ''}` : '';
+    if (r.gk && b.owner === r.gk) return { o: pre + 'THE KEEPER GATHERS IT' + back };
+    if (r.att && b.owner === r.att) return { o: pre + 'THE ATTACKER PICKS IT UP' + back };
+    if (r.out) return { o: pre + 'OUT · ' + r.out.toLowerCase() + back };
+    if (r.t - r.shotT > 4.5) return { o: pre + `LOOSE, ${toLine.toFixed(1)} m out` + back };
+    return null;
+  }
+  function gpTests(smSave) {
+    const gp8 = smSave('GP8', 1, 3, [84, 34], 'lose');
+    Object.assign(gp8, { group: 'GP', forcePop: true, name: 'a LV3 special breaks his guard: the ball loops UP', sub: 'his LV1 save loses; the pop-up is forced here (in a match: about 45%)',
+      check(r) { const b = m.ball; if (r.shotT == null && !b.owner && r.fired && b.lastP === r.shooter && !m.pending && r.o.save) { r.gk.spSave = r.o.save; m.saveFx(r.gk); }   // (as SM7: his save, made to lose)
+        return gpCheck(r); } });
+    { const s0 = gp8.setup; gp8.setup = r => { s0(r); m.gpLast = null; m.gpLastPop = null; r.gp0 = (m.gpT || 0) + 0.01; }; }
+    return [
+      gpShot('GP1', 'a hard shot into the roof of the net', '112 km/h, rising under the bar: the net bulges, holds it, it drops', [88, 34.6], { y: 34.8, z: 2.12 }, 31),
+      gpShot('GP2', 'a low shot into the side netting', 'across goal, inside the near post: the side net bulges', [95, 28.5], { y: GOAL_Y1 - 0.45, low: true }, 24),
+      gpShot('GP3', 'off the inside of the post, in', 'from the angle at the far post, a third of the ball on the post', [93, 44], { y: GOAL_Y0 + 0.13, low: true }, 26),
+      gpShot('GP4', 'a square hit on the post with power', '104 km/h square on the post: back out towards the six-yard line, at a height to meet', [91, GOAL_Y0], { y: GOAL_Y0, z: 0.55 }, 29),
+      gpShot('GP5', 'off the underside of the bar', 'it comes down onto the line: in or out off the bounce (backspin)', [94, 34.5], { y: 34.5, z: BAR_Z - 0.1 }, 27),
+      gpShot('GP6', 'a glancing touch on the bar', 'just clips the top of the bar: over for a goal kick', [88, 33], { y: 33, z: BAR_Z + 0.15 }, 26),
+      gpShot('GP7', 'a parried hard shot pops UP for an attacker following in', 'at him, too hard to hold: parried (made a plain parry here) and the pop-up is forced (in a match: up to ~40% of plain parries)', [89, 34], { y: 34.7, z: 1.3 }, 33, { gk: 34, att: [90, 37.5], pop: true, parry: true }),
+      gp8,
+    ];
+  }
   // ---- v0.9.0 (Luca: "use their Iron Wall-like special abilities to also block normal shots (K). Only goalkeepers")
   // their keeper, with bars, against your normal shot into the corner he can't reach (made to use it here)
   function normSave(id, lv) {
@@ -1147,6 +1209,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       smSave('SM4', 1, 1, [84, 34], 'win'), smSave('SM5', 2, 2, [85, 31], 'win'), smSave('SM6', 3, 3, [84, 37], 'win'), smSave('SM7', 1, 3, [84, 34], 'lose'),
       normSave('SM8', 1), normSave('SM9', 2), normSaveYou('SM10', true), normSaveYou('SM11', false),
     ]);
+    add('GP', 't-013 · GOAL PHYSICS', 'The goal comes alive (GOAL_PHYS: on in the Lab, off in matches): a net with give - it bulges, slows the ball, holds it a beat, drops it - round posts and bar with real rebounds (glancing carries on, square comes back), and a parry or a broken guard that loops the ball UP for a man following in.', gpTests(smSave));
     add('CS', 'CUT SCENES', 'Every cut scene in full (the Lab normally skips them). R plays it again. Rate how it looks; ENTER moves the menus on.', buildCuts());
     add('BW', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai). 1 = the game was right · 2 = it\'s a bug.', [{ id: 'BW0', group: 'BW', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,
       setup(r) { cast([]); r.fired = true; }, check() { return { o: 'NOTHING TO WATCH YET' }; } }]);
@@ -1264,6 +1327,11 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       const c = LAB.reactK; if (c && c.src === K && c.d === LAB.react) return c.K;
       LAB.reactK = { src: K, d: LAB.react, K: Object.assign({}, K, { gkReact: K.gkReact + LAB.react }) }; return LAB.reactK.K; };
     m.dkY = function (team) { const r = LAB.run; return DIFF_YOU[r && r.sc.kind === 'free' && team === m.away ? LAB.fp.cpu : 'base']; };   // v0.9.3: its edges v you, same switch
+    const gpPop = m.gpPop.bind(m);                                             // t-013 GP7-8: the pop-up made to happen, so it can be seen
+    m.gpPop = function (gk, kind, spd) { const r = LAB.run; if (!(r && r.sc.forcePop)) return gpPop(gk, kind, spd); const R = Math.random; let first = true;
+      Math.random = () => (first ? (first = false, 0) : R()); try { return gpPop(gk, kind, spd); } finally { Math.random = R; } };
+    const kTouch = m.keeperTouch.bind(m);                                      // t-013 GP7: his touch made a plain parry (t-007's keeper may hold it or turn it round the post)
+    m.keeperTouch = function (p, pbx) { const r = LAB.run, h = kTouch(p, pbx); return h && r && r.sc.forceParry ? 'parry' : h; };
     const clash = m.clash.bind(m);                                             // v0.8.9 SM tests: the save made to win / lose, so each one can be seen
     m.clash = function (gk) { const r = LAB.run, f = r && r.sc.force; if (!f) return clash(gk); const R = Math.random; let n = 0; Math.random = () => (f === 'win' ? 0 : f === 'hand' && n++ ? 0 : 0.9999); /* (t-007 'hand': beaten, then a hand to it) */ try { return clash(gk); } finally { Math.random = R; } };
     const saveCall = m.saveCall.bind(m);                                       // v0.8.8 free play KEEPER SAVE: off, or always that level

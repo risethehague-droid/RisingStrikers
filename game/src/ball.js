@@ -46,6 +46,15 @@ function ballStep(b, h, owned) {
   }
   b.x += b.vx * h; b.y += b.vy * h;
 }
+// t-013: when (0..1) a point moving from (x0, y0) to (x1, y1) first comes within R of (cx, cy); null if it doesn't
+// (already within R and moving in: 0). The goal frame's swept test (Match.gpWood)
+function gpSweep(x0, y0, x1, y1, cx, cy, R) {
+  const dx = x1 - x0, dy = y1 - y0, fx = x0 - cx, fy = y0 - cy, c = fx * fx + fy * fy - R * R;
+  if (c <= 0) return fx * dx + fy * dy < 0 ? 0 : null;
+  const a = dx * dx + dy * dy; if (a < 1e-12) return null;
+  const q = 2 * (fx * dx + fy * dy), disc = q * q - 4 * a * c; if (disc < 0) return null;
+  const t = (-q - Math.sqrt(disc)) / (2 * a); return t >= 0 && t <= 1 ? t : null;
+}
 // fly a test ball along +x and report when/how fast it gets to `dist` (or where it stops)
 function simKick(v0, vz, dist) {
   const b = { x: 0, y: 0, z: 0.05, vx: v0, vy: 0, vz, skid: true, rollV: 0.8 * v0 }, h = 1 / 120;
@@ -365,17 +374,21 @@ hc2Mix(Match, {
     return { ...lobSolve(Math.max(4, d - (driven ? 0.5 : pow != null ? 1 : 2)), apex, spin, quick), spin };   // (quick: t-005's charge arc)
   },
   ballPhysics(dt) {
-    const b = this.ball; if (b.owner && b.owner.hands) return;
+    const b = this.ball, gp = gpOn();
+    if (gp) this.netStep(dt);                                                   // t-013: the mesh rings on after the ball has gone
+    if (b.owner && b.owner.hands) return;
+    if (gp && b.gpIn) { b.vx = b.gpIn.vx; b.vz = b.gpIn.vz; b.gpIn = null; }   // (t-013: the net takes the pace off now, not the goal line - netRipple)
     const owned = !!b.owner, sub = 3, h = dt / sub;
     for (let i = 0; i < sub; i++) {
-      const ox = b.x;
+      const ox = b.x, oy = b.y, oz = b.z;
       ballStep(b, h, owned);
-      if (!owned) this.posts(b, ox);
+      if (gp) { if (!owned) this.gpWood(b, ox, oy, oz); this.gpNet(b, h, oz); }   // t-013 GOAL PHYSICS (core.js GP)
+      else if (!owned) this.posts(b, ox);
       if (this.dead) {                                                          // out of play: the boards stop it
         if (b.x < -4 || b.x > PITCH_L + 4) { b.x = clamp(b.x, -4, PITCH_L + 4); b.vx *= -0.25; }
         if (b.y < -3 || b.y > PITCH_W + 3) { b.y = clamp(b.y, -3, PITCH_W + 3); b.vy *= -0.25; }
       }
-      if (b.inNet) { const right = b.netRight ?? (b.netRight = b.x > 52.5); const lo = right ? PITCH_L + 0.2 : -1.4, hi = right ? PITCH_L + 1.4 : -0.2;
+      if (b.inNet && !gp) { const right = b.netRight ?? (b.netRight = b.x > 52.5); const lo = right ? PITCH_L + 0.2 : -1.4, hi = right ? PITCH_L + 1.4 : -0.2;
         if (b.x < lo || b.x > hi) { b.x = clamp(b.x, lo, hi); b.vx *= -0.12; b.vy *= 0.7; b.vz *= 0.5; }       // back net: it gives and drops
         if (b.y < GOAL_Y0 + 0.2 || b.y > GOAL_Y1 - 0.2) { b.y = clamp(b.y, GOAL_Y0 + 0.2, GOAL_Y1 - 0.2); b.vy *= -0.2; }
         if (b.z > 2.2) { b.z = 2.2; b.vz = -Math.abs(b.vz) * 0.2; } b.vy *= 0.97; }
@@ -390,6 +403,151 @@ hc2Mix(Match, {
       }
       if (b.y > GOAL_Y0 && b.y < GOAL_Y1 && Math.abs(b.z - BAR_Z) < 0.15) { b.vz = -Math.abs(b.vz) * 0.6; b.vx *= -0.4; b.x = ox; this.say('', 'OFF THE BAR!', 0.9); this.flagReplay('OFF THE BAR!'); SFX.post(); SFX.ooh(); }
     }
+  },
+
+  // ======================================================================= t-013 GOAL PHYSICS (behind GOAL_PHYS, core.js)
+  // Luca 24 Oct 14:04: "I want the goal to have more dynamic feedback when the ball hits the post. If there's enough of
+  // the top post and there's enough power, it can bounce ... back into close to the box ... so then maybe a player can
+  // catch it and start an aerial battle or a special move ... give it actual physics". Based on how football games do
+  // it (FIFA / PES / Rocket League-style arcade physics, in words only - see the PR): the posts and bar are round, so the
+  // rebound follows from WHERE on the round tube the ball meets it - the normal from the tube's axis to the ball's
+  // centre. The part of the ball's speed along that normal comes back with restitution e (less on a hard hit: the ball
+  // squashes); the part along the tube carries on, less a little friction that leaves the ball spinning. A glancing
+  // touch (small normal share) carries on in or wide, a square one comes back. Swept test, so a 30 m/s ball can't skip
+  // through a 12 cm post between two steps.
+  gpWood(b, ox, oy, oz) {
+    if (b.gpSpin && (b.bounced || 0) > b.gpSpin.n) { b.vx += b.gpSpin.x; b.vy += b.gpSpin.y; b.gpSpin = null; }   // the spin grips on its first bounce
+    if (b.inNet) return;
+    const R = GP.postR + GP.ballR;
+    for (const gx of [0, PITCH_L]) {
+      if (Math.min(Math.abs(ox - gx), Math.abs(b.x - gx)) > 1) continue;
+      for (const py of [GOAL_Y0, GOAL_Y1]) {                                    // the posts: upright tubes (a circle in the x-y plane)
+        const t = gpSweep(ox, oy, b.x, b.y, gx, py, R); if (t == null) continue;
+        const z = oz + (b.z - oz) * t; if (z > BAR_Z + 0.02) continue;         // (over the top of the post: the bar's end decides)
+        b.x = ox + (b.x - ox) * t; b.y = oy + (b.y - oy) * t; b.z = z;
+        if (this.gpBounce(b, b.x - gx, b.y - py, 0, 'post', gx)) return;
+      }
+      const t = gpSweep(ox, oz, b.x, b.z, gx, BAR_Z, R); if (t == null) continue;   // the bar: a tube across (a circle in the x-z plane)
+      const y = oy + (b.y - oy) * t; if (y < GOAL_Y0 - 0.02 || y > GOAL_Y1 + 0.02) continue;
+      b.x = ox + (b.x - ox) * t; b.y = y; b.z = oz + (b.z - oz) * t;
+      if (this.gpBounce(b, b.x - gx, 0, b.z - BAR_Z, 'bar', gx)) return;
+    }
+  },
+  // the rebound off a post / the bar: (nx, ny, nz) from the tube's axis to the ball's centre
+  gpBounce(b, nx, ny, nz, what, gx) {
+    const n = Math.hypot(nx, ny, nz) || 1; nx /= n; ny /= n; nz /= n;
+    const vn = b.vx * nx + b.vy * ny + b.vz * nz; if (vn >= 0) return false;    // already moving away from it
+    const vin = -vn, tx = b.vx - vn * nx, ty = b.vy - vn * ny, tz = b.vz - vn * nz, vt = Math.hypot(tx, ty, tz), sq = vin / (Math.hypot(vin, vt) || 1);   // sq: 1 square on, 0 a glancing touch
+    const again = b.gpWoodT != null && this.gpT - b.gpWoodT < 0.4;              // a second touch straight after: it dies (no ping-pong)
+    const e = (GP.woodE - GP.woodEDrop * clamp((vin - 8) / 20, 0, 1)) * (again ? GP.woodAgain : 1);
+    const dvt = vt > 0 ? Math.min(GP.woodMu * (1 + e) * vin, 0.4 * vt) : 0, kt = vt > 0 ? 1 - dvt / vt : 1;   // friction: at most until it rolls round the tube
+    b.vx = tx * kt + nx * e * vin; b.vy = ty * kt + ny * e * vin; b.vz = tz * kt + nz * e * vin;
+    if (!again && (what === 'post' || nz > -0.3)) b.vz += (what === 'post' ? GP.postLift : GP.barLift) * vin * sq * sq;   // arcade: a square, hard hit pops it up to meet
+    b.gpSpin = vt > 0 ? { x: -tx / vt * dvt * GP.spinGrip, y: -ty / vt * dvt * GP.spinGrip, n: b.bounced || 0 } : null;   // e.g. under the bar: backspin, it can check back out off the line
+    b.gpWoodT = this.gpT; b.skid = true; b.rollV = 0; b.chip = false; b.lob = false; b.ring = null; b.save = null; b.target = null;
+    if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }
+    if (b.special) { b.special = 0; b.spP = 0; }                               // (off the woodwork it's an ordinary ball)
+    this.gpLast = { what, sq, vin: Math.hypot(vin, vt), vout: Math.hypot(b.vx, b.vy, b.vz), t: this.gpT };
+    if (!again) {
+      const st = this.gpStats || (this.gpStats = { wood: 0, back: 0, pops: 0, net: 0 }); st.wood++; this.gpWatch = { gx, t: this.gpT };
+      const m = what === 'post' ? 'OFF THE POST!' : 'OFF THE BAR!';
+      this.say('', m, 0.9); this.flagReplay(m); SFX.post(); if (vin > 6) SFX.ooh();
+    }
+    return true;
+  },
+  // THE NET (Luca: "a net through which the ball can interact with slight give ... so it can dramatically hit the net and
+  // have dynamism"): not a wall but a spring-damper, as the games do it - the ball sinks into the mesh, slows over a short
+  // distance (harder = deeper), is held a beat and drops. The planes are where the art draws them (GP.netD deep, the roof
+  // sloping from the bar to GP.netBZ). Inside a goal: back, roof and both sides. From outside: the side netting and the
+  // top of the roof (a ball that went wide or over - already a dead ball - no longer passes through the mesh).
+  gpNet(b, h, oz) {
+    if (b.owner) { b.gpHold = 0; b.gpSpin = null; return; }
+    const gx = b.x < PITCH_L / 2 ? 0 : PITCH_L, s = gx ? 1 : -1, u = (b.x - gx) * s, D = GP.netD, r = GP.ballR;   // u: metres behind the goal line
+    if (u <= 0 || u > D + GP.netMax + 0.3) { b.gpAbove = b.gpOut = false; return; }
+    const side = gx ? 'R' : 'L', zr = BAR_Z - (BAR_Z - GP.netBZ) * clamp(u / D, 0, 1), ay = Math.abs(b.y - 34);
+    if (b.gpHold > 0) { b.gpHold -= h; const k = Math.exp(-GP.holdDamp * h); b.vx *= k; b.vy *= k; b.vz = b.vz * k + G * h * 0.75; }   // held a beat
+    if (b.inNet) {
+      if (u < 0.2) { b.x = gx + s * 0.2; if (b.vx * s < 0) b.vx *= -0.12; }    // it stays in the goal (as before)
+      this.gpPlane(b, h, side, 'back', u - (D - r), -s, 0, 0);
+      this.gpPlane(b, h, side, 'roof', b.z - (zr - r), 0, 0, -1);
+      this.gpPlane(b, h, side, 'far', GOAL_Y0 + r - b.y, 0, 1, 0);
+      this.gpPlane(b, h, side, 'near', b.y - (GOAL_Y1 - r), 0, -1, 0);
+      return;
+    }
+    if (u > D) { b.gpAbove = b.gpOut = false; return; }
+    if (ay >= 3.66 + r) b.gpOut = true;                                         // (it came at the side netting from outside)
+    if (ay < 3.66 && oz >= zr + r - 0.02) b.gpAbove = true;                     // (it came down onto the roof from above)
+    if (b.gpOut && ay < 3.66 + r) this.gpPlane(b, h, side, b.y < 34 ? 'farOut' : 'nearOut', 3.66 + r - ay, 0, b.y < 34 ? -1 : 1, 0);
+    else if (b.gpAbove && ay < 3.66) this.gpPlane(b, h, side, 'top', zr + r - b.z, 0, 0, 1);
+  },
+  // one plane of mesh: p = how far the ball has pushed past where the mesh hangs, (nx, ny, nz) = the way the mesh pushes back
+  gpPlane(b, h, side, key, p, nx, ny, nz) {
+    if (p <= 0) return;
+    if (p > GP.netMax) {                                                        // fully stretched: it goes no further
+      const c = p - GP.netMax, vn = b.vx * nx + b.vy * ny + b.vz * nz; p = GP.netMax;
+      b.x += nx * c; b.y += ny * c; b.z += nz * c; if (vn < 0) { b.vx -= vn * nx; b.vy -= vn * ny; b.vz -= vn * nz; }
+    }
+    const vin = -(b.vx * nx + b.vy * ny + b.vz * nz), F = Math.max(0, GP.netK * p + GP.netC * vin);   // a net only pushes, never pulls
+    b.vx += nx * F * h; b.vy += ny * F * h; b.vz += nz * F * h;
+    const vn = b.vx * nx + b.vy * ny + b.vz * nz, k = Math.exp(-GP.netFric * h);   // the mesh grips what slides along it
+    b.vx = nx * vn + (b.vx - nx * vn) * k; b.vy = ny * vn + (b.vy - ny * vn) * k; if (b.z > 0) b.vz = nz * vn + (b.vz - nz * vn) * k;
+    const st = this.netS || (this.netS = { L: [], R: [] }), L = st[side];
+    const hx = b.x - nx * (GP.ballR - p), hy = b.y - ny * (GP.ballR - p), hz = b.z - nz * (GP.ballR - p);   // where it meets the mesh at rest
+    let q = L.find(o => o.key === key && (o.touch > 0 || Math.hypot(o.hx - hx, o.hy - hy, o.hz - hz) < 0.6));
+    if (!q) {
+      q = { key, hx, hy, hz, d: p, dv: 0, touch: 1, age: 0, peak: p, vin0: vin, sx: -nx * PX_X * scaleAt(hy), sy: -ny * PX_Y + nz * PX_H };
+      L.push(q); if (L.length > 3) L.shift();
+      if (vin > 3) { const S = this.gpStats || (this.gpStats = { wood: 0, back: 0, pops: 0, net: 0 }); S.net++; }
+      if (/Out|top/.test(key) && vin > 2) { SFX.net(); this.say('', key === 'top' ? 'ON TOP OF THE NET!' : 'SIDE NETTING!', 0.8); }
+    } else {
+      if (!q.held && vin <= 0 && q.vin0 > 6) { q.held = true; if (!(b.gpHold > 0)) b.gpHold = GP.netHold * clamp(q.vin0 / 25, 0.3, 1); }   // the deepest point: caught
+      q.dv = q.touch > 0 ? (p - q.d) / h : q.dv; q.d = p; q.touch = 1; q.peak = Math.max(q.peak, p); q.hx += (hx - q.hx) * 0.3; q.hy += (hy - q.hy) * 0.3; q.hz += (hz - q.hz) * 0.3; }
+  },
+  // once a frame: the mesh where the ball has left it rings on (a damped spring) and settles; the bulges fade out.
+  // Also keeps the woodwork score for the soak (a rebound that is still in play, out in the field, 1.2 s later)
+  netStep(dt) {
+    this.gpT = (this.gpT || 0) + dt;
+    const W = this.gpWatch;
+    if (W && this.gpT - W.t > 1.2) { const b = this.ball; this.gpWatch = null; if (!this.dead && !b.inNet && Math.abs(b.x - W.gx) > 3) this.gpStats.back++; }
+    const st = this.netS; if (!st) return;
+    const w = 2 * Math.PI * GP.netHz, z = GP.netZeta;
+    for (const L of [st.L, st.R]) for (let i = L.length - 1; i >= 0; i--) {
+      const q = L[i]; q.age += dt;
+      if (q.touch > 0) { q.touch--; continue; }
+      for (let j = 0, hh = dt / 2; j < 2; j++) { q.dv += (-w * w * q.d - 2 * z * w * q.dv) * hh; q.d += q.dv * hh; }
+      if (Math.abs(q.d) < 0.004 && Math.abs(q.dv) < 0.05 && q.age > GP.ripTau * 3) L.splice(i, 1);
+    }
+  },
+  // the keeper got to it but couldn't hold it (Luca: "when he blocks a lot of shots but can't grab it, but it breaks his
+  // guard, a lot should go more up dramatically. So then if there is an attacker, he could capitalize ... make sure it
+  // doesn't become OP"): SOMETIMES the ball loops UP off him instead - a parry a few metres out into his box (the
+  // follow-up chance), a broken guard on towards the goal (the bar, over, just under) or back out over him. Its own small
+  // function so the keeper work (t-007) only has to keep the one call. kind 'parry' | 'break'; true when it popped.
+  gpPop(gk, kind, spd) {
+    if (!gpOn() || !gk || gk.sentOff) return false;
+    const b = this.ball, lvl = this.gpLvl(kind === 'parry' ? gk.team.opp : gk.team);   // the side the pop-up helps
+    const ch = (kind === 'parry' ? GP.parryPop * clamp((spd - 12) / 14, 0.25, 1) : GP.breakPop) * (lvl === 'easy' ? GP.easyK : 1);   // fair: on EASY the computer gets fewer
+    if (Math.random() >= ch) return false;
+    const R = a => rnd(a[0], a[1]), out = gk.team.side;
+    b.vz = R(GP.popVz); b.z = Math.max(b.z, 0.5);
+    if (kind === 'parry') { const sy = Math.sign(b.vy) || (Math.random() < 0.5 ? -1 : 1); b.vx = out * R(GP.popOut); b.vy = sy * R(GP.popSide); }
+    else {
+      const hv = len(b.vx, b.vy) || 1, ux = b.vx / hv, uy = b.vy / hv;
+      if (Math.random() < 0.55) { const v = R(GP.breakOn); b.vx = ux * v; b.vy = uy * v; }                         // on: the bar, over, or just under
+      else { const v = R(GP.breakBack); b.vx = -ux * v; b.vy = -uy * v + rnd(-1.5, 1.5); }                          // back out over him
+      this.say('GUARD BROKEN!', 'IT LOOPS UP OFF HIM!', 1.2);
+    }
+    b.skid = true; b.rollV = 0; b.last = gk.team; b.save = null; b.target = null; b.special = 0; b.spP = 0; b.saveable = null; b.ring = null; b.chip = false; b.lob = false;
+    if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }
+    gk.cool = Math.max(gk.cool || 0, 0.5);
+    const st = this.gpStats || (this.gpStats = { wood: 0, back: 0, pops: 0, net: 0 }); st.pops++; this.gpLastPop = { kind, vz: b.vz, t: this.gpT };
+    return true;
+  },
+  // the level of a side, as dk() picks it (the computer's side at your level; the soak's / trainer's own pair)
+  gpLvl(team) {
+    const o = window.__diffTeams, s = team === this.home ? 'home' : 'away';
+    if (o && o[s]) return o[s].lvl || 'normal';
+    return !this.demo && team !== this.home ? DIFF_LEVEL : 'base';
   },
   // dribbling: the ball is NOT glued to the foot. The carrier touches it ahead, it rolls (and slows), he catches
   // up and touches it again. Faster running = bigger touches = easier to nick. Standing still = ball at the feet.
@@ -461,7 +619,7 @@ hc2Mix(Match, {
         if (!((pbx - p.x) * (b.x - p.x) <= 0 || Math.abs(b.x - p.x) < 0.3)) continue;
         if (Math.abs(b.y - 34) > 4.3 || b.z > 3.2) { p.spSave = 0; continue; }   // off target: nothing to save
         const K = SAVE_POWER[p.spSave - 1], ok = this.clash(p);
-        if (!ok) { this.guardBreak(p); continue; }
+        if (!ok) { this.guardBreak(p); if (this.gpPop(p, 'break', len(b.vx, b.vy))) return; continue; }   // (t-013: or it loops up off him)
         if (ok === 'hand') {                                                     // t-007: too strong to stop, but he gets a hand to it: over or wide
           p.y = clamp(b.y - Math.sign(b.y - p.y || 1) * 0.5, 29.6, 38.4); p.vx = p.vy = 0;
           this.gkDeflect(p, b.z > 1.3 || Math.random() < 0.5 ? 'tip' : 'wide'); b.special = 0; b.spP = 0;
@@ -474,7 +632,8 @@ hc2Mix(Match, {
         if (Math.random() < 0.6) this.gkDeflect(p, b.z > 1.3 ? 'tip' : 'wide');
         else { const rel = b.y - 34 || rnd(-1, 1);
           b.vx = -b.vx * 0.2 + p.team.side * rnd(3, 5); b.vy = Math.sign(rel) * rnd(5, 9); b.vz = rnd(3, 5); b.z = Math.max(b.z, 0.4);
-          b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; p.cool = 0.5; b.ring = null; }   // (t-005: touched - no landing ring)
+          b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
+          this.gpPop(p, 'parry', 30); }                                             // (t-013: fisted UP sometimes - a special is always a hard one; t-007's tips / wides stay corners)
         b.special = 0; b.spP = 0;
         if (MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45); this.gkCount(p.team, 'parried');
         this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
@@ -486,7 +645,7 @@ hc2Mix(Match, {
         const dmg = b.special ? (GUARD_SP[b.special] || 0.5) * clamp((b.spP || SP_POWER[b.special - 1]) / SP_POWER[b.special - 1], 0.3, 1) : (b.power > 0.72 ? GUARD_POWER : 0);   // v0.8.6: a weakened special hits him less
         if (dmg) {
           const g = p.guard ?? 1;
-          if (dmg > g + 1e-6) { this.guardBreak(p); continue; }
+          if (dmg > g + 1e-6) { this.guardBreak(p); if (this.gpPop(p, 'break', len(b.vx, b.vy))) return; continue; }   // (t-013: or it loops up off him)
           p.guard = g - dmg; p.guardT = 0; if (p.guard < GUARD_POWER) this.say('', 'THE KEEPER IS RATTLED!', 0.9);
         }
         if (hit === 'catch') { this.gkCount(p.team, 'held'); if ((p.state === 'dive' && len(b.vx, b.vy) > 20) || len(b.vx, b.vy) > 28) this.flagReplay('WHAT A SAVE!', p); best = p; bd = 0; viaChest = false; break; }
@@ -497,6 +656,7 @@ hc2Mix(Match, {
           if (MAN.kits[p.kit].anims['blasted-E']) { p.setState('blasted', 1.3); p.stun = 1.3; p.face = p.team.side > 0 ? 0 : 4; p.vx = p.team.side * -2.5; p.vy = 0; }
           else if (p.state !== 'dive') { p.setState('fall', 0.7); p.vx = -b.vx * 0.05; } }
         b.special = 0;
+        if (hit !== 'tip' && hit !== 'wide') this.gpPop(p, 'parry', spd);        // t-013: a plain parry sometimes loops UP off him instead (GOAL_PHYS; t-007's tips / wides stay corners)
         this.say(spd > 24 ? 'WHAT A SAVE!' : '', hit === 'tip' ? 'TIPPED OVER THE BAR!' : hit === 'wide' ? 'PARRIED ROUND THE POST!' : 'PARRIED!', 0.8); if ((p.state === 'dive' && spd > 20) || spd > 28) this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
       }
       if (box && !b.save && b.z > 1.6 && b.z < 3.15 && d < 1.3 && b.last !== p.team && !this.gkUnread(p)) {   // t-007: a high ball (a lob, a cross) he goes up for
@@ -604,6 +764,7 @@ hc2Mix(Match, {
   },
   // the net gives: a quick ripple outwards that settles (the net images shift a few pixels and spring back)
   netRipple(side, speed) {
+    if (gpOn()) { const b = this.ball; b.gpIn = { vx: b.vx, vz: b.vz }; return; }   // t-013: the spring net (gpNet) takes the pace off and draws the give
     const n = this.nets && this.nets[side]; if (!n) return;
     const amp = clamp(Math.round(speed / 6), 2, 5) * (side === 'L' ? -1 : 1);
     this.tweens.killTweensOf(n.imgs); for (const im of n.imgs) im.x = n.x;
