@@ -363,12 +363,14 @@ hc2Mix(Match, {
   },
   toPens(head) {
     if (this.inCup()) this.cupPens = true; else this.matchPens = true;
+    this.resumeEnd();                                                            // v0.10.2: decided now, nothing to resume
     this.stopPlay(); SFX.whistle(3, true);
     this.say(head, 'LEVEL - IT GOES TO PENALTIES!', 3);
     this.ramiSay('full_time', { text: this.inCup() ? 'ALL SQUARE IN THE FINAL!\nPENALTIES!!' : 'ALL SQUARE!\nPENALTIES!!', expr: 'shock' }, 3);
     const ep = this.epoch; this.time.delayedCall(3200, () => { if (ep === this.epoch) this.startShootout(true); }); this.over = true;
   },
   fullTime(head) {
+    this.resumeEnd();                                                            // v0.10.2: the match is over, the RESUME button goes
     this.over = true; this.golden = false; this.say(head || 'FULL TIME', this.ftLine(), 99999); SFX.whistle(3, true); SFX.roar(4, 0.7);
     { const h = this.home.score, a = this.away.score; this.ramiSay('full_time', h === a ? { text: 'THAT IS FULL TIME!\nHONOURS EVEN!' } : head === 'GOLDEN GOAL!' ? { text: `GOLDEN GOAL!!\n${(h > a ? this.home : this.away).name} WIN IT!`, expr: 'laugh' } : { WINNER: (h > a ? this.home : this.away).name }, 3); }
     for (const p of this.all) { if (p.sentOff) continue; p.vx = p.vy = 0; p.speed = 0; if (p.busy()) p.setState('idle', 0);   // everyone stops

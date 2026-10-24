@@ -26,6 +26,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
   box-shadow:4px 4px 0 var(--ink);cursor:pointer}
 #start #play:disabled,#start #battle:disabled,#start #cupbtn:disabled{opacity:.6}
 #start #cupbtn{font:12px "Press Start 2P",monospace;background:var(--cyan);color:var(--ink);padding:12px 14px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);cursor:pointer}
+#start #resumebtn{font:12px "Press Start 2P",monospace;background:#4cff7a;color:var(--ink);padding:12px 14px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);cursor:pointer}
+#start #resumebtn[hidden]{display:none} #start #resumebtn:disabled{opacity:.6}
 #start #battle{font:12px "Press Start 2P",monospace;background:var(--pink);color:#fff;padding:12px 14px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);cursor:pointer}
 #touch{position:fixed;inset:0;z-index:4;touch-action:none;pointer-events:none}
 #touch[hidden]{display:none}
@@ -95,7 +97,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
   <div class="pick" id="pick-diff" role="group" aria-label="Difficulty"><span>DIFFICULTY</span></div>
   <div class="pick" id="pick-cam" role="group" aria-label="Camera distance"><span>CAMERA</span></div>
   <div id="safebox" hidden style="font-size:9px;line-height:1.8;max-width:640px"></div>
-  <div class="pick"><button id="play">PLAY &#9654;</button><button id="cupbtn" type="button">HAGUE CUP &#9654;</button><button id="battle" type="button">1V1 PENALTY BATTLE &#9654;</button><button id="watchbtn" type="button">WATCH: COMPUTER v COMPUTER &#9654;</button></div>
+  <div class="pick"><button id="resumebtn" type="button" hidden>RESUME &#9654;</button><button id="play">PLAY &#9654;</button><button id="cupbtn" type="button">HAGUE CUP &#9654;</button><button id="battle" type="button">1V1 PENALTY BATTLE &#9654;</button><button id="watchbtn" type="button">WATCH: COMPUTER v COMPUTER &#9654;</button></div>
   <small><span id="keyhelp"></span><br>WATCH: THE COMPUTER PLAYS BOTH SIDES &middot; ENTER PAUSES &middot; 1-4 = SPEED 0.5X / 1X / 2X / 4X &middot; N MARKS A MOMENT &middot; AT FULL TIME YOU REVIEW YOUR MARKS + WHAT BUG WATCH CAUGHT (BUG / FINE / NOT SURE + A NOTE) &middot; CLAUDE READS THEM<br>HAGUE CUP: ALL SIX TEAMS, TWO GROUPS OF THREE, GROUP WINNERS PLAY THE FINAL (LEVEL = PENALTIES) &middot; YOU PLAY AS YOUR 'YOU' TEAM<br>1V1 PENALTY BATTLE: P1 = WASD + K &middot; P2 = ARROWS + . (OR RIGHT SHIFT) &middot; BOTH PICK IN SECRET, THEN IT PLAYS OUT<br>A GAMEPAD WORKS TOO: A PASS, B SHOOT, X THROUGH, Y LOB, RB SPRINT, LB SPECIAL<br>v0.8.8 &middot; FIX: A HEADER OFF A SPENT SPECIAL FLIES LIKE A NORMAL BALL &middot; TEST LAB: EVERY MOVE ON A BUTTON &middot; v0.8.7 &middot; NEW: BUG WATCH - THE GAME CHECKS ITS OWN FOOTAGE AND KEEPS A CLIP OF ANYTHING WRONG (PAUSE MENU &rarr; BUG WATCH, OR B AT FULL TIME) &middot; FIXED: PLAYERS / KEEPERS FLICKERING, AERIAL SPECIALS MISSING THE BALL &middot; v0.8.6 &middot; POWER SPECIALS GO THROUGH DEFENDERS (LV1 ONE, LV2 TWO, LV3 FIVE) AND FADE WITH DISTANCE &middot; KEEPER SPECIAL SAVES (PRESS SPECIAL WHEN SAVE! FLASHES) &middot; AERIAL SPECIALS OFF A HIGH BALL &middot; v0.8.5 &middot; MATCH SETTINGS (ARENA, TIME OF DAY, WEATHER, WHAT HAPPENS IF IT'S LEVEL: EXTRA TIME / GOLDEN GOAL / PENALTIES) &middot; COIN TOSS FOR KICK-OFF &middot; PAUSE MENU (TEAM + SUBS, MOVES, OPTIONS) &middot; WIDER CAMERA &middot; HOLD L FOR A HIGH LOB &middot; INJURIES &middot; v0.8.4 &middot; TEAM SHEET BEFORE KICK-OFF &middot; WALK-OUT &middot; ADDED TIME + THE REF LETS AN ATTACK FINISH &middot; HALF TIME WITH STATS + SUBS &middot; v0.8.3 &middot; FIXES: THE COMPUTER TACKLES YOU WHEN YOU SHIELD THE BALL (NO MORE STALLED MATCHES) &middot; YOUR KEEPER STAYS IN HIS BOX WITH THE BALL &middot; THE COMPUTER ATTACKS PROPERLY (SHOOTS THROUGH OPEN LANES, SAFE PASSES, TAKES MEN ON) &middot; DEFENDERS JOCKEY YOU (PIXELLAB) &middot; WON CHALLENGES STAY WON &middot; HEAD-ON SLIDE = BLOCK TACKLE &middot; THE COMPUTER FOULS TOO &middot; REPLAY FIXES (AGAIN, PAUSE, 120/144 HZ SCREENS)</small>
 </div>
 
@@ -180,16 +182,22 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     for (const k of Object.keys(CAMS)) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = CAMS[k]; btn.addEventListener('click', () => setCv(k)); crow.appendChild(btn); }
     setCv(cv);
     const play = document.getElementById('play'), battle = document.getElementById('battle'), cupb = document.getElementById('cupbtn'), watchb = document.getElementById('watchbtn');
+    // v0.10.2 RESUME (Luca, 24 Oct): the match you left last time, kept by resume.js in this browser - the button shows the score + minute
+    const resb = document.getElementById('resumebtn'); let snap = null;
+    try { const S = JSON.parse(localStorage.getItem('hc2-resume') || 'null'); if (S && S.fmt === 1 && S.t && S.t.h && S.t.a && TEAMS.some(t => t[0] === S.h) && TEAMS.some(t => t[0] === S.a)) snap = S; } catch (e) {}
+    if (snap) { const m = Math.floor(snap.clock / 60) + 1, end = [45, 90, 105, 120][snap.half - 1] || 90;
+      resb.textContent = 'RESUME ' + snap.h + ' ' + snap.t.h.score + '-' + snap.t.a.score + ' ' + snap.a + ' \u00b7 ' + (m > end ? end + '+' + (m - end) : m) + "' \u25b6"; resb.hidden = false; }
     const go = () => { s.remove(); window.focus(); window.HC2_STARTED = true; if (window.__hc2) window.__hc2.freeze = Math.max(window.__hc2.freeze, 0.6); };
-    const start = (shootout, cup, watch) => {
-      if (play.disabled) return; play.disabled = battle.disabled = cupb.disabled = watchb.disabled = true; (watch ? watchb : cup ? cupb : shootout ? battle : play).textContent = 'LOADING THE KITS...';
-      const tryIt = () => { if (!window.__hc2) return setTimeout(tryIt, 200); if (cup) { go(); window.__hc2.cupStart(pick.home); return; } if (watch) { window.__hc2.setTeams(pick.home, pick.away, () => { go(); window.__hc2.watchStart(); }); return; }   /* watch mode: the computer plays both sides */ window.__hc2.setTeams(pick.home, pick.away, () => { go(); if (shootout) window.__hc2.startShootout(); else window.__hc2.preMatch(); /* v0.8.4: team sheet + walk-out */ }); };
+    const start = (shootout, cup, watch, resume) => {
+      if (play.disabled) return; play.disabled = battle.disabled = cupb.disabled = watchb.disabled = resb.disabled = true; (resume ? resb : watch ? watchb : cup ? cupb : shootout ? battle : play).textContent = 'LOADING THE KITS...';
+      const tryIt = () => { if (!window.__hc2) return setTimeout(tryIt, 200); if (resume) { window.__hc2.setTeams(snap.h, snap.a, () => { go(); window.__hc2.resumeMatch(snap); }); return; } if (cup) { go(); window.__hc2.cupStart(pick.home); return; } if (watch) { window.__hc2.setTeams(pick.home, pick.away, () => { go(); window.__hc2.watchStart(); }); return; }   /* watch mode: the computer plays both sides */ window.__hc2.setTeams(pick.home, pick.away, () => { go(); if (shootout) window.__hc2.startShootout(); else window.__hc2.preMatch(); /* v0.8.4: team sheet + walk-out */ }); };
       tryIt();
     };
     play.addEventListener('click', () => start(false));
     battle.addEventListener('click', () => start(true));
     cupb.addEventListener('click', () => start(false, true));
     watchb.addEventListener('click', () => start(false, false, true));
+    resb.addEventListener('click', () => start(false, false, false, true));
     s.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') start(false); });
     setTimeout(() => play.focus(), 50);
     // v0.7.6 safe mode note + switch
@@ -220,4 +228,5 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 <script src="src/ui.js"></script>
 <script src="src/replay.js"></script>
 <script src="src/watch.js"></script>
+<script src="src/resume.js"></script>
 <script src="src/boot.js"></script>

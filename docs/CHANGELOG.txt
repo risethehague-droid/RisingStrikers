@@ -1,3 +1,16 @@
+HC2 WEB GAME - v0.10.2 (24 Oct) - RESUME YOUR LAST MATCH
+- Luca: "make it so i can resume a game that was last played in the menu". The start screen now shows a green
+  RESUME button (e.g. "RESUME IS 2-1 IRO · 68'") when you left a match before the end.
+- It brings back: the score, the clock and the half (extra time too), that match's settings (arena, light, weather,
+  what happens if it's level, the difficulty, the team AI), every player's shirt, legs (energy) and cards, the subs
+  you've used, both special meters and the stats. Play restarts with a kick-off for the side that had the ball.
+- Kept in this browser, saved every 5 s of play, when you QUIT TO MENU and when you close / reload the page. It goes
+  away at full time or when it goes to penalties. Starting a new match replaces it once that match kicks off.
+- Not kept: exact positions, replays and highlights. Not for the Hague Cup, watch mode, the penalty battle or the Lab
+  (yet).
+- Checked: 8/8 seeded matches identical with a save every 7 frames (saving never touches the dice); the round trip
+  (tools/resumetest.js: quit, reload, resume, extra time, full time clears it) all ok; smoke errors [].
+
 HC2 WEB GAME - v0.10.1 (24 Oct) - THE FIRST NIGHTLY QA FIXES (PR #5 + #6)
 - Bug Watch no longer changes the match it watches. It named each saved clip with the game's own dice, so the same
   seed played a different match with Bug Watch on or off (and repro lines didn't replay). Now on = off.

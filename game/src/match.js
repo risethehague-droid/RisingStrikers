@@ -65,6 +65,7 @@ class Match extends Phaser.Scene {
   // ---------- update
   update(time, deltaMs) {
     const dt = Math.min(deltaMs / 1000, 1 / 30);
+    this.resumeTick(dt);                                                         // v0.10.2: keeps a snapshot of your match for RESUME (resume.js)
     if (this.replay) { Input.poll(); this.stadium.update(dt); this.replayTick(dt); this.ramiTick(dt); for (const mt of this.meters || []) mt.draw(dt); return; }
     if (this.cupScreen) { Input.poll(); if (Input.pressed('start') || Input.pressed('pass')) this.cupPlay(); this.stadium.update(dt); return; }   // v0.7.2 cup table up
     if (this.ceremony) { Input.poll(); this.stadium.update(dt); this.render(dt); this.ceremonyTick(dt); this.ramiTick(dt);                 // v0.7.4 trophy ceremony on the pitch

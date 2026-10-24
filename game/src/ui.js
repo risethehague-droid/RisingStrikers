@@ -322,7 +322,7 @@ hc2Mix(Match, {
       ...(H ? [{ k: 'hl', l: `HIGHLIGHTS (${H})`, key: k.pass, act: () => this.pauseReplay('hl') }] : []),
       ...(this.watch ? this.watchItems() : []),                                    // watch mode: speed, mark this moment
       { k: 'bw', l: `BUG WATCH (${BWn}${BWnew ? ` · ${BWnew} TO CHECK` : ''})`, act: () => this.bwOpen('pause') },
-      { k: 'quit', l: P.quit ? 'SURE? PRESS AGAIN TO QUIT' : 'QUIT TO MENU', act: () => { if (P.quit) { try { location.reload(); } catch (e) {} } else P.quit = true; } }];
+      { k: 'quit', l: P.quit ? 'SURE? PRESS AGAIN TO QUIT' : 'QUIT TO MENU', act: () => { if (P.quit) { this.resumeSave(); try { location.reload(); } catch (e) {} } else P.quit = true; } }];   // (v0.10.2: kept for RESUME on the start screen)
   },
   drawPause() {
     const P = this.pm; if (!P) return; const el = this.flowEl('pause'), items = this.pauseItems(); P.i = clamp(P.i, 0, items.length - 1);
