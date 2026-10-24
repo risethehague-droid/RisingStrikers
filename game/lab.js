@@ -739,7 +739,7 @@
       gkxShot('GKX5', 'a hard shot under the bar', 'he jumps and tips it over → corner', { n: '18 m', x: 87, y: 34 }, { y: null, z: 2.3 }, 25, 0.8),
       gkxLob('GKX6', 'a lob over him he can reach', 'he reads it, goes up and catches it', { from: [72, 30], to: [105.5, 34], pow: 0.5, gk: [99, 34], info: 'lob from 30 m, he is 6 m out' }),
       gkxLob('GKX7', 'a lob into a crowd', 'two of theirs at the drop: he punches it clear', { from: [80, 24], to: [102.4, 34], pow: 0.6, gk: [103.6, 34], info: 'lob into the six-yard box',
-        extra: () => [[H()[9], 99.2, 32.6, 0, sit], [H()[8], 100.2, 33.4, 0, sit], [H()[6], 101.2, 33.6, 0, sit]] }),
+        extra: () => [[H()[9], 98.2, 31.6, 0, sit], [H()[8], 98.8, 33.0, 0, sit], [H()[6], 99.8, 32.4, 0, sit]] }),
       sp8,
     ];
   }

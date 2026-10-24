@@ -565,8 +565,9 @@ hc2Mix(Match, {
     const up = p.state === 'dive' && (p.saveKind === 'leap' || p.saveKind === 'tip');
     if (b.z > (up ? 3.1 : 2.95)) return 'skip';                                 // (over him even with a jump)
     if (p.state === 'dive' && !up) return 'skip';                                 // (on the grass from another save)
-    const crowd = p.team.opp.players.some(o => !o.keeper && !o.sentOff && Math.min(len(o.x - b.x, o.y - b.y), len(o.x - p.x, o.y - p.y)) < 1.5);   // (one of theirs at the ball or on him)
-    const hold = Math.random() < this.gkHoldChance(p, sp, 'leap') * (crowd ? 0.15 : 1);
+    const opp = p.team.opp.players.filter(o => !o.keeper && !o.sentOff);
+    const crowd = opp.some(o => len(o.x - b.x, o.y - b.y) < 0.7) || opp.filter(o => Math.min(len(o.x - b.x, o.y - b.y), len(o.x - p.x, o.y - p.y)) < 1.8).length >= 2;   // (one of theirs right under it, or two around him)
+    const hold = Math.random() < this.gkHoldChance(p, sp, 'claim') * (crowd ? 0.2 : 1);
     if (b.z > 2.0 && !up) {                                                       // he goes up for it
       p.setState('dive', 0.55); p.diveLen = 0.55; p.diveFly = 0.12; p.diveDir = 0; p.diveZ = clamp(b.z, 1.8, 2.9); p.vx = p.vy = 0;
       p.saveKind = hold ? 'leap' : 'tip'; p.leap = clamp(b.z - 1.9, 0.25, 0.7);
