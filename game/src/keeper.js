@@ -32,6 +32,11 @@ hc2Mix(Match, {
   },
   // how far sideways he can get his hands in time T (seconds after he reacts), for a ball at height z
   keeperCover(T, z) { return Math.min(GK_DIVE_V * Math.max(0, T - 0.05), 3.0) + GK_REACH - Math.max(0, z - 1.7) * 0.6; },
+  // t-005 (lob step 1, docs/lob-chip.md: "the keeper reads a lob instantly"): how long he needs to read a lob, by level -
+  // 0.35 s (Easy) / 0.25 (Normal) / 0.19 (Hard) / 0.15 (Rise), from his gkReact like his read of a shot
+  gkRead(k) { const r = this.dk(k.team).gkReact; return clamp(0.25 + r * (r > 0 ? 2.2 : 1.1), 0.15, 0.35); },
+  // ...and their open-play lob (b.lob) he hasn't read yet: he doesn't go for it by any route (back, claim, sweep) until he has
+  gkUnread(k) { const b = this.ball; return !!b.lob && !b.owner && b.last !== k.team && (b.airT || 0) < this.gkRead(k); },
   keeperOutlet(k) {                                                               // the freest team-mate for a throw / roll-out
     let best = null;
     for (const q of k.team.players.slice(1)) {
@@ -100,7 +105,7 @@ hc2Mix(Match, {
     }
     if (!b.owner && this.path && (b.z > 0.6 || b.vz > 2) && !(b.save && b.save.gk === k)) {     // a cross into his area: come and claim it
       // he reads the flight first (no instant rush), and outside his six-yard box he only comes if he clearly beats the attackers
-      if ((b.airT || 0) > 0.22 || k.claiming) {
+      if (((b.airT || 0) > 0.22 && !this.gkUnread(k)) || k.claiming) {           // (t-005: a lob waits for his read by level)
         const pt = this.path.find(q => q.z < 2.5 && q.z > 0.3 && Math.abs(q.x - gx) < 7.5 && Math.abs(q.y - 34) < 10);
         const mine = pt && 0.15 + len(pt.x - k.x, pt.y - k.y) / 6.5 <= pt.t + 0.25;
         const six = pt && pt.z > 1.0 && Math.abs(pt.x - gx) < 5.5 && Math.abs(pt.y - 34) < 9.2;      // in the air in his six-yard box: his ball
@@ -141,13 +146,15 @@ hc2Mix(Match, {
     const lastH = defs.length ? Math.min(...defs.map(p => H(p.x))) : 30;          // his defensive line (the deepest outfield man)
     const carrier = b.owner && b.owner.team === opp ? b.owner : null, ours = b.owner && b.owner.team === own;
     const KD = this.dk(own), kv = 6.6 * KD.gkSpd, react = 0.15 + KD.gkReact;
-    // BACK: a high ball dropping behind him while he's off his line
-    if (!b.owner && H(k.x) > 5 && b.z > 1.6 && b.vx * -side > 3 && this.path) {
+    // BACK: a high ball dropping behind him while he's off his line. t-005 (lob step 1): a lob only once he has READ it
+    // (gkRead, by level) - he turned the frame it passed 1.6 m, or went for its landing spot 0.07 s after the kick
+    const unread = this.gkUnread(k);
+    if (!b.owner && !unread && H(k.x) > 5 && b.z > 1.6 && b.vx * -side > 3 && this.path) {
       const land = this.path.find(q => q.z < 2.2 && H(q.x) < H(k.x));
       if (land && H(land.x) > -1 && Math.abs(land.y - 34) < 9) { const g = this.gkBisector(land.x, land.y, gx, side, 1.2); return { mode: 'BACK', x: g.x, y: g.y, v: kv }; }
     }
     // SWEEP / SMOTHER: a loose ball he gets to first (behind his defence, or a heavy touch in a 1v1)
-    if (!b.owner && this.path && !(b.z > 1.2 && bh < 7)) {
+    if (!b.owner && !unread && this.path && !(b.z > 1.2 && bh < 7)) {
       const toGoal = b.vx * -side > -1 || len(b.vx, b.vy) < 2;                       // (not a ball running away from his goal)
       for (const pt of this.path) {
         if (pt.z > 1.0 || !toGoal) continue;

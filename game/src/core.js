@@ -26,16 +26,19 @@ const PITCH_L = 105, PITCH_W = 68, PX_X = 48, PX_Y = 38, PX_H = 60, S_FAR = 0.87
 const GOAL_Y0 = 34 - 3.66, GOAL_Y1 = 34 + 3.66, BAR_Z = 2.44;
 let CHIP_DIP = 1.9;                                // v0.9.9: let, so the Test Lab's FREE PLAY knobs can change it live (same value in the game)
 const CHIP_ON = true;                                                          // v0.9.4: ON in matches - the PixelLab chip animation is in (batch 15)
-// t-002 (Luca 23 Oct 22:31: "work on the game mechanics of the lob and chip... revamp it completely"): stage-1
-// PROTOTYPES of the three directions in docs/lob-chip.md, OFF unless the page is opened with ?lob=A, ?lob=B or ?lob=C.
-// A = today's model with the numbers fixed; B = backspin / Magnus lift, three lofted kicks (lob, driven lob, chip);
-// C = B's flight shaped by the stick after the kick (aftertouch). Off (null) = today's game, unchanged.
-// Also from the link's #ending (#lobB, or #play-lobB on a PR preview page): claude.ai artifact links pass only a plain
-// #anchor through, not ?lob=, so that's how Luca tries a direction from HQ's "Play it".
-let LOB_PROTO = (() => { try { const q = new URLSearchParams(location.search).get('lob'), m = /(^|#|&|-)lob-?([ABC])\b/i.exec(location.hash);
-  return /^[ABC]$/.test(q) ? q : m ? m[2].toUpperCase() : null; } catch (e) { return null; } })();
+// t-002 (Luca 23 Oct 22:31: "work on the game mechanics of the lob and chip... revamp it completely"): the directions in
+// docs/lob-chip.md. Luca picked B, in steps (24 Oct 03:45). t-005 (step 1): A's fixes are now the real game (lobs that
+// reach their height) and C (aftertouch) wasn't picked, so both prototypes are gone. B (backspin / Magnus lift, three
+// lofted kicks: lob, driven lob, chip) stays as a PROTOTYPE for step 2 to build from, OFF unless the page is opened with
+// ?lob=B, or #lobB / #play-lobB on the link's ending (claude.ai artifact links pass only a plain #anchor through, not
+// ?lob=, so that's how Luca tries it from HQ's "Play it"). Off (null) = the game.
+let LOB_PROTO = (() => { try { const q = new URLSearchParams(location.search).get('lob'), m = /(^|#|&|-)lob-?B\b/i.exec(location.hash);
+  return q === 'B' || m ? 'B' : null; } catch (e) { return null; } })();
 const MAGNUS_K = 0.0058, SPIN_TAU = 5, CHIP_SPIN = 55;   // lift accel = MAGNUS_K x spin (rad/s) x speed: rho*A/(2m) * r (Cl ~ spin ratio, Goff & Carre 2009); spin halves in ~3.5 s;
                                          // a chip leaves the boot with ~9 rev/s of backspin
+// t-005 (lob step 1, readability): the ball's shadow shrinks as it climbs - full size on the grass, SHADOW_MIN of it from
+// SHADOW_Z metres up (docs/lob-chip.md: "100% to about 60% between 0 and 6 m"); the ball-shadow sprite scaled, nothing drawn
+const SHADOW_MIN = 0.62, SHADOW_Z = 6;
 const DIRS = ['E', 'NE', 'N', 'NW', 'W', 'SW', 'S', 'SE'];
 const HALF_REAL_SECONDS = 180;                     // 3 real minutes per half (match length option later)
 // the six Help Out Hague Cup II teams: kit atlases (painted on the same PixelLab frames) + radar colour

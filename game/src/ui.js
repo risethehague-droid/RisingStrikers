@@ -393,6 +393,11 @@ hc2Mix(Match, {
       const q = this.passRing.p, a = clamp(this.passRing.t, 0, 1);
       this.ring.lineStyle(3, 0x28c8e6, a).strokeEllipse(Math.round(wx(q.x, q.y)), Math.round(wy(q.y)) - 2, 46, 18);
     }
+    // t-005 (lob step 1): every lofted ball - lob, power lob, chip, either side's - keeps its ring on the grass where it
+    // comes down (the real predicted landing, ball.js ringSpot) until someone touches it; it showed only while you charged
+    const LR = !this.replay && this.ringSpot();
+    if (LR) { const rx = Math.round(wx(LR.x, LR.y)), ry = Math.round(wy(LR.y)) - 2, col = LR.chip ? 0xff2878 : 0x28c8e6;
+      this.ring.lineStyle(5, INK, 0.75).strokeEllipse(rx, ry, 44, 17).lineStyle(3, col, 0.95).strokeEllipse(rx, ry, 44, 17).fillStyle(col, 0.95).fillRect(rx - 1, ry - 1, 3, 3); }
     // set piece (yours): aim cursor on the pitch + a line from the ball
     const sp = this.setPiece;
     if (sp && !sp.kicked && sp.team === this.home && this.aimPt) {
@@ -424,9 +429,11 @@ hc2Mix(Match, {
     } else if (this.airUi) for (const k in this.airUi) this.airUi[k].setVisible(false);
     // v0.8.5 power lob: where it will land (a ring that walks out as you hold) + a cyan power bar
     if (this.lobCharge >= 0 && b.owner === hp) {
-      const L = this.lobSpot(hp), lx = Math.round(wx(L.x, L.y)), ly = Math.round(wy(L.y)) - 2, bx = wx(b.x, b.y), by = wy(b.y) - 6;
-      g.lineStyle(4, INK, 0.7); g.beginPath(); for (let i = 0; i <= 12; i++) { const u = i / 12, h = Math.sin(u * Math.PI) * (40 + this.lobCharge * 90); const x = bx + (lx - bx) * u, y = by + (ly - by) * u - h; if (i) g.lineTo(x, y); else g.moveTo(x, y); } g.strokePath();
-      g.lineStyle(2, 0x28c8e6, 0.95); g.beginPath(); for (let i = 0; i <= 12; i++) { const u = i / 12, h = Math.sin(u * Math.PI) * (40 + this.lobCharge * 90); const x = bx + (lx - bx) * u, y = by + (ly - by) * u - h; if (i) g.lineTo(x, y); else g.moveTo(x, y); } g.strokePath();
+      // t-005 (lob step 1): the arc is the ball's real path (lobPreview: the launch the release will use, flown with the
+      // game's ball physics) and the ring sits where that path comes down - the arc was a fixed sine, the ring the aim point
+      const L = this.lobSpot(hp), V = this.lobPreview(hp, L, this.lobCharge), E = L.chip ? L : V.end, lx = Math.round(wx(E.x, E.y)), ly = Math.round(wy(E.y)) - 2;
+      const arc = (w, col, a) => { g.lineStyle(w, col, a); g.beginPath(); V.pts.forEach((q, i) => { const x = wx(q.x, q.y), y = wy(q.y, q.z) - 6; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.strokePath(); };
+      arc(4, INK, 0.7); arc(2, L.chip ? 0xff2878 : 0x28c8e6, 0.95);
       g.lineStyle(5, INK).strokeEllipse(lx, ly, 44, 17).lineStyle(3, L.chip ? 0xff2878 : 0x28c8e6).strokeEllipse(lx, ly, 44, 17);   // (pink ring: it's a CHIP)
       const px = X - 30, py = Y + 13; g.fillStyle(INK).fillRect(px - 2, py - 2, 64, 12).fillStyle(0x28c8e6).fillRect(px, py, Math.round(60 * this.lobCharge), 8);
     }

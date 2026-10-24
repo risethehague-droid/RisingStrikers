@@ -5,18 +5,21 @@
 // For each lob: who got it (the man it was meant for / a team-mate / them / out), how (feet, chest, header, volley,
 // knocked loose), and at the moment it drops below 1 m: how far the receiver and the nearest opponent are from it.
 //   node tools/lobstudy.js ai [MIN]      node tools/lobstudy.js you [TRIALS]
+// t-005: PORT=8781 picks the server (or BASE=http://...), SETUP='js' runs in the page first (e.g. SETUP='LOB_H = 0.9'),
+// SEED=99 the dice (one seed is noisy: any change to a flight reshuffles every later dice roll - compare a few seeds)
 const { chromium } = require('playwright');
-const MODE = process.argv[2] || 'ai', N = +(process.argv[3] || (MODE === 'ai' ? 60 : 60)), BASE = process.env.BASE || 'http://localhost:8765/';
+const MODE = process.argv[2] || 'ai', N = +(process.argv[3] || (MODE === 'ai' ? 60 : 60)), BASE = process.env.BASE || `http://localhost:${process.env.PORT || 8765}/`;
 (async () => {
   const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const page = await br.newPage({ viewport: { width: 640, height: 360 } }); const errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.goto(BASE + 'test.html#flow'); await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
-  const out = await page.evaluate(([MODE, N]) => {
+  if (process.env.SETUP) await page.evaluate(process.env.SETUP);
+  const out = await page.evaluate(([MODE, N, SEED]) => {
     const m = window.__hc2, g = m.game; g.loop.sleep(); window.HC2_NO_DEMO = true; let T = 1e6;
     for (const id of ['start', 'flow']) { const e = document.getElementById(id); if (e) e.remove(); }
     m.cameras.main.setVisible(false); m.render = function () {}; if (m.bw) { m.bw.tick = () => {}; m.bw.frame = () => {}; }
     m.startReplay = function (l, after) { if (after) after(); }; m.ramiSay = () => {};
-    let seed = 99; Math.random = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    let seed = SEED; Math.random = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
     const step = () => { T += 1000 / 60; g.step(T, 1000 / 60); if (m.cutIn) m.cutInEnd(); if (m.replay) m.endReplay(); };
     let L = null; const log = [];
     const close = (res, by) => { if (!L) return; L.res = res; L.by = by; L.t = +(m.time.now / 1000 - L.t0).toFixed(2); log.push(L); L = null; };
@@ -72,6 +75,6 @@ const MODE = process.argv[2] || 'ai', N = +(process.argv[3] || (MODE === 'ai' ? 
     const kept = (R['res:target'] || 0) + (R['res:mate'] || 0);
     return { R, kept: R.n ? Math.round(kept / R.n * 100) + '%' : '-', avgRcv: R.rcvN ? (R.rcvSum / R.rcvN).toFixed(1) : '-', avgOpp: R.dropN ? (R.oppSum / R.dropN).toFixed(1) : '-',
       avgLandErr: R.dropN ? (R.landErrSum / R.dropN).toFixed(1) : '-', sample: log.slice(0, 20).map(x => `${x.you ? 'YOU' : x.team.name} d${x.d} -> ${x.res}${x.by ? '/' + x.by : ''} ${x.how} [${x.contact.join(',')}] drop:${JSON.stringify(x.drop)} ${x.t}s`) };
-  }, [MODE, N]);
+  }, [MODE, N, +(process.env.SEED || 99)]);
   console.log(JSON.stringify(out, null, 1)); console.log('errors', JSON.stringify(errs.slice(0, 4))); await br.close();
 })();
