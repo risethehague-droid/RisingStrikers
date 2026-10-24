@@ -26,7 +26,10 @@ function diffKnobs(t) {
     commit: clamp(0.45 + 0.55 * t.d, 0.3, 2.4), mark: clamp(1 + (1 - t.d) * 0.9, 0.4, 2.2), press: clamp(0.85 + 0.15 * t.d, 0.75, 1.2),
     gkRead: e(t.k, 0.8), gkPos: Math.max(0, 1 - t.k) * 1.4, gkSpd: clamp(0.9 + 0.1 * t.k, 0.85, 1.14), gkSave: clamp(0.3 + 0.7 * t.k, 0.2, 1.85),
     chip: clamp(0.15 + 0.85 * (t.a - 0.5) / 0.5, 0.1, 1.8), chipOff: clamp(4 + (t.a - 1) * 3.5, 2.2, 6.5),
-    burst: clamp(0.6 + 0.4 * t.a, 0.6, 1.9), burstCd: clamp(1.15 - 0.15 * t.a, 0.7, 1.1) };   // (v0.9.3: a smart dribbler times his take-on burst - more often, sooner again)   // (v0.9.2 chips: how often, and how far off his line the keeper must be first)
+    burst: clamp(0.6 + 0.4 * t.a, 0.6, 1.9), burstCd: clamp(1.15 - 0.15 * t.a, 0.7, 1.1),   // (v0.9.3: a smart dribbler times his take-on burst - more often, sooner again)   // (v0.9.2 chips: how often, and how far off his line the keeper must be first)
+    // t-012 crosses (Luca: "Easy crosses less and worse, Rise Warrior picks the right moment"): how often, how far off
+    // the runner's spot it lands (metres), and how good a look it waits for (crossLook's score)
+    cross: clamp(0.15 + t.a, 0.5, 1.6), crossErr: clamp(2.6 - 1.2 * t.a, 0.5, 2.2), crossRead: clamp(0.2 + 0.35 * (t.a - 1), -0.2, 0.6) };
 }
 // v0.9.3 (Luca: "The difficulties are too easy. Hard poses barely a challenge"): the edges YOU had over the computer were
 // fixed whatever the level - its tackles on you lost 12-30% win chance, it blocked your dribble at 80% of the rate it

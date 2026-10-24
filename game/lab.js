@@ -932,6 +932,69 @@
         p => m.powerLob(p, { x: 1, y: 0 }, 1), 1),
     ];
   }
+  // ======================================================================= t-012 WING PLAY (Luca 24 Oct: "make the attacking ai look for
+  // more wing plays where they play lobs and try to get arial shot"). The REAL team AI on both sides here, not the Lab's
+  // bots: WG1 the computer's winger goes down the flank and crosses, its runners attack it (WG1-SP: with 2 bars banked,
+  // the aerial special); WG2 YOU are the winger (scripted: you carry it to the byline and tap LOB at the near post) and
+  // your computer team-mates make the runs. Each line: the cross, the runs it found, who met it and how, what came of it.
+  function wgTest(id, name, sub, o) {
+    return { id, group: 'WG', name, sub, kind: 'wing', realAi: true, demo: !o.you,
+      setup(r) {
+        const H = m.home.players, A = m.away.players, w = H[8];
+        cast([w, H[9], H[10], H[5], H[6], H[7], H[4], A[0], A[1], A[2], A[3], A[4], A[6], A[7]]);
+        put(w, 68, 59, 0); atFeet(w); put(H[9], 80, 37, 0); put(H[10], 78, 29, 0); put(H[5], 70, 17, 0); put(H[6], 64, 33, 0); put(H[7], 63, 43, 0); put(H[4], 58, 62, 0);
+        put(A[0], LINE_X, 36, 4); put(A[4], 88, 49, 4); put(A[3], 88, 41, 4); put(A[2], 88, 30, 4); put(A[1], 85, 17, 4); put(A[7], 78, 45, 4); put(A[6], 77, 32, 4);
+        Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+        if (o.sp) m.meters[0].e = o.sp; m.ball.crossBy = null;
+        LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = !o.you;
+        Object.assign(r, { human: w, shooter: w, gk: A[0], marks: [], o, touches: [] });
+        if (o.you) r.bots.set(w, (p, dt) => {                                    // you: down the line, then a tap of LOB at the near post
+          const b = m.ball; if (b.owner !== p || p.busy() || r.crossT != null) { p.steer(0, 0, dt); return; }
+          if (p.x > 95 || r.t > 4.5) { r.crossT = r.t; m.doPass(p, { x: (99 - p.x) / len(99 - p.x, 37 - p.y), y: (37 - p.y) / len(99 - p.x, 37 - p.y) }, 'lob'); return; }
+          const dx = 97 - p.x, dy = 56 - p.y, d = len(dx, dy) || 1; p.sprinting = true; p.wantDir = { x: dx / d, y: dy / d }; m.carrySteer(p, dx / d, dy / d, p.top(true, true) * 0.95, dt); });
+      },
+      check: wgCheck };
+  }
+  function wgCheck(r) {
+    const b = m.ball, H = m.home, who = p => `${p.team === H ? '' : 'their '}#${p.num}`;
+    if (r.crossAt == null) {                                                       // waiting for the cross (any home man from out wide, into the box)
+      const by = b.lastP;
+      if (!b.owner && !m.pending && by && by.team === H && (r.o.you ? r.crossT != null && by === r.shooter : b.crossBy === by)) {
+        r.crossAt = r.t; r.by = by; r.kind = r.o.you ? 'your LOB' : b.lob ? 'floated' : 'whipped';
+        r.from = len(H.goalX - b.x, 34 - b.y); const W = H.wing; r.runs = W ? [...W.entries()].map(([q, w]) => `${w.run} ${who(q)}`).join(', ') : 'none';
+        r.inBox = H.players.filter(q => !q.sentOff && !q.keeper && q !== by && Math.abs(q.x - H.goalX) < 16.5 && Math.abs(q.y - 34) < 20.2).length;
+      } else {
+        if (b.owner && b.owner.team !== H) return { o: `NO CROSS · they won it off ${who(b.lastP || r.shooter)}` };
+        if (r.out) return { o: `NO CROSS · out (${r.out.toLowerCase()})` };
+        if (b.inNet) return { o: 'NO CROSS · a goal some other way', hold: 1.2 };
+        return r.t > 9 ? { o: `NO CROSS in 9 s · the ball is with ${b.owner ? who(b.owner) : 'nobody'}` } : null;
+      }
+    }
+    if (!r.met && b.lastP && b.lastP !== r.by) {                                   // the first touch after it
+      const p = b.lastP, how = r.ev('AERIAL SPECIAL') ? 'AERIAL SPECIAL' : b.how && b.how.kind === 'header' ? 'HEADER' : b.how && b.how.kind === 'dheader' ? 'DIVING HEADER'
+        : b.how && b.how.kind === 'volley' ? 'VOLLEY' : b.how && b.how.kind === 'bicycle' ? 'OVERHEAD' : p.keeper ? 'keeper' : b.owner === p ? 'controlled' : 'touch';
+      r.met = `${who(p)} ${how}${p.team === H && how !== 'controlled' && how !== 'touch' ? ` at ${b.z.toFixed(1)} m` : ''}`;
+    }
+    if (!r.met && m.pending && m.pending.p.team === H && m.pending.p !== r.by && m.pending.info.special) r.met = `${who(m.pending.p)} AERIAL SPECIAL`;
+    const head = `${r.kind.toUpperCase()} CROSS from ${r.from.toFixed(0)} m by ${who(r.by)} at ${r.crossAt.toFixed(1)} s · runs: ${r.runs} (${r.inBox} in the box) · `;
+    const met = r.met ? `met by ${r.met} → ` : '';
+    if (b.inNet) return { o: head + met + 'GOAL', hold: 1.4 };
+    if (b.owner === r.gk) return { o: head + met + 'keeper has it' };
+    if (r.ev('PARRIED') || r.ev('SAVED')) return { o: head + met + 'SAVED', hold: 1 };
+    if (r.out) return { o: head + met + 'OUT · ' + r.out.toLowerCase() };
+    if (b.owner && b.owner.team !== H) return { o: head + met + `their ${b.owner.keeper ? 'keeper' : 'defender'} has it` };
+    if (r.t - r.crossAt > 5) return { o: head + met + (b.owner ? `${who(b.owner)} has it` : 'ball loose') };
+    return null;
+  }
+  function wgTests() {
+    return [
+      wgTest('WG1', 'the computer\'s winger crosses, a runner attacks it', 'their wide man down the flank: near post / far post / spot / edge runs; does the man who meets it go for goal?', {}),
+      wgTest('WG1-SP', 'the same, with 2 bars of SP banked', 'the man who meets it near goal may spend them on an AERIAL SPECIAL (AIR BLAZE / SKY THUNDER / PHOENIX)', { sp: 2 }),
+      wgTest('WG2', 'YOUR winger crosses, your team-mates make the runs', 'you (scripted) go down the line and tap LOB at the near post: who is in the box, who attacks it?', { you: true }),
+    ];
+  }
   // the SAVE! prompt: the computer shoots a special at YOUR keeper - press SPECIAL while SAVE! is up
   function pwSaveYou(id) {
     return { id, group: 'PW', name: 'YOUR KEEPER: special save', sub: 'press SPECIAL when SAVE! flashes', kind: 'pw', you: true,
@@ -1201,6 +1264,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     const smSave = (id, lv, shot, from, force) => Object.assign(pwTest(id, `KEEPER LV${lv} · ${RIGS['save' + lv].name}${force === 'lose' ? ' · and it BREAKS' : ''}`,
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
+    add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
     add('GK', 'v0.9.1 · KEEPER AI', 'Their keeper with the real AI in 11 situations: walking up with the ball far away, the angle, 1v1s, sweeping, back passes, lobs. The yellow diamond is where he wants to be; the label says what he is doing.', gkTests());
@@ -1234,6 +1298,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     const wx = (sc.kind === 'free' ? LAB.fp.wx : sc.wx) || 'clear'; setWx(wx);                                   // v0.8.7 weather tests
     if (LAB.tune) applyTune(sc.kind === 'free' ? LAB.tune : LAB.def, wx === 'clear');   // (v0.9.9: every other test plays the game's own values)
     for (const mt of m.meters || []) mt.e = 0;
+    if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; }           // (t-012: a WG test plays the computer on both sides)
     sc.setup(r);
     m.human = r.human; m.camX = m.camY = undefined;
     render();
@@ -1300,8 +1365,10 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       const o = m.ball.owner; if (o && o !== r.human && o.team === r.human.team) return;      // a team-mate is about to cross: hands off
       m.human = r.human; m.nextHuman = null; control(dt); m.human = r.human;
     };
+    const realAi = m.ai.bind(m);                                               // t-012: the WG tests play the real team AI
     m.ai = function (dt) {
       const r = LAB.run; if (!r) return;
+      if (r.sc.realAi) { realAi(dt); for (const [p, bot] of r.bots) if (!p.sentOff && p.stun <= 0) bot(p, dt); return; }
       for (const p of m.all) {
         if (p.sentOff || (r.you && p === r.human)) continue;
         if (p.state === 'kick' || p.state === 'catch' || p.state === 'dive' || p.state === 'slide' || p.state === 'dheader' || p.state === 'chance' || p.state === 'celebrate' || p.state === 'tackle' || p.state === 'dejected' || p.state === 'roar' || p.state === 'beaten' || p.state === 'protest' || p.state === 'hurt' || p.stun > 0) continue;

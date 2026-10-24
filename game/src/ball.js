@@ -101,6 +101,18 @@ function lobSolve(dist, apex, spin, quick) {
   for (let i = 0; i < (quick ? 9 : 14); i++) { const vz = (lo + hi) / 2; v = solveLob(dist, vz, spin, n); if (peak(v, vz) < apex) lo = vz; else hi = vz; }
   return { speed: solveLob(dist, hi, spin, n), vz: hi };
 }
+// t-012 the computer's WHIPPED CROSS: driven (about 65-75 km/h over 25 m), over the first man (peak ~2.5-3 m) and coming
+// down through head height (tz, ~1.6 m) at the runner's spot, so the man who meets it heads or volleys it (a lob drops
+// onto a duel or his chest). The Lab's aimAir solver (the C crosses), with drag: forward speed nudged until it does
+function crossSolve(d, tz, T) {
+  T = Math.max(T, d / 24); let v = d / T; const vz = (tz - 0.05 + 0.5 * G * T * T) / T;
+  for (let it = 0; it < 8; it++) {
+    const c = { x: 0, y: 0, z: 0.05, vx: v, vy: 0, vz, skid: true, rollV: 0 }, h = 1 / 120; let at = null, pz = c.z;
+    for (let t = 0; t < 5; t += h) { ballStep(c, h, false); if (c.vz < 0 && pz >= tz && c.z < tz) { at = c.x; break; } if (c.z <= 0 && t > 0.05) { at = c.x; break; } pz = c.z; }
+    if (!at) break; v *= d / at;
+  }
+  return { speed: v, vz };
+}
 // t-005 (lob step 1, readability): the shadow's size at height z - top-down games show a ball's height by its shadow
 // shrinking (docs/lob-chip.md); ours kept one size, so height read only from a faint fade
 function shadowK(z) { return 1 - (1 - SHADOW_MIN) * clamp(z / SHADOW_Z, 0, 1); }
@@ -136,6 +148,7 @@ hc2Mix(Match, {
     else if (mode === 'lob' && k.info.loft) { const L = this.loftLaunch(d, k.info.lobPow); speed = L.speed; vz = L.vz; }   // lob-mechanics: over their heads (t-005: really as high as lobApex says)
     else if (mode === 'lob' && k.info.lobPow != null) { const T = 1.0 + k.info.lobPow * 1.5; vz = G * T / 2; speed = solveLob(Math.max(4, d - 1), vz); }   // v0.8.5 power lob: up to ~8 m high
     else if (mode === 'lob') { const T = clamp(0.7 + d / 25, 0.9, 1.9); vz = G * T / 2 * 1.05; speed = solveLob(Math.max(4, d - 2), vz); }
+    if (k.info.cross === 'whip') { const S = crossSolve(d, rnd(1.35, 1.85), 0.25 + d / 21); speed = S.speed; vz = S.vz; }   // t-012: the computer's whipped cross
     if (k.info.chip) { const S = this.chipSolve(b, k.tx, k.ty, k.p.team, k.info.chipC || 0); speed = S.speed; vz = S.vz; }   // v0.9.2 CHIP: fast, over the keeper, dipping under the bar
     const P = LOB_PROTO && ((mode === 'lob' && k.info.loft) || k.info.chip) ? this.lobProto(k, d) : null;   // t-002 prototype B (off in a normal match)
     if (P && P.speed) { speed = P.speed; vz = P.vz; }
@@ -153,7 +166,7 @@ hc2Mix(Match, {
     if (k.p.kickAnim === 'super') b.z = 1.0;                                      // struck in mid-air, at the height of his boot
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
     b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft;   // lob-mechanics: an open-play lob (its drop is a duel)
-    b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null;
+    b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null;   // (t-012: the runners attack a cross until someone touches it)
     if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
     k.p.hands = false;
     b.save = null; b.saveable = null;
