@@ -689,6 +689,67 @@
           if (r.t > 4 && !b.owner && b.z < 0.2 && len(b.vx, b.vy) < 1) return { o: 'ball loose · ' + sum() }; return null; }, secs: 7 }),
     ];
   }
+  // ======================================================================= t-007 KEEPER SAVES (Luca 24 Oct 05:57: "the gk ai needs major
+  // improvements should be able to jump and understand the x y z more, diving left right lower higher ... the gk should try
+  // catch more if the kick is weaker ... there are virtually no corners happening"). Their keeper (right-hand goal) with
+  // the real AI. Each line says the save he picked (from where the ball crosses him: side and height) and what came of it.
+  function gkxOut(r) {
+    const b = m.ball, gk = r.gk;
+    if (gk.state === 'dive' && gk.saveKind) r.kind = gk.saveKind;
+    else if (!r.kind && b.save && b.save.gk === gk && b.save.act && b.save.act !== 'step') r.kind = b.save.act === 'set' ? 'stand' : b.save.act;
+    else if (!r.kind && b.owner === gk) r.kind = gk.claimHigh ? 'claim' : 'stand';
+    const touch = ['TIPPED OVER', 'ROUND THE POST', 'PARRIED', 'PUNCHED', 'A HAND TO IT'].find(e => r.ev(e));
+    if (touch && !r.touch) { r.touch = touch; r.touchT = r.t; }
+    const head = `${(r.kind || 'no save').toUpperCase()}${r.info ? ' (' + r.info + ')' : ''} · `;
+    if (r.out) return { o: head + (r.touch ? r.touch.toLowerCase() + ' · ' : '') + `OUT · ${r.out.toLowerCase()}`, hold: 0.6 };   // (first: the Lab leaves a dead ball where it went out)
+    if (b.inNet) return { o: head + (r.touch ? r.touch.toLowerCase() + ' · ' : '') + 'GOAL', hold: 1.4 };
+    if (b.owner === gk) return { o: head + 'HELD', hold: 1 };
+    if (r.touch && b.owner) return { o: head + r.touch.toLowerCase() + ` · in play (#${b.owner.num} ${b.owner.team === gk.team ? 'his side' : 'theirs'})` };
+    if (r.touch && r.t - r.touchT > 3) return { o: head + r.touch.toLowerCase() + ' · in play (loose)' };
+    return null;
+  }
+  function gkxShot(id, name, sub, spot, tgt, speed, power) {
+    return { id, group: 'GKX', name, sub, kind: 'shot',
+      setup(r) { shotSetup(r, spot, false); Object.assign(r.gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 }); const ty = tgt.y == null ? r.gk.y : tgt.y; r.marks = [{ x: GX, y: ty, r: 0.3 }];
+        r.info = `${kmh(speed)} km/h, ${tgt.low ? 'low' : tgt.z.toFixed(1) + ' m'}`;
+        r.action = { at: 0.7, fire: () => fireShot(r, tgt, speed, power) }; },
+      check(r) { const b = m.ball;
+        if (r.shotT == null) { if (!b.owner && b.lastP === r.shooter && r.fired) r.shotT = r.t; else return null; }
+        return gkxOut(r) || (r.t - r.shotT > 5 ? { o: (r.kind || 'no save').toUpperCase() + ' · nothing' } : null); } };
+  }
+  // a lob from a team-mate's distance, their keeper a few metres off his line; extra = the men around the drop
+  function gkxLob(id, name, sub, o) {
+    return { id, group: 'GKX', name, sub, kind: 'shot', o,
+      setup(r) { const o = r.sc.o;
+        const s = m.home.players[7], gk = m.away.players[0], extra = o.extra ? o.extra() : []; cast([s, gk, ...extra.map(q => q[0])]);
+        put(s, o.from[0], o.from[1], dirIndex(o.to[0] - o.from[0], o.to[1] - o.from[1])); atFeet(s); put(gk, o.gk[0], o.gk[1], 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+        for (const [q, x, y, f, bot] of extra) { put(q, x, y, f); if (bot) r.bots.set(q, bot(q)); }
+        Object.assign(r, { human: s, shooter: s, gk, marks: [{ x: o.to[0], y: o.to[1], r: 0.5 }], info: o.info });
+        r.action = { at: 0.6, fire: () => m.kick(s, o.to[0], o.to[1], 0, 0, 0.12, { mode: 'lob', lobPow: o.pow }) };
+      },
+      check(r) { const b = m.ball;
+        if (r.shotT == null) { if (!b.owner && b.lastP === r.shooter && r.fired) r.shotT = r.t; else return null; }
+        if (r.gk.gkMode === 'BACK' || r.gk.gkMode === 'CLAIM') r.went = r.gk.gkMode;
+        const o = gkxOut(r); if (o) return o;
+        if (b.owner && b.owner !== r.gk) return { o: `${(r.kind || 'no save').toUpperCase()} · #${b.owner.num} (${b.owner.team === r.gk.team ? 'his side' : 'theirs'}) got it` };
+        return r.t - r.shotT > 6 ? { o: (r.kind || 'no save').toUpperCase() + ' · nothing' } : null; } };
+  }
+  function gkxTests() {
+    const H = () => m.home.players, A = () => m.away.players;
+    const sp8 = Object.assign(pwTest('GKX8', 'a LV2 special against his LV1 save', 'stronger than his save: a hand to it, over or wide → corner (made to happen here)', { lv: 2, from: [86, 31], block: [], save: 1 }), { group: 'GKX', force: 'hand' });
+    const pwCheck = sp8.check; sp8.check = r => { pwCheck(r); if (r.shotT == null) return null; r.kind = r.ev('A HAND TO IT') ? 'a hand to it' : r.kind; const o = gkxOut(r); return o || (r.t - r.shotT > 5 ? { o: 'nothing' } : null); };
+    return [
+      gkxShot('GKX1', 'a weak shot straight at him', 'soft and at his body: he holds it', SPOTS[1], { y: null, low: true }, 14, 0.3),
+      gkxShot('GKX2', 'a hard shot at his chest', 'catch or parry (the harder, the less he holds)', SPOTS[1], { y: null, z: 1.2 }, 27, 0.8),
+      gkxShot('GKX3', 'a low hard shot to the corner', 'low dive, pushed wide (round the post or out to the side)', { n: '14 m', x: 91, y: 35 }, { y: GOAL_Y0 + 0.9, low: true }, 26, 0.8),
+      gkxShot('GKX4', 'a high shot to the corner', 'high dive, round the post → corner', { n: '16 m', x: 89, y: 33 }, { y: GOAL_Y1 - 1.3, z: 1.8 }, 24, 0.8),
+      gkxShot('GKX5', 'a hard shot under the bar', 'he jumps and tips it over → corner', { n: '18 m', x: 87, y: 34 }, { y: null, z: 2.3 }, 25, 0.8),
+      gkxLob('GKX6', 'a lob over him he can reach', 'he reads it, goes up and catches it', { from: [72, 30], to: [105.5, 34], pow: 0.5, gk: [99, 34], info: 'lob from 30 m, he is 6 m out' }),
+      gkxLob('GKX7', 'a lob into a crowd', 'two of theirs at the drop: he punches it clear', { from: [80, 24], to: [102.4, 34], pow: 0.6, gk: [103.6, 34], info: 'lob into the six-yard box',
+        extra: () => [[H()[9], 99.2, 32.6, 0, sit], [H()[8], 100.2, 33.4, 0, sit], [H()[6], 101.2, 33.6, 0, sit]] }),
+      sp8,
+    ];
+  }
   // ======================================================================= v0.9.2 CHIP SHOT tests (Luca: "Lob in the box with the POV of the
   // attacker looking at the goal becomes a chip ... faster with a more aggressive curve")
   function chipTest(id, name, sub, o) {
@@ -1086,6 +1147,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
+    add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
     add('GK', 'v0.9.1 · KEEPER AI', 'Their keeper with the real AI in 11 situations: walking up with the ball far away, the angle, 1v1s, sweeping, back passes, lobs. The yellow diamond is where he wants to be; the label says what he is doing.', gkTests());
     add('SM', 'v0.8.9 · SPECIAL MOVES (ROUGH RIGS)', 'Placeholders made from our PixelLab frames + effects until the real ones come from PixelLab: 3 aerial specials, 3 keeper special saves with their cut scene. v0.9.0: the keeper saves stop normal shots too (SM8-11).', [
       smAir('SM1', 1), smAir('SM2', 2), smAir('SM3', 3),
@@ -1194,6 +1256,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     m.restart = function (kind, team, x, y, note) {
       const r = LAB.run; if (r && !r.out) { r.out = kind; r.outNote = note || ''; }
       const b = m.ball; b.vx = b.vy = b.vz = 0; if (b.owner && !b.owner.hands) b.owner = null;
+      if ((kind === 'CORNER' || kind === 'GOAL KICK') && (b.x < 0 || b.x > PITCH_L)) m.dead = { kind, team, x, y, t: 1e9 };   // (t-007: the ball stays dead behind the goal - not a "goal" as it drops under the bar)
     };
     m.kickoff = function () {};
     m.openPause = function () {};                                              // (ENTER moves the cut scenes on in the Lab - no pause menu here)
@@ -1209,7 +1272,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       LAB.reactK = { src: K, d: LAB.react, K: Object.assign({}, K, { gkReact: K.gkReact + LAB.react }) }; return LAB.reactK.K; };
     m.dkY = function (team) { const r = LAB.run; return DIFF_YOU[r && r.sc.kind === 'free' && team === m.away ? LAB.fp.cpu : 'base']; };   // v0.9.3: its edges v you, same switch
     const clash = m.clash.bind(m);                                             // v0.8.9 SM tests: the save made to win / lose, so each one can be seen
-    m.clash = function (gk) { const r = LAB.run, f = r && r.sc.force; if (!f) return clash(gk); const R = Math.random; Math.random = () => (f === 'win' ? 0 : 0.9999); try { return clash(gk); } finally { Math.random = R; } };
+    m.clash = function (gk) { const r = LAB.run, f = r && r.sc.force; if (!f) return clash(gk); const R = Math.random; let n = 0; Math.random = () => (f === 'win' ? 0 : f === 'hand' && n++ ? 0 : 0.9999); /* (t-007 'hand': beaten, then a hand to it) */ try { return clash(gk); } finally { Math.random = R; } };
     const saveCall = m.saveCall.bind(m);                                       // v0.8.8 free play KEEPER SAVE: off, or always that level
     m.saveCall = function (def) { const r = LAB.run; if (!(r && r.sc.kind === 'free' && def === m.away)) return saveCall(def);
       const gk = def.players[0]; if (!gk || gk.sentOff) return; gk.spSave = LAB.fp.save || 0; if (gk.spSave) m.saveFx(gk); };
