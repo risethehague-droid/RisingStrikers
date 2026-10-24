@@ -26,6 +26,9 @@ ArtifactData, pinning every write to an existing card with `if_version`.
 4. **Verdict**: write it to a file, then `bash tools/agent.sh review <report name> <verdict> <file>`:
    - `ok`: it does what the brief asked and the tests pass. Card → status `review` (Needs OK), `result` = PR link,
      and put "Taskmaster review (<date>): <2-3 lines>" at the top of the card's notes. Luca gives the final OK.
+   - Every card going to Needs OK also gets `next` = `{agent, what}`: who picks it up after Luca's OK and what they'll do
+     (a PR: `{agent: "taskmaster", what: "merges it and publishes"}`; a stage-1 question: the worker who builds it). HQ
+     shows it as "If you OK: …" (Luca, 24 Oct: "include which agent is being assigned a task when it is approved").
    - `needs-work`: say exactly what to fix. Card → status `ready`, log line with the reason.
    - `answered`: a `question` or `blocked` you can settle from the repo, the board or CLAUDE.md. Answer it in the
      review. Card stays `doing`, log line.

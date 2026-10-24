@@ -9,7 +9,7 @@ here, in the repo, on the Taskboard and in the agents folder; nothing depends on
 | --- | --- |
 | Official game (Luca's page) | https://claude.ai/artifact/AD1rvV13DR3nvQPzfsRojf (published from `game/index.html`) |
 | Official Test Lab | https://claude.ai/artifact/Goa4b8PepGxbqv9877pPCV (published from `game/lab.html`) |
-| HC2 HQ, the Taskboard (cards: collection `tasks`; status lines: `meta/hq`) | https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 |
+| HC2 HQ, the Taskboard (cards: collection `tasks`, each with `next` = who picks it up after Luca's OK; status lines: `meta/hq`; ↻ Check now = a quick run of the 2-hourly check, Luca only) | https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 |
 | Test Lab classic (frozen at v0.9.7, a fallback) | https://claude.ai/artifact/UA1KSu38xBxmQe5eEBToTk |
 | PR previews | one "HC2 PR #N preview" page per PR, linked from its card (`preview.page`); see "Previews" below |
 | Team setup doc | https://claude.ai/artifact/8QEZs4UX4XEGYGWYdqPssF |
@@ -22,7 +22,7 @@ here, in the repo, on the Taskboard and in the agents folder; nothing depends on
 
 | Name | When | Does |
 | --- | --- | --- |
-| HC2 taskmaster check | every 2 hours, 09:00-23:00 Dutch time | Needs OK cards for `friend/` PRs; every PR card's preview (below); reviews new reports in the agents folder (`/inbox`); HQ's status lines |
+| HC2 taskmaster check | every 2 hours, 09:00-23:00 Dutch time, and on HQ's ↻ Check now (a QUICK RUN: no test-running reviews) | Needs OK cards for `friend/` PRs; every PR card's preview (below); reviews new reports in the agents folder (`/inbox`); briefs OK'd cards whose `next` is a worker, when it's clear; HQ's status lines |
 | HC2 overnight QA | 01:44 every night | 12 simulated matches (`tools/soak.js`) + all tests + Luca's watch-mode marks; at most 2 small fixes on `qa/` branches with `qa-*` cards; a report to the folder |
 
 They never merge or publish the game. (The check publishes only HQ assets and the "HC2 PR #N preview" pages.) Change
