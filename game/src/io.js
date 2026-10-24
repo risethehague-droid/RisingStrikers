@@ -71,8 +71,8 @@ addEventListener('pointerdown', () => SFX.resume());
 const Input = {
   keys: new Set(), downs: new Set(), taps: new Set(), cur: {}, prev: {}, axis: { x: 0, y: 0 }, touch: { x: 0, y: 0, btn: {} }, padName: '',
   map: { pass: ['KeyZ', 'KeyJ'], shoot: ['KeyX', 'KeyK', 'Space'], lob: ['KeyC', 'KeyL'], through: ['KeyV', 'KeyI'],
-         sprint: ['ShiftLeft', 'ShiftRight'], start: ['Enter', 'Escape', 'KeyP'], special: ['KeyB', 'KeyU'], meter: ['KeyT'] },
-  padMap: { pass: [0], shoot: [1], through: [2], lob: [3], sprint: [5, 7], start: [9], special: [4] },
+         sprint: ['ShiftLeft', 'ShiftRight'], start: ['Enter', 'Escape', 'KeyP'], special: ['KeyB', 'KeyU'], meter: ['KeyT'], flag: ['KeyF'] },   // (t-006: F = INSTA FLAG)
+  padMap: { pass: [0], shoot: [1], through: [2], lob: [3], sprint: [5, 7], start: [9], special: [4], flag: [8] },   // (pad BACK / SELECT = INSTA FLAG)
   init() {
     addEventListener('keydown', e => { this.keys.add(e.code); this.downs.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); });
     addEventListener('keyup', e => this.keys.delete(e.code));

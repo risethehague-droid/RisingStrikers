@@ -37,7 +37,17 @@ const BW_CHECKS = {
   BALL_ON_PLAYER: { t: 'BALL STUCK ON A PLAYER', sev: 'odd', why: 'the ball sits at a player\'s feet but he never takes it' },
   PASS_LOOP:   { t: 'BACK AND FORTH', sev: 'odd', why: 'two players pass to each other again and again' },
   STUTTER:     { t: 'STUTTER', sev: 'perf', why: 'the game skipped frames several times in a few seconds' },
+  FLAG:        { t: 'YOU FLAGGED THIS', sev: 'flag', why: 'you pressed F (INSTA FLAG) and said what looks wrong' },
 };
+// t-006 INSTA FLAG (Luca, 24 Oct 05:57: "a button where you can insta flag an issue in the game, auto clips last 5
+// seconds or whatever you think is best ... type the problem ... then instantly start working on fixing the issue").
+// F / pad BACK / the HUD's FLAG button: the game stops, you write (or dictate) a note, SEND keeps the last 8 s as a
+// Bug Watch clip (kind 'flag') with the note + the match's settings, and wakes the fixer task on Luca's account through
+// the Claude Code Remote connector (the same call HC2 HQ's "Check now" makes). FLAG_TRIGGER is that task's id: the
+// taskmaster fills it in (and gives the page the 'mcp' capability) when it merges. Empty = the clip is only saved.
+const FLAG_TRIGGER = '';
+const FLAG_SECS = 8, REC_MAX = 660;          // the recorder keeps 11 s at 60 a second: 8 s for a flag, 10 s for REPLAY (LAST 10 S)
+const RP_SPEEDS = [1, 0.5, 0.25];             // the replay player's slow-mo steps
 const BW_VERDICT = { bug: 'BUG', fine: 'FINE', unsure: 'NOT SURE' };
 const BW_MAX = 30, BW_GAP = 25000, BW_PRE = 240, BW_POST = 90, BW_KEEP = 8;
 const BW_LONG = new Set(['applaud', 'party', 'trophy', 'dejected', 'celebrate', 'hurt', 'beaten', 'roar', 'protest', 'labanim', 'pick', 'runup', 'flight', 'done', 'walk']);
@@ -53,7 +63,7 @@ const bwF1 = v => (Number.isFinite(v) ? v.toFixed(1) : String(v)), bwF2 = v => (
 // a clip, packed small enough for the database: 30 frames a second, whole pixels, frame names in a table
 function bwPack(frames, mark) {
   const names = [], ix = new Map(), N = s => { let i = ix.get(s); if (i === undefined) { i = names.length; names.push(s); ix.set(s, i); } return i; };
-  const r = v => Math.round(v || 0), r10 = v => Math.round((v || 0) * 10), rk = v => Math.round((v || 0) * 1000), out = [];
+  const r = v => Math.round(v || 0), r10 = v => Math.round((v || 0) * 10), rk = v => Math.round((v || 0) * 1000), out = [], ex = {};
   let acc = 0;
   frames.forEach((f, i) => {
     acc += f.dt || 0; if (i % 2 && i !== frames.length - 1) return;
@@ -62,16 +72,35 @@ function bwPack(frames, mark) {
     for (const v of f.p) row.push(r(v[0]), r(v[1]), N(v[2]), v[3] ? 1 : 0, r10(v[4]), rk(v[5]), rk(v[6]), v[7] ? 1 : 0);
     if (f.r) row.push(r(f.r[0]), r(f.r[1]), N(f.r[2]), f.r[3] ? 1 : 0, r10(f.r[4]), f.r[5] ? 1 : 0);
     out.push(row); acc = 0;
+    // t-006 (every effect in replays): a stored clip keeps its effects too - the effect sprites, the rough rigs' turn /
+    // squash, the ball's white flash, the camera's flash and shake - in a side table by row (v1 clips have none)
+    const e = [], rig = [];
+    f.p.forEach((v, k) => { if (v[8] || (v[9] ?? 1) !== 1 || (v[10] ?? 1) !== 1) rig.push(k, rk(v[8]), rk(v[9] ?? 1), rk(v[10] ?? 1)); });
+    if (rig.length) e.push('g', rig);
+    if (f.b[6]) e.push('t', 1);
+    if (f.fl) e.push('fl', [f.fl[0], f.fl[1], f.fl[2], Math.round(f.fl[3] * 100)]);
+    if (f.sh) e.push('sh', Math.round(f.sh * 1e4));
+    if (f.x && f.x.length) e.push('x', [].concat(...f.x.map(q => [N(q[0]), N(q[1]), r(q[2]), r(q[3]), r10(q[4]), rk(q[5]), rk(q[6]), rk(q[7]), Math.round(q[8] * 100), q[9] ? 1 : 0, rk(q[10]), rk(q[11]), q[12], q[13] ? 1 : 0])));
+    if (e.length) ex[out.length - 1] = e;
   });
-  return JSON.stringify({ v: 1, mark: Math.round((mark || 0) / 2), names, f: out });
+  return JSON.stringify({ v: 2, mark: Math.round((mark || 0) / 2), names, f: out, ex });
 }
 function bwUnpack(s) {
-  const d = typeof s === 'string' ? JSON.parse(s) : s, N = d.names;
-  const frames = d.f.map(row => {
+  const d = typeof s === 'string' ? JSON.parse(s) : s, N = d.names, EX = d.ex || {};
+  const frames = d.f.map((row, j) => {
     let k = 0; const g = () => row[k++];
     const f = { dt: g() / 1000, cam: [g(), g()], b: [g(), g(), N[g()], !!g(), g() / 10, g() / 1000], s: [g(), g(), g() / 1000, g() / 10, g() / 1000], p: [] };
     const n = g(); for (let i = 0; i < n; i++) f.p.push([g(), g(), N[g()], !!g(), g() / 10, g() / 1000, g() / 1000, !!g()]);
     f.r = k < row.length ? [g(), g(), N[g()], !!g(), g() / 10, !!g()] : null;
+    const e = EX[j];
+    if (e) for (let i = 0; i < e.length; i += 2) {
+      const key = e[i], v = e[i + 1];
+      if (key === 'g') for (let q = 0; q < v.length; q += 4) { const P = f.p[v[q]]; if (P) P.push(v[q + 1] / 1000, v[q + 2] / 1000, v[q + 3] / 1000); }
+      else if (key === 't') f.b[6] = 1;
+      else if (key === 'fl') f.fl = [v[0], v[1], v[2], v[3] / 100];
+      else if (key === 'sh') f.sh = v / 1e4;
+      else if (key === 'x') { f.x = []; for (let q = 0; q < v.length; q += 14) f.x.push([N[v[q]], N[v[q + 1]], v[q + 2], v[q + 3], v[q + 4] / 10, v[q + 5] / 1000, v[q + 6] / 1000, v[q + 7] / 1000, v[q + 8] / 100, !!v[q + 9], v[q + 10] / 1000, v[q + 11] / 1000, v[q + 12], !!v[q + 13]]); }
+    }
     return f;
   });
   return { frames, mark: d.mark || 0 };
@@ -245,12 +274,41 @@ class BugWatch {
       let s = JSON.stringify(L); while (s.length > 2.4e6 && L.length > 1) { L.shift(); s = JSON.stringify(L); }
       localStorage.setItem('hc2-bw-clips', s);
     } catch (e) {}
-    if (inc.mode === 'soak' || (this.sent >= 40 && !inc.review)) return;     // (Claude's overnight runs collect their own)
-    if (inc.mode === 'demo' && inc.sev !== 'bug' && !inc.review) return;      // (the demo behind the menu only sends real bugs)
-    const db = await this.m.bwDb(); if (!db) { inc.saved = inc.saved || 'local'; return; }
-    try { await db.collection('bugwatch').doc(inc.id).set(d); inc.saved = 'db'; if (!inc.review) this.sent++; }
+    const yours = inc.kind === 'flag';                                         // (t-006: a flag you sent always goes)
+    if (!yours && (inc.mode === 'soak' || (this.sent >= 40 && !inc.review))) return;     // (Claude's overnight runs collect their own)
+    if (!yours && inc.mode === 'demo' && inc.sev !== 'bug' && !inc.review) return;      // (the demo behind the menu only sends real bugs)
+    const db = await this.m.bwDb(); if (!db) { inc.saved = inc.saved || 'local'; return inc.saved; }
+    try { await db.collection('bugwatch').doc(inc.id).set(d); inc.saved = 'db'; if (!inc.review && !yours) this.sent++; }
     catch (e) { inc.saved = 'local'; }
     if (this.m.bwUI) this.m.bwDraw();
+    return inc.saved;
+  }
+  // t-006 INSTA FLAG: your clip - the last 8 s as they are now (play is stopped, so nothing comes after), your note and
+  // the match's settings, so whoever fixes it can set the same match up. Not rate-limited and not switched off with
+  // Bug Watch: you asked for it.
+  flagClip(note) {
+    const m = this.m, b = m.ball, C = BW_CHECKS.FLAG, rec = m.rec || [], R = m.mset || {};
+    const pick = (opts, v) => { const o = (opts || []).find(q => q[0] === v); return o ? o[1] : v; };
+    const ctx = { diff: typeof DIFF_LEVEL !== 'undefined' ? DIFF_LEVEL : '', ai: typeof AI_MODE !== 'undefined' ? AI_MODE : '',
+      pace: typeof PACE_MODE !== 'undefined' ? PACE_MODE : '', cam: typeof CAM_VIEW !== 'undefined' ? CAM_VIEW : '',
+      clock: m.clockTxt ? m.clockTxt.text : '', arena: R.arena || '', tod: R.tod || '', ending: R.ending || '',
+      cup: !!(m.cup && m.cupLive), keys: window.HC2_KEYS || 'arrows', ua: String(navigator.userAgent || '').slice(0, 160) };
+    // a repro line only when the match was seeded (the soak / test tools set window.__repro): a normal match has no seed
+    const repro = typeof window.__repro === 'string' ? window.__repro : '';
+    const text = String(note || '').trim().slice(0, 500);
+    const inc = { id: `flag-${Date.now().toString(36)}-${bwTag()}`, code: 'FLAG', kind: 'flag', title: C.t, sev: C.sev, why: C.why,
+      msg: text || '(no note)', note: text, game: GAME_VER, at: new Date().toISOString(), mode: m.watch ? 'watch' : m.demo ? 'demo' : 'match',
+      home: m.home.name, away: m.away.name, score: `${m.home.score}-${m.away.score}`, half: m.half, min: Math.min(m.half > 2 ? 120 : 90, Math.floor(m.clock / 60) + 1),
+      who: -1, whoName: '', where: [+bwF1(b.x), +bwF1(b.y)], weather: R.weather || 'clear', ctx: JSON.stringify(ctx), repro,
+      line: `${GAME_VER} | ${m.home.name} ${m.home.score}-${m.away.score} ${m.away.name} | ${ctx.clock} | ${pick(typeof DIFF_OPTS !== 'undefined' && DIFF_OPTS, ctx.diff)} | ${ctx.ai} AI | pace ${ctx.pace} | camera ${ctx.cam}`,
+      state: this.snapshot(), trace: this.trace.slice(), stack: '',
+      kits: m.all.map(q => q.kit), frames: rec.slice(-FLAG_SECS * 60).map(f => Object.assign({}, f)), mark: 0, review: null, isNew: true, ready: true };
+    inc.mark = Math.max(0, inc.frames.length - 1);
+    if (this.cap) this.finish();                                                // (a Bug Watch clip still filling ends here)
+    this.list.push(inc);
+    CRUMB('insta flag');
+    if (window.__bwHook) { try { window.__bwHook(inc); } catch (e) {} }
+    return { inc, saved: this.store(inc) };
   }
   review(inc, verdict, note) { inc.review = { verdict, note: note || '', at: new Date().toISOString() }; inc.isNew = false; this.store(inc); }
 }
@@ -269,16 +327,53 @@ hc2Mix(Match, {
     this.recAcc = (this.recAcc || 0) + dt; this.recSince = (this.recSince || 0) + dt;   // v0.8.2: a steady 60 frames a second on any screen
     if (this.recAcc < 0.75 / 60) return;                                         // (every replay limit is counted in recorded frames)
     this.recAcc = Math.min(this.recAcc - 1 / 60, 1 / 60); dt = this.recSince; this.recSince = 0;
-    const b = this.ballSpr, sh = this.ballSh;
+    const b = this.ballSpr, sh = this.ballSh, cam = this.cameras.main, cf = cam.flashEffect, cs = cam.shakeEffect;
     this.recN = (this.recN || 0) + 1;
     (this.rec = this.rec || []).push({ dt, cam: [Math.round(this.camX), Math.round(this.camY)],
-      b: [b.x, b.y, b.frame.name, b.visible, b.depth, b.scaleX], s: [sh.x, sh.y, sh.alpha, sh.depth, sh.scaleX],
+      b: [b.x, b.y, b.frame.name, b.visible, b.depth, b.scaleX, b.isTinted && b.tintFill ? 1 : 0], s: [sh.x, sh.y, sh.alpha, sh.depth, sh.scaleX],   // (t-006: + the hit's white flash)
       p: this.all.map(q => { const r = q.spr; return [r.x, r.y, r.frame.name, r.visible, r.depth, r.originX, r.originY, r.flipX, r.rotation, r.scaleX, r.scaleY]; }),   // (v0.8.9: + turn / squash for the rough rigs)
-      r: this.ref ? (r => [r.x, r.y, r.frame.name, r.visible, r.depth, r.flipX])(this.ref.spr) : null });
-    if (this.rec.length > 480) this.rec.shift();
+      r: this.ref ? (r => [r.x, r.y, r.frame.name, r.visible, r.depth, r.flipX])(this.ref.spr) : null,
+      x: this.recFx(),                                                            // t-006: every effect on the pitch this frame
+      fl: cf && cf.isRunning && cf.alpha > 0.01 ? [cf.red, cf.green, cf.blue, cf.alpha] : null,   // the camera's flash + shake (a special, a guard break, a power shot)
+      sh: cs && cs.isRunning ? cs.intensity.x : 0 });
+    if (this.rec.length > REC_MAX) this.rec.shift();
     if (this.bw) this.bw.onRecord(this.rec[this.rec.length - 1]);                 // v0.8.7 BUG WATCH: the clip after the moment
   },
   recIndex(n) { return n - ((this.recN || 0) - (this.rec || []).length); },       // recorder frame number -> index in rec
+  // t-006 EVERY EFFECT IN REPLAYS (Luca: "make sure in replays ... generates the full animations of the shots effects and
+  // all"): a replay used to put back only the players, the ball, its shadow and the referee, so a special shot replayed as a
+  // plain kick. Now each recorded frame also lists every effect sprite on the pitch, as it is drawn: the PixelLab effects
+  // (flames, impacts, sparks, bolts, dust, the keeper's save aura - texture 'fx'), the after-images of the rough rigs and
+  // the ball's trail (pictures tinted solid in a colour). Taking them off the screen, not from each effect's code, means a
+  // new effect shows up in replays by itself. Reads the display list only: no dice, so play can't change.
+  isFxSprite(o) {
+    return o.type === 'Image' && o.visible && o.alpha > 0.02 && o.scrollFactorX === 1 && !o.__rp && o !== this.ballSpr && o !== this.ballSh
+      && o.texture && (o.texture.key === 'fx' || (o.isTinted && o.tintFill));
+  },
+  recFx() {
+    const out = [], L = this.children.list;
+    for (let i = 0; i < L.length; i++) { const o = L[i]; if (!this.isFxSprite(o)) continue;
+      out.push([o.texture.key, o.frame.name, o.x, o.y, o.depth, o.scaleX, o.scaleY, o.rotation, o.alpha, o.flipX, o.originX, o.originY, o.tintTopLeft, o.isTinted && o.tintFill]); }
+    return out.length ? out : null;
+  },
+  drawFx(f) {                                                                      // a recorded frame's effects, from a pool of images (returns how many)
+    const P = this.rpFx || (this.rpFx = []), X = (f && f.x) || [];
+    let k = 0;
+    for (const q of X) {
+      if (!this.textures.exists(q[0])) continue;                                   // (a stored clip's after-image of a kit this page hasn't loaded)
+      let im = P[k]; if (!im || !im.scene) { im = P[k] = this.add.image(0, 0, q[0], q[1]); im.__rp = true; }
+      k++;
+      if (im.texture.key !== q[0]) im.setTexture(q[0], q[1]); else if (im.frame.name !== q[1]) im.setFrame(q[1]);
+      im.setVisible(true).setPosition(q[2], q[3]).setDepth(q[4]).setScale(q[5], q[6]).setRotation(q[7]).setAlpha(q[8]).setFlipX(!!q[9]).setOrigin(q[10], q[11]);
+      if (q[13]) im.setTintFill(q[12]); else if (q[12] != null && q[12] !== 0xffffff) im.setTint(q[12]); else im.clearTint();
+    }
+    const drawn = k;
+    for (; k < P.length; k++) if (P[k] && P[k].scene) P[k].setVisible(false);
+    return drawn;
+  },
+  hideLiveFx() {                                                                   // a replay starts: the live trail / flames / pops step aside
+    for (const o of this.children.list) if (this.isFxSprite(o)) o.setVisible(false);
+  },
   flagReplay(label, gk) {
     if (window.__lab || !(window.HC2_STARTED || this.demo) || this.replay || this.foulScene) return;
     if ((this.recN || 0) - (this.lastReplayEnd ?? -1e9) < 60 * 40) return;      // v0.8.1: at most one of these every ~40 s, never back to back
@@ -307,9 +402,12 @@ hc2Mix(Match, {
     if (frames.length < 30) { after && after(); return; }
     if (this.bw && this.bw.cap && label !== 'BUG CLIP') this.bw.finish();          // v0.8.7: a clip being recorded ends here
     let t = 0, tg = null; for (const f of frames) { f.t0 = t; if (f.goal) tg = t; t += f.dt; }
-    const slowA = (tg !== null ? tg + 0.3 : t - 1.2) - (o.slowPre ?? 1.7);              // slow-mo: the last 1.7 s before the ball crosses the line
+    let slowA = (tg !== null ? tg + 0.3 : t - 1.2) - (o.slowPre ?? 1.7);              // slow-mo: the last 1.7 s before the ball crosses the line
+    if (o.ctl) slowA = 1e9;                                                         // (t-006: in the player you pick the speed - no slow-mo / zoom of its own)
     this.msg.setText(''); this.sub.setText('');
-    this.replay = { frames, i: 0, t: 0, real: 0, after, slowA, slowB: slowA + (o.slow ?? 2.0), label, z: this.baseZoom(), exit: o.exit, noZoom: !!o.noZoom, focus: o.focus ?? -1, mark: o.mark ?? -1, kits: o.kits || null };
+    this.replay = { frames, i: 0, t: 0, real: 0, after, slowA, slowB: slowA + (o.slow ?? 2.0), label, z: this.baseZoom(), exit: o.exit, noZoom: !!o.noZoom, focus: o.focus ?? -1, mark: o.mark ?? -1, kits: o.kits || null,
+      total: t, fxMax: 0, ctl: o.ctl ? { play: true, sp: 0, q: [], hold: 0, end: false } : null };
+    this.hideLiveFx();                                                             // t-006: the replay draws its own effects
     if (o.kits) this.all.forEach((q, k) => { const kk = o.kits[k]; if (kk && q.spr.texture.key !== kk && this.textures.exists(kk)) q.spr.setTexture(kk); });   // v0.8.7: a BUG WATCH clip from another match
     if (label === 'GOAL') {
       this.lastReplay = frames;
@@ -324,9 +422,13 @@ hc2Mix(Match, {
       this.replayTxt = this.add.text(VIEW_W - 24, 16, '', { fontFamily: F, fontSize: '14px', color: '#ff2878', stroke: '#0c0a0e', strokeThickness: 5 }).setOrigin(1, 0).setScrollFactor(0).setDepth(9.6e6);
       this.replayCap = this.add.text(VIEW_W / 2, VIEW_H - 23, '', { fontFamily: F, fontSize: '12px', color: '#ffde1e', stroke: '#0c0a0e', strokeThickness: 4 }).setOrigin(0.5).setScrollFactor(0).setDepth(9.6e6);
     }
-    this.letterbox.clear().fillStyle(0x0c0a0e).fillRect(0, 0, VIEW_W, 46).fillRect(0, VIEW_H - 46, VIEW_W, 46)
-      .fillStyle(0xff2878).fillRect(0, 44, VIEW_W, 2).fillRect(0, VIEW_H - 46, VIEW_W, 2);
-    this.replayCap.setText(o.caption || label);
+    const lb = o.ctl ? 84 : 46;                                                    // (t-006: the player's control bar sits in a deeper bottom band)
+    this.letterbox.clear().fillStyle(0x0c0a0e).fillRect(0, 0, VIEW_W, 46).fillRect(0, VIEW_H - lb, VIEW_W, lb)
+      .fillStyle(0xff2878).fillRect(0, 44, VIEW_W, 2).fillRect(0, VIEW_H - lb, VIEW_W, 2);
+    const cap = o.caption || label;
+    if (o.ctl) this.replayCap.setScale(1).setPosition(VIEW_W / 2, 23).setOrigin(0.5).setText(cap.length > 36 ? cap.slice(0, 33) + '...' : cap);   // (the caption moves up, out of the bar's way, clear of the score)
+    else this.replayCap.setScale(1).setPosition(VIEW_W / 2, VIEW_H - 23).setOrigin(0.5).setText(cap);
+    if (this.replayCap.__ui) this.replayCap.__ui = null;                           // (its zoom-1 layout is taken again from here)
     this.letterbox.setVisible(true); this.replayTxt.setVisible(true); this.replayCap.setVisible(true);
     for (const o2 of [this.cursor, this.power, this.ring, this.radar, this.help]) if (o2) o2.setVisible(false);
     if (label === 'GOAL' && this.lastScorer) {
@@ -349,36 +451,81 @@ hc2Mix(Match, {
   },
   replayTick(dt) {
     const r = this.replay;
-    if (r.real > 0.4 && r.exit && Input.pressed('start')) { const ex = r.exit; r.after = null; this.endReplay(); ex(); return; }
-    if (r.real > paceK().skipAfter && (Input.pressed('shoot') || Input.pressed('pass') || Input.pressed('start') || Input.pressed('lob'))) return this.endReplay();   // (t-004: ARCADE skips at once)
-    r.real += dt;
-    const slow = r.t > r.slowA && r.t < r.slowB; r.t += dt * (slow ? 0.35 : 1);
+    if (r.ctl) { if (this.replayCtl(r, dt)) return; }                              // t-006 the replay player: you drive the clock
+    else {
+      if (r.real > 0.4 && r.exit && Input.pressed('start')) { const ex = r.exit; r.after = null; this.endReplay(); ex(); return; }
+      if (r.real > paceK().skipAfter && (Input.pressed('shoot') || Input.pressed('pass') || Input.pressed('start') || Input.pressed('lob'))) return this.endReplay();   // (t-004: ARCADE skips at once)
+      r.real += dt;
+      const sl = r.t > r.slowA && r.t < r.slowB; r.t += dt * (sl ? 0.35 : 1);
+    }
+    const slow = r.t > r.slowA && r.t < r.slowB;
     while (r.i < r.frames.length - 1 && r.frames[r.i + 1].t0 <= r.t) r.i++;
+    while (r.i > 0 && r.frames[r.i].t0 > r.t) r.i--;                              // (the player can go back)
     const f = r.frames[r.i];
     f.p.forEach((v, k) => { const q = this.all[k]; if (!q) return; const sp = q.spr; sp.anims.stop();
       sp.setPosition(v[0], v[1]).setFrame(v[2]).setVisible(v[3]).setDepth(v[4]).setOrigin(v[5], v[6]).setFlipX(v[7]).setRotation(v[8] || 0).setScale(v[9] ?? 1, v[10] ?? 1); });
     this.ballSpr.setPosition(f.b[0], f.b[1]).setFrame(f.b[2]).setVisible(f.b[3]).setDepth(f.b[4]).setScale(f.b[5]);
+    if (f.b[6]) this.ballSpr.setTintFill(0xffffff); else if (this.ballSpr.isTinted) this.ballSpr.clearTint();   // t-006: the hit's white flash
     this.ballSh.setPosition(f.s[0], f.s[1]).setAlpha(f.s[2]).setDepth(f.s[3]).setScale(f.s[4]);
     if (f.r && this.ref) { const sp = this.ref.spr; sp.anims.stop(); sp.setPosition(f.r[0], f.r[1]).setFrame(f.r[2]).setVisible(f.r[3]).setDepth(f.r[4]).setFlipX(f.r[5]); this.ref.anim = ''; }
+    r.fxNow = this.drawFx(f); r.fxMax = Math.max(r.fxMax, r.fxNow);              // t-006: the effects of that frame (slow-mo too: they're per frame)
     // TV zoom: in on the ball during the slow motion, back out after
     const zb = this.baseZoom(), zt = !r.noZoom && r.t > r.slowA - 0.1 && r.t < r.slowB + 0.15 ? zb * 1.5 : zb;   // camera-pov: 1.5x the picked distance
     r.z += (zt - r.z) * Math.min(1, dt * 5);
     const k = (r.z - zb) / (0.5 * zb), cam = this.cameras.main;
     cam.setZoom(r.z);
+    // t-006: the camera's shake as it was recorded - a fixed wobble per frame (no dice: a replay mid-match mustn't move them)
+    const shk = f.sh ? f.sh * VIEW_W * 0.6 : 0, sx = shk * Math.sin(r.i * 2.39), sy = shk * Math.cos(r.i * 3.71);
     if (r.label === 'BUG CLIP' && r.focus >= 0 && f.p[r.focus] && f.p[r.focus][3]) {        // v0.8.7: a clip about a player follows HIM, not the ball
       const v = f.p[r.focus], tx = v[0], ty = v[1] - 70; r.fx = r.fx == null ? tx : r.fx + (tx - r.fx) * Math.min(1, dt * 6); r.fy = r.fy == null ? ty : r.fy + (ty - r.fy) * Math.min(1, dt * 6);
-      cam.centerOn(r.fx, r.fy);
-    } else cam.centerOn(f.cam[0] + (f.b[0] - f.cam[0]) * k * 0.8, f.cam[1] + (f.b[1] - f.cam[1]) * k * 0.8);
+      cam.centerOn(r.fx + sx, r.fy + sy);
+    } else cam.centerOn(f.cam[0] + (f.b[0] - f.cam[0]) * k * 0.8 + sx, f.cam[1] + (f.b[1] - f.cam[1]) * k * 0.8 + sy);
+    if (!this.rpFlash || !this.rpFlash.scene) { this.rpFlash = this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W * 3, VIEW_H * 3, 0xffffff).setScrollFactor(0).setDepth(9.45e6); this.rpFlash.__rp = true; }
+    if (f.fl) this.rpFlash.setFillStyle((f.fl[0] << 16) | (f.fl[1] << 8) | f.fl[2], f.fl[3]).setVisible(true); else this.rpFlash.setVisible(false);   // t-006: the camera's flash
     this.fixUi(r.z);
+    const st = r.ctl ? ` · ${RP_SPEEDS[r.ctl.sp]}X${r.ctl.play ? '' : r.ctl.end ? ' · END' : ' · PAUSED'}` : '';
     if (r.label === 'BUG CLIP') {                                                 // v0.8.7: circle the player it's about, flag the moment
       if (!this.bwG || !this.bwG.scene) this.bwG = this.add.graphics().setDepth(9.4e6);
       const g = this.bwG.clear().setVisible(true), at = r.mark >= 0 && Math.abs(r.i - r.mark) < 20, v = r.focus >= 0 && f.p[r.focus];
       const px = v ? v[0] : f.b[0], py = v ? v[1] - 50 : f.b[1];
       g.lineStyle(3, at ? 0xff2878 : 0xffde1e, 0.95).strokeEllipse(px, v ? v[1] - 4 : py + 10, 70, 30);
       g.fillStyle(at ? 0xff2878 : 0xffde1e, 1).fillTriangle(px - 9, py - 70, px + 9, py - 70, px, py - 56);
-      this.replayTxt.setText(at ? '◆ HERE' : (Math.floor(r.real * 2) % 2 ? '● ' : '  ') + 'BUG WATCH' + (slow ? ' · SLOW' : ''));
-    } else this.replayTxt.setText((Math.floor(r.real * 2) % 2 ? '● ' : '  ') + (slow ? 'REPLAY · SLOW-MO' : 'REPLAY'));
-    if (r.i >= r.frames.length - 1) this.endReplay();
+      this.replayTxt.setText(at ? '◆ HERE' + st : (Math.floor(r.real * 2) % 2 ? '● ' : '  ') + (r.flag ? 'FLAG' : 'BUG WATCH') + (slow ? ' · SLOW' : '') + st);
+    } else this.replayTxt.setText((Math.floor(r.real * 2) % 2 ? '● ' : '  ') + (slow ? 'REPLAY · SLOW-MO' : 'REPLAY') + st);
+    if (r.ctl) this.rpBarDraw(r);
+    else if (r.i >= r.frames.length - 1) this.endReplay();
+  },
+  // t-006 REPLAY PLAYER (Luca: "a replay feature - where you can replay forward pause slow mo"): pause-menu REPLAY (LAST 10 S),
+  // LAST GOAL, HIGHLIGHTS and every Bug Watch / flag clip play here. PASS or SPACE play / pause · UP / DOWN 1x 0.5x 0.25x ·
+  // LEFT / RIGHT one frame (hold to scrub) · LOB or R from the start · ENTER or SHOOT out. The bar under the picture
+  // (ui.js) does the same with clicks. Only ever off the pause menu / full time / the review: never while the ball is live.
+  replayCtl(r, dt) {
+    const C = r.ctl, n = r.frames.length, T = Input.taps, nav = Input.nav(), a = C.q.shift() || '';
+    r.real += dt;
+    const space = T.has('Space') || Input.keys.has('Space');                      // (SPACE is a shoot key too: here it means play / pause)
+    if (r.real > 0.25 && (a === 'exit' || Input.pressed('start') || (Input.pressed('shoot') && !space))) {
+      const ex = r.exit; if (ex) { r.after = null; this.endReplay(); ex(); } else this.endReplay(); return true;
+    }
+    const from0 = () => { r.t = 0; r.i = 0; C.end = false; C.play = true; };
+    if (a === 'restart' || T.has('KeyR') || Input.pressed('lob')) from0();
+    else if (a === 'play' || T.has('Space') || Input.pressed('pass')) { if (C.end) from0(); else C.play = !C.play; }
+    if (a === 'slower' || nav.y > 0) C.sp = Math.min(RP_SPEEDS.length - 1, C.sp + 1);
+    if (a === 'faster' || nav.y < 0) C.sp = Math.max(0, C.sp - 1);
+    if (a === 'speed') C.sp = (C.sp + 1) % RP_SPEEDS.length;
+    const step = d => { C.play = false; C.end = false; r.i = clamp(r.i + d, 0, n - 1); r.t = r.frames[r.i].t0; };
+    if (a === 'back' || nav.x < 0) step(-1);
+    if (a === 'fwd' || nav.x > 0) step(1);
+    if (typeof a === 'object' && a.seek != null) { C.play = false; C.end = false; r.t = clamp(a.seek, 0, 1) * r.frames[n - 1].t0; }   // a click / drag on the bar
+    C.hold = Math.abs(Input.axis.x) > 0.5 ? C.hold + dt : 0;                       // LEFT / RIGHT held: scrub at twice real time
+    if (C.hold > 0.3) { C.play = false; C.end = false; r.t = clamp(r.t + Math.sign(Input.axis.x) * dt * 2, 0, r.frames[n - 1].t0); }
+    if (C.play) {
+      r.t += dt * RP_SPEEDS[C.sp];
+      if (r.t >= r.frames[n - 1].t0) {
+        if (r.label === 'HIGHLIGHT') { this.endReplay(); return true; }           // (HIGHLIGHTS go on to the next one)
+        r.t = r.frames[n - 1].t0; C.play = false; C.end = true;                    // the end: it waits on the last frame
+      }
+    }
+    return false;
   },
   wipe() {                                                                       // TV-style sweep in and out of a replay
     if (!this.wipeG || !this.wipeG.scene) {
@@ -404,9 +551,12 @@ hc2Mix(Match, {
   baseZoom() { return window.__lab ? 1 : camZoom(); },                              // camera-pov: the picked distance (the Test Lab has its own slider)
   endReplay() {
     const r = this.replay; this.replay = null; if (!r) return;
-    const menu = r.label === 'LAST GOAL' || r.label === 'HIGHLIGHT' || r.label === 'BUG CLIP';   // v0.8.2: watched from the pause menu / full time (v0.8.7: + BUG WATCH)
+    const menu = r.label === 'LAST GOAL' || r.label === 'HIGHLIGHT' || r.label === 'BUG CLIP' || !!r.ctl;   // v0.8.2: watched from the pause menu / full time (v0.8.7: + BUG WATCH; t-006: + the player)
     if (r.kits) for (const q of this.all) if (q.spr.texture.key !== q.kit) q.spr.setTexture(q.kit);
     if (this.bwG && this.bwG.scene) this.bwG.clear().setVisible(false);
+    for (const im of this.rpFx || []) if (im && im.scene) im.setVisible(false);   // t-006: the replay's effects, flash and bar go
+    if (this.rpFlash && this.rpFlash.scene) this.rpFlash.setVisible(false);
+    this.rpBarHide();
     this.cameras.main.setZoom(this.baseZoom()); this.fixUi(this.baseZoom()); if (!menu) this.lastReplayEnd = this.recN || 0;   // v0.8.1: skipping mid-zoom left the camera (and HUD) zoomed for good
     for (const q of this.all) q.anim = '';                                        // let every sprite pick its animation up again
     this.wipe();
@@ -419,7 +569,7 @@ hc2Mix(Match, {
     const H = this.highlights || []; if (!H.length) { done && done(); return; }
     const go = i => {
       if (i >= H.length) { done && done(); return; }
-      this.startReplay('HIGHLIGHT', () => go(i + 1), H[i].frames, { caption: `HIGHLIGHTS ${i + 1}/${H.length} · ${H[i].cap}`, exit: () => done && done() });
+      this.startReplay('HIGHLIGHT', () => go(i + 1), H[i].frames, { caption: `HIGHLIGHTS ${i + 1}/${H.length} · ${H[i].cap}`, exit: () => done && done(), ctl: true });   // (t-006: in the player)
     };
     go(0);
   },
@@ -464,7 +614,7 @@ hc2Mix(Match, {
         { k: 'unsure', l: 'NOT SURE', key: '3', act: () => this.bwMark(x, 'unsure') },
         { k: 'back', l: '◀ BACK', key: 'ESC', act: () => { U.page = 'list'; U.i = Math.max(0, L.indexOf(x)); } }];
     }
-    return [...L.map((x, j) => ({ k: 'i' + j, x, l: `${x.old ? 'EARLIER · ' : ''}${x.min}' ${x.title}`, tag: x.review ? BW_VERDICT[x.review.verdict] : x.isNew ? 'NEW' : '',
+    return [...L.map((x, j) => ({ k: 'i' + j, x, l: `${x.old ? 'EARLIER · ' : ''}${x.min}' ${x.kind === 'flag' ? String(x.note || x.title).slice(0, 28).toUpperCase() : x.title}`, tag: x.review ? BW_VERDICT[x.review.verdict] : x.kind === 'flag' ? 'FLAG' : x.isNew ? 'NEW' : '',   // (t-006: your flags say FLAG)
       act: () => { U.page = 'one'; U.sel = x; U.i = 0; x.isNew = false; } })),
       { k: 'close', l: '◀ BACK', key: 'ESC', act: () => this.bwClose() }];
   },
@@ -476,10 +626,10 @@ hc2Mix(Match, {
       st.textContent = `#flow .bw{width:min(640px,100%);display:grid;gap:8px;text-align:left}
         #flow .bw .card{background:#1d1a22;border:3px solid #0c0a0e;box-shadow:4px 4px 0 #0c0a0e;padding:10px 12px;display:grid;gap:6px}
         #flow .bw .card p{margin:0;font-size:9px;line-height:1.9} #flow .bw .card .n{color:#28c8e6;word-break:break-word}
-        #flow .bw .sev{display:inline-block;padding:2px 6px;margin-right:6px;font-size:8px;color:#0c0a0e;background:#ffde1e} #flow .bw .sev.bug{background:#ff2878;color:#fff} #flow .bw .sev.perf{background:#28c8e6} #flow .bw .sev.mark{background:#4cff7a}
+        #flow .bw .sev{display:inline-block;padding:2px 6px;margin-right:6px;font-size:8px;color:#0c0a0e;background:#ffde1e} #flow .bw .sev.bug{background:#ff2878;color:#fff} #flow .bw .sev.perf{background:#28c8e6} #flow .bw .sev.mark{background:#4cff7a} #flow .bw .sev.flag{background:#ff2878;color:#fff}
         #flow .bw input{font:9px "Press Start 2P",monospace;padding:8px;border:3px solid #0c0a0e;background:#f4f0e4;color:#0c0a0e;width:100%;box-sizing:border-box}
         #flow .bw .menu{width:100%} #flow .bw .menu button em{font-style:normal;font-size:8px;padding:2px 5px;background:#0c0a0e;color:#ffde1e}
-        #flow .bw .menu button em.BUG{color:#ff2878} #flow .bw .menu button em.FINE{color:#4cff7a} #flow .bw .menu button em.NEW{color:#28c8e6}
+        #flow .bw .menu button em.BUG{color:#ff2878} #flow .bw .menu button em.FINE{color:#4cff7a} #flow .bw .menu button em.NEW{color:#28c8e6} #flow .bw .menu button em.FLAG{color:#fff;background:#ff2878}
         #flow .bw .menu{max-height:min(52vh,420px);overflow-y:auto;padding:2px 6px 6px 2px}`;
       document.head.appendChild(st);
     }
@@ -487,7 +637,7 @@ hc2Mix(Match, {
     if (U.page === 'one') {
       const x = U.sel, rv = x.review, saved = x.saved === 'db' ? 'SAVED · CLAUDE CAN READ IT' : x.saved === 'local' ? 'KEPT IN THIS BROWSER' : x.ready ? 'SAVING…' : 'STILL RECORDING…';
       el.innerHTML = `<h2>BUG WATCH</h2><div class="bw"><div class="card">
-        <p><span class="sev ${x.sev}">${x.sev === 'bug' ? 'LOOKS LIKE A BUG' : x.sev === 'mark' ? 'YOUR MARK' : x.sev === 'perf' ? 'SPEED' : 'LOOKS ODD'}</span>${x.title}</p>
+        <p><span class="sev ${x.sev}">${x.sev === 'bug' ? 'LOOKS LIKE A BUG' : x.sev === 'mark' ? 'YOUR MARK' : x.sev === 'flag' ? 'YOUR FLAG' : x.sev === 'perf' ? 'SPEED' : 'LOOKS ODD'}</span>${x.title}</p>
         <p>${x.min}' · ${['1ST HALF', '2ND HALF', 'EXTRA TIME 1', 'EXTRA TIME 2'][(x.half || 1) - 1]} · ${x.home} ${x.score} ${x.away}${x.mode === 'demo' ? ' · THE DEMO' : x.mode === 'watch' ? ' · WATCH MODE' : ''}</p>
         <p>WHAT TRIPPED: ${x.why}</p><p class="n">${String(x.msg).replace(/[<>&]/g, '')}</p>
         <p>${rv ? `YOU SAID: ${BW_VERDICT[rv.verdict]}${rv.note ? ' · ' + rv.note.replace(/[<>&]/g, '') : ''} · ` : ''}${saved}</p>
@@ -526,10 +676,29 @@ hc2Mix(Match, {
     this.bwLoadKits(x.kits, () => {
       this.closeFlowEl(); this.msg.setText(''); this.sub.setText(''); this.msg.setVisible(true); this.sub.setVisible(true);
       const frames = F.frames.map(f => Object.assign({}, f)), mk = clamp(F.mark, 0, frames.length - 1); frames[mk].goal = true;
-      this.startReplay('BUG CLIP', back, frames, { caption: `BUG WATCH · ${x.min}' ${x.title}`, exit: back, kits: x.kits, focus: x.who, noZoom: true, mark: mk, slowPre: 1.2, slow: 1.8 });
+      const cap = x.kind === 'flag' ? `FLAG · ${x.min}' ${String(x.note || '').replace(/\s+/g, ' ').toUpperCase()}` : `BUG WATCH · ${x.min}' ${x.title}`;
+      this.startReplay('BUG CLIP', back, frames, { caption: cap, exit: back, kits: x.kits, focus: x.who, noZoom: true, mark: mk, slowPre: 1.2, slow: 1.8, ctl: true });   // (t-006: in the player)
+      if (this.replay) this.replay.flag = x.kind === 'flag';
       if (!this.replay) back();
     });
     void U;
+  },
+  // t-006 INSTA FLAG, SEND: keep the clip (Bug Watch's list + this browser + the game's database), then wake the fixer.
+  // The connector call is fire-and-forget: no trigger id, no 'mcp' capability, an error - the clip is still saved and
+  // play never waits for it.
+  flagSend(note) {
+    const { inc, saved } = this.bw.flagClip(note);
+    Promise.resolve(saved).then(where => {
+      const id = typeof window.__flagTrigger === 'string' ? window.__flagTrigger : FLAG_TRIGGER;   // (the flag test sets its own)
+      inc.woke = 'no';
+      if (where !== 'db' || !id) return;
+      return Promise.resolve().then(async () => {
+        const mcp = window.claude && window.claude.use ? await window.claude.use('mcp') : null; if (!mcp) return;
+        await mcp.callTool('Claude Code Remote', 'fire_trigger', { trigger_id: id, text: `FLAG ${inc.id}: ${inc.note || '(no note)'} | ${inc.line}` });
+        inc.woke = 'yes'; CRUMB('flag: fixer woken');
+      });
+    }).catch(() => { inc.woke = 'failed'; });
+    return inc;
   },
   bwLoadKits(kits, done) {                                 // a clip from another match: load those kits first
     const need = [...new Set(kits || [])].filter(k => k && MAN.kits[k] && !this.textures.exists(k));
