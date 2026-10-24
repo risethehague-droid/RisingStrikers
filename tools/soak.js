@@ -10,6 +10,7 @@
 //   FROM=12 MATCHES=12 node tools/soak.js                the next 12 set-ups (a second sample)
 //   ONE='seed=8919 home=IS away=IRO lvl=hard ai=new weather=rain tod=night' node tools/soak.js    replay one match
 //   OUT=soak-out node tools/soak.js                      also write soak-out/soak-<time>.json and .md
+//   TAP=1 node tools/soak.js                            t-010: with the TAP KICK forced on (it's off in matches until Luca's OK)
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
 //
 // The set-ups rotate with different strides, so pairs of factors (teams x level, level x weather, AI x light...)
@@ -31,7 +32,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
   const page = await br.newPage({ viewport: { width: 640, height: 360 } }); const errs = []; let cur = -1;
   page.on('pageerror', e => errs.push({ match: cur, msg: e.message, stack: String(e.stack || '').split('\n').slice(1, 4).join(' | ') }));
   await page.goto(`http://localhost:${process.env.PORT || 8765}/test.html#flow`); await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
-  const ver = await page.evaluate(() => { const m = window.__hc2, g = m.game; g.loop.sleep(); window.__T = 1e6; window.HC2_NO_DEMO = true; window.HC2_SOAK = true;
+  const ver = await page.evaluate(TAPON => { const m = window.__hc2, g = m.game; if (TAPON) TAP_KICK = true; g.loop.sleep(); window.__T = 1e6; window.HC2_NO_DEMO = true; window.HC2_SOAK = true;
     for (const id of ['start', 'flow']) { const e = document.getElementById(id); if (e) e.remove(); }
     m.cameras.main.setVisible(false); window.HC2_STARTED = true; window.__soakInc = [];
     window.__bwHook = x => window.__soakInc.push({ code: x.code, title: x.title, sev: x.sev, msg: String(x.msg).slice(0, 300), half: x.half, min: x.min, who: x.whoName, where: x.where, score: x.score });
@@ -46,6 +47,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     const aer = (kind, p) => { W.aerial++; W[kind]++; W.lastAerial = { kind, team: p.team, t: m.time.now }; };
     const rk = m.releaseKick; m.releaseKick = function (k, ...rest) { const b = this.ball, had = b.owner === k.p, fx = b.x, fy = b.y, r = rk.call(this, k, ...rest);
       if (had && !b.owner && b.lastP === k.p && k.info.loft) { W.lobs++; if (k.info.aim) W.aimLobs++; }
+      if (had && !b.owner && b.lastP === k.p && k.info.tap) W.taps++;          // t-010 tap kicks (only with TAP=1)
       if (had && !b.owner && b.lastP === k.p) W.lastKick = { p: k.p, kind: k.info.shot ? 'shot' : k.info.cross ? 'cross' : 'pass' };
       if (had && !b.owner && b.lastP === k.p && !k.p.keeper) {
         if (k.info.shot) { if (k.info.chip) W.chips++; if (!k.info.special && (k.p.kickAnim === 'volley' || k.p.kickAnim === 'bicycle')) aer(k.p.kickAnim === 'volley' ? 'volley' : 'bike', k.p); }
@@ -53,7 +55,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
           if (this.setPiece) W.spCross++; else { W.cross++; W[k.info.cross === 'whip' ? 'crossWhip' : k.info.cross === 'float' ? 'crossFloat' : 'crossCut']++; W[k.p.team === this.home ? 'crossH' : 'crossA']++; W.lastCross = { team: k.p.team, t: this.time.now, y: fy < 34 ? 'L' : 'R' }; W['cross' + W.lastCross.y]++; } } }
       return r; };
     // exploit hunt: a runner standing still short of his run's spot (seconds), and a carrier parked out wide in the final 30 m (4 s+)
-    W.z0 = W.z; W.z = () => { W.z0(); Object.assign(W, { runIdle: 0, wideHold: 0, wideT: 0, wideIn: 0, wideCross: 0, widePass: 0, wideShot: 0, wideLost: 0, wideOwner: null, lastKick: null }); }; W.z();
+    W.z0 = W.z; W.z = () => { W.z0(); Object.assign(W, { taps: 0, runIdle: 0, wideHold: 0, wideT: 0, wideIn: 0, wideCross: 0, widePass: 0, wideShot: 0, wideLost: 0, wideOwner: null, lastKick: null }); }; W.z();
     const ai0 = m.ai; m.ai = function (dt, ...rest) { const r = ai0.call(this, dt, ...rest), b = this.ball, o = b.owner;
       for (const t of [this.home, this.away]) if (t.wing) for (const [p, w] of t.wing) if (!p.busy() && p.speed < 0.3 && len(w.x - p.x, w.y - p.y) > 2) W.runIdle += dt;
       { const wo = W.wideOwner;                                                     // wide in the final 30 m: how did each of those moments end?
@@ -73,7 +75,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     { let ls = m.lastScorer; Object.defineProperty(m, 'lastScorer', { configurable: true, get() { return ls; }, set(v) { ls = v; if (!v || v.own) return; const now = m.time.now; W.goals++;
       const A = W.lastAerial && W.lastAerial.team === v.team && now - W.lastAerial.t < 3500, C = W.lastCross && W.lastCross.team === v.team && now - W.lastCross.t < 6000;
       if (A) { W.aerialGoals++; if (W.lastAerial.kind === 'airSp') W.airSpGoals++; if (W.lastAerial.kind === 'head') W.headGoals++; } if (C) { W.crossGoals++; W['crossGoals' + W.lastCross.y]++; } W.goalLog.push(`${v.team.name} ${v.min}' ${v.how || '?'}${A ? ' AERIAL:' + W.lastAerial.kind : ''}${C ? ' from a cross ' + W.lastCross.y : ''} far ${Math.round(v.far || 0)}`); } }); }
-    return GAME_VER; });
+    return GAME_VER; }, !!process.env.TAP);
   if (process.env.GOAL_PHYS) await page.evaluate(() => { GOAL_PHYS = true; });   // t-013
   const out = { game: ver, at: new Date().toISOString(), matches: [], errors: errs };
   for (let i = 0; i < list.length; i++) {
@@ -105,7 +107,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
     const tr = Object.entries(st.trips).map(([k, v]) => `${k} ${v}`).join(', ');
     { const w = st.wing; console.log(`   wing: crosses ${w.cross} (whipped ${w.crossWhip}, floated ${w.crossFloat}, other ${w.crossCut}, you ${w.crossH} / them ${w.crossA}) + set-piece ${w.spCross} · aerial shots ${w.aerial} (head ${w.head}, volley ${w.volley}, overhead ${w.bike}, diving ${w.dhead}, air SP ${w.airSp}) · goals ${w.goals}: aerial ${w.aerialGoals}, after a cross ${w.crossGoals} · corners ${st.corners} · chips ${w.chips} · runners idle ${w.runIdle.toFixed(1)} s · parked wide ${w.wideHold}${w.goalLog.length ? '\n     ' + w.goalLog.join('\n     ') : ''}`); }
-    console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
+    console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${process.env.TAP ? `tap kicks ${st.wing.taps} · ` : ''}${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
   }
   await br.close();
   // summary: every Bug Watch code across all matches, bugs first

@@ -72,7 +72,7 @@ hc2Mix(Match, {
         else { const c = this.lobCharge; this.lobCharge = -1; if (this.chipCan(p, dir)) this.chipShot(p, c, ax.y); else if (c < 0.2) this.doPass(p, dir, 'lob'); else this.powerLob(p, dir, c); }   // v0.9.2: in their box facing goal = CHIP
       }
       if (Input.held('shoot')) { this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / 0.8); this.aimY = ax.y; }
-      if (Input.released('shoot') && this.charge >= 0) { this.doShot(p, this.charge, this.aimY); this.charge = -1; }
+      if (Input.released('shoot') && this.charge >= 0) { if (!this.tapKickTry(p, ax, this.charge)) this.doShot(p, this.charge, this.aimY); this.charge = -1; }   // (t-010: a quick tap = the tap kick)
     } else {
       this.charge = -1; this.lobCharge = -1; this.lobAim = null;
       // v0.8.6 AERIAL SPECIAL: a ball dropping to you at volley / head height in their half, near enough to goal, SP in the bank
@@ -102,6 +102,15 @@ hc2Mix(Match, {
         b.owner = p; this.doShot(p, 0.6, ax.y); p.kickAnim = 'volley'; this.headBuf = 0;
       }
     }
+  },
+  // t-010 TAP KICK: SHOOT let go within TAP.tapT of pressing it (charge counts 0 -> 1 over 0.8 s, from the first held
+  // frame) is the tap kick, along the stick - or the way he faces with the stick idle (Luca: "it just faces the direction
+  // of the arrow you point with"). Held longer: false, and the power shot goes as before. Set pieces keep their own
+  // rules (a free kick is still struck), and with TAP_KICK off (matches, until Luca's OK) it never happens.
+  tapKickTry(p, ax, charge) {
+    if (!TAP_KICK || charge * 0.8 >= TAP.tapT || this.setPiece || p.keeper) return false;
+    const moving = len(ax.x, ax.y) > 0.1, dir = moving ? ax : dirVec(p.face);
+    this.tapKick(p, dir); return true;
   },
   // HEADERS: a ball at head height next to a player. You head it if you pressed X (at goal) or Z (to a team-mate)
   // BICYCLE KICK (batch 10): a high ball (head height or above) close to him near their goal -> over the head at goal
