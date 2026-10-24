@@ -327,7 +327,7 @@ hc2Mix(Match, {
   aftertouch(dt) {
     const b = this.ball, A = b.aft; if (b.owner || (A.t -= dt) <= 0) { b.aft = null; return; }
     const ax = Input.axis, along = ax.x * A.ux + ax.y * A.uy, side = A.ux * ax.y - A.uy * ax.x;
-    b.spin = clamp((b.spin || 0) - along * 220 * dt, -45, 80); b.curl = clamp((b.curl || 0) + side * 160 * dt, -45, 45);
+    b.spin = clamp((b.spin || 0) - along * 220 * dt, -45, 80); b.curl = clamp((b.curl || 0) + side * 70 * dt, -20, 20);   // (curl: ~3 m of bend on a 25 m lob; 160 bent it 7 m)
   },
   ballPhysics(dt) {
     const b = this.ball; if (b.owner && b.owner.hands) return;

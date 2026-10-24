@@ -11,7 +11,8 @@ readability first, then the spin. C's aftertouch can be added on top later, beca
 
 **Try it:** serve the game (`cd game && python3 -m http.server 8765`), then open
 `http://localhost:8765/index.html?lob=A` (or `?lob=B`, `?lob=C`). `labtest.html?lob=B` works in the Test Lab too.
-Without `?lob=` the game is today's game.
+**From HQ:** this PR's "Play it" link with `-lobB` added to its end (`…#play-lobB`, or `#lobA` / `#lobC`). claude.ai
+artifact links pass only a plain `#ending`, not `?lob=`. Without either the game is today's game.
 
 ---
 
@@ -251,7 +252,7 @@ in `actions.js`). The keeper, the AI and the readability items are described her
 - **Controls:** one lofted kick. Tap LOB = lob, hold = power. For 0.4 s after it leaves the boot the stick shapes it:
   - pull back = backspin: higher, floats, stops on the bounce (25 m lob: 7.7 m peak, lands 26 m)
   - push on = topspin: dips, runs on (4.2 m, lands 18.5 m)
-  - sideways = curls that way (the prototype bends it 7 m by 26 m, too much: tune to about 3 m)
+  - sideways = curls that way (tuned: a full sideways stick bends a 25 m lob 2.3 m by its first bounce; it was 7 m)
   - The chip is just a lob near goal with the stick pulled back, so no context switch.
 - **Ball physics:** B's spin model; the player sets the spin.
 - **Computer by level:** it "aftertouches" too (a knob per level): Easy never, Rise curls it away from the keeper or
@@ -317,7 +318,8 @@ functions, and measures with the real `ballStep`. Pass marks are for the chosen 
   - spin cleared when someone gains the ball, on a deflection, and on any other kick
 - `actions.js`: one line, a header clears the spin.
 - **Off = unchanged.** 6 seeded soak matches (`MATCHES=6 node tools/soak.js`) give the same scores, shots and
-  possession on `friend/lob-mechanics` and on this branch: 3-1, 1-4, 1-0, 0-0, 0-1, 0-3.
-- `node tools/smoke.js`: `{"easy":"1-1","normal":"0-1","hard":"0-0","rise":"0-0"}`, `errors []`.
+  possession on `main` (v0.9.9) and on this branch: 3-1, 1-4, 1-0, 0-0, 0-1, 0-3, 0 page errors (re-run after the
+  `#lobB` switch and the curl tuning; the first run was against `friend/lob-mechanics`, the same results).
+- `node tools/smoke.js`: `{"easy":"1-0","normal":"0-1","hard":"0-0","rise":"0-1"}`, `errors []`.
 - With each prototype on, `tools/lobstudy.js` runs without page errors. You keep 67% (A) / 70% (B) / 66% (C) of 47-51
   scripted lobs (branch: 75%). The computer's open-play lobs over 30 min are too few to compare (7-18).

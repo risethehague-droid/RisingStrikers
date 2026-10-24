@@ -28,7 +28,10 @@ const CHIP_ON = true;                                                          /
 // PROTOTYPES of the three directions in docs/lob-chip.md, OFF unless the page is opened with ?lob=A, ?lob=B or ?lob=C.
 // A = today's model with the numbers fixed; B = backspin / Magnus lift, three lofted kicks (lob, driven lob, chip);
 // C = B's flight shaped by the stick after the kick (aftertouch). Off (null) = today's game, unchanged.
-let LOB_PROTO = (() => { try { const q = new URLSearchParams(location.search).get('lob'); return /^[ABC]$/.test(q) ? q : null; } catch (e) { return null; } })();
+// Also from the link's #ending (#lobB, or #play-lobB on a PR preview page): claude.ai artifact links pass only a plain
+// #anchor through, not ?lob=, so that's how Luca tries a direction from HQ's "Play it".
+let LOB_PROTO = (() => { try { const q = new URLSearchParams(location.search).get('lob'), m = /(^|#|&|-)lob-?([ABC])\b/i.exec(location.hash);
+  return /^[ABC]$/.test(q) ? q : m ? m[2].toUpperCase() : null; } catch (e) { return null; } })();
 const MAGNUS_K = 0.0058, SPIN_TAU = 5, CHIP_SPIN = 55;   // lift accel = MAGNUS_K x spin (rad/s) x speed: rho*A/(2m) * r (Cl ~ spin ratio, Goff & Carre 2009); spin halves in ~3.5 s;
                                          // a chip leaves the boot with ~9 rev/s of backspin
 const DIRS = ['E', 'NE', 'N', 'NW', 'W', 'SW', 'S', 'SE'];
