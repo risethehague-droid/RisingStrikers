@@ -43,6 +43,11 @@ const BW_MAX = 30, BW_GAP = 25000, BW_PRE = 240, BW_POST = 90, BW_KEEP = 8;
 const BW_LONG = new Set(['applaud', 'party', 'trophy', 'dejected', 'celebrate', 'hurt', 'beaten', 'roar', 'protest', 'labanim', 'pick', 'runup', 'flight', 'done', 'walk']);
 let BW_ON = (() => { try { return localStorage.getItem('hc2-bw') !== 'off'; } catch (e) { return true; } })();
 function setBwOn(v) { BW_ON = !!v; try { localStorage.setItem('hc2-bw', v ? 'on' : 'off'); } catch (e) {} }
+// QA overnight 24 Oct: a clip's id used to take its random part from Math.random, the game's own dice. The soak and the
+// Lab seed those dice, so every clip Bug Watch saved shifted every roll after it: a fix that only changed how often a
+// check trips (even a drawing fix) replayed a different match, and the soak's repro lines stopped matching. The id now
+// takes its random part from the browser's crypto source, which the game never rolls.
+const bwTag = () => { try { return (crypto.getRandomValues(new Uint32Array(1))[0] % 46656).toString(36); } catch (e) { return (Date.now() % 46656).toString(36); } };
 const bwF1 = v => (Number.isFinite(v) ? v.toFixed(1) : String(v)), bwF2 = v => (Number.isFinite(v) ? v.toFixed(2) : String(v));
 
 // a clip, packed small enough for the database: 30 frames a second, whole pixels, frame names in a table
@@ -194,7 +199,7 @@ class BugWatch {
     if (this.list.filter(x => !x.old).length >= BW_MAX) return;
     if (BW_CHECKS[code].sev !== 'bug' && BW_CHECKS[code].sev !== 'mark' && (this.perCode[code] = (this.perCode[code] || 0) + 1) > 2) return;   // (2 clips a match of each 'looks odd' kind is plenty)
     const C = BW_CHECKS[code], p = o.p || null, b = m.ball;
-    const inc = { id: `bw-${Date.now().toString(36)}-${Math.floor(Math.random() * 46656).toString(36)}`, code, title: C.t, sev: C.sev, why: C.why, msg,
+    const inc = { id: `bw-${Date.now().toString(36)}-${bwTag()}`, code, title: C.t, sev: C.sev, why: C.why, msg,
       game: GAME_VER, at: new Date().toISOString(), mode: window.HC2_SOAK ? 'soak' : window.__labWatch ? 'lab' : m.watch ? 'watch' : m.demo ? 'demo' : 'match',
       home: m.home.name, away: m.away.name, score: `${m.home.score}-${m.away.score}`, half: m.half, min: Math.min(m.half > 2 ? 120 : 90, Math.floor(m.clock / 60) + 1),
       who: p ? m.all.indexOf(p) : -1, whoName: this.who(p), where: p ? [+p.x.toFixed(1), +p.y.toFixed(1)] : [+bwF1(b.x), +bwF1(b.y)],
