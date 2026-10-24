@@ -22,6 +22,13 @@ const PITCH_L = 105, PITCH_W = 68, PX_X = 48, PX_Y = 38, PX_H = 60, S_FAR = 0.87
 const GOAL_Y0 = 34 - 3.66, GOAL_Y1 = 34 + 3.66, BAR_Z = 2.44;
 const CHIP_DIP = 1.9;
 const CHIP_ON = true;                                                          // v0.9.4: ON in matches - the PixelLab chip animation is in (batch 15)
+// t-002 (Luca 23 Oct 22:31: "work on the game mechanics of the lob and chip... revamp it completely"): stage-1
+// PROTOTYPES of the three directions in docs/lob-chip.md, OFF unless the page is opened with ?lob=A, ?lob=B or ?lob=C.
+// A = today's model with the numbers fixed; B = backspin / Magnus lift, three lofted kicks (lob, driven lob, chip);
+// C = B's flight shaped by the stick after the kick (aftertouch). Off (null) = today's game, unchanged.
+let LOB_PROTO = (() => { try { const q = new URLSearchParams(location.search).get('lob'); return /^[ABC]$/.test(q) ? q : null; } catch (e) { return null; } })();
+const MAGNUS_K = 0.0058, SPIN_TAU = 5, CHIP_SPIN = 55;   // lift accel = MAGNUS_K x spin (rad/s) x speed: rho*A/(2m) * r (Cl ~ spin ratio, Goff & Carre 2009); spin halves in ~3.5 s;
+                                         // a chip leaves the boot with ~9 rev/s of backspin
 const DIRS = ['E', 'NE', 'N', 'NW', 'W', 'SW', 'S', 'SE'];
 const HALF_REAL_SECONDS = 180;                     // 3 real minutes per half (match length option later)
 // the six Help Out Hague Cup II teams: kit atlases (painted on the same PixelLab frames) + radar colour

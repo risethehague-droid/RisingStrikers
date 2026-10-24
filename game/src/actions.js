@@ -201,6 +201,7 @@ hc2Mix(Match, {
     Object.assign(b, { vx: dx / l * spd, vy: dy / l * spd, vz, skid: true, rollV: 0.72 * spd, last: p.team, lastP: p, save: null, target: best ? best.q : null, special: 0, power: 0, saveable: null });   // v0.8.8: a headed ball is an ordinary ball (a spent special kept its special flight)
     p.face = dirIndex(dx, dy); p.setState('header', 0.5); p.cool = kind === 'down' ? 0 : 0.4; this.headBuf = 0;   // (a cushion: he takes it straight away)
     b.tried = null; b.lob = false; SFX.head(); b.how = { kind: 'header', x: b.x, y: b.y };
+    if (b.spin || b.curl || b.aft) { b.spin = 0; b.curl = 0; b.aft = null; }     // (t-002 prototype: a header kills the lob's spin)
     if (kind === 'goal') { this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }
     if (best && p.team === this.home) { this.nextHuman = best.q; this.passRing = { p: best.q, t: 1.0 }; }
   },
