@@ -19,7 +19,8 @@ their own **preview** pages instead, never these.
    - After a change to `assets/`: those files too (a publish takes at most 255 files; split it if needed).
 4. **Publish the Test Lab** the same way: `url` https://claude.ai/artifact/Goa4b8PepGxbqv9877pPCV, `file_path`
    `<repo>/game/lab.html`, the same `root`, the changed `src/*.js` plus `lab.js` (and `lab/*` if it exists).
-5. **Leave the capabilities alone:** omit `capabilities` so each page keeps its database (and the Lab its `sample`).
+5. **Leave the capabilities alone:** omit `capabilities` so each page keeps what it has: the game `db` + `mcp`
+   (Claude Code Remote `fire_trigger`, for the INSTA FLAG fixer, since v0.11.0), the Lab `db` + `sample`.
 6. **Tell Luca** in one line what went live and the version. Close the card.
 
 To see what's published: Artifact `list` with `scope: "files"` and the page's `url`.
