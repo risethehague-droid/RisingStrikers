@@ -50,14 +50,19 @@ from ballfind import drop_detached
 
 
 WALK_DY = {'S': -3, 'SE': -3, 'NE': -2, 'E': 1, 'N': 1}
-WIN_WIDE = (0, 56, 256, 216)                              # penalty dives: he flies sideways across the whole canvas
+WIN_WIDE = (0, 56, 256, 216)
+# batch 16 (24 Oct, Luca: the keeper's level-1 special save reworked, picked by the shot - a lob = a leap and snatch, straight
+# = a planted block, wide = a flying dive catch; plus a fingertip tip-over for a shot that's too strong): rig poses made
+# facing E (W = mirror) on a 256 x 184 window (the leap goes above the usual window), drawn on their own origins
+WIN_RIG = (0, 32, 256, 216)
+KRIG = [('spinning_leap', 'kleap'), ('planted_iron_block', 'kblock'), ('spectacular_flying_dive', 'kdivecatch'), ('fingertip_save', 'ktip')]                              # penalty dives: he flies sideways across the whole canvas
 
 
 from ballrm import remove_balls
 
 
-def window(im256, loose=False, wide=False, ball=False):
-    a = np.array(im256.crop(WIN_WIDE if wide else WIN)); a[a[:, :, 3] < 128] = 0
+def window(im256, loose=False, wide=False, ball=False, rig=False):
+    a = np.array(im256.crop(WIN_RIG if rig else WIN_WIDE if wide else WIN)); a[a[:, :, 3] < 128] = 0
     if ball: a, _, _ = remove_balls(a, attached=True)          # batch 12: PixelLab's own football at the boot (the game draws the ball)
     if loose: a = drop_detached(a, max_blob=900)          # balls in flight, motion lines, sparkles: not touching the keeper
     return clean(snap(Image.fromarray(a)))
@@ -154,6 +159,17 @@ new = {}
 for st in states:
     for aname, dirs in st['frames'].get('animations', {}).items():
         low = aname.lower()
+        rig = next((nm for key, nm in KRIG if key in low), None)   # batch 16 (before the generic 'dive' match below)
+        if rig:
+            fs = dirs.get('east', [])[1:]                              # (frame 0 = PixelLab's kept idle pose)
+            if not fs: continue
+            if rig == 'kdivecatch':                                    # flies along his goal line like the dives: turned a quarter
+                paths = [f'{ZIPDIR}/{f}' for f in fs]
+                new['kdivecatchDown-E'] = dive_frames(paths, cw=True); new['kdivecatchUp-E'] = dive_frames(paths, cw=False)
+            else:
+                new[f'{rig}-E'] = [window(Image.open(f'{ZIPDIR}/{f}').convert('RGBA'), loose=True, rig=True) for f in fs]
+                new[f'{rig}-W'] = [ImageOps.mirror(im) for im in new[f'{rig}-E']]
+            continue
         if 'organises_his' in low:                                 # batch 9: shouts + points before a corner (loop)
             fs = dirs.get('south', [])[1:]
             if fs: new['korg-S'] = [window(Image.open(f'{ZIPDIR}/{f}').convert('RGBA'), loose=True) for f in fs]
@@ -235,9 +251,10 @@ for anim in ('idle', 'run', 'walk', 'kick', 'catch', 'throw', 'punch', 'kset', '
         if f'{anim}-{s}' in new: new[f'{anim}-{d}'] = [ImageOps.mirror(im) for im in new[f'{anim}-{s}']]
 if 'gkick-E' in new: new['gkick-W'] = [ImageOps.mirror(im) for im in new['gkick-E']]
 # the West-facing keeper (right-hand goal) gets the mirrors; down stays down
-for nm in ('diveDown', 'diveUp'):
+for nm in ('diveDown', 'diveUp', 'kdivecatchDown', 'kdivecatchUp'):
     if f'{nm}-E' in new and f'{nm}-W' not in new: new[f'{nm}-W'] = [ImageOps.mirror(im) for im in new[f'{nm}-E']]
-ORIGINS = {k: [0.5, 0.5] for k in new if k.startswith('dive')}
+ORIGINS = {k: [0.5, 0.5] for k in new if k.startswith('dive') or k.startswith('kdivecatch')}
+ORIGINS.update({f'{a}-{d}': [0.5, (199 - WIN_RIG[1]) / (WIN_RIG[3] - WIN_RIG[1])] for a in ('kleap', 'kblock', 'ktip') for d in ('E', 'W') if f'{a}-{d}' in new})   # batch 16
 
 # ---------- IRO keeper: red kit, white trims and socks
 GREEN, GREEN_D, GREEN_DD, GREEN_X = (46, 161, 83), (38, 112, 54), (24, 124, 56), (14, 88, 40)

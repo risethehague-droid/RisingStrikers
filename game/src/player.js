@@ -19,6 +19,7 @@ class Player {
       this.m.anims.create({ key, frames: fr.map(f => ({ key: this.kit, frame: f })), frameRate: rate, repeat: once ? 0 : -1 });
     }
     if (this.anim !== key) {
+      this.setOrg(name);
       // run <-> sprint: carry on from the same point of the stride instead of snapping back to frame 0 (the v0.6 sprint 'jank')
       const loop = /:(run|sprint|walk)-/.test(key) && /:(run|sprint|walk)-/.test(this.anim || '') && this.spr.anims.isPlaying;
       const prog = loop ? this.spr.anims.getProgress() : 0;
@@ -26,6 +27,15 @@ class Player {
       if (loop && prog > 0) this.spr.anims.setProgress(prog);
     }
     return true;
+  }
+  // most frames stand on the feet; moves made on a bigger canvas carry their own origin in the manifest ('origins'):
+  // keeper dives (turned a quarter in the kit build, drawn centred), the trophy lift (taller frames), and batch 16's
+  // aerial specials + keeper special saves (the 256 x 184 rig window). Set whenever the move changes (play), so new
+  // PixelLab moves with an origin need no code here - it used to be picked per state (dive / trophy) in draw()
+  setOrg(name) {
+    const K = MAN.kits[this.kit], org = K.origins && K.origins[name];
+    const ox = org ? org[0] : 0.5, oy = org ? org[1] : K.feetY / (K.frameH || 128);
+    if (this._ox !== ox || this._oy !== oy) { this.spr.setOrigin(ox, oy); this._ox = ox; this._oy = oy; }
   }
   draw() {
     const X = wx(this.x, this.y), Y = wy(this.y);
@@ -39,10 +49,7 @@ class Player {
     if (this.keeper && this.spSave && !this.sentOff && (this.m.ball.special || this.m.ball.saveable)) this.m.auraFx(this);   // v0.8.9 his special save is ready: he burns in its colour
     if (this.rig && !this.sentOff) { const P = this.m.rigAt(this, this.rig.n, this.rig.t, this.rig.d); if (P) { this.rigShow(P); return; } this.rig = null; }
     if (this._rigged || this.spr.rotation || this.spr.scaleX !== 1 || this.spr.scaleY !== 1) { this._rigged = false; this.spr.setRotation(0).setScale(1); this._ox = this._oy = null; this.anim = ''; }   // (after a rig / a replay)
-    // most frames stand on the feet; keeper dives (turned a quarter in the kit build) are drawn centred on the keeper
-    const K = MAN.kits[this.kit], org = (this.state === 'dive' && K.origins && K.origins[this.diveAnim]) || (this.state === 'trophy' && K.origins && K.origins['trophy-S']);   // v0.7.4: the trophy lift has taller frames
-    const ox = org ? org[0] : 0.5, oy = org ? org[1] : K.feetY / (K.frameH || 128);
-    if (this._ox !== ox || this._oy !== oy) { this.spr.setOrigin(ox, oy); this._ox = ox; this._oy = oy; }
+    const K = MAN.kits[this.kit];
     const d = DIRS[this.face];
     const ONCE = { getup: ['getup', 12], fall: ['fall', 14], hit: ['hit', 14], header: ['jump', 16], trap: ['trap', 18],
       dheader: ['dheader', 16], celebrate: ['celebrate', 10], tackle: ['tackle', 16], punch: ['punch', 16], chance: ['chance', 10],

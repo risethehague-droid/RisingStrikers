@@ -59,7 +59,7 @@ def snap(im):
 from ballrm import remove_balls
 from ballfind import drop_detached
 BALL_FIX = {'kick', 'pass', 'shot', 'super', 'sp1', 'sp2', 'chip'}                       # batch 1 moves where PixelLab drew a football at the foot (the game draws its own)
-DETACHED = {'chip', 'sp1', 'volley', 'dheader', 'throwin', 'celebrate', 'penalty', 'header', 'sprint', 'tackle', 'touch', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4', 'bicycle'}       # batch 2: drop loose balls / specks that don't touch the body
+DETACHED = {'tap', 'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor', 'chip', 'sp1', 'volley', 'dheader', 'throwin', 'celebrate', 'penalty', 'header', 'sprint', 'tackle', 'touch', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4', 'bicycle'}       # batch 2: drop loose balls / specks that don't touch the body
 # batch 2 balls still touching the body, placed by eye on the raw frames (window px): (anim, dir, PixelLab frame) -> discs
 ERASE = {('volley', 'S', 5): [(102, 59.5, 12)],
          ('volley', 'SE', 3): [(119, 55, 10)], ('volley', 'SE', 4): [(104.5, 82.5, 10)], ('volley', 'SE', 5): [(92, 41, 10)],
@@ -112,13 +112,18 @@ def erase_cyan(a):
     return a
 
 
-TALL = {'trophy': 30}                    # batch 12: the cup goes above the usual window -> taller frames (128 x 186, feet on row 169)
+TALL = {'trophy': 30}
+# batch 16: the aerial specials leap, flip and stretch beyond the 128 x 160 window - a 256 x 184 window (the full canvas
+# width, from row 32), drawn on its own origin (feet row / frame height in the manifest's 'origins')
+RIG = {'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor'}   # tide / cyclone / meteor: batch 16b, the 3 new aerial specials (Luca 14:16: "new aerial shots with different names / vibe / animation / effect")
+WIN_RIG = (0, 32, 256, 216)                    # batch 12: the cup goes above the usual window -> taller frames (128 x 186, feet on row 169)
 SHIFT_Y = {('walk', 'S'): 6, ('walk', 'N'): 7, ('walk', 'E'): 1}                     # batch 12: the V3 walk stands 6 px higher on its canvas than the rig (feet 191 vs 197)
 
 
 def window(im256, anim=None, d=None, idx=None):
     dy = SHIFT_Y.get((anim, d), 0); top = TALL.get(anim, WIN[1])
-    a = np.array(im256.crop((WIN[0], top - dy, WIN[2], WIN[3] - dy))); rgb = a[:, :, :3].astype(int)
+    box = WIN_RIG if anim in RIG else (WIN[0], top - dy, WIN[2], WIN[3] - dy)
+    a = np.array(im256.crop(box)); rgb = a[:, :, :3].astype(int)
     fx = (rgb[:, :, 1] > rgb[:, :, 0] + 25) & (rgb[:, :, 1] > rgb[:, :, 2] + 25)   # PixelLab's green grass / dust puffs: not part of the player
     if anim != 'throwin': a[fx, 3] = 0                                            # (the throw-in ball is cyan: handled below)
     if anim in BALL_FIX: a, _, _ = remove_balls(a, attached=d != 'S')
@@ -175,7 +180,8 @@ removed_total = 0
 # PixelLab folder name (template name, or the start of a custom prompt) -> game animation name
 REDONE = ('side-foot_pass_seen_from_behind', 'power_shot_seen_from_behind')
 PICK = {('shot', 'N'): [2, 3, 4, 8, 9, 10, 11, 12]}   # run-up, then straight into the strike (frames 5-7 have PixelLab's ball at the boot)   # batch 12: ball-free pass N / NE + shot N
-MAP = [('chip_shot', 'chip'),   # batch 15 (v0.9.4, PixMiniMax, ball-free prompt): the chip - short step, stab under it, leg lifts
+MAP = [('quick_snap_shot', 'tap'), ('comet_volley', 'air1'), ('thunder_overhead', 'air2'), ('phoenix_dive', 'air3'), ('tide_cutter', 'tide'), ('cyclone_heel', 'cyclone'), ('meteor_drive', 'meteor'),   # batch 16 (24 Oct, Luca: "re pick up the alternate animations for lvl 1-2-3 ... match them to the arc of the ball from passes" + the tap kick): made facing E only, W = mirror; the aerial specials are rig poses (the game moves the body)
+       ('chip_shot', 'chip'),   # batch 15 (v0.9.4, PixMiniMax, ball-free prompt): the chip - short step, stab under it, leg lifts
        ('defender_jockeying', 'jockey'),   # batch 13: low side-on stance, shuffling back (the presser contains a dribbler)
        ('side-foot_pass_seen_from_behind', 'pass'), ('power_shot_seen_from_behind', 'shot'), ('walking', 'walk'), ('trophy_celebration', 'trophy'), ('captain_lifts', None),   # batch 12: V3 walk, trophy lift (the first try hid his face)
        ('full_sprint_football', None), ('Plant_the_standing_foot', 'shot'), ('Take_a_small_step_inward', 'pass'), ('Crouch_low_to_gather_power', 'super'), ('Spin_around_once', 'sp1'), ('Stamp_the_foot', 'sp2'),   # batch 11 (PixMiniMax): looping sprint, power shot, side-foot pass, special-move demo
@@ -196,7 +202,8 @@ MAP = [('chip_shot', 'chip'),   # batch 15 (v0.9.4, PixMiniMax, ball-free prompt
 #   batch 2 (game timing in brackets):
 #   trap: from the ball on the chest down to the feet (0.32 s at 18 fps)     volley: approach -> contact on frame 2 -> follow-through
 #   dheader: crouch -> launch -> flight -> landing, lying (0.75 s at 16 fps)  throwin: ball over the head -> throw (release ~0.18 s)
-TRIM = {'chip': (1, None), 'jockey': (2, None), 'trophy': (1, None), 'kick': (4, None), 'pass': (3, 8), 'shot': (3, None), 'super': (1, None), 'sp1': (1, None), 'sp2': (1, None), 'slide': (1, 4), 'jump': (3, None), 'fall': (1, None),
+TRIM = {'tap': (1, None), 'air1': (1, None), 'air2': (1, None), 'air3': (1, None), 'tide': (1, None), 'cyclone': (1, None), 'meteor': (1, None),   # batch 16: drop PixelLab's kept idle frame
+        'chip': (1, None), 'jockey': (2, None), 'trophy': (1, None), 'kick': (4, None), 'pass': (3, 8), 'shot': (3, None), 'super': (1, None), 'sp1': (1, None), 'sp2': (1, None), 'slide': (1, 4), 'jump': (3, None), 'fall': (1, None),
         'trap': (5, None), 'volley': (3, 8), 'dheader': (2, None), 'throwin': (5, None), 'penalty': (1, None),
         'header': (5, None), 'sprint': (0, None), 'tackle': (1, None), 'touch': (1, None),
         'pcele': (1, None), 'pmiss': (1, None), 'ppower': (1, None), 'pchip': (1, None), 'pwait': (1, None), 'celeb2': (1, None), 'chance': (1, None), 'celeb3': (1, None), 'dejected': (1, 8), 'applaud': (1, None), 'pplace': (1, None), 'protest': (1, None), 'hips': (1, None), 'hurt': (1, None), 'signal': (1, None), 'celeb4': (1, None), 'bicycle': (1, None)}   # batch 5: drop the idle first frame          # batch 4 attacking header: leap -> forehead snap (contact) -> landing
@@ -206,7 +213,7 @@ TRIM_DIR = {('chip', 'S'): (2, None), ('chip', 'NE'): (2, None), ('chip', 'N'): 
             ('kick', 'E'): (4, 7), ('touch', 'N'): (2, None), ('bicycle', 'NE'): (2, None)}   # bicycle NE: frame 1 shows PixelLab's ball   # first touch N: frame 1 has PixelLab's ball over his head
 SKIP_DIR = {('chip', 'N'), ('touch', 'NE'), ('shot', 'N'), ('pass', 'NE'), ('pass', 'N'), ('jockey', 'NE')}   # batch 13: the NE jockey turned round + drew a ball - E stands in   # batch 11: PixelLab's NE / N pass lifts its own ball into the air - the E pass stands in                     # first touch NE: PixelLab plays the ball with his hand - the E move stands in (and mirrors to NW)               # kick East: PixelLab turns him round (back + a number) after the strike
 NEIGH = {'S': ['SE'], 'SE': ['S', 'E'], 'E': ['SE', 'NE'], 'NE': ['E', 'N'], 'N': ['NE']}   # stand-in when a direction failed
-ONLY_MADE = {'trophy', 'super', 'sp1', 'sp2', 'throwin', 'celebrate', 'penalty', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4'}       # penalty: seen from behind (N) for the penalty camera             # made for the directions the game uses only (throw-ins S / N, celebration S)
+ONLY_MADE = {'tap', 'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor', 'trophy', 'super', 'sp1', 'sp2', 'throwin', 'celebrate', 'penalty', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4'}       # penalty: seen from behind (N) for the penalty camera             # made for the directions the game uses only (throw-ins S / N, celebration S)
 prot = {}                                        # anim -> per-frame ball masks (trap), protected from the kit painting
 
 
@@ -348,6 +355,7 @@ for kit in ['IS-home'] + list(KITS):
     man['kits'][kit] = dict(anims=an, feetY=FEET, frameH=FH, n=len(frames), carry=sorted(c for c in CARRY if c in an),
                             src='PixelLab (IS rig) + kits.py')
     org = {f'{a_}-S': [0.5, (199 - TALL[a_.replace('up', '')]) / (WIN[3] - TALL[a_.replace('up', '')])] for a_ in ('trophy', 'trophyup') if f'{a_}-S' in an}
+    org.update({f'{a_}-{d_}': [0.5, (199 - WIN_RIG[1]) / (WIN_RIG[3] - WIN_RIG[1])] for a_ in RIG for d_ in ('E', 'W') if f'{a_}-{d_}' in an})   # batch 16
     if org: man['kits'][kit]['origins'] = org                    # tall frames: feet row / frame height
     print(kit, len(frames), 'frames, atlas h', h)
 json.dump(man, open(f'{GAME}/assets/manifest.json', 'w'))
