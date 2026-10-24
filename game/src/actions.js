@@ -26,6 +26,7 @@ hc2Mix(Match, {
     const b = this.ball, me = this.human, team = this.home;
     const prevAir = this.airSp; this.airSp = null;                               // v0.8.6 (set again below while the moment lasts)
     if (this.aerial) { this.lobAim = null; this.aerialInput(); return; }         // t-008: an AERIAL BATTLE is on - your SHOOT presses are the mash
+    if (this.camTarget && this.camTarget === this.lobAimCam && !this.lobAim) this.camTarget = null;   // (t-008: the aim's framing ends with the aim)
     if (b.owner && b.owner.team === team && b.owner !== me) this.human = b.owner;
     if (!b.owner && this.nextHuman && b.last === team) { /* ball travelling to a team-mate: switch once it is closer to him */
       const q = this.nextHuman; if (len(q.x - b.x, q.y - b.y) < len(this.human.x - b.x, this.human.y - b.y)) { this.human = q; this.nextHuman = null; }
@@ -266,6 +267,10 @@ hc2Mix(Match, {
     else A.k = 0;
     const c = this.lobAimClamp(p, A.rx, A.ry); A.rx = c.x; A.ry = c.y;
     this.lobAimMagnet(p);
+    // the camera frames the ring and the ball (as it does your set piece's aim cursor): a 40 m ring was off screen
+    const bx = wx(this.ball.x, this.ball.y), by = wy(this.ball.y), C = this.lobAimCam || (this.lobAimCam = {});
+    C.x = bx + (wx(A.x, A.y) - bx) * 0.7; C.y = by + (wy(A.y) - by) * 0.7 - 40;   // (mostly the ring: past ~25 m both don't fit, and where it lands is the point)
+    if (!this.camTarget || this.camTarget === C) this.camTarget = C;
     return false;
   },
   // the light magnet: the ring within LOB2.magnet of a team-mate settles towards him (and he walks to it, so it ends on

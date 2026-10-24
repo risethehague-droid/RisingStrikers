@@ -981,7 +981,7 @@
       lbTest('LB5', 'the ring settles on a team-mate, he goes for goal', 'aim near your striker: the ring settles on the spot he\'ll reach, he walks there, then times his run and heads / volleys at goal',
         { kind: 'magnet', from: [62, 40], mates: [[9, 89, 29]], drag: [0, -1, 0.25], holdT: 0.6, gk: true }),
       lbTest('LB6', 'AERIAL BATTLE: you win it (the Lab mashes fast)', 'your lob drops between your striker and his marker: MASH! - mash SHOOT, win it, head it at goal',
-        { kind: 'battle', battle: true, mash: 1, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 0.5, gk: true }),
+        { kind: 'battle', battle: true, mash: 1, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 1.1, gk: true }),
       lbTest('LB7', 'AERIAL BATTLE: you lose it (no mash)', 'the same drop; you don\'t press: their man wins and clears it - which way?',
         { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 0.5, gk: true }),
       lbTest('LB8', 'AERIAL BATTLE the other way: their lob, your defender', 'the computer lobs to its striker, your defender is on him: PRESS! (the Lab mashes every other step)',
