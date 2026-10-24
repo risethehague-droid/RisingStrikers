@@ -74,7 +74,14 @@ hc2Mix(Match, {
     this.power = this.add.graphics();          // world-space feedback: shot arrow + power bar, energy bar, pass ring
     hud.add([slip, this.scoreTxt, clk, this.clockTxt, this.msg, this.sub, this.help, this.radar]);
     this.meters = [new SpMeter(this, 0), new SpMeter(this, 1)];                     // v0.7 special-move energy, one per side
-    this.cursor = this.add.image(0, 0, 'HC2-E6-cursor-blue').setOrigin(0.5, 1).setDepth(8e6);
+    // t-009 (Luca, 24 Oct: "a more contrasting visible arrow which shows who you control"): the same E6 cursor art, with a
+    // dark ink outline behind it (the image tinted ink, 8 copies nudged out ~2 px) so it separates from grass, crowd, rain,
+    // snow and night. A container, so the code elsewhere that hides / fades this.cursor still works on all of it.
+    // drawCursor() sizes, bobs, pops and colours it.
+    this.cursorInk = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]].map(([dx, dy]) =>
+      this.add.image(dx * CUR_INK, dy * CUR_INK, 'HC2-E6-cursor-blue').setOrigin(0.5, 1).setTintFill(0x0c0a0e).setVisible(this.game.renderer.type !== Phaser.CANVAS));   // (safe mode's canvas can't tint: no outline there)
+    this.cursorImg = this.add.image(0, 0, 'HC2-E6-cursor-blue').setOrigin(0.5, 1);
+    this.cursor = this.add.container(0, 0, [...this.cursorInk, this.cursorImg]).setDepth(8e6);
     this.power.setDepth(8e6 + 1);
     this.ring = this.add.graphics().setDepth(-4e5);   // pass-target ring sits on the grass, under the players
     this.helpUntil = 9000;
@@ -316,6 +323,7 @@ hc2Mix(Match, {
       { k: 'cam', l: `CAMERA: ${(CAM_OPTS.find(o => o[0] === CAM_VIEW) || CAM_OPTS[0])[1]}`, act: () => setCamView(CAM_OPTS[(CAM_OPTS.findIndex(o => o[0] === CAM_VIEW) + 1) % CAM_OPTS.length][0]) },   // camera-pov
       { k: 'pace', l: `PACE: ${(PACE_OPTS.find(o => o[0] === PACE_MODE) || PACE_OPTS[0])[1]}`, act: () => setPace(PACE_OPTS[(PACE_OPTS.findIndex(o => o[0] === PACE_MODE) + 1) % PACE_OPTS.length][0]) },   // t-004 ARCADE PACE
       { k: 'bwon', l: `BUG WATCH: ${BW_ON ? 'ON' : 'OFF'}`, act: () => setBwOn(!BW_ON) },
+      { k: 'ptr', l: `POINTER: ${PTR_ON ? 'ON' : 'OFF'}`, act: () => setPtrOn(!PTR_ON) },   // t-009: the direction chevron on the grass
       { k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 3; } }];
     const BWn = this.bw ? this.bw.list.length : 0, BWnew = this.bw ? this.bw.list.filter(x => !x.review).length : 0;
     if (P.page === 'moves') return [{ k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 2; } }];
@@ -530,6 +538,7 @@ hc2Mix(Match, {
       if (this.charge >= 0) { const px = X - 30, py = Y + 13; g.fillStyle(INK).fillRect(px - 2, py - 2, 64, 12).fillStyle(0xffde1e).fillRect(px, py, Math.round(60 * this.charge), 8); }
       return;
     }
+    this.drawPointer(INK);
     // v0.8.6 SPECIAL pop-up (aerial special ready): the I is the RISE arrow
     if (this.airSp && this.textures.exists('coin')) {
       if (!this.airUi) { const F = '"Press Start 2P"', st = { fontFamily: F, fontSize: '13px', color: '#ffde1e', stroke: '#0c0a0e', strokeThickness: 5 };
@@ -612,6 +621,42 @@ hc2Mix(Match, {
       this.tweens.add({ targets: im, scale: s1, alpha: 0, duration: ms, ease: 'Cubic.easeOut', onComplete: () => im.destroy() }); };
     pop('sparks', 0.5, 1.5, 260, 0.95); if (n % 3 === 0) pop(n % 6 === 0 ? 'impactBig' : 'impact', 0.4, 1.0, 180, 0.8); if (n % 4 === 0) pop('sparkle', 0.5, 1.2, 300, 0.8);
   },
+  // t-009 the "you" arrow over the man you control (was one line in world.js: 1x size, a 2 px sine bob, always blue).
+  // Bigger, a bouncier bob, a pop when control moves to a new man, the red or blue cursor picked against your kit, and
+  // lifted over a ball that's above his head (it sat on top of headers and lobs dropping to him). Drawing only.
+  drawCursor() {
+    const hp = this.human, b = this.ball, t = this.time.now, X = Math.round(wx(hp.x, hp.y)), Y = Math.round(wy(hp.y));
+    const dt = clamp((t - (this.curT ?? t)) / 1000, 0, 0.1); this.curT = t;
+    const kit = this.home && this.home.name;
+    if (kit !== this.curKit) { this.curKit = kit; const key = curColFor(TEAM_COL[kit]);   // once per match: the kits are fixed
+      if (this.textures.exists(key)) { this.cursorImg.setTexture(key); for (const o of this.cursorInk) o.setTexture(key); } }
+    if (hp !== this.curFor) { if (this.curFor) this.curPop = t; this.curFor = hp; }      // (not on the first man of the match)
+    const since = (t - (this.curPop ?? -1e9)) / 1000, k = since < CUR_POP ? 1 - since / CUR_POP : 0;
+    const pop = 1 + 0.45 * k * k, drop = Math.round(-16 * k * k);                        // it lands on him bigger, from a little above
+    const bob = Math.abs(Math.sin(t / 170)) * 6;                                        // a bounce, not the old 2 px wobble
+    let top = Y - 112;                                                                  // just over his head
+    const bx = wx(b.x, b.y), by = wy(b.y, b.z);
+    const lift = b.z > 1.4 && Math.abs(bx - X) < 34 && by < top + 24 ? Math.min(0, by - 16 - top) : 0;   // the ball over his head: go above it
+    this.curLift = (this.curLift || 0) + (lift - (this.curLift || 0)) * Math.min(1, dt * 16);
+    this.cursor.setPosition(X, Math.round(top + this.curLift - bob + drop)).setScale(CUR_SCALE * pop).setAlpha(this.demo ? 0 : 1);
+  },
+  // t-009 (Luca: "a lowkey but useful pointing arrow that shows direction"): a thin chevron on the grass in front of your
+  // man, only while you push, pointing where you push - with the ball that's where a pass / shot goes (actions.js uses
+  // the stick as the pass direction). Drawn in metres, so it lies flat on the pitch. Same style as the other code-drawn
+  // markers here (ink edge + one light colour, semi-transparent); a pixel-art one would come from Aseprite / PixelLab.
+  // Not in replays, cut scenes, set pieces (the aim cursor shows there), the demo or watch mode, or with POINTER: OFF.
+  drawPointer(INK) {
+    const hp = this.human, ax = Input.axis, l = len(ax.x, ax.y);
+    if (!PTR_ON || l < 0.1 || this.replay || this.demo || this.watch || this.cutIn || this.intro || this.toss || this.paused || this.pre || this.over
+      || this.ht || this.penaltyMode || this.ceremony || (this.setPiece && !this.setPiece.kicked) || this.charge >= 0 || this.lobCharge >= 0
+      || !this.cursor.visible || hp.sentOff) { this.ptrShown = null; return; }
+    const dx = ax.x / l, dy = ax.y / l, nx = -dy, ny = dx, d = 1.9 + 0.12 * Math.sin(this.time.now / 160);   // (a slow nudge forward)
+    const P = (f, s) => { const x = hp.x + dx * (d + f) + nx * s, y = hp.y + dy * (d + f) + ny * s; return [wx(x, y), wy(y)]; };
+    const [ax1, ay1] = P(-0.7, -0.5), [tx, ty] = P(0, 0), [ax2, ay2] = P(-0.7, 0.5);
+    const chev = (w, col, a) => { this.ring.lineStyle(w, col, a); this.ring.beginPath(); this.ring.moveTo(ax1, ay1); this.ring.lineTo(tx, ty); this.ring.lineTo(ax2, ay2); this.ring.strokePath(); };
+    chev(6, INK, 0.55); chev(3, 0xf4f0e4, 0.85);
+    this.ptrShown = { dx, dy };                                                         // (for tools/pointertest.js)
+  },
   drawRadar() {
     const g = this.radar, W = 168, H = 108, x0 = VIEW_W - W - 16, y0 = window.HC2_TOUCH ? 62 : VIEW_H - H - 16;   // touch: top right, under the away SP meter (the buttons sit bottom right)
     g.clear().fillStyle(0x0c0a0e, 0.72).fillRect(x0 - 4, y0 - 4, W + 8, H + 8).lineStyle(1, 0xf4f0e4, 0.8).strokeRect(x0, y0, W, H)
@@ -634,4 +679,18 @@ hc2Mix(Match, {
 const CAM_OPTS = [['close', 'CLOSE', 1], ['medium', 'MEDIUM', 0.75], ['wide', 'WIDE', 0.5]];
 let CAM_VIEW = (() => { try { const v = localStorage.getItem('hc2-cam'); return CAM_OPTS.some(o => o[0] === v) ? v : 'close'; } catch (e) { return 'close'; } })();
 function setCamView(v) { if (!CAM_OPTS.some(o => o[0] === v)) return; CAM_VIEW = v; try { localStorage.setItem('hc2-cam', v); } catch (e) {} }
+// t-009 the "you" arrow and the direction pointer
+const CUR_SCALE = 3, CUR_INK = 0.67, CUR_POP = 0.3;   // size (x the 13 px E6 art: 39 px); ink outline: 2 screen px out; pop on a switch (s)
+// the cursor that stands out from your kit: red on a blue-ish kit, blue on red / pink / yellow / white ones (the old
+// look). Green kits get red (it pops more on the grass too). By hue, from the kit's radar colour.
+function curColFor(col) {
+  if (col == null) return 'HC2-E6-cursor-blue';
+  const r = (col >> 16 & 255) / 255, g = (col >> 8 & 255) / 255, b = (col & 255) / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), c = mx - mn;
+  if (!mx || c / mx < 0.25) return 'HC2-E6-cursor-blue';                                                 // white / grey / black kit
+  const h = (mx === r ? ((g - b) / c + 6) % 6 : mx === g ? (b - r) / c + 2 : (r - g) / c + 4) * 60;
+  const far = (a, z) => { const v = Math.abs(a - z) % 360; return Math.min(v, 360 - v); };
+  return far(h, 213) < far(h, 358) ? 'HC2-E6-cursor-red' : 'HC2-E6-cursor-blue';                         // the cursor whose hue is further off
+}
+let PTR_ON = (() => { try { return localStorage.getItem('hc2-ptr') !== 'off'; } catch (e) { return true; } })();
+function setPtrOn(v) { PTR_ON = !!v; try { localStorage.setItem('hc2-ptr', v ? 'on' : 'off'); } catch (e) {} }
 function camZoom() { return (CAM_OPTS.find(o => o[0] === CAM_VIEW) || CAM_OPTS[0])[2]; }
