@@ -36,6 +36,7 @@ the review opens at full time. Marks and notes reach the taskmaster through the 
 | `LEVELS=... node tools/train093.js probe 0 <matches> <secs>` | computer v computer strength per level (S against the old Normal) |
 | `node tools/train093.js <level> <iters> <matches> <secs>` | self-play tuning of one level's traits (writes `train093-out/`) |
 | `node tools/lobstudy.js you\|ai [N]` | open-play lobs: who wins them (you tapping LOB to a forward N times, or N minutes of computer v computer), how (header / chest / feet) and where everyone is at the drop |
+| `node tools/pacestudy.js [N]` | where N full computer v computer matches spend their real time (live play, replays, freezes, restarts...), plus shots, goals, possession changes and ball / player speeds |
 | `node tools/gk091.js` | keeper situations with the keeper's plan printed |
 | `TEST=<id> OUT=docs/previews/pr<N>-<topic>.gif node tools/preview.js` | the PR's preview GIF (CLAUDE.md "The `## Preview` section"): a Test Lab test, or `MATCH=1 SKIP=<s>` for a match moment; 3-5 s, under 1 MB |
 | `bash tools/prpreview.sh <commit> <dir> <N> "<title>"` | taskmaster / 2-hourly check: builds the "HC2 PR #N preview" page (the PR on top of `main`; `#play` = the game, `#lab-CH1` = the Lab at a test) |
