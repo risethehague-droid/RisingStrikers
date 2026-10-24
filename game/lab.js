@@ -245,7 +245,7 @@
         const s = m.home.players[9], gk = m.away.players[0]; cast([s, gk]);
         put(s, 86, 34, 0); atFeet(s); put(gk, LINE_X, 34, 4); gk.guard = 1;
         Object.assign(r, { human: s, shooter: s, gk, fired: true, stats: { kicks: 0, shots: 0, goals: 0, held: 0 }, nogk: false });
-        r.cam = () => { const b = m.ball, q = b.owner === s || !b.owner && len(b.x - s.x, b.y - s.y) < 4 ? s : b; return { x: q.x + (q === b ? clamp(b.vx * 0.35, -10, 10) : 0), y: q.y, sx: fpShift() }; };
+        r.cam = () => { const b = m.ball, q = gk.state === 'labanim' ? gk : b.owner === s || !b.owner && len(b.x - s.x, b.y - s.y) < 4 ? s : b; return { x: q.x + (q === b ? clamp(b.vx * 0.35, -10, 10) : 0), y: q.y, sx: fpShift() }; };
       },
       check(r) { fpTick(r); return null; } };
   }
@@ -270,7 +270,8 @@
       if (b.owner !== gk) r.held = 0;
       if (why) { r.resetAt = r.t + (why === 'goal' ? 1.6 : 1.0); r.why = why; if (why === 'goal') r.stats.goals++; if (why === 'held') r.stats.held++; }
     } else if (r.t >= r.resetAt) fpReset(r);
-    if (F.loop && F.anim && p.state !== 'labanim' && !p.busy() && !m.pending) playAnim(F.anim);
+    const ap = F.anim && animWho(F.anim);
+    if (F.loop && ap && ap.state !== 'labanim' && !ap.busy() && !m.pending) playAnim(F.anim);
   }
   // v0.8.8 (Luca: "add the aerial moves ... to test lab in buttons"): a ball is thrown in and your player does the move
   // himself the moment it's in reach - the same game code your keys would run (header, volley, diving header, overhead
@@ -311,9 +312,14 @@
     b.inNet = false; atFeet(p); r.out = null; r.resetAt = 0; r.held = 0; r.why = null; r.air = null;
   }
   function fpMini() { const on = $('fp').classList.toggle('mini'); $('fp-mini').innerHTML = on ? 'SHOW PANEL<kbd>Q</kbd>' : 'HIDE<kbd>Q</kbd>'; LAB.cx = null; }
+  // batch 16: 'gk:<move>' plays a keeper move (the keeper kits' own frames: kleap, kblock, kdivecatch, ktip ...) on the
+  // keeper in front of you, so new keeper art can be looked at before it's wired into the saves
+  // (FP1's camera swings to the keeper while his move plays, then back to you)
+  function animWho(name) { const r = LAB.run; return r && name.startsWith('gk:') ? (r.nogk ? null : r.gk) : r && r.human; }
   function playAnim(name) {
     const r = LAB.run; if (!r || r.sc.kind !== 'free') return;
-    const p = r.human, A = MAN.kits[p.kit].anims, d = DIRS[p.face];
+    const p = animWho(name); if (!p) return; name = name.replace(/^gk:/, '');
+    const A = MAN.kits[p.kit].anims, d = DIRS[p.face];
     const k = [d, dirVec(p.face).x >= 0 ? 'E' : 'W', 'S'].find(q => A[`${name}-${q}`]); if (!k) return;
     const fps = (typeof KICK_RATE !== 'undefined' && KICK_RATE[name]) || 12, dur = A[`${name}-${k}`].length / fps + 0.15;
     p.labAnim = name; p.labFps = fps; p.setState('labanim', dur); p.stun = dur; p.vx = p.vy = 0;
@@ -489,8 +495,9 @@
       try { const v = localStorage.getItem('hc2-lab-' + d.dataset.k); if (v != null) d.open = v === '1'; } catch (e) {}
       d.addEventListener('toggle', () => { try { localStorage.setItem('hc2-lab-' + d.dataset.k, d.open ? '1' : '0'); } catch (e) {} });
     }
-    const sel = $('fp-anim'), A = MAN.kits[m.home.players[9].kit].anims, names = [...new Set(Object.keys(A).map(k => k.replace(/-[A-Z]+$/, '')))].sort();
-    sel.innerHTML = names.map(n => `<option>${n}</option>`).join(''); LAB.fp.anim = names.includes('celebrate') ? 'celebrate' : names[0]; sel.value = LAB.fp.anim;
+    const moves = kit => [...new Set(Object.keys(MAN.kits[kit].anims).map(k => k.replace(/-[A-Z]+$/, '')))].sort();
+    const sel = $('fp-anim'), names = moves(m.home.players[9].kit), gkNames = moves(m.away.players[0].kit);
+    sel.innerHTML = names.map(n => `<option>${n}</option>`).join('') + `<optgroup label="KEEPER">${gkNames.map(n => `<option value="gk:${n}">GK ${n}</option>`).join('')}</optgroup>`; LAB.fp.anim = names.includes('celebrate') ? 'celebrate' : names[0]; sel.value = LAB.fp.anim;
     sel.addEventListener('change', () => { LAB.fp.anim = sel.value; playAnim(sel.value); sel.blur(); });
     $('fp-play').addEventListener('click', () => { playAnim(LAB.fp.anim); $('fp-play').blur(); });
     $('fp-loop').addEventListener('click', () => { LAB.fp.loop = !LAB.fp.loop; $('fp-loop').setAttribute('aria-pressed', LAB.fp.loop); $('fp-loop').blur(); });
