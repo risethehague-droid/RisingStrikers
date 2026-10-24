@@ -1,3 +1,29 @@
+HC2 WEB GAME - v0.11.0 (24 Oct) - LUCA'S 05:57 LIST: 11 PRs (#9-#19, Luca's OK 18:35)
+- INSTA FLAG (#9, t-006): F / pad BACK / the FLAG button = the last 8 s + your note to Bug Watch. A REPLAY PLAYER (pause
+  menu REPLAY LAST 10 S, LAST GOAL, HIGHLIGHTS, Bug Watch): play / pause, 1x / 0.5x / 0.25x, frame step, scrub, every
+  special effect redrawn. Never during live play.
+- The "you" arrow (#11, t-009): 3x, outlined, pops on a switch, red / blue by kit; a quiet direction pointer (Options:
+  POINTER ON / OFF).
+- KEEPER AI (#14, t-007): saves read where the ball crosses him (stand / low / mid / high dive / leap / tip / punch), holds
+  more of the weak shots, tips and parries out: corners from ~0 to ~5 a match; a stronger special = only a hand to it ->
+  corner; the camera rides up with the ball after a save and with lobs.
+- WING PLAY (#13, t-012): wide carries, overlaps, near / far post runs, crosses at runners; the computer uses the aerial
+  specials (max one per side per 30 s); exploits found and fixed (box flooding, early crosses, headers that never missed).
+- LOB REMAKE (#15, t-008): hold LOB = a landing ring you steer, release = the kick, solved to land on it; timed receiving
+  runs; the AERIAL BATTLE (MASH! / PRESS!, sparks, a tug-of-war bar) on contested drops, both ways.
+- PixelLab batch 16 + 16b in every kit (#12) and in play (#16, t-014): keeper special saves by the shot (kleap / kblock /
+  kdivecatch / ktip), aerial specials by the ball's arc, two per level, with banners, Rami lines and their own colours.
+  Player origins come from the manifest for any move; Test Lab FP1 lists the keeper moves too.
+- Test Lab only (switches off in matches until Luca says): GOAL PHYSICS (#10, t-013: net with give, round posts and bar
+  with rebounds, parries that loop up), the TAP KICK (#17, t-010: TAP_KICK) and the CURVING SPECIAL PASSES (#19, t-011:
+  CURVE_PASS; PixelLab batch 17 moves in #18).
+- tools/soak.js: keeper / wing / lob / goal-physics / tap counters together; every counter wrapper now passes all
+  arguments on (a (p, kind) header wrapper had dropped t-008's dir, so soak runs played aerial-battle headers differently).
+- Checked on the merged main: smoke, resumetest, flagtest, pointertest, goalkicktest all clean; Test Lab GKX, GP, WG, LB,
+  AS, KS, TK, CP, K, KH, CH, C, GK, FP, SM, PW: errors []. 12-match soak, same seeds as v0.10.4: goals 33 -> 33 (2.75
+  a match, unchanged), corners ~0 -> 4.2 a match, 0 page errors, ANIM_FLICKER 241 -> 208; the one FLOW_STUCK (seed 56433)
+  was already in v0.10.4.
+
 HC2 WEB GAME - v0.10.4 (24 Oct) - THE GOAL KICK CUT + NO REPLAYS DURING LIVE PLAY
 - Luca (06:21, "of immediate importance"): "the goal kick should have a clean cut away to the goalie with it in his
   hands and the team laid out how they would in a normal game". Now: a TV wipe, then the keeper at the edge of his
