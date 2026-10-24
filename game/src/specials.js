@@ -221,9 +221,9 @@ class SpMeter {
 // ---------------------------------------------------------------- Match methods: specials
 hc2Mix(Match, {
   // v0.8.6 the aerial special itself: LV by the bars spent; LV1 a volley, LV2 an overhead kick (or volley if it's low), LV3 the leap
-  airSpecial(p) {
-    const b = this.ball, mt = this.meterOf(p.team), lv = mt.spend(); if (!lv) return; this.airSp = null;
-    const aim = Math.abs(Input.axis.y) > 0.2 ? Input.axis.y : (Math.random() < 0.5 ? -1 : 1) * rnd(0.55, 1), KA = MAN.kits[p.kit].anims;
+  airSpecial(p, aimAI) {
+    const b = this.ball, mt = this.meterOf(p.team), lv = mt.spend(); if (!lv) return; if (aimAI == null) this.airSp = null;
+    const aim = aimAI != null ? aimAI : Math.abs(Input.axis.y) > 0.2 ? Input.axis.y : (Math.random() < 0.5 ? -1 : 1) * rnd(0.55, 1), KA = MAN.kits[p.kit].anims;   // (t-012: the computer passes its own aim, not your stick)
     { const dv = dirVec(p.face); b.x = p.x + dv.x * 0.45; b.y = p.y + dv.y * 0.35; b.vx = b.vy = b.vz = 0; }   // he meets it (the leap / volley closes the gap) - v0.8.7: and it stops there for the strike (it flew on and the kick missed: the Lab's PW10 caught it)
     b.owner = p; this.doShot(p, 0.85, aim);
     const k = this.pending; if (!k || k.p !== p) return;
@@ -247,6 +247,17 @@ hc2Mix(Match, {
     this.say(['AIR ' + SP_NAMES[0], 'SKY ' + SP_NAMES[1], SP_NAMES[2] + ' FROM THE SKY'][lv - 1] + '!', `${p.team.name} · LV${lv} AERIAL SPECIAL`, 1.3);
     this.ramiSay('skill', { text: ['ON THE VOLLEY -\nAND IT IS ON FIRE!', 'AN OVERHEAD SPECIAL!!\nUNBELIEVABLE!', 'HE FLIES!!\nTHE RISING PHOENIX!'][lv - 1], expr: 'laugh' }, 3);
     SFX.special(lv); this.flagReplay('AERIAL SPECIAL!'); this.hitStop = 0.08; this.cameras.main.flash(90, 255, 230, 120);
+  },
+  // t-012 THE COMPUTER'S AERIAL SPECIAL: it never used one (airSpecial was only for your SPECIAL key), so the aerial
+  // moves were yours alone. Now the man meeting a cross / a lob near their goal (22 m, in front of it) spends its bars on
+  // one: how often by level (K.sp), never twice inside 30 s for a side. Only the computer's side: your bars are yours
+  // to spend (your team-mates head it as before)
+  aiAirSpecial(p) {
+    const b = this.ball, team = p.team, lv = this.meterOf(team).level();
+    if (lv < 1 || p.keeper || (team === this.home && !this.demo) || b.owner || b.inNet || b.z < 0.55 || b.z > 2.6 || p.busy() || this.pending) return false;
+    const gx = team.goalX, toGoal = len(gx - p.x, 34 - p.y); if (toGoal > 22 || (gx - p.x) * team.side < 3 || Math.abs(p.y - 34) > 14) return false;
+    if ((team.airSpAt ?? -1e9) > this.time.now - 30000 || !(Math.random() < 0.45 * this.dk(team).sp)) return false;
+    team.airSpAt = this.time.now; p.face = dirIndex(gx - p.x, 34 - p.y); this.airSpecial(p, (Math.random() < 0.5 ? -1 : 1) * rnd(0.5, 1)); return true;
   },
   // ---------- v0.8.9 ROUGH RIGS: where a rig puts him at time t (frame, place, turn, squash) - shared by the drawing and
   // by the aerial special (to hang the ball where his boot will be)
@@ -372,12 +383,20 @@ hc2Mix(Match, {
     if (def === this.home && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset().special}`, 0.75); return; }
     if (s.dy > s.cover * 0.95 && Math.random() < 0.55 * this.dk(def).gkSave) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it
   },
-  // the clash at the keeper: true = saved
+  // the clash at the keeper: true = saved, 'hand' = he only gets a hand to it (t-007: it goes out), false = beaten
   clash(gk) {
     const b = this.ball, lv = gk.spSave || 0; gk.spSave = 0; if (!lv || !(b.special || b.saveable)) return null;
     const norm = !b.special; b.saveable = null;                                   // v0.9.0: a special save always stops a normal shot
-    const K = SAVE_POWER[lv - 1], P = norm ? 0 : b.spP || SP_POWER[b.special - 1], ok = norm || Math.random() < saveChance(K, P);
+    const K = SAVE_POWER[lv - 1], P = norm ? 0 : b.spP || SP_POWER[b.special - 1];
+    let ok = norm || Math.random() < saveChance(K, P);
+    // t-007 (Luca: "from special saves that dont fully save a ball maybe if the ball is too strong it goes over to give a
+    // corner"): a special stronger than his save that would have beaten him: he gets a hand to it - over the bar or round
+    // the post - more often the closer the two are (K / P: LV2 v LV1 ~70%, LV3 v LV1 50%). A power shot (held K) against
+    // a LV1 save: half the time only a hand to it. Equal or stronger saves still stop it (saveChance is 1).
+    let hand = !ok && Math.random() < clamp(K / P, 0.3, 0.85);
+    if (norm && lv === 1 && (b.power || 0) > 0.72 && Math.random() < 0.5) { ok = false; hand = true; }
     this.cameras.main.flash(140, 255, 240, 160); this.hitStop = Math.max(this.hitStop || 0, 0.12); SFX.boom(1);
+    if (hand) { this.say('A HAND TO IT!', norm ? `${SAVE_NAMES[lv - 1]} CAN ONLY PUSH IT AWAY` : `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4); return 'hand'; }
     if (ok && RIGS['save' + lv]) { gk.face = gk.team.side > 0 ? 0 : 4; gk.rig = { n: 'save' + lv, t: 0, d: gk.team.side > 0 ? 'E' : 'W' }; }   // v0.8.9 rough save rig
     if (ok) this.say('SAVED!', norm ? `${SAVE_NAMES[lv - 1]} STOPS THE SHOT` : `${SAVE_NAMES[lv - 1]} ${K} v ${Math.round(P)} ${SP_NAMES[b.special - 1]}`, 1.4);
     else this.say('IT BREAKS THROUGH!', `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4);

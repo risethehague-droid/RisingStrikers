@@ -92,6 +92,18 @@ function lobSolve(dist, apex, spin, quick) {
   for (let i = 0; i < (quick ? 9 : 14); i++) { const vz = (lo + hi) / 2; v = solveLob(dist, vz, spin, n); if (peak(v, vz) < apex) lo = vz; else hi = vz; }
   return { speed: solveLob(dist, hi, spin, n), vz: hi };
 }
+// t-012 the computer's WHIPPED CROSS: driven (about 65-75 km/h over 25 m), over the first man (peak ~2.5-3 m) and coming
+// down through head height (tz, ~1.6 m) at the runner's spot, so the man who meets it heads or volleys it (a lob drops
+// onto a duel or his chest). The Lab's aimAir solver (the C crosses), with drag: forward speed nudged until it does
+function crossSolve(d, tz, T) {
+  T = Math.max(T, d / 24); let v = d / T; const vz = (tz - 0.05 + 0.5 * G * T * T) / T;
+  for (let it = 0; it < 8; it++) {
+    const c = { x: 0, y: 0, z: 0.05, vx: v, vy: 0, vz, skid: true, rollV: 0 }, h = 1 / 120; let at = null, pz = c.z;
+    for (let t = 0; t < 5; t += h) { ballStep(c, h, false); if (c.vz < 0 && pz >= tz && c.z < tz) { at = c.x; break; } if (c.z <= 0 && t > 0.05) { at = c.x; break; } pz = c.z; }
+    if (!at) break; v *= d / at;
+  }
+  return { speed: v, vz };
+}
 // t-005 (lob step 1, readability): the shadow's size at height z - top-down games show a ball's height by its shadow
 // shrinking (docs/lob-chip.md); ours kept one size, so height read only from a faint fade
 function shadowK(z) { return 1 - (1 - SHADOW_MIN) * clamp(z / SHADOW_Z, 0, 1); }
@@ -124,9 +136,11 @@ hc2Mix(Match, {
     const mode = k.info.mode;
     if (mode === 'ground') { vz = 0.2; speed = solveGround(d, clamp(4.5 + d * 0.15, 5.5, 11), vz); }   // arrives firm, then dies
     else if (mode === 'through') { vz = 0.25; speed = solveGround(d, 4.5, vz); }                          // slows into the runner's path
+    else if (mode === 'lob' && k.info.aim) { const L = lobSolve(d, k.info.aim.apex); speed = L.speed; vz = L.vz; }   // t-008: the hold-aimed lob lands ON the ring (solved from where the ball is as it leaves the boot)
     else if (mode === 'lob' && k.info.loft) { const L = this.loftLaunch(d, k.info.lobPow); speed = L.speed; vz = L.vz; }   // lob-mechanics: over their heads (t-005: really as high as lobApex says)
     else if (mode === 'lob' && k.info.lobPow != null) { const T = 1.0 + k.info.lobPow * 1.5; vz = G * T / 2; speed = solveLob(Math.max(4, d - 1), vz); }   // v0.8.5 power lob: up to ~8 m high
     else if (mode === 'lob') { const T = clamp(0.7 + d / 25, 0.9, 1.9); vz = G * T / 2 * 1.05; speed = solveLob(Math.max(4, d - 2), vz); }
+    if (k.info.cross === 'whip') { const S = crossSolve(d, rnd(1.35, 1.85), 0.25 + d / 21); speed = S.speed; vz = S.vz; }   // t-012: the computer's whipped cross
     if (k.info.chip) { const S = this.chipSolve(b, k.tx, k.ty, k.p.team, k.info.chipC || 0); speed = S.speed; vz = S.vz; }   // v0.9.2 CHIP: fast, over the keeper, dipping under the bar
     const P = LOB_PROTO && ((mode === 'lob' && k.info.loft) || k.info.chip) ? this.lobProto(k, d) : null;   // t-002 prototype B (off in a normal match)
     if (P && P.speed) { speed = P.speed; vz = P.vz; }
@@ -143,8 +157,8 @@ hc2Mix(Match, {
     b.owner = null; b.vx = dx / d * speed; b.vy = dy / d * speed; b.vz = vz; b.z = Math.max(b.z, 0.05);
     if (k.p.kickAnim === 'super') b.z = 1.0;                                      // struck in mid-air, at the height of his boot
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
-    b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft;   // lob-mechanics: an open-play lob (its drop is a duel)
-    b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null;
+    b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft; b.aimLob = !!k.info.aim;   // lob-mechanics: an open-play lob (its drop is a duel)
+    b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null;   // (t-012: the runners attack a cross until someone touches it)
     if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
     k.p.hands = false;
     b.save = null; b.saveable = null;
@@ -245,6 +259,64 @@ hc2Mix(Match, {
   lobSpot(p) { const ax = Input.axis, dv = len(ax.x, ax.y) > 0.1 ? ax : dirVec(p.face), l = len(dv.x, dv.y) || 1, d = 12 + this.lobCharge * (LOB_MAX - 12);
     if (this.chipCan(p, dv)) return { x: p.team.goalX, y: clamp(34 + (Math.abs(ax.y) > 0.2 ? ax.y * 2.4 : 0), GOAL_Y0 + 0.4, GOAL_Y1 - 0.4), chip: true };   // v0.9.2 a chip: at the goal
     return { x: clamp(p.x + dv.x / l * d, 1, PITCH_L - 1), y: clamp(p.y + dv.y / l * d, 1, PITCH_W - 1) }; },
+  // ======================================================================= t-008 THE HOLD-TO-AIM LOB (Luca 24 Oct 05:57: "the sensitivity /
+  // speed of the build up of distance power is janky and too quick [...] make the lob a hold until its the right spot
+  // then release is the actual lob kick"). The old hold charged 0 -> 1 in 0.9 s and the distance came with it, so you
+  // couldn't place it. Now pressing LOB puts the landing ring where a lob would go (the team-mate the pass logic picks that
+  // way, or LOB2.startD ahead), the stick walks it at a steady speed (actions.js lobAimTick), and the release is the kick:
+  // solved with the real flight (lobSolve) so it comes down on the ring. Its arc comes from the distance and what's in
+  // the way (lobAimApex). The tap stays the instant lob; the chip in their box and the keeper's throw keep the old hold.
+  lobAimStart(p, dir) {
+    const l = len(dir.x, dir.y) || 1, ux = dir.x / l, uy = dir.y / l, q = this.passTarget(p, { x: ux, y: uy }, 'lob', p === this.human ? this.passAim : null);
+    const qd = q ? len(q.x - p.x, q.y - p.y) : 0;
+    const s = q && qd >= LOB2.minD && qd <= LOB2.maxD ? { x: q.x + q.vx * 0.5, y: q.y + q.vy * 0.5 } : { x: p.x + ux * LOB2.startD, y: p.y + uy * LOB2.startD };
+    return this.lobAimClamp(p, s.x, s.y);
+  },
+  // the ring stays LOB2.minD-maxD from the kicker and on the pitch
+  lobAimClamp(p, x, y) {
+    let dx = x - p.x, dy = y - p.y, d = len(dx, dy); if (d < 1e-3) { const f = dirVec(p.face); dx = f.x; dy = f.y; d = 1; }
+    const dc = clamp(d, LOB2.minD, LOB2.maxD);
+    return { x: clamp(p.x + dx / d * dc, 1, PITCH_L - 1), y: clamp(p.y + dy / d * dc, 1, PITCH_W - 1) };
+  },
+  // how high it goes: over an opponent in its path it climbs clear of his head (LOB2.clearZ where he stands: the arc is
+  // close to a parabola, 4 h t (1 - t) high t of the way along); a short ball with a clear lane is driven, flatter and
+  // quicker; otherwise the open-play lob's height for the distance (lobApex). Men right next to the kicker (he blocks it
+  // off the boot, pickups) or at the drop (that's the duel) don't count.
+  lobAimApex(p, tx, ty) {
+    const b = this.ball, dx = tx - b.x, dy = ty - b.y, d = len(dx, dy) || 1; let need = 0;
+    for (const o of p.team.opp.players) {
+      if (o.sentOff) continue;
+      const al = ((o.x - b.x) * dx + (o.y - b.y) * dy) / d; if (al < 2.5 || al > d - 2.5) continue;
+      const lat = Math.abs((o.x - b.x) * dy - (o.y - b.y) * dx) / d; if (lat > 2.2) continue;
+      const t = al / d; need = Math.max(need, LOB2.clearZ * (1 - lat / 2.2 * 0.3) / (4 * t * (1 - t)));
+    }
+    const base = !need && d < LOB2.drivenD ? LOB2.drivenLo + (LOB2.drivenHi - LOB2.drivenLo) * clamp((d - LOB2.minD) / (LOB2.drivenD - LOB2.minD), 0, 1) : lobApex(d, null);
+    return clamp(Math.max(base, need), 2, LOB2.apexMax);
+  },
+  // the release: the kick to the ring, and the man who'll get there (the one the ring settled on, else the team-mate
+  // who can reach the drop soonest - he starts his run now: teamai.js lobRun)
+  aimLob(p, A) {
+    const tx = A.x, ty = A.y, apex = this.lobAimApex(p, tx, ty), T = 2 * Math.sqrt(2 * apex / G) * 0.95;   // (time up and down: enough to pick the man)
+    let q = A.q && !A.q.sentOff ? A.q : null;
+    if (!q) { let bt = 1e9; for (const m of p.team.players) { if (m === p || m.sentOff || m.keeper) continue;
+      const t = len(m.x - tx, m.y - ty) / (m.top ? m.top(true, false) : RUN); if (t < bt && t < T + 0.6) { bt = t; q = m; } } }
+    this.kick(p, tx, ty, 0, 0, 0.14, { mode: 'lob', target: q, loft: !p.keeper && !this.setPiece, aim: { apex, x: tx, y: ty } });
+    this.lobAimLast = { x: tx, y: ty, apex, q, by: p };
+    if (q && p.team === this.home) { this.nextHuman = q; this.passRing = { p: q, t: 1.0 }; this.passStick = { ...Input.axis }; }
+  },
+  // the arc drawn while you aim: the same solve the release will use, flown with ballStep (cached by the metre and 0.5 m of
+  // height, ~6 ms a miss headless: it's asked every frame and the ring moves; the path is stretched to end on the ring,
+  // and the kick itself solves exactly)
+  aimPreview(p, x, y) {
+    const b = this.ball, apex = this.lobAimApex(p, x, y), dx = x - b.x, dy = y - b.y, d = len(dx, dy) || 1, ux = dx / d, uy = dy / d;
+    const kd = Math.max(1, Math.round(d)), ka = Math.round(apex * 2) / 2, key = kd + '|' + ka + '|' + LOB_H;
+    const C = this.aimPv || (this.aimPv = new Map()); let S = C.get(key);
+    if (!S) { S = lobSolve(kd, ka, undefined, true); if (C.size > 600) C.clear(); C.set(key, S); }
+    const f = { x: 0, y: 0, z: 0.05, vx: S.speed, vy: 0, vz: S.vz, skid: true, rollV: 0 }, pts = [{ x: b.x, y: b.y, z: 0.05 }], h = 1 / 60;
+    for (let i = 1; i <= 300; i++) { const z0 = f.z; ballStep(f, h, false); const k = d / kd;
+      if (i % 2 === 0 || f.z <= 0) pts.push({ x: b.x + ux * f.x * k, y: b.y + uy * f.x * k, z: f.z }); if (z0 > 0 && f.z <= 0) break; }
+    return { pts, apex };
+  },
   // power 0..1 from holding the button; aimY -1..1 from the stick (far post / near post)
   doShot(p, power, aimY) {
     const gx = p.team.goalX; if (!this.setPiece || this.setPiece.kind !== 'PENALTY') this.stat(p.team).shots++;
@@ -462,12 +534,21 @@ hc2Mix(Match, {
         if (Math.abs(b.y - 34) > 4.3 || b.z > 3.2) { p.spSave = 0; continue; }   // off target: nothing to save
         const K = SAVE_POWER[p.spSave - 1], ok = this.clash(p);
         if (!ok) { this.guardBreak(p); continue; }
+        if (ok === 'hand') {                                                     // t-007: too strong to stop, but he gets a hand to it: over or wide
+          p.y = clamp(b.y - Math.sign(b.y - p.y || 1) * 0.5, 29.6, 38.4); p.vx = p.vy = 0;
+          this.gkDeflect(p, b.z > 1.3 || Math.random() < 0.5 ? 'tip' : 'wide'); b.special = 0; b.spP = 0;
+          this.gkSaveAnim(p); this.gkCount(p.team, 'parried'); this.flagReplay('A HAND TO IT!', p); this.shotSaved(p); return;
+        }
         p.y = clamp(b.y, 30.6, 37.4); p.vx = p.vy = 0;
-        if ((b.spP || 0) < K * 0.8) { b.special = 0; best = p; bd = 0; viaChest = false; break; }   // held
-        const rel = b.y - 34 || rnd(-1, 1);                                        // fisted away
-        b.vx = -b.vx * 0.2 + p.team.side * rnd(3, 5); b.vy = Math.sign(rel) * rnd(5, 9); b.vz = rnd(3, 5); b.z = Math.max(b.z, 0.4);
-        b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.special = 0; b.spP = 0; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
-        if (MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45);
+        if ((b.spP || 0) < K * 0.8) { b.special = 0; best = p; bd = 0; viaChest = false; this.gkCount(p.team, 'held'); break; }   // held
+        // fisted away. t-007 (Luca: "from special saves that dont fully save a ball maybe if the ball is too strong it goes
+        // over to give a corner"): a special he only just matched goes over the bar or round the post 60% of the time
+        if (Math.random() < 0.6) this.gkDeflect(p, b.z > 1.3 ? 'tip' : 'wide');
+        else { const rel = b.y - 34 || rnd(-1, 1);
+          b.vx = -b.vx * 0.2 + p.team.side * rnd(3, 5); b.vy = Math.sign(rel) * rnd(5, 9); b.vz = rnd(3, 5); b.z = Math.max(b.z, 0.4);
+          b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; p.cool = 0.5; b.ring = null; }   // (t-005: touched - no landing ring)
+        b.special = 0; b.spP = 0;
+        if (MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45); this.gkCount(p.team, 'parried');
         this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
       }
       if (b.save && b.save.gk === p) {                                           // a shot at this keeper: his body and gloves decide
@@ -480,16 +561,21 @@ hc2Mix(Match, {
           if (dmg > g + 1e-6) { this.guardBreak(p); continue; }
           p.guard = g - dmg; p.guardT = 0; if (p.guard < GUARD_POWER) this.say('', 'THE KEEPER IS RATTLED!', 0.9);
         }
-        if (hit === 'catch') { if ((p.state === 'dive' && len(b.vx, b.vy) > 20) || len(b.vx, b.vy) > 28) this.flagReplay('WHAT A SAVE!', p); best = p; bd = 0; viaChest = false; break; }
-        const rel = b.y - p.y || rnd(-1, 1), spd = len(b.vx, b.vy);               // parried: pushed wide, off the line
-        b.vx = -b.vx * 0.22 + p.team.side * rnd(2, 4); b.vy = Math.sign(rel) * rnd(4, 8) + b.vy * 0.15; b.vz = rnd(1.5, 4) + (b.z > 1.6 ? 2 : 0);
-        b.z = Math.max(b.z, 0.3); b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; p.cool = 0.5; b.ring = null;   // (t-005)
+        if (hit === 'catch') { this.gkCount(p.team, 'held'); if ((p.state === 'dive' && len(b.vx, b.vy) > 20) || len(b.vx, b.vy) > 28) this.flagReplay('WHAT A SAVE!', p); best = p; bd = 0; viaChest = false; break; }
+        const spd = len(b.vx, b.vy); this.gkCount(p.team, 'parried');           // not held: t-007 over the bar, round the post, or pushed out to the side
+        this.gkDeflect(p, hit);
         if (b.z > 1.5 && p.state !== 'dive' && MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45);   // fists it away
         if (b.special >= 2) {                                                     // v0.7: a big special knocks him flat (PixelLab 'blasted back')
           if (MAN.kits[p.kit].anims['blasted-E']) { p.setState('blasted', 1.3); p.stun = 1.3; p.face = p.team.side > 0 ? 0 : 4; p.vx = p.team.side * -2.5; p.vy = 0; }
           else if (p.state !== 'dive') { p.setState('fall', 0.7); p.vx = -b.vx * 0.05; } }
         b.special = 0;
-        this.say(spd > 24 ? 'WHAT A SAVE!' : '', 'PARRIED!', 0.8); if ((p.state === 'dive' && spd > 20) || spd > 28) this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
+        this.say(spd > 24 ? 'WHAT A SAVE!' : '', hit === 'tip' ? 'TIPPED OVER THE BAR!' : hit === 'wide' ? 'PARRIED ROUND THE POST!' : 'PARRIED!', 0.8); if ((p.state === 'dive' && spd > 20) || spd > 28) this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
+      }
+      if (box && !b.save && b.z > 1.6 && b.z < 3.15 && d < 1.3 && b.last !== p.team && !this.gkUnread(p)) {   // t-007: a high ball (a lob, a cross) he goes up for
+        const a = this.gkAerial(p);
+        if (a === 'catch') { best = p; bd = 0; viaChest = false; break; }
+        if (a === 'done') return;
+        if (a === 'skip') continue;
       }
       const smax = box ? 40 : (b.target === p ? 26 : 17);                       // the intended receiver can take a firm ball
       // chest / thigh control of a dropping ball (headers come with the v0.2 animations)
@@ -511,6 +597,61 @@ hc2Mix(Match, {
       b.ring = null;                                                             // (t-005: touched - no landing ring)
     }
   },
+  // t-007: where the ball goes off a keeper's hands (his touch is his side's last touch, so 'tip' and 'wide' are corners):
+  //  'tip'   up and over the bar (aimed to clear it by ~0.6 m at the goal line)
+  //  'wide'  round the post: it crosses the goal line 0.7-2.4 m outside the near post
+  //  'punch' a high ball fisted clear, out and up
+  //  'parry' pushed out to the side of the box, away from the middle (not back into it)
+  // Well off his line a tip (over 9 m out) or a round-the-post (over 14 m: a 1v1 out at the edge of his box) becomes a
+  // parry: there's no goal behind him to put it past. Off his line it carries on faster (up to ~60% of its pace), so
+  // it still gets there: no looping balloon.
+  gkDeflect(p, how) {
+    const b = this.ball, side = p.team.side, H = Math.max(0, (b.x - p.team.ownGoalX) * side), sp = len(b.vx, b.vy);
+    const s = Math.sign(b.y - 34) || Math.sign(b.y - p.y) || (Math.random() < 0.5 ? -1 : 1);   // the near post's side
+    const tip = how === 'tip' && H < 9, wide = how === 'wide' && H < 14;
+    this.gkCount(p.team, tip || wide ? 'kOut' : 'kIn');                         // (the soak: touches turned out v kept in play)
+    if (tip) {
+      const v1 = Math.max(rnd(2.5, 4.5), Math.min(H / 0.42, sp * 0.55)), T = Math.max(0.12, H / v1);
+      b.vx = -side * v1; b.vy = b.vy * 0.25 + rnd(-0.6, 0.6); b.vz = clamp((BAR_Z + 0.6 - b.z + 0.5 * G * T * T) / T, 3.2, 9);
+    } else if (wide) {
+      const ty = 34 + s * (3.66 + rnd(0.7, 2.4)); let v1 = Math.max(rnd(3.5, 6.5), Math.min(H / 0.5, sp * 0.6)), T = Math.max(0.12, H / v1);
+      if (Math.abs(ty - b.y) / T > 12) { T = Math.abs(ty - b.y) / 12; v1 = H / T; }
+      b.vx = -side * v1; b.vy = (ty - b.y) / T; b.vz = rnd(0.6, 2.2);
+    } else if (how === 'punch') {
+      b.vx = side * rnd(9, 14); b.vy = s * rnd(2, 6) + b.vy * 0.2; b.vz = rnd(4, 6.5);
+    } else {
+      b.vx = side * rnd(1.5, 3.5) - b.vx * 0.1; b.vy = s * rnd(5, 9) + b.vy * 0.15; b.vz = rnd(1.5, 4) + (b.z > 1.6 ? 2 : 0);
+    }
+    b.z = Math.max(b.z, 0.3); b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.lob = false; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
+    if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }                            // (t-002 prototype)
+    b.camUp = how !== 'parry' || b.vz > 3;                                       // t-007: the camera follows it up and out (world.js)
+  },
+  // t-007: the keeper's frames for a save he makes on the spot (a special he gets a hand to): a dive if he's flying already
+  gkSaveAnim(p) { if (p.state === 'dive') return; const K = MAN.kits[p.kit].anims; if (K['punch-S']) p.setState('punch', 0.45); },
+  // t-007 (Luca: "jump for a ball i lob is coming his way or at least punch it"): a high ball within his reach in his box
+  // (a lob he has read, a cross). Held when the dice say so (by its pace and his level; far less often with one of
+  // theirs on him); otherwise punched clear, or tipped over when it's dropping towards his goal near the bar.
+  // He jumps for anything over 2 m. Returns 'catch' (pickups gives it him), 'done' (it's off his fists) or 'skip'.
+  gkAerial(p) {
+    const b = this.ball, side = p.team.side, H = (b.x - p.team.ownGoalX) * side, sp = len(b.vx, b.vy, b.vz);
+    const up = p.state === 'dive' && (p.saveKind === 'leap' || p.saveKind === 'tip');
+    if (b.z > (up ? 3.1 : 2.95)) return 'skip';                                 // (over him even with a jump)
+    if (p.state === 'dive' && !up) return 'skip';                                 // (on the grass from another save)
+    const crowd = p.team.opp.players.some(o => !o.keeper && !o.sentOff && Math.min(len(o.x - b.x, o.y - b.y), len(o.x - p.x, o.y - p.y)) < 1.5);   // (one of theirs at the ball or on him)
+    const hold = Math.random() < this.gkHoldChance(p, sp, 'leap') * (crowd ? 0.15 : 1);
+    if (b.z > 2.0 && !up) {                                                       // he goes up for it
+      p.setState('dive', 0.55); p.diveLen = 0.55; p.diveFly = 0.12; p.diveDir = 0; p.diveZ = clamp(b.z, 1.8, 2.9); p.vx = p.vy = 0;
+      p.saveKind = hold ? 'leap' : 'tip'; p.leap = clamp(b.z - 1.9, 0.25, 0.7);
+    }
+    if (hold) { if (p.state === 'dive') p.diveAnim = gkMoveAnim(p, 'leap', b.y > p.y); p.gkMode = 'LEAP'; return 'catch'; }
+    const how = b.vx * -side > 1.5 && H < 5 && b.z > 2.1 && !crowd ? 'tip' : 'punch';
+    if (p.state === 'dive') p.saveKind = how;
+    this.gkDeflect(p, how); this.gkCount(p.team, 'punched'); p.gkMode = how === 'tip' ? 'TIP' : 'PUNCH';
+    if (p.state === 'dive') p.diveAnim = gkMoveAnim(p, how, b.y > p.y);
+    else if (MAN.kits[p.kit].anims['punch-S']) { const pa = gkMoveAnim(p, 'punch', false); p.setState('dive', 0.45); p.diveLen = 0.45; p.diveFly = 0.1; p.diveDir = 0; p.saveKind = 'punch'; p.leap = 0.15; p.diveAnim = pa; }
+    this.say('', how === 'tip' ? 'TIPPED OVER THE BAR!' : 'PUNCHED CLEAR!', 0.8);
+    return 'done';
+  },
   gain(p, incoming) {
     const b = this.ball, prev = b.owner;
     // v0.8.1 (Luca): no SP for passes - the AI just passed it back and forth to farm it. SP fills with time only.
@@ -519,7 +660,7 @@ hc2Mix(Match, {
     if (b.shotBy && b.shotBy.team !== p.team && p.keeper) this.missedChance(b.shotBy.team, 'held'); else b.shotBy = null;
     const back = p.keeper && b.last === p.team && b.lastP && b.lastP !== p && b.how && b.how.kind === 'pass';   // v0.9.1 (IFAB Law 12): a team-mate's pass / throw-in back to him - feet only
     const box = p.keeper && !back && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
-    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null;   // (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
+    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null; b.camUp = false;   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
     if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }                            // (t-002 prototype)
     if (prev) { prev.cool = 0.4; }
     if (box) {
