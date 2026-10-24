@@ -24,7 +24,7 @@ const GK_MOVES = {
   dive: ['kdivecatch', 'DIVE'],           // to a side, about waist to chest high
   diveHigh: ['kdivecatch', 'DIVE'],       // high to a side: up and across
   leap: ['kleap', 'claim', 'catch'],      // straight up: jump and catch it over his head
-  tip: ['ktip', 'claim', 'punch'],        // straight up: fingertips over the bar
+  tip: ['ktip', 'diveUp', 'punch'],       // straight up: fingertips over the bar (diveUp-E / -W is a full upward stretch, no ball in his hands)
   punch: ['kpunch2', 'punch'],            // a high ball fisted clear
 };
 function gkMoveAnim(k, kind, down) {
@@ -66,9 +66,9 @@ hc2Mix(Match, {
   // (under ~50 km/h) nearly always, ~65 km/h at his body three in four, a 90 km/h drive at his body one in three, at full
   // stretch hardly ever (a hard ball he can only push away is what makes corners). His level (gkSave) moves
   // it: Rise holds a ball ~10% faster than Normal, Easy ~4% slower. A ball at his body is easier than one he stretches
-  // for ('stand' / 'leap' / a dive).
+  // for ('stand' / 'leap' / a dive), and a cross or lob he comes for and meets ('claim': no shooter's pace on it) easiest.
   gkHoldChance(gk, spd, kind) {
-    const q = this.dk(gk.team).gkSave, v = spd * (1.15 - 0.15 * q) * (kind === 'stand' ? 0.9 : kind === 'leap' || kind === 'tip' ? 0.95 : 1.05);
+    const q = this.dk(gk.team).gkSave, v = spd * (1.15 - 0.15 * q) * (kind === 'claim' ? 0.75 : kind === 'stand' ? 0.9 : kind === 'leap' || kind === 'tip' ? 0.95 : 1.05);
     return clamp(0.97 - (v - 13) * 0.085, 0.05, 0.97);
   },
   // t-007: a touch he can't hold - does he push it out (a corner) or keep it in play? Off his line or on his heels he
