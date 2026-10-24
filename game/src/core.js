@@ -1,4 +1,5 @@
-// HELP OUT HAGUE CUP II - web game v0.10.3 (Luca OK'd PR #7 + #8, 24 Oct 06:16: ARCADE PACE part 1 - PACE: CLASSIC (today, the default) / ARCADE (run 6.0 / sprint 8.8, snappier, less waiting) on the start screen and in Options (worker-f, t-004); LOB STEP 1 - lobs really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches it, the real power-lob arc, the keeper reads a lob by level (worker-l, t-005). The 4 calls with the taskmaster's picks: keep rates same as before, the keeper's read also holds claim / sweep, a full power lob trimmed to ~2.35 s (6.6 m), the high-ball shadow fades less)
+// HELP OUT HAGUE CUP II - web game v0.10.4 (Luca 24 Oct 06:21, "of immediate importance": the GOAL KICK is a clean cut - a TV wipe, then the keeper at the edge of his six-yard box with the ball in his hands and both teams in a goal-kick shape (his centre-backs split, full-backs wide, the other side outside his box); he plays it out of his hands like after a catch (you: PASS throws, LOB punts). Luca 06:24: no replays while the ball is live - big saves / near misses / aerial specials go to HIGHLIGHTS in CLASSIC too, as in ARCADE; the goal replay after a goal stays)
+// v0.10.3 (Luca OK'd PR #7 + #8, 24 Oct 06:16: ARCADE PACE part 1 - PACE: CLASSIC (today, the default) / ARCADE (run 6.0 / sprint 8.8, snappier, less waiting) on the start screen and in Options (worker-f, t-004); LOB STEP 1 - lobs really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches it, the real power-lob arc, the keeper reads a lob by level (worker-l, t-005). The 4 calls with the taskmaster's picks: keep rates same as before, the keeper's read also holds claim / sweep, a full power lob trimmed to ~2.35 s (6.6 m), the high-ball shadow fades less)
 // v0.10.2 (Luca 24 Oct: "make it so i can resume a game that was last played in the menu": RESUME on the start screen - a normal match against the computer keeps a snapshot in this browser (score, clock, half, that match's settings, every player's shirt / legs / cards, subs, special meters, stats; resume.js), saved every 5 s of play, on QUIT TO MENU and when the page is hidden, cleared at full time / penalties; it picks up with a kick-off for the side that had the ball. Not for the cup, watch mode, the penalty battle or the Lab. Saving only reads: the same seeded matches give the same scores, 8/8 with a save every 7 frames)
 // v0.10.1 (the first nightly QA run's two fixes, PR #5 + #6: BUG WATCH no longer changes the match it watches - its clip ids used the game's own dice, so the same seed played a different match with it on or off; and the ANIMATION FLICKER is down ~90% - every idle / walk / run picture, direction included, stays up at least 0.11 s (not your own player, not in replays). Seeded matches: Bug Watch on = off = v0.10.0)
 // v0.10.0 (worker-f, PR #3 / t-002 stage 1: the LOB AND CHIP revamp starts - the plan (docs/lob-chip.md) and three prototypes, OFF in the game: open the page with #lobA, #lobB or #lobC (or ?lob=) to try a direction. Luca picked B in steps: real backspin, floated / driven / chip; arcade chip on LOB + SHOOT; the driven lob behind a switch first; PixelLab keeper backpedal / tip-over. Off = the same seeded matches as v0.9.9)
@@ -67,7 +68,7 @@ const PACE_OPTS = [['classic', 'CLASSIC'], ['arcade', 'ARCADE']];
 const PACE = {
   classic: { RUN: 5.2, SPRINT: 7.7, ACC: 12, DEC: 26, SPRINT_DRAIN: 0.23, WITH_BALL: 0.9, WITH_BALL_SPRINT: 0.94,
     koFreeze: 1.2, half2Freeze: 1.6, spFreeze: 0.5, deadT: 1, aiTake: 1.3, htOff: 3.2, htCard: 25, htAnyKey: false,
-    goalWaitMs: 1450, goalFrames: 330, goalSlowPre: 1.7, goalSlow: 2.0, skipAfter: 0.4, evReplays: true },
+    goalWaitMs: 1450, goalFrames: 330, goalSlowPre: 1.7, goalSlow: 2.0, skipAfter: 0.4, evReplays: false },   // v0.10.4 (Luca 06:24: "dont do replays mid game being live, its janky"): big saves / near misses go to HIGHLIGHTS in CLASSIC too
   // A: end to end in ~12 s, snappier starts and turns, sprint more, dribbles that go somewhere. D: kick-off 0.6 s,
   // restarts taken after ~0.8 s, one short (~4 s) goal replay skippable at once, saves / near misses only in
   // HIGHLIGHTS, half time an 8 s card that any key skips
@@ -130,7 +131,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.10.3';
+const GAME_VER = 'v0.10.4';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)
