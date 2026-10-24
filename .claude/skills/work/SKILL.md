@@ -14,6 +14,8 @@ If it doesn't, ask once. `docs/agents.md` explains the whole setup; CLAUDE.md's 
 2. **Read the brief**: `bash tools/agent.sh show tasks/<you>/<task>.md`. If the task has a review already, read the
    newest one too (`bash tools/agent.sh show reviews/<report name>`; `tasks` shows the state) and do what it asks.
 3. **Branch** from the latest `main`: `git checkout -b <you>/<task>-<short-topic>`. For needs-work, reuse that branch.
+   - New task: first `git ls-remote origin "refs/heads/<you>/<task>-*"`. A branch for it already there means another
+     session took it (24 Oct: t-011 got built twice): don't start a second one; send a `question` report and stop.
 4. **Do it.**
    - Touch only the files the brief lists. Something outside them needs changing? Ask (step 7, `question`) rather
      than doing it: another agent may be working there.
