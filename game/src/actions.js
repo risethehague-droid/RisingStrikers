@@ -472,8 +472,10 @@ hc2Mix(Match, {
     let pWin = front > 0.3 ? 0.8 : front > -0.3 ? 0.55 : 0.2;                   // in his path / beside him / behind him
     if (len(b.x - carrier.x, b.y - carrier.y) < 0.7) pWin -= 0.1;               // tight control is harder to win
     if (db < 0.9) pWin += 0.08;                                                  // right on the ball
-    if (human) { const Y = this.dkY(carrier.team); pWin += Y.yb - Y.sh; }         // (v0.9.3: by level, was always +0.08; the top levels shield it)
-    if (vsHuman) { const Y = this.dkY(p.team); pWin -= carrier.burst > 0 ? Math.max(0.2, 0.3 * Y.tk) : (carrier.sprinting ? 0.2 : 0.12) * Y.tk; }   // you can beat the computer with a burst (v0.9.3: by how much, by level)
+    if (human) { const Y = this.dkY(carrier.team), P = paceK(); pWin += Y.yb - (Y.sh * P.shK + (Y.sh > 0 ? P.shAdd : 0)); }   // (v0.9.3: by level, was always +0.08; the top levels shield it;
+                                                                                   // arcade-2: on ARCADE more, so the quicker game isn't easier to defend)
+    if (vsHuman) { const Y = this.dkY(p.team); pWin -= carrier.burst > paceK().burstT - 0.55 ?   // (arcade-2: ARCADE's longer dash protects you only its first 0.55 s, as on CLASSIC)
+      Math.max(0.2, 0.3 * Y.tk) : (carrier.sprinting ? 0.2 : 0.12) * Y.tk; }   // you can beat the computer with a burst (v0.9.3: by how much, by level)
     else if (carrier.burst > 0) pWin -= 0.25;                                     // v0.8.2: the computer's take-on burst too
     if (paceK().duels && front > -0.3 && Math.abs(pWin - 0.5) < 0.22 && !carrier.keeper && this.duelReady() && Math.random() < 0.35) {   // arcade-2: a CONTESTED tackle (not a clear
       const h = clamp((pWin - 0.5) * 7, -AERIAL.hsMax, AERIAL.hsMax); this.aerialStart(carrier, p, { x: b.x, y: b.y }, { kind: 'ground', hs: [-h, h] }); return; }   // win or loss) becomes a MASH duel; the better tackle is a head start

@@ -358,7 +358,7 @@ hc2Mix(Match, {
       if (p.takeT <= 0) { const lat = front.y - p.y, edge = p.y < 9 ? 1 : p.y > PITCH_W - 9 ? -1 : 0;
         p.takeSide = edge || (Math.abs(lat) > 0.5 ? -Math.sign(lat) : (Math.sign(34 - p.y) || 1)); p.takeT = rnd(0.9, 1.5); }
       const a = clamp((6 - fd) / 6, 0, 1) * 0.85; dx = side * Math.cos(a); dy = p.takeSide * Math.sin(a) + dy * 0.25;
-      const KB = this.dk(team); if (fd < 3.2 && p.stamina > 0.35 && (p.burstCd || 0) <= this.time.now && Math.random() < dt * 2.5 * KB.burst) { p.burst = 0.5 * (paceK().burstT / 0.55); p.burstCd = this.time.now + 1800 * KB.burstCd; }   // (v0.9.3: by level)
+      const KB = this.dk(team); if (fd < 3.2 && p.stamina > 0.35 && (p.burstCd || 0) <= this.time.now && Math.random() < dt * 2.5 * KB.burst * paceK().aiBurst) { p.burst = 0.5 * (paceK().burstT / 0.55); p.burstCd = this.time.now + 1800 * KB.burstCd; }   // (v0.9.3: by level)
     }
     const go = (near > 7 || p.burst > 0) && p.stamina > 0.3;                    // open grass / beating his man: knock it on and sprint
     p.sprinting = go; const v = p.top(go, true) * 0.95, dl = len(dx, dy) || 1;
