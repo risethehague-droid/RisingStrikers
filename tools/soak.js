@@ -38,10 +38,12 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     // t-012 WING COUNTERS (wing play, crosses, aerial shots): wrapped around the game's own moves, so they count the same
     // on any version (the before / after soaks of t-012). cross = an open-play ball from wide (or lofted) aimed into the box
     const W = window.__wing = { z() { Object.assign(W, { cross: 0, crossWhip: 0, crossFloat: 0, crossCut: 0, crossH: 0, crossA: 0, crossL: 0, crossR: 0, crossGoalsL: 0, crossGoalsR: 0, headTry: 0, spCross: 0, aerial: 0, head: 0, volley: 0, bike: 0, dhead: 0, airSp: 0,
-      goals: 0, aerialGoals: 0, airSpGoals: 0, headGoals: 0, crossGoals: 0, chips: 0, goalLog: [], lastCross: null, lastAerial: null }); } }; W.z();
+      goals: 0, aerialGoals: 0, airSpGoals: 0, headGoals: 0, crossGoals: 0, chips: 0, goalLog: [], lastCross: null, lastAerial: null,
+      lobs: 0, aimLobs: 0, battles: 0, battleAtt: 0, battleDef: 0 }); } }; W.z();   // (t-008: open-play lobs, hold-aimed lobs, aerial battles and who won them)
     const inBox = (t, team) => Math.abs(t.x - team.goalX) < 16.5 && Math.abs(t.y - 34) < 20.2;
     const aer = (kind, p) => { W.aerial++; W[kind]++; W.lastAerial = { kind, team: p.team, t: m.time.now }; };
     const rk = m.releaseKick; m.releaseKick = function (k) { const b = this.ball, had = b.owner === k.p, fx = b.x, fy = b.y, r = rk.call(this, k);
+      if (had && !b.owner && b.lastP === k.p && k.info.loft) { W.lobs++; if (k.info.aim) W.aimLobs++; }
       if (had && !b.owner && b.lastP === k.p) W.lastKick = { p: k.p, kind: k.info.shot ? 'shot' : k.info.cross ? 'cross' : 'pass' };
       if (had && !b.owner && b.lastP === k.p && !k.p.keeper) {
         if (k.info.shot) { if (k.info.chip) W.chips++; if (!k.info.special && (k.p.kickAnim === 'volley' || k.p.kickAnim === 'bicycle')) aer(k.p.kickAnim === 'volley' ? 'volley' : 'bike', k.p); }
@@ -57,6 +59,9 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
         if (!W.wideOwner && o && !o.keeper && Math.abs(o.y - 34) > 11 && Math.abs(o.team.goalX - o.x) < 32.5) { W.wideOwner = o; W.wideIn++; W.lastKick = null; } }
       if (o && !o.keeper && Math.abs(o.y - 34) > 11 && Math.abs(o.team.goalX - o.x) < 30 && o.speed < 1) { W.wideT += dt; if (W.wideT >= 4 && W.wideT - dt < 4) W.wideHold++; } else W.wideT = 0;
       return r; };
+    if (m.aerialStart) { const as = m.aerialStart, ae = m.aerialEnd;              // t-008 AERIAL BATTLES (only on a version that has them)
+      m.aerialStart = function (...a) { W.battles++; return as.apply(this, a); };
+      m.aerialEnd = function (...a) { const A = this.aerial, r = ae.apply(this, a); if (A && A.res) W[A.res === 'att' ? 'battleAtt' : 'battleDef']++; return r; }; }
     const hd = m.header; m.header = function (p, kind) { if (kind === 'goal') aer('head', p); return hd.call(this, p, kind); };
     const dt0 = m.diveTick; m.diveTick = function (dt) { const b = this.ball, h0 = b.how, p = this.diving && this.diving.p, r = dt0.call(this, dt);
       if (p && b.how !== h0 && b.how && b.how.kind === 'dheader' && len(p.team.goalX - p.x, 34 - p.y) < 25) aer('dhead', p); return r; };

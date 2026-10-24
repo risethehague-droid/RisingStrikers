@@ -360,3 +360,70 @@ lob) the ring and the shadow. Each line says what it measured against what it sh
 change to a flight reshuffles every later dice roll. Seed 99 (the one the 75% / 50% figures came from) is a lucky
 seed for v0.10.1. Over 10 seeds (1-10, ~890 of your lobs and ~510 of the computer's each) step 1 keeps what v0.10.1
 keeps: you 65.2% v 65.4%, the computer 25.8% v 27.4% (± 1.6-1.9).
+
+---
+
+## 8. Step 2 (Luca's version, t-008, worker-l): hold to aim, smoother receiving, the AERIAL BATTLE
+
+Luca, 24 Oct 05:57: *"the lob pass needs to be re made completely [...] make the lob a hold until its the right spot
+then release is the actual lob kick to pass it, then work on the receiving the ball ai logic so its smooth so aerial
+shots are easier to do and become more common [...] transition a smooth aerial battle where you have to mash kick
+against the computer"*. This replaces the old "step 2" plan above (the spin model and the three kicks stay parked behind
+`#lobB`). Every number is in `core.js` (`LOB2`, `AERIAL`) and the computer's mash rate in `difficulty.js` (`mash`).
+
+### Hold LOB to aim (your open-play lob)
+| What | Where | How it works |
+| --- | --- | --- |
+| Press | `actions.js` `lobPress`, `ball.js` `lobAimStart` | the landing ring appears where a lob would go: on the team-mate the pass logic picks that way (8-45 m out), else 20 m ahead |
+| Hold | `actions.js` `lobAimTick` | the stick walks the ring at 16 m/s (`LOB2.ringV`), easing in from 25% over 0.22 s, so a tap of a key nudges it ~0.1 m; it stays 8-45 m from the kicker and on the pitch. The kicker slows to 35% (he shields it; the stick is the ring's now) |
+| Magnet | `actions.js` `lobAimMagnet`, `teamai.js` `lobAimMate` | within 3 m of a team-mate the ring settles 60% of the way onto him and he walks to it, so it ends on the spot he'll reach; it lets go past 3.8 m |
+| Release | `ball.js` `aimLob`, `releaseKick` | the kick, solved with the real flight (`lobSolve`, drag included) from where the ball is as it leaves the boot, so it lands on the ring (LB1-LB3: 0.01-0.15 m) |
+| Arc | `ball.js` `lobAimApex` | over an opponent in its path (not the man pressing the kicker, not the men at the drop) it climbs to clear him by 3.2 m where he stands; a clear lane under 22 m is driven (2.3-3.3 m peak); otherwise the open-play lob for the distance (`lobApex`) |
+| Tap | as before | let go within 0.18 s (`LOB2.tapT`) = the instant lob to a team-mate (`doPass(..., 'lob')`) |
+| Unchanged | | the chip in their box (`chipCan` / `chipShot`, the old hold), the keeper's throw / punt, set pieces' aim cursor, the computer's lobs |
+| On screen | `ui.js` `drawLobAim` | the ring (pulsing; solid and a marker over him once it has settled), the ball's real arc to it (`aimPreview`, cached by the metre), then the lofted ball's own landing ring |
+
+**My call on "hold longer for a higher ball":** no. The hold is for aiming now, so how long you hold must not change
+the kick; the height comes only from the distance and who's in the way, the same every time (learnable).
+
+### Receiving
+- `teamai.js` `lobRun` (the new AI and your controlled man with the stick idle): the man a lob is for heads for the
+  point where it comes down through head height (inside 25 m of goal: a header at goal) or chest height, at the speed
+  that gets him there just as it does, so he meets it on the move instead of waiting. Can't make it: the old intercept.
+- `teamai.js` `lobMarkLate`: his marker goes with him only after 0.35 s (`LOB2.markDelay`).
+- You: SHOOT pressed while a lob drops to you is kept until it arrives (up to 1.4 s, was 0.7 s); a ball that comes
+  past head height volleys at goal as it reaches you; your header at goal with the stick idle goes away from the keeper.
+- `lobDuel`: the computer's man meets your aimed lob with a header at goal from 22 m (18 m for other lobs). A flat,
+  fast ball no longer waits to drop onto his chest (it came on at his head and bounced off him).
+- The classic AI (v0.7.6) is left as it was.
+
+### The AERIAL BATTLE (`actions.js` `aerialCheck` ... `aerialEnd`, `ui.js` `drawAerial` / `aerialPop`)
+- **When:** either side's open-play lob (incl. the computer's floated crosses), 0.45 s before it drops to head height:
+  the nearest man of each side within 3 m of the drop and of each other, both able to be within 2.3 m of it by then,
+  their keeper not within 8 m. 90% of those (`AERIAL.chance`), never two within 5 s of play (`AERIAL.cool`).
+- **On screen:** slow motion (the game's 0.4), the camera centres on the pair, the ball drifts to the drop and hangs at
+  2.15 m, the crowd rises; **MASH!** (your side defending: **PRESS!**) pops in with the key to hit; a tug-of-war bar
+  in the two teams' colours; every press a spark (an impact every 3rd, a sparkle every 4th) from the `fx` atlas, a note
+  that climbs, a little shake. Then WON IT! / CLEARED!
+- **The mash:** 1.2 s of SHOOT presses (any press, pad or touch; holding counts once). The computer: 6.5 a second at
+  NORMAL x its level (Easy ~5.2, Hard ~8.3, Rise Warrior ~10), ±18% per battle. Head start (in presses, max ±3): 1.4 per
+  metre closer to the drop, 0.8 for facing it, 0.6 for the man it was meant for, 0.6 x stamina (fresh legs jump higher).
+- **Attacker wins:** inside 26 m of goal a header at goal (or the aerial special: SPECIAL pressed during the battle with
+  SP banked, or the computer's own choice); further out he heads it down to his feet.
+- **Defender wins:** a header clear: 50% a random direction, 50% by position (up the pitch and out towards the nearer
+  touchline); never back towards his own goal, and near it never across his box.
+- The camera zoom isn't tightened: the zoom lives in `world.js` (not this task's file); a follow-up can add it there.
+
+### Test Lab group LB (`GROUP=LB node tools/grp.js`)
+The Lab plays you through the touch controls (`Input.touch`, the phone's path). LB6-LB8 set `AERIAL.chance` to 1.
+
+| Test | Result |
+| --- | --- |
+| LB1 ring to ~12 m | 12.3 m, peak 2.66 m (driven: clear lane), 1.5 s, lands 0.01 m from the ring |
+| LB2 ring to ~25 m, a defender 6 m in front | 24.0 m, peak 4.74 m (over him), 2.0 s, 0.08 m |
+| LB3 ring to ~40 m | 38.7 m, peak 5.65 m, 2.18 s, 0.09 m |
+| LB4 a tap | the instant lob, he controls it |
+| LB5 magnet | the ring settles on #9, he walks 2.3 m to it, times his run, meets it at 2.4 m: header at goal (the keeper holds it) |
+| LB6 a battle you win | 14 presses + 2.9 head start v 8 + 0.3: header at goal (held) |
+| LB7 a battle you lose | 0 + 2.9 v 6 + 0.3: cleared to the top touchline (he was top side) |
+| LB8 their lob, your defender | you 7 + 1.7 v 6 + 1.5: you clear it up the pitch |

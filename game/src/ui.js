@@ -377,7 +377,7 @@ hc2Mix(Match, {
     if (!blink) g.fillStyle(low ? 0xff2878 : 0x28c8e6).fillRect(X - 16, Y + 5, Math.round(32 * st), 3);
     // v0.7.4 pass preview: a thin pulsing ring under the mate a pass would find right now (you see who before you press)
     const pa = this.passAim;
-    if (pa && b.owner === hp && this.charge < 0 && !this.setPiece && !(this.passRing && this.passRing.t > 0 && this.passRing.p)) {
+    if (pa && b.owner === hp && this.charge < 0 && !this.lobAim && !this.setPiece && !(this.passRing && this.passRing.t > 0 && this.passRing.p)) {
       const k = 0.5 + 0.25 * Math.sin(this.time.now / 110), cx = Math.round(wx(pa.x, pa.y)), cy = Math.round(wy(pa.y)) - 2;
       this.ring.lineStyle(2, 0x28c8e6, k).strokeEllipse(cx, cy, 38, 14);
       this.ring.fillStyle(0x28c8e6, k).fillTriangle(cx - 7, cy - 172, cx + 7, cy - 172, cx, cy - 162);
@@ -399,6 +399,7 @@ hc2Mix(Match, {
     const LR = !this.replay && this.ringSpot();
     if (LR) { const rx = Math.round(wx(LR.x, LR.y)), ry = Math.round(wy(LR.y)) - 2, col = LR.chip ? 0xff2878 : 0x28c8e6;
       this.ring.lineStyle(5, INK, 0.75).strokeEllipse(rx, ry, 44, 17).lineStyle(3, col, 0.95).strokeEllipse(rx, ry, 44, 17).fillStyle(col, 0.95).fillRect(rx - 1, ry - 1, 3, 3); }
+    if (!this.replay) { this.drawLobAim(g, INK); this.drawAerial(g, INK); }      // t-008: the hold-to-aim ring, the AERIAL BATTLE
     // set piece (yours): aim cursor on the pitch + a line from the ball
     const sp = this.setPiece;
     if (sp && !sp.kicked && sp.team === this.home && this.aimPt) {
@@ -453,6 +454,53 @@ hc2Mix(Match, {
       g.fillStyle(col).fillRect(px, py, Math.round(60 * c), 8);
       g.fillStyle(0xf4f0e4).fillRect(px + 33, py - 2, 1, 12).fillRect(px + 51, py - 2, 1, 12);   // sweet spot 0.55-0.85
     }
+  },
+  // t-008 HOLD LOB TO AIM: the landing ring you walk with the stick (pulsing; solid once it has settled on a team-mate,
+  // with the marker over him), the ball's real arc to it (ball.js aimPreview), and from the release until the ball is
+  // off the boot the same ring stays (then the lofted ball's own landing ring, ringSpot, takes over)
+  drawLobAim(g, INK) {
+    const A = this.lobAim, hp = this.human, b = this.ball, CY = 0x28c8e6;
+    const ring = (x, y, a, w = 44, h = 17) => { const rx = Math.round(wx(x, y)), ry = Math.round(wy(y)) - 2;
+      this.ring.lineStyle(5, INK, 0.8 * a).strokeEllipse(rx, ry, w, h).lineStyle(3, CY, a).strokeEllipse(rx, ry, w, h).fillStyle(CY, a).fillRect(rx - 1, ry - 1, 3, 3); return { rx, ry }; };
+    if (A && b.owner === hp) {
+      const k = 0.75 + 0.25 * Math.sin(this.time.now / 90), V = this.aimPreview(hp, A.x, A.y);
+      const arc = (w, col, a) => { g.lineStyle(w, col, a); g.beginPath(); V.pts.forEach((q, i) => { const x = wx(q.x, q.y), y = wy(q.y, q.z) - 6; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.strokePath(); };
+      if (A.t >= LOB2.tapT * 0.5) { arc(4, INK, 0.6); arc(2, CY, 0.9); }       // (not on a quick tap: no flash of an arc)
+      const R = ring(A.x, A.y, A.q ? 1 : k, A.q ? 50 : 44, A.q ? 19 : 17);
+      if (A.q) { const q = A.q, qx = Math.round(wx(q.x, q.y)), qy = Math.round(wy(q.y)) - 2, bob = Math.round(3 * Math.sin(this.time.now / 140));
+        g.fillStyle(INK, 0.9).fillTriangle(qx - 11, qy - 176 + bob, qx + 11, qy - 176 + bob, qx, qy - 157 + bob).fillStyle(CY, 1).fillTriangle(qx - 8, qy - 174 + bob, qx + 8, qy - 174 + bob, qx, qy - 160 + bob); }
+      else if (len(A.rx - A.x, A.ry - A.y) > 0.3) ring(A.rx, A.ry, 0.35, 20, 8);
+      return;
+    }
+    const P = this.pending, L = this.lobAimLast;
+    if (P && P.info.aim && L && P.p === L.by) ring(L.x, L.y, 1);
+  },
+  // t-008 THE AERIAL BATTLE on screen: MASH! (PRESS! for the defending side), the key to hit, a tug-of-war bar in the two
+  // teams' colours over the pair (live: who's winning), sparks and impacts off the ball from the fx atlas (aerialPop)
+  drawAerial(g, INK) {
+    const A = this.aerial;
+    if (!A) { if (this.aerUi) for (const k in this.aerUi) this.aerUi[k].setVisible(false); return; }
+    if (!this.aerUi) { const F = '"Press Start 2P"';
+      this.aerUi = { t: this.add.text(0, 0, 'MASH!', { fontFamily: F, fontSize: '26px', color: '#ffde1e', stroke: '#0c0a0e', strokeThickness: 7 }).setOrigin(0.5).setDepth(8.6e6),
+        k: this.add.text(0, 0, '', { fontFamily: F, fontSize: '9px', color: '#0c0a0e', backgroundColor: '#ffde1e', padding: { x: 5, y: 4 } }).setOrigin(0.5, 0).setDepth(8.6e6) }; }
+    const U = this.aerUi, D = A.D, cx = Math.round(wx(D.x, D.y)), cy = Math.round(wy(D.y)) - 205, mine = !this.demo && (A.att.p === this.human || A.def.p === this.human);
+    const intro = A.phase === 'intro', s = intro ? 0.3 + 0.7 * clamp(A.t / AERIAL.introT, 0, 1) : 1 + 0.1 * Math.sin(this.time.now / 45) + (A.pulse = Math.max(0, (A.pulse || 0) - 0.06));
+    const word = A.phase === 'done' ? (A.res === 'att' ? 'WON IT!' : 'CLEARED!') : mine && A.def.p === this.human ? 'PRESS!' : 'MASH!';
+    U.t.setText(word).setPosition(cx, cy - 34).setScale(s).setAngle(intro ? 0 : Math.sin(this.time.now / 60) * 3).setVisible(true);
+    U.k.setText(mine && A.phase !== 'done' ? `${keyset().shoot}  ${keyset().shoot}  ${keyset().shoot}` : '').setPosition(cx, cy + 14).setVisible(mine && A.phase !== 'done');
+    const sa = this.aerialScore(A.att), sd = this.aerialScore(A.def), sh = A.share = A.share == null ? 0.5 : A.share + (sa / (sa + sd) - A.share) * 0.25;
+    const W = 150, x0 = cx - W / 2, y0 = cy, ca = TEAM_COL[A.att.p.team.name] ?? 0x28c8e6, cd = TEAM_COL[A.def.p.team.name] ?? 0xff2878, mx = Math.round(x0 + W * sh);
+    g.fillStyle(INK, 0.9).fillRect(x0 - 3, y0 - 3, W + 6, 14).fillStyle(ca, 1).fillRect(x0, y0, mx - x0, 8).fillStyle(cd, 1).fillRect(mx, y0, x0 + W - mx, 8);
+    g.fillStyle(0xf4f0e4, 1).fillRect(mx - 2, y0 - 6, 4, 20).fillStyle(INK, 1).fillRect(cx, y0 - 3, 1, 14);   // the marker, and the middle
+  },
+  // a press in the battle: sparks off the ball, an impact for every third (the PixelLab fx atlas)
+  aerialPop(att) {
+    const A = this.aerial; if (!A || !this.textures.exists('fx') || !this.cameras.main.visible) return; A.pulse = 0.25;
+    const n = (att ? A.att : A.def).n, j = (n * 37 + (att ? 0 : 11)) % 21 - 10;  // (a jitter from the press count: no dice here, so a replay or a headless run plays the same)
+    const b = this.ball, X = wx(b.x, b.y) + j + (att ? -6 : 6), Y = wy(b.y) - 10 - b.z * PX_H + ((n * 13) % 17 - 8);
+    const pop = (name, s0, s1, ms, a = 1) => { const im = this.add.image(X, Y, 'fx', name).setScale(s0).setAlpha(a).setDepth(wy(b.y) + 3).setAngle((n * 67) % 360);
+      this.tweens.add({ targets: im, scale: s1, alpha: 0, duration: ms, ease: 'Cubic.easeOut', onComplete: () => im.destroy() }); };
+    pop('sparks', 0.5, 1.5, 260, 0.95); if (n % 3 === 0) pop(n % 6 === 0 ? 'impactBig' : 'impact', 0.4, 1.0, 180, 0.8); if (n % 4 === 0) pop('sparkle', 0.5, 1.2, 300, 0.8);
   },
   drawRadar() {
     const g = this.radar, W = 168, H = 108, x0 = VIEW_W - W - 16, y0 = window.HC2_TOUCH ? 62 : VIEW_H - H - 16;   // touch: top right, under the away SP meter (the buttons sit bottom right)

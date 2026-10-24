@@ -25,6 +25,7 @@ hc2Mix(Match, {
   controlHuman(dt) {
     const b = this.ball, me = this.human, team = this.home;
     const prevAir = this.airSp; this.airSp = null;                               // v0.8.6 (set again below while the moment lasts)
+    if (this.aerial) { this.lobAim = null; this.aerialInput(); return; }         // t-008: an AERIAL BATTLE is on - your SHOOT presses are the mash
     if (b.owner && b.owner.team === team && b.owner !== me) this.human = b.owner;
     if (!b.owner && this.nextHuman && b.last === team) { /* ball travelling to a team-mate: switch once it is closer to him */
       const q = this.nextHuman; if (len(q.x - b.x, q.y - b.y) < len(this.human.x - b.x, this.human.y - b.y)) { this.human = q; this.nextHuman = null; }
@@ -38,12 +39,13 @@ hc2Mix(Match, {
     p.sprinting = sprint;
     let spd = p.top(sprint, owns);
     if (owns && this.charge >= 0) spd *= 0.75;                                   // winding up a shot slows you down
+    if (owns && this.lobAim) spd *= LOB2.aimSlow;                                // t-008: aiming a lob he shields it (the stick walks the ring)
     // pass coming to me: he runs onto it by himself while the stick is idle OR still held the way you passed it
     // (v0.6 sent him off in the pass direction - away from the ball). Point somewhere new and you take over.
     const ps = this.passStick, sameStick = ps && len(ps.x, ps.y) > 0.1 && moving && (ax.x * ps.x + ax.y * ps.y) / (len(ax.x, ax.y) * len(ps.x, ps.y)) > 0.7;
     if (moving && !sameStick) this.passStick = null;
     if (!b.owner && b.target === p && b.last === team && (!moving || sameStick)) {
-      const v = p.top(sprint, false), pt = this.intercept(p, v, 0.12, b.lob ? 1.9 : 1.0); p.moveTo(pt.x, pt.y, v, dt);   // lob-mechanics: meet it in the air
+      if (!this.lobRun(p, dt)) { const v = p.top(sprint, false), pt = this.intercept(p, v, 0.12, b.lob ? 1.9 : 1.0); p.moveTo(pt.x, pt.y, v, dt); }   // lob-mechanics: meet it in the air (t-008: a lob - timed to arrive under the drop)
     } else if (owns && moving) this.carrySteer(p, ax.x, ax.y, spd, dt, sprint ? (p.burst > 0 ? ACC * 1.35 : ACC * 0.85) : ACC);
     else p.steer(ax.x * spd, ax.y * spd, dt, sprint ? (p.burst > 0 ? ACC * 1.35 : ACC * 0.85) : ACC);
     const dir = moving ? ax : dirVec(p.face);
@@ -62,15 +64,16 @@ hc2Mix(Match, {
     if (owns) {
       if (Input.pressed('pass')) this.doPass(p, dir, 'ground');
       else if (Input.pressed('through')) this.doPass(p, dir, 'through');
-      else if (Input.pressed('lob')) this.lobCharge = 0;                          // v0.8.5: a tap = the lob to a team-mate, hold = power
-      if (this.lobCharge >= 0) {
+      else if (Input.pressed('lob')) this.lobPress(p, dir);                       // v0.8.5: a tap = the lob to a team-mate (t-008: hold = aim the landing ring)
+      if (this.lobAim) { if (this.lobAimTick(p, ax, dir, dt)) return; }
+      else if (this.lobCharge >= 0) {                                             // (the chip in their box and the keeper's throw: the old hold)
         if (Input.held('lob')) this.lobCharge = Math.min(1, this.lobCharge + dt / 0.9);
         else { const c = this.lobCharge; this.lobCharge = -1; if (this.chipCan(p, dir)) this.chipShot(p, c, ax.y); else if (c < 0.2) this.doPass(p, dir, 'lob'); else this.powerLob(p, dir, c); }   // v0.9.2: in their box facing goal = CHIP
       }
       if (Input.held('shoot')) { this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / 0.8); this.aimY = ax.y; }
       if (Input.released('shoot') && this.charge >= 0) { this.doShot(p, this.charge, this.aimY); this.charge = -1; }
     } else {
-      this.charge = -1; this.lobCharge = -1;
+      this.charge = -1; this.lobCharge = -1; this.lobAim = null;
       // v0.8.6 AERIAL SPECIAL: a ball dropping to you at volley / head height in their half, near enough to goal, SP in the bank
       const mtA = this.meterOf(team), dA = len(b.x - p.x, b.y - p.y), toG = len(team.goalX - p.x, 34 - p.y);
       const coming = (b.x - p.x) * b.vx + (b.y - p.y) * b.vy < 0 || dA < 1.2;     // dropping towards him
@@ -89,7 +92,12 @@ hc2Mix(Match, {
         this.divingHeader(p);                                                  // too far to volley, too low to head: throw yourself at it
       }
       else if ((Input.pressed('shoot') || Input.pressed('pass')) && !b.owner) {  // ball in the air: get ready to head it
-        this.headBuf = 0.7; this.headKind = Input.pressed('shoot') ? 'shoot' : 'pass';   // lob-mechanics: 0.7 s (was 0.35 s, near impossible to time)
+        this.headBuf = Math.max(0.7, this.lobDropIn(p)); this.headKind = Input.pressed('shoot') ? 'shoot' : 'pass';   // lob-mechanics: 0.7 s (was 0.35 s, near impossible to time)
+      }                                                                          // (t-008: a lob dropping to you - kept until it gets there)
+      // t-008 (Luca: "so aerial shots are easier to do and become more common"): SHOOT pressed as a lob drops to you and it
+      // came down past head height without a header: you volley it at goal as it reaches you (it took a second press)
+      else if (this.headBuf > 0 && this.headKind === 'shoot' && !b.owner && b.last === team && b.z > 0.25 && b.z < 1.0 && len(b.x - p.x, b.y - p.y) < 1.6 && !p.busy()) {
+        b.owner = p; this.doShot(p, 0.6, ax.y); p.kickAnim = 'volley'; this.headBuf = 0;
       }
     }
   },
@@ -112,6 +120,7 @@ hc2Mix(Match, {
   headers() {
     const b = this.ball, bsp = len(b.vx, b.vy);
     if (b.special && b.pierce > 0) return;                                      // v0.8.6: nobody heads / volleys a special that still blows through people
+    if (this.aerial || this.aerialCheck()) return;                               // t-008: a clear contest at the drop = the AERIAL BATTLE
     if (this.lobDuel()) return;                                                  // lob-mechanics: a lob's drop is a duel first
     // AI: a fast ball across the box at his feet / knees -> hit it first time (a volley if it's off the ground)
     if (!b.owner && !b.inNet && b.z > 1.35 && b.z < 2.4 && !this.diving) {         // AI: the odd bicycle kick
@@ -176,8 +185,9 @@ hc2Mix(Match, {
     if (them.length) this.say('', win.team === q.team ? 'WON IT IN THE AIR!' : 'HEADED AWAY!', 0.7);
     if (win.team !== q.team) { this.header(win, win === this.human && this.headBuf > 0 && this.headKind === 'shoot' ? 'goal' : 'clear'); return true; }
     const toGoal = len(win.team.goalX - win.x, 34 - win.y);
+    if (win === this.human && this.headBuf > 0 && this.headKind === 'shoot' && b.z < 1.1) { b.owner = win; this.doShot(win, 0.6, Input.axis.y); win.kickAnim = 'volley'; this.headBuf = 0; return true; }   // (t-008: too low to head: volleyed at goal)
     if (win === this.human && this.headBuf > 0) { this.header(win, this.headKind === 'shoot' ? 'goal' : 'pass'); return true; }
-    if (win !== this.human && toGoal < 18 && b.z > 1.1) { if (!this.aiAirSpecial(win)) this.header(win, 'goal'); return true; }   // (t-012: or the aerial special)
+    if (win !== this.human && toGoal < (b.aimLob ? 22 : 18) && b.z > 1.1) { if (!this.aiAirSpecial(win)) this.header(win, 'goal'); return true; }   // (t-012: or the aerial special; t-008: your aimed lob - he goes for goal from a little further)
     if (b.z < 1.75) {                                                             // chest / thigh it down: his ball
       const ivx = b.vx, ivy = b.vy, sp = len(b.vx, b.vy); this.gain(win, sp);
       if (!win.hands) { win.setState('trap', 0.32); win.face = dirIndex(-ivx || win.team.side, -ivy); }
@@ -185,14 +195,17 @@ hc2Mix(Match, {
     }
     for (const o of them) o.cool = Math.max(o.cool, 0.45);                       // too high to chest: beaten men are out of it for a moment, and he
     const free = !win.team.opp.players.some(o => !o.sentOff && len(o.x - win.x, o.y - win.y) < 2.0);   // with room: he lets it drop onto his chest (you:
-    if (free && (win === this.human || Math.random() < 0.6)) { b.target = win; (b.tried = new Set()).add('h' + win.team.name + win.i); return true; }   // or volley it)
+    if (free && len(b.vx, b.vy) < 9 && (win === this.human || Math.random() < 0.6)) {   // (t-008: only a ball dropping steeply - a flatter one came on at his head and bounced off him)
+      b.target = win; (b.tried = new Set()).add('h' + win.team.name + win.i); return true; }   // or volley it)
     this.header(win, free ? 'down' : 'pass'); return true;                       // or cushions it to his feet; marked tight: nods it on first time
   },
-  header(p, kind) {
+  header(p, kind, dir) {                                                         // (t-008: dir - the AERIAL BATTLE's clearance)
     const b = this.ball, s = p.team.side; let tx, ty, spd, vz, best = null;
-    if (kind === 'goal') { tx = p.team.goalX + s * 2; ty = 34 + (p === this.human ? Input.axis.y * 2.6 : rnd(-2.6, 2.6)); spd = rnd(12, 15); vz = rnd(-1.5, 0.8);
+    if (kind === 'goal') { const gk = p.team.opp.players[0], away = gk && !gk.sentOff ? (gk.y > 34 ? -2.4 : 2.4) : 0;   // (t-008: yours with the stick idle - away from the keeper, it was straight at him)
+      tx = p.team.goalX + s * 2; ty = 34 + (p === this.human ? (Math.abs(Input.axis.y) > 0.2 ? Input.axis.y * 2.6 : away) : rnd(-2.6, 2.6)); spd = rnd(12, 15); vz = rnd(-1.5, 0.8);
       if (p !== this.human) { const toG = len(p.team.goalX - p.x, 34 - p.y), e = (0.9 + toG * 0.13) * this.dk(p.team).shotErr;   // t-012: the computer's headers
         ty += rnd(-1, 1) * e; vz += rnd(0, 1) * e * 0.5; } }                     // miss too (the soak: a headed cross went in 1 in 2 - the posts were never missed)
+    else if (kind === 'clear' && dir) { tx = p.x + dir.x * 25; ty = clamp(p.y + dir.y * 25, 2, 66); spd = 15; vz = 4.5; }
     else if (kind === 'clear') { tx = p.x + s * 25; ty = clamp(p.y + rnd(-12, 12), 4, 64); spd = 15; vz = 4.5; }
     else if (kind === 'down') {                                                  // lob-mechanics: cushioned down to his feet, on the side away from his marker
       const o = p.team.opp.players.filter(e => !e.sentOff && !e.keeper).sort((u, v) => len(u.x - p.x, u.y - p.y) - len(v.x - p.x, v.y - p.y))[0];
@@ -214,6 +227,7 @@ hc2Mix(Match, {
     this.diving = { p, t: 0.35 };
   },
   diveTick(dt) {
+    this.aerialTick(dt);                                                         // t-008: the AERIAL BATTLE runs here (after the headers, before the ball moves)
     const D = this.diving; if (!D) return; D.t -= dt; const b = this.ball, p = D.p;
     if (p.state !== 'dheader' || b.owner || D.t <= 0) { this.diving = null; return; }
     if (len(b.x - p.x, b.y - p.y) < 1.2 && b.z > 0.2 && b.z < 1.6) {
@@ -224,6 +238,157 @@ hc2Mix(Match, {
       if (toGoal < 25) { this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }
       this.say('', 'DIVING HEADER!', 0.9); SFX.head(); b.how = { kind: 'dheader', x: b.x, y: b.y };
     }
+  },
+  // ======================================================================= t-008 HOLD LOB TO AIM (Luca 24 Oct 05:57: "make the lob a hold
+  // until its the right spot then release is the actual lob kick to pass it"). Press: the landing ring appears where a
+  // lob would go (ball.js lobAimStart). Held: the stick walks it at LOB2.ringV, easing in so a tap of a key nudges it,
+  // 8-45 m out; near a team-mate it settles on the spot he'll reach and he walks there (teamai.js lobAimMate).
+  // Release: the kick, solved to land on the ring (ball.js aimLob). Let go within LOB2.tapT = the instant lob, as before.
+  // My call on "hold longer for a higher ball": no - the hold is for aiming now, so its length must not change the kick;
+  // the height comes from the distance and who's in the way (lobAimApex), the same every time.
+  lobPress(p, dir) {
+    this.lobCharge = -1; this.lobAim = null;
+    if (p.keeper || this.chipCan(p, dir)) { this.lobCharge = 0; return; }       // the chip in their box, the keeper's throw / punt: as they were
+    const s = this.lobAimStart(p, dir);
+    this.lobAim = { t: 0, rx: s.x, ry: s.y, x: s.x, y: s.y, q: null, k: 0 };
+    this.lobAimMagnet(p);
+  },
+  lobAimTick(p, ax, dir, dt) {
+    const A = this.lobAim; A.t += dt;
+    if (this.pending && this.pending.p === p) { this.lobAim = null; return false; }   // (another kick went first - a pass or a shot pressed while aiming)
+    if (!Input.held('lob')) {                                                    // let go: the kick
+      this.lobAim = null;
+      if (A.t < LOB2.tapT) this.doPass(p, dir, 'lob'); else this.aimLob(p, A);
+      return true;
+    }
+    const m = len(ax.x, ax.y);
+    if (m > 0.1) { A.k = Math.min(1, A.k + dt / LOB2.ease); const v = LOB2.ringV * (LOB2.easeK + (1 - LOB2.easeK) * A.k); A.rx += ax.x * v * dt; A.ry += ax.y * v * dt; }
+    else A.k = 0;
+    const c = this.lobAimClamp(p, A.rx, A.ry); A.rx = c.x; A.ry = c.y;
+    this.lobAimMagnet(p);
+    return false;
+  },
+  // the light magnet: the ring within LOB2.magnet of a team-mate settles towards him (and he walks to it, so it ends on
+  // the spot he'll reach); it lets go past LOB2.magnetOut
+  lobAimMagnet(p) {
+    const A = this.lobAim; let q = A.q && !A.q.sentOff && len(A.q.x - A.rx, A.q.y - A.ry) < LOB2.magnetOut ? A.q : null;
+    if (!q) { let bd = LOB2.magnet; for (const m of p.team.players) { if (m === p || m.sentOff || m.keeper) continue; const d = len(m.x - A.rx, m.y - A.ry); if (d < bd) { bd = d; q = m; } } }
+    A.q = q;
+    if (q) { const c = this.lobAimClamp(p, A.rx + (q.x - A.rx) * LOB2.magnetPull, A.ry + (q.y - A.ry) * LOB2.magnetPull); A.x = c.x; A.y = c.y; }
+    else { A.x = A.rx; A.y = A.ry; }
+  },
+  // how long until a lob coming to you drops to head height (0 if it isn't one): SHOOT pressed early is kept that long
+  lobDropIn(p) {
+    const b = this.ball, P = this.path; if (!b.lob || b.owner || b.target !== p || !P) return 0;
+    let hi = b.z > 2.2; for (const q of P) { if (q.z > 2.2) hi = true; else if (hi) return Math.min(LOB2.shootWin, q.t + 0.15); }
+    return 0;
+  },
+
+  // ======================================================================= t-008 THE AERIAL BATTLE (Luca: "if you kick a lob meant as a pass
+  // and its aimed and arriving clearly between/around two opponents clearly, transition a smooth aerial battle where you
+  // have to mash kick against the computer (make the mash feel good (dynamic), it can exclaim MASH or PRESS or some sound
+  // effect looking all cool, sparks flying, and if df wins it gets cleared away (half randomly, so in a random
+  // direction, but also based on the position a bit)"). Either side's open-play lob: just before it drops, if a man of
+  // each side is right there (AERIAL.gap / reach), it's a clear contest; most of those (AERIAL.chance, never two within
+  // AERIAL.cool s) become the battle, the rest stay the quick duel (lobDuel). Slow motion, the ball hangs between them,
+  // MASH! (ui.js), each press a spark and a note. You mash SHOOT; the computer mashes at its level's rate (difficulty.js
+  // `mash`); the better position is a head start. Attacker wins: a header at goal (or the aerial special with SP
+  // banked), far out he heads it down to his feet. Defender wins: cleared (aerialClearDir).
+  aerialCheck() {
+    const b = this.ball, q = b.target, C = AERIAL, R = b.ring;
+    if (!C.on || !b.lob || !R || R.battle || b.owner || b.inNet || this.diving || this.pending || b.vz >= 0 || b.z < 1.6 || b.z > 4 || !q || q.sentOff || b.last !== q.team || this.setPiece || this.dead) return false;
+    const P = this.path; if (!P) return false;
+    let D = null; for (const pt of P) if (pt.z <= 2.0) { D = pt; break; }       // where it comes down to head height
+    if (!D || D.t > 0.45) return false;                                          // (decided once, a moment before: they're both nearly there)
+    R.battle = true;
+    if ((this.aerialClock || 0) - (this.aerialAt ?? -1e9) < C.cool) return false;
+    const ok = p => !p.sentOff && !p.keeper && !p.busy() && p.stun <= 0 && p.cool <= 0;
+    const near = t => t.players.filter(p => ok(p) && len(p.x - D.x, p.y - D.y) < C.reach).sort((u, v) => len(u.x - D.x, u.y - D.y) - len(v.x - D.x, v.y - D.y))[0];
+    const att = near(q.team), def = near(q.team.opp); if (!att || !def) return false;
+    const gap = p => len(p.x - D.x, p.y - D.y) - Math.min(C.reach - C.gap, p.top(true, false) * D.t * 0.5);   // (where he'll be by the drop)
+    if (len(att.x - def.x, att.y - def.y) > C.reach || gap(att) > C.gap || gap(def) > C.gap) return false;
+    const gk = q.team.opp.players[0]; if (gk && !gk.sentOff && len(gk.x - D.x, gk.y - D.y) < 8) return false;   // (their keeper comes and claims that one)
+    if (Math.random() > C.chance) return false;
+    this.aerialStart(att, def, D); return true;
+  },
+  aerialStart(att, def, D) {
+    const b = this.ball, C = AERIAL, n0 = { x: att.x - def.x, y: att.y - def.y }, nl = len(n0.x, n0.y) || 1;
+    const hs = (p, o) => { const dp = len(p.x - D.x, p.y - D.y), dq = len(o.x - D.x, o.y - D.y), f = dirVec(p.face), ux = (D.x - p.x) / (dp || 1), uy = (D.y - p.y) / (dp || 1);
+      return clamp((dq - dp) * C.hsDist + Math.max(0, f.x * ux + f.y * uy) * C.hsFace + (p === b.target ? C.hsRun : 0) + (p.stamina ?? 1) * C.hsSpring, -C.hsMax, C.hsMax); };
+    const side = (p, o, sg) => ({ p, hs: hs(p, o), n: 0, acc: 0, x0: p.x, y0: p.y, tx: D.x + n0.x / nl * 0.45 * sg, ty: D.y + n0.y / nl * 0.45 * sg,
+      cpu: !this.demo && p.team === this.home ? null : C.cpuRate * this.dk(p.team).mash * (1 + rnd(-1, 1) * C.cpuJit) });   // (you mash yourself; the computer at its rate)
+    const A = this.aerial = { t: 0, phase: 'intro', D, b0: { x: b.x, y: b.y, z: b.z }, att: side(att, def, 1), def: side(def, att, -1), sp: false, res: null, cam: { x: wx(D.x, D.y), y: wy(D.y) - 110 } };
+    if (!this.demo) { this.human = att.team === this.home ? att : def; this.nextHuman = null; }
+    for (const p of [att, def]) { p.vx = p.vy = 0; p.cool = 9; }               // (busy with each other: no pickups, no tackles)
+    this.headBuf = 0; this.charge = -1; this.lobCharge = -1; this.lobAim = null;
+    this.slowMo = Math.max(this.slowMo || 0, 0.2); this.camTarget = A.cam;
+    this.aerialAt = this.aerialClock || 0; SFX.ooh(); SFX.roar(2.2, 0.7);
+    this.ramiSay('skill', { text: ['UP THEY GO!\nWHO WANTS IT MORE?', 'A BATTLE IN\nTHE AIR!', 'THEY BOTH GO\nFOR IT!'][Math.floor(Math.random() * 3)], expr: 'laugh' }, 2);
+  },
+  // your mash: each new SHOOT press (a rising edge, so holding it down is one press; a tap between two frames counts too)
+  aerialInput() {
+    const A = this.aerial, s = A.att.p === this.human ? A.att : A.def.p === this.human ? A.def : null; if (!s) return;
+    const h = Input.held('shoot'), hit = Input.pressed('shoot') || (h && !A.lastShoot); A.lastShoot = h;
+    if (A.phase === 'mash' && hit) this.aerialHit(s);
+    if (s === A.att && Input.pressed('special') && this.meterOf(s.p.team).level() >= 1) A.sp = true;   // SPECIAL in the battle: the aerial special if you win it
+  },
+  aerialHit(s) {
+    const A = this.aerial, att = s === A.att; s.n++;
+    SFX.tone('square', (att ? 520 : 330) + Math.min(s.n, 16) * 22, (att ? 760 : 480) + Math.min(s.n, 16) * 22, 0.05, 0.05); SFX.hiss(2200, 1.5, 0.03, 0.06);   // (a note per press, climbing)
+    if (this.aerialPop) this.aerialPop(att);                                     // sparks off the ball (ui.js)
+    if (s.p === this.human || s.n % 2 === 0) this.cameras.main.shake(40, 0.0012);
+  },
+  aerialTick(dt) {
+    this.aerialClock = (this.aerialClock || 0) + dt;
+    const A = this.aerial; if (!A) return;
+    const b = this.ball, C = AERIAL, rdt = this.slowMo > 0 ? dt / 0.4 : dt;       // (in real time: the match runs at 0.4 in slow motion)
+    if (b.owner || b.inNet || this.dead || this.setPiece || this.foulScene || A.att.p.sentOff || A.def.p.sentOff) { this.aerialEnd(); return; }   // (anything else: called off)
+    this.slowMo = Math.max(this.slowMo, 0.2); A.t += rdt;
+    const T = C.introT + C.mashT, k = clamp(A.t / T, 0, 1), e = 1 - (1 - Math.min(1, A.t / C.introT)) ** 2;
+    b.x = A.b0.x + (A.D.x - A.b0.x) * e; b.y = A.b0.y + (A.D.y - A.b0.y) * e; b.z = A.b0.z + (C.holdZ - A.b0.z) * e + Math.sin(k * Math.PI * 6) * 0.04;   // it drifts to the drop and hangs there
+    b.vx = b.vy = b.vz = 0;
+    for (const s of [A.att, A.def]) { const p = s.p; p.x = s.x0 + (s.tx - s.x0) * e; p.y = s.y0 + (s.ty - s.y0) * e; p.vx = p.vy = 0; p.face = dirIndex(b.x - p.x, b.y - p.y); }
+    if (A.phase === 'intro' && A.t >= C.introT) A.phase = 'mash';
+    if (A.phase === 'mash') {
+      for (const s of [A.att, A.def]) if (s.cpu != null) { s.acc += s.cpu * rdt; while (s.acc >= 1) { s.acc -= 1; this.aerialHit(s); } }
+      if (A.t >= T) {
+        const sa = this.aerialScore(A.att), sd = this.aerialScore(A.def);
+        A.res = sa > sd || (sa === sd && Math.random() < 0.5) ? 'att' : 'def'; A.phase = 'done'; A.wait = C.outroT;
+      }
+    } else if (A.phase === 'done') { A.wait -= rdt; if (A.wait <= 0) this.aerialEnd(); }
+  },
+  aerialScore(s) { return Math.max(0.2, 2 + s.hs + s.n); },                      // (the bar shows att / (att + def))
+  aerialEnd() {
+    const A = this.aerial; if (!A) return; this.aerial = null;
+    if (this.camTarget === A.cam) this.camTarget = null;
+    for (const s of [A.att, A.def]) s.p.cool = 0;
+    if (!A.res) return;
+    const b = this.ball, w = A.res === 'att' ? A.att.p : A.def.p, l = A.res === 'att' ? A.def.p : A.att.p;
+    Object.assign(b, { x: A.D.x, y: A.D.y, z: AERIAL.holdZ, lob: false, tried: null });
+    l.stun = 0.35; l.cool = 0.6; l.setState('hit', 0.43);                       // beaten in the air: he comes down off balance
+    let dir = null;
+    if (A.res === 'att') {
+      const toG = len(w.team.goalX - w.x, 34 - w.y), me = w === this.human && !this.demo;
+      this.say('', 'WON IT IN THE AIR!', 0.9);
+      if (toG < 26 && (me ? A.sp && this.meterOf(w.team).level() >= 1 : false)) this.airSpecial(w);   // your aerial special (SPECIAL pressed in the battle)
+      else if (toG < 26 && !me && this.aiAirSpecial(w)) { /* the computer's, SP banked */ }
+      else this.header(w, toG < 26 ? 'goal' : 'down');                            // near goal: at goal; far out: down to his feet
+      if (toG < 26) SFX.roar(2.5, 1);
+    } else {
+      dir = this.aerialClearDir(w); this.header(w, 'clear', dir); this.say('', 'HEADED AWAY!', 0.9);
+    }
+    this.aerialLast = { res: A.res, by: w, att: A.att.p, def: A.def.p, n: [A.att.n, A.def.n], hs: [+A.att.hs.toFixed(2), +A.def.hs.toFixed(2)], dir, at: { x: A.D.x, y: A.D.y } };
+    this.flagReplay(A.res === 'att' ? 'WON IN THE AIR!' : 'AERIAL BATTLE');
+  },
+  // the clearance: AERIAL.clearRand of it a random direction, the rest by position (up the pitch, out towards the nearer
+  // touchline) - and never back into the middle of his own box
+  aerialClearDir(p) {
+    const s = p.team.side, ny = Math.sign(p.y - 34) || (Math.random() < 0.5 ? -1 : 1), a = rnd(-Math.PI, Math.PI), r = AERIAL.clearRand;
+    let x = s * (1 - r) / Math.SQRT2 * 1.2 + Math.cos(a) * r, y = ny * (1 - r) / Math.SQRT2 * 0.9 + Math.sin(a) * r;
+    if (x * s < 0.25) x = s * Math.max(0.25, Math.abs(x) * 0.5);                 // not back towards his own goal
+    const own = Math.abs(p.x - p.team.ownGoalX) < 24;
+    if (own && Math.sign(y) !== ny && Math.abs(y) > 0.2) y = -y * 0.6;          // near his own goal: out wide, not across the box
+    const l = len(x, y) || 1; return { x: x / l, y: y / l };
   },
   switchHuman() {
     const b = this.ball;
