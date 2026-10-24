@@ -372,12 +372,20 @@ hc2Mix(Match, {
     if (def === this.home && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset().special}`, 0.75); return; }
     if (s.dy > s.cover * 0.95 && Math.random() < 0.55 * this.dk(def).gkSave) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it
   },
-  // the clash at the keeper: true = saved
+  // the clash at the keeper: true = saved, 'hand' = he only gets a hand to it (t-007: it goes out), false = beaten
   clash(gk) {
     const b = this.ball, lv = gk.spSave || 0; gk.spSave = 0; if (!lv || !(b.special || b.saveable)) return null;
     const norm = !b.special; b.saveable = null;                                   // v0.9.0: a special save always stops a normal shot
-    const K = SAVE_POWER[lv - 1], P = norm ? 0 : b.spP || SP_POWER[b.special - 1], ok = norm || Math.random() < saveChance(K, P);
+    const K = SAVE_POWER[lv - 1], P = norm ? 0 : b.spP || SP_POWER[b.special - 1];
+    let ok = norm || Math.random() < saveChance(K, P);
+    // t-007 (Luca: "from special saves that dont fully save a ball maybe if the ball is too strong it goes over to give a
+    // corner"): a special stronger than his save that would have beaten him: he gets a hand to it - over the bar or round
+    // the post - more often the closer the two are (K / P: LV2 v LV1 ~70%, LV3 v LV1 50%). A power shot (held K) against
+    // a LV1 save: half the time only a hand to it. Equal or stronger saves still stop it (saveChance is 1).
+    let hand = !ok && Math.random() < clamp(K / P, 0.3, 0.85);
+    if (norm && lv === 1 && (b.power || 0) > 0.72 && Math.random() < 0.5) { ok = false; hand = true; }
     this.cameras.main.flash(140, 255, 240, 160); this.hitStop = Math.max(this.hitStop || 0, 0.12); SFX.boom(1);
+    if (hand) { this.say('A HAND TO IT!', norm ? `${SAVE_NAMES[lv - 1]} CAN ONLY PUSH IT AWAY` : `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4); return 'hand'; }
     if (ok && RIGS['save' + lv]) { gk.face = gk.team.side > 0 ? 0 : 4; gk.rig = { n: 'save' + lv, t: 0, d: gk.team.side > 0 ? 'E' : 'W' }; }   // v0.8.9 rough save rig
     if (ok) this.say('SAVED!', norm ? `${SAVE_NAMES[lv - 1]} STOPS THE SHOT` : `${SAVE_NAMES[lv - 1]} ${K} v ${Math.round(P)} ${SP_NAMES[b.special - 1]}`, 1.4);
     else this.say('IT BREAKS THROUGH!', `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4);

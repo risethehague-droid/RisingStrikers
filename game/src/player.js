@@ -29,7 +29,12 @@ class Player {
   }
   draw() {
     const X = wx(this.x, this.y), Y = wy(this.y);
-    this.spr.setPosition(Math.round(X), Math.round(Y)).setDepth(Y);
+    // t-007: a keeper's leap or high dive takes him off the grass: up to `leap` metres at the top of his flight (diveFly),
+    // back down over 0.3 s (the frames stay his PixelLab ones; only where they're drawn moves)
+    let lift = 0;
+    if (this.keeper && this.state === 'dive' && this.leap > 0) { const age = (this.diveLen || 0.85) - this.stateT, f = this.diveFly || 0.3;
+      lift = this.leap * (age < f ? Math.sin(Math.PI / 2 * age / f) : Math.max(0, 1 - (age - f) / 0.3)); }
+    this.spr.setPosition(Math.round(X), Math.round(Y - lift * PX_H)).setDepth(Y);
     if (this.keeper && this.spSave && !this.sentOff && (this.m.ball.special || this.m.ball.saveable)) this.m.auraFx(this);   // v0.8.9 his special save is ready: he burns in its colour
     if (this.rig && !this.sentOff) { const P = this.m.rigAt(this, this.rig.n, this.rig.t, this.rig.d); if (P) { this.rigShow(P); return; } this.rig = null; }
     if (this._rigged || this.spr.rotation || this.spr.scaleX !== 1 || this.spr.scaleY !== 1) { this._rigged = false; this.spr.setRotation(0).setScale(1); this._ox = this._oy = null; this.anim = ''; }   // (after a rig / a replay)

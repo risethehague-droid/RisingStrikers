@@ -150,7 +150,12 @@ hc2Mix(Match, {
     this.drawTrail(dt);
     this.ballSh.setPosition(Math.round(X), Math.round(Y - 7)).setDepth(Y - 40).setAlpha(clamp(1 - b.z / 12, 0.65, 1)).setScale(ballPx() * ballS() / 24 * shadowK(b.z));   // t-005: it shrinks as the ball climbs (ball.js shadowK); v0.10.3 (PR #8's call 4): fades less, so a high ball's shadow stays easy to see
     // camera: follow the ball, a little ahead of it
-    let tx = X + b.vx * 14, ty = wy(b.y, b.z * 0.3) - 40 - clamp(1 - b.y / 20, 0, 1) * 170;
+    // t-007 (Luca: "going over the goal after getting a hand to a lob or shot ... make the camera follow that lob"): a ball
+    // a keeper sent up and out (ball.js gkDeflect sets b.camUp), or an open-play lob, high in the air: the camera rides up
+    // with it (its height counts 85%, not 30%) with less lead, until it comes down, someone has it, or it's out and back
+    if (b.camUp && (b.owner || (b.z < 0.3 && b.vz <= 0))) b.camUp = false;
+    const rideUp = !b.owner && (b.camUp || b.lob) && b.z > 0.5;
+    let tx = X + b.vx * (rideUp ? 9 : 14), ty = wy(b.y, b.z * (rideUp ? 0.85 : 0.3)) - 40 - clamp(1 - b.y / 20, 0, 1) * 170;
     const fs = this.foulScene;
     if (fs) { const q = fs.card ? fs.by : fs.victim; tx = wx(q.x, q.y); ty = wy(q.y) - 70 - clamp(1 - q.y / 20, 0, 1) * 120; }   // v0.8: the camera stays on the incident
     const spc = this.setPiece;
