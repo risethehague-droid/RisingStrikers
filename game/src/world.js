@@ -125,8 +125,7 @@ hc2Mix(Match, {
     this.camX = (this.camX ?? tx) + (tx - (this.camX ?? tx)) * k; this.camY = (this.camY ?? ty) + (ty - (this.camY ?? ty)) * k;
     cam.centerOn(Math.round(this.camX), Math.round(this.camY));
     // cursor over the human player
-    const hp = this.human;
-    this.cursor.setPosition(Math.round(wx(hp.x, hp.y)), Math.round(wy(hp.y) - 112 + Math.sin(this.time.now / 140) * 2)).setAlpha(this.demo ? 0 : 1);
+    this.drawCursor();                                                           // t-009: bigger, ink outline, pop, kit colour (ui.js)
     this.drawFeedback();
     // HUD
     this.scoreTxt.setText(`${this.home.name} ${this.home.score}-${this.away.score} ${this.away.name}`);
