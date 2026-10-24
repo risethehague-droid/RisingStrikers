@@ -27,10 +27,16 @@ const GK_MOVES = {
   tip: ['ktip', 'diveUp', 'punch'],       // straight up: fingertips over the bar (diveUp-E / -W is a full upward stretch, no ball in his hands)
   punch: ['kpunch2', 'punch'],            // a high ball fisted clear
 };
+// t-014 (taskmaster's call on Luca's 24 Oct brief): the batch 16 keeper moves (kleap, ktip, kdivecatch, kblock) are the
+// SPECIAL save's look (specials.js gkSpecialMove), so they read as special; normal saves keep the existing frames. Flip
+// this to true to let GK_MOVES use them on every normal save too
+const GK_NEW_ON_NORMAL = false, GK_NEW = /^k(leap|tip|divecatch|block)/;
 function gkMoveAnim(k, kind, down) {
   const A = MAN.kits[k.kit].anims, sides = [k.team.side > 0 ? 'E' : 'W', DIRS[k.face], 'S'];
-  for (const n of GK_MOVES[kind] || ['DIVE']) {
-    if (n === 'DIVE') return diveAnimFor(k, down);
+  for (const n0 of GK_MOVES[kind] || ['DIVE']) {
+    if (n0 === 'DIVE') return diveAnimFor(k, down);
+    if (!GK_NEW_ON_NORMAL && GK_NEW.test(n0)) continue;
+    const n = n0 === 'kdivecatch' ? `kdivecatch${down ? 'Down' : 'Up'}` : n0;   // (the dive catch comes as Down / Up, like diveAnimFor's dives)
     for (const d of sides) if (A[`${n}-${d}`]) return `${n}-${d}`;
   }
   return diveAnimFor(k, down);

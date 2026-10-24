@@ -47,7 +47,7 @@ class Player {
       lift = this.leap * (age < f ? Math.sin(Math.PI / 2 * age / f) : Math.max(0, 1 - (age - f) / 0.3)); }
     this.spr.setPosition(Math.round(X), Math.round(Y - lift * PX_H)).setDepth(Y);
     if (this.keeper && this.spSave && !this.sentOff && (this.m.ball.special || this.m.ball.saveable)) this.m.auraFx(this);   // v0.8.9 his special save is ready: he burns in its colour
-    if (this.rig && !this.sentOff) { const P = this.m.rigAt(this, this.rig.n, this.rig.t, this.rig.d); if (P) { this.rigShow(P); return; } this.rig = null; }
+    if (this.rig && !this.sentOff) { const P = this.m.rigAt(this, this.rig.n, this.rig.t, this.rig.d, this.rig); if (P) { this.rigShow(P); return; } this.rig = null; }
     if (this._rigged || this.spr.rotation || this.spr.scaleX !== 1 || this.spr.scaleY !== 1) { this._rigged = false; this.spr.setRotation(0).setScale(1); this._ox = this._oy = null; this.anim = ''; }   // (after a rig / a replay)
     const K = MAN.kits[this.kit];
     const d = DIRS[this.face];
@@ -133,7 +133,7 @@ class Player {
   }
   rigShow(P) {                                                                   // v0.8.9 one frame of a rough rig
     const s = this.spr; s.setVisible(!this.hide); s.anims.stop(); s.setFrame(P.fr); this.anim = 'rig:' + this.rig.n;
-    if (this._ox !== 0.5 || this._oy !== P.cy) { s.setOrigin(0.5, P.cy); this._ox = 0.5; this._oy = P.cy; }
+    if (this._ox !== P.ox || this._oy !== P.oy) { s.setOrigin(P.ox, P.oy); this._ox = P.ox; this._oy = P.oy; }   // (t-014: batch 16 frames hang from the manifest's origin)
     s.setPosition(Math.round(P.x), Math.round(P.y)).setRotation(P.rot).setScale(P.sx, P.sy).setDepth(wy(this.y));
     this._rigged = true; this.carrying = false; this.m.rigFx(this, P);
   }
@@ -168,11 +168,12 @@ class Player {
     if (now - this.lookAt >= 120) { this.face = want; this.lookCand = null; }
   }
   // a one-off move: always restarts its animation
-  setState(s, t) { this.state = s; this.stateT = t; this.anim = ''; if (this.rig && RIG_BREAK.test(s)) this.rig = null; }   // (v0.8.9: a rough rig stops when he's knocked over)
+  setState(s, t) { this.state = s; this.stateT = t; this.anim = ''; if (this.rig && ((RIGS[this.rig.n] || {}).brk || RIG_BREAK).test(s)) this.rig = null; }   // (v0.8.9: a rough rig stops when he's knocked over; t-014: a keeper's special-save move only when he's knocked over - his dive / punch states carry on under it)
   busy() { return this.state !== 'idle' && this.state !== 'run'; }
   step(dt) {
     if (this.sentOff) { this.vx = this.vy = 0; this.speed = 0; this.rig = null; return; }
     if (this.rig) { this.rig.t += dt; const R = RIGS[this.rig.n]; if (!R || this.rig.t >= R.dur) this.rig = null; }   // v0.8.9 rough rig clock (stops in hit-stops + cut scenes)
+    if (this.keeper && (this.spSave || this.rig) && this.m.gkSpecialRoll) this.m.gkSpecialRoll(this);   // t-014: his special-save move starts so its contact frame meets the ball (specials.js)
     this.cool = Math.max(0, this.cool - dt); this.stun = Math.max(0, this.stun - dt); if (this.touchAnimT > 0) this.touchAnimT -= dt;
     if (this.burst > 0) this.burst -= dt;
     if (this.keeper) { this.guardT = (this.guardT || 0) + dt; if (this.guardT > 2.5) this.guard = Math.min(1, (this.guard ?? 1) + GUARD_REGEN * dt); }   // v0.8 keeper guard refills
