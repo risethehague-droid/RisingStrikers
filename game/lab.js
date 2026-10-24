@@ -723,6 +723,92 @@
         bot: () => (p, dt) => { const b = m.ball; if (b.owner !== p) { p.steer(0, 0, dt); return; } m.carrierAI2(p, dt); }, trig: () => false, fire: () => {} }),
     ];
   }
+  // ======================================================================= t-005 LOB + CHIP, step 1 (Luca picked direction B, in steps:
+  // "A's fixes plus readability first"). From docs/lob-chip.md's test spec: LC1 tap lobs and LC2 power lobs really peak
+  // at their design height (lobApex), LC7 their keeper reads a lob over him (a delay by level), LC8 the landing ring
+  // and the shadow. Measured with the game's own ballStep; each line says what it got against what it should be.
+  const LVL_NAME = { easy: 'EASY', normal: 'NORMAL', hard: 'HARD', rise: 'RISE' };
+  function lcTest(id, name, sub, o) {
+    return { id, group: 'LC', name, sub, kind: 'lc', lvl: o.lvl,
+      setup(r) {
+        const p = m.home.players[6], q = o.rcv ? m.home.players[9] : null, gk = o.gk ? m.away.players[0] : null; cast([p, q, gk].filter(Boolean));
+        put(p, o.from[0] - 0.5, o.from[1], 0); atFeet(p);
+        if (q) { put(q, o.from[0] + o.rcv, o.from[1], 4); r.bots.set(q, receive); }
+        if (gk) { put(gk, o.gk[0], o.gk[1], 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); }
+        Object.assign(r, { human: p, shooter: p, rcv: q, gk, o, marks: [], above: 0, rings: [], modes: [] });
+        r.action = { at: 0.5, fire: () => { o.fire(p, q); const k = m.pending; if (k) r.tgt = { x: k.tx, y: k.ty }; } };
+      },
+      check: lcCheck };
+  }
+  function lcCheck(r) {
+    const b = m.ball, o = r.o, gk = r.gk, f2 = v => v.toFixed(2);
+    if (gk && gk.gkMode !== r.lastMode) { r.lastMode = gk.gkMode;                // his modes, timed from the kick
+      r.modes.push(gk.gkMode + (r.shotT != null ? ` ${f2(r.air0 ?? 0)}s` : ''));
+      if (r.shotT != null && r.backT == null && /^(BACK|CLAIM|SWEEP|SMOTHER)$/.test(gk.gkMode)) { r.backT = r.air0 ?? 0; r.backMode = gk.gkMode; } }   // (any move for the ball, timed
+    if (gk) r.air0 = m.ball.owner ? 0 : m.ball.airT || 0;                          //  in flight time as he saw it - the kick's hit-stop isn't flight)
+    if (r.shotT == null) { if (!b.owner && r.fired && !m.pending) { r.shotT = r.t; r.start = { x: b.x, y: b.y }; r.n0 = b.bounced || 0;
+      r.design = lobApex(r.tgt ? len(r.tgt.x - b.x, r.tgt.y - b.y) : 25, o.pow ?? null); } else return null; }
+    const ft = r.t - r.shotT, base = ballPx() * ballS() / 24, sk = m.ballSh.scaleX / base;   // (the shadow as last drawn: for the ball where it was a step ago)
+    if (!r.land) {
+      if (b.z > 2.7) r.above += STEP;
+      if (r.prevZ != null && r.prevZ >= (r.shPk ? r.shPk.z : 0)) r.shPk = { z: r.prevZ, k: sk };
+      if (r.prevZ != null && r.prevZ >= SHADOW_Z && !r.sh6) r.sh6 = { z: r.prevZ, k: sk };
+      const R = m.ringSpot(); if (R) { r.rings.push(R); r.ringNow = R; } else r.noRing = (r.noRing || 0) + 1;
+      if ((b.bounced || 0) > r.n0) r.land = { x: b.x, y: b.y, t: ft };
+    } else if (r.ringAfter == null && ft - r.land.t > 0.5 && !b.owner) r.ringAfter = !!m.ringSpot();
+    r.prevZ = b.z;
+    const peak = `peak ${f2(r.maxZ)} m (design ${f2(r.design)}, ${Math.abs(r.maxZ - r.design) <= (o.tol || 0.3) ? 'ok' : 'OFF'})`;
+    if (o.kind === 'tap') {                                                       // LC1: the team-mate meets it (often on his chest, before it lands)
+      const L = r.land || r.ringNow, lt = `${f2(r.land ? r.land.t : ft)} s ${r.land ? 'to land' : 'in the air'}, ${f2(r.above)} s over 2.7 m`
+        + (L ? ` · comes down ${len(L.x - r.o.from[0] - r.o.rcv, L.y - r.o.from[1]).toFixed(1)} m from where he stood (${len(L.x - r.o.from[0] - r.o.rcv, L.y - r.o.from[1]) <= 2.5 ? 'ok' : 'OFF'})` : '');
+      if (b.lastP === r.rcv && !b.owner && !r.how) r.how = 'header';
+      if (b.owner === r.rcv) return { o: `${peak} · ${lt} · CONTROLLED (${r.how || (r.prevZ2 > 0.9 ? 'chest' : 'feet')})` };
+      r.prevZ2 = b.z;
+      if (r.out) return { o: `${peak} · ${lt} · OUT` };
+      if (ft > 6) return { o: `${peak} · ${lt} · NOT CONTROLLED` };
+      return null;
+    }
+    if (o.kind === 'pow') {                                                       // LC2: how far, how high
+      if (!r.land) return ft > 6 ? { o: `${peak} · never came down` } : null;
+      const aim = 12 + (LOB_MAX - 12) * o.pow, dist = len(r.land.x - r.start.x, r.land.y - r.start.y);
+      return { o: `lands ${dist.toFixed(1)} m out (12 + ${LOB_MAX - 12} × ${o.pow} = ${aim.toFixed(0)} ± 3, ${Math.abs(dist - aim) <= 3 ? 'ok' : 'OFF'}) · ${peak} · ${f2(r.land.t)} s in the air`, hold: 0.6 };
+    }
+    if (o.kind === 'gk') {                                                        // LC7: when does he turn for it, does he get there
+      const rd = m.gkRead(gk);
+      const head = `${LVL_NAME[r.sc.lvl] || 'BASE'}: ${r.backT != null ? `goes for it after ${f2(r.backT)} s (${r.backMode}; his read ${f2(rd)} s, ${r.backT >= 0.15 - 1e-6 && r.backT <= 0.35 + STEP ? 'ok' : 'OFF'})` : 'never went for it'} · `;
+      const tail = ` · ${r.modes.slice(0, 6).join(' → ')}`;
+      if (b.owner === gk) return { o: head + 'GOT BACK + CAUGHT IT' + tail, hold: 1 };
+      if (b.inNet) return { o: head + 'LOBBED (goal)' + tail, hold: 1.2 };
+      if (r.ev('PARRIED') || r.ev('SAVED')) return { o: head + 'SAVED' + tail, hold: 1 };
+      if (r.out) return { o: head + 'OUT · ' + r.out.toLowerCase() + tail };
+      if (ft > 5) return { o: head + 'ball loose' + tail };
+      return null;
+    }
+    // LC8: the ring against the real first bounce, for the whole flight; the shadow as drawn
+    if (!r.land || r.ringAfter == null) return ft > 7 ? { o: `${peak} · never came down` } : null;
+    const err = r.rings.length ? Math.max(...r.rings.map(R => len(R.x - r.land.x, R.y - r.land.y))) : null;
+    const ring = err == null ? 'NO RING' : `ring within ${f2(err)} m of the first bounce for the whole flight (${r.rings.length} frames${r.noRing ? `, missing ${r.noRing}` : ''}; ${err <= 1 && !r.noRing ? 'ok' : 'OFF'}) · ${r.ringAfter ? 'still there' : 'GONE'} 0.5 s after it landed`;
+    const sh = `shadow ${Math.round(r.shPk.k * 100)}% at the peak (${r.shPk.z.toFixed(1)} m)` + (r.sh6 ? `, ${Math.round(r.sh6.k * 100)}% at ${r.sh6.z.toFixed(1)} m (${r.sh6.k >= 0.6 && r.sh6.k <= 0.7 ? 'ok' : 'OFF'})` : `; from ${SHADOW_Z} m up: ${Math.round(shadowK(SHADOW_Z) * 100)}%`);
+    return { o: `${ring} · ${sh} · ${peak}`, hold: 0.6 };
+  }
+  function lcTests() {
+    const tap = (id, d) => lcTest(id, `tap LOB to a team-mate ${d} m away`, `nobody in between: does it peak at its design height (${lobApex(d, null).toFixed(2)} m), does he control it?`,
+      { kind: 'tap', from: [30, 34], rcv: d, fire: (p, q) => m.doPass(p, { x: 1, y: 0 }, 'lob', q) });
+    const pow = (id, c) => lcTest(id, `power lob · held ${Math.round(c * 100)}%`, `lands 12 + ${LOB_MAX - 12} × hold m out (± 3), peaks at its design height (± 0.4 m)`,
+      { kind: 'pow', pow: c, tol: 0.4, from: [25, 34], fire: p => m.powerLob(p, { x: 1, y: 0 }, c) });
+    const gk = (id, lvl) => lcTest(id, `a lob over their keeper · ${LVL_NAME[lvl]}`, `he is 8 m off his line; a 38 m lob drops behind him: he turns after a read of 0.15-0.35 s by level, not at once`,
+      { kind: 'gk', lvl, from: [64.5, 34], gk: [PITCH_L - 8, 34], fire: p => m.kick(p, PITCH_L - 2, 34, 0, 0, 0.12, { mode: 'lob', loft: true }) });
+    const rs = (id, name, sub, fire, pow) => lcTest(id, name, sub, { kind: 'ring', from: [30, 34], fire, pow, tol: pow != null ? 0.4 : 0.3 });
+    return [
+      tap('LC1', 25), tap('LC1-12', 12), tap('LC1-40', 40),
+      pow('LC2', 1), pow('LC2-25', 0.25), pow('LC2-50', 0.5),
+      gk('LC7', 'normal'), gk('LC7-E', 'easy'), gk('LC7-H', 'hard'), gk('LC7-R', 'rise'),
+      rs('LC8', 'the landing ring + the shadow · 25 m lob', 'the ring sits on the real first bounce the whole flight and stays; the shadow shrinks as it climbs',
+        p => m.kick(p, 55, 34, 0, 0, 0.12, { mode: 'lob', loft: true })),
+      rs('LC8-8M', 'the landing ring + the shadow · full power lob', 'an 8 m high ball: the shadow at 6 m up should be 60-70% of its size on the grass',
+        p => m.powerLob(p, { x: 1, y: 0 }, 1), 1),
+    ];
+  }
   // the SAVE! prompt: the computer shoots a special at YOUR keeper - press SPECIAL while SAVE! is up
   function pwSaveYou(id) {
     return { id, group: 'PW', name: 'YOUR KEEPER: special save', sub: 'press SPECIAL when SAVE! flashes', kind: 'pw', you: true,
@@ -992,6 +1078,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     const smSave = (id, lv, shot, from, force) => Object.assign(pwTest(id, `KEEPER LV${lv} · ${RIGS['save' + lv].name}${force === 'lose' ? ' · and it BREAKS' : ''}`,
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
+    add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
     add('GK', 'v0.9.1 · KEEPER AI', 'Their keeper with the real AI in 11 situations: walking up with the ball far away, the angle, 1v1s, sweeping, back passes, lobs. The yellow diamond is where he wants to be; the label says what he is doing.', gkTests());
     add('SM', 'v0.8.9 · SPECIAL MOVES (ROUGH RIGS)', 'Placeholders made from our PixelLab frames + effects until the real ones come from PixelLab: 3 aerial specials, 3 keeper special saves with their cut scene. v0.9.0: the keeper saves stop normal shots too (SM8-11).', [
       smAir('SM1', 1), smAir('SM2', 2), smAir('SM3', 3),
@@ -1108,7 +1195,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     m.planSave = function (gk) { plan(gk); const r = LAB.run, s = m.ball.save; if (r && s) r.plan = planInfo(s); };
     const shot = m.doShot.bind(m);
     m.doShot = function (p, power, aimY) { const r = LAB.run; return shot(p, r && r.sc.kind === 'free' && LAB.fp.max && p === r.human ? Math.max(power, 0.88) : power, aimY); };   // MAX SHOT: the hardest that stays on target
-    m.dk = function (team) { const r = LAB.run, free = r && r.sc.kind === 'free' && team === m.away, K = diffK(free ? LAB.fp.cpu : 'base');   // v0.9.2: the Lab plays the base AI (FREE PLAY: the CPU LEVEL switch)
+    m.dk = function (team) { const r = LAB.run, free = r && r.sc.kind === 'free' && team === m.away, lvl = r && r.sc.lvl && team === m.away ? r.sc.lvl : null;   // (t-005: a test can name their level - LC7)
+      const K = diffK(free ? LAB.fp.cpu : lvl || 'base');                        // v0.9.2: the Lab plays the base AI (FREE PLAY: the CPU LEVEL switch)
       if (!free || !LAB.react) return K;                                         // v0.9.9 the REACTION TIME knob, on top of his level
       const c = LAB.reactK; if (c && c.src === K && c.d === LAB.react) return c.K;
       LAB.reactK = { src: K, d: LAB.react, K: Object.assign({}, K, { gkReact: K.gkReact + LAB.react }) }; return LAB.reactK.K; };

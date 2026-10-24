@@ -9,10 +9,13 @@ Branch `worker-f/t-002-lob-chip`, built on the co-designer's `friend/lob-mechani
 **Recommendation: direction B** (a real spin model with three lofted kicks), built in two steps: A's fixes and
 readability first, then the spin. C's aftertouch can be added on top later, because it uses the same spin model.
 
-**Try it:** serve the game (`cd game && python3 -m http.server 8765`), then open
-`http://localhost:8765/index.html?lob=A` (or `?lob=B`, `?lob=C`). `labtest.html?lob=B` works in the Test Lab too.
-**From HQ:** this PR's "Play it" link with `-lobB` added to its end (`…#play-lobB`, or `#lobA` / `#lobC`). claude.ai
-artifact links pass only a plain `#ending`, not `?lob=`. Without either the game is today's game.
+**Luca's pick (24 Oct 03:45): B, in steps.** Step 1 (t-005, worker-l) is in: see **7. Step 1** at the end. A's fixes
+are the game now and prototype C is gone; prototype B stays behind its switch for step 2 to build from.
+
+**Try B:** serve the game (`cd game && python3 -m http.server 8765`), then open
+`http://localhost:8765/index.html?lob=B`. `labtest.html?lob=B` works in the Test Lab too.
+**From HQ:** a "Play it" link with `-lobB` added to its end (`…#play-lobB`). claude.ai artifact links pass only a plain
+`#ending`, not `?lob=`. Without either it's the game. (`?lob=A` / `?lob=C` no longer do anything.)
 
 ---
 
@@ -323,3 +326,37 @@ functions, and measures with the real `ballStep`. Pass marks are for the chosen 
 - `node tools/smoke.js`: `{"easy":"1-0","normal":"0-1","hard":"0-0","rise":"0-1"}`, `errors []`.
 - With each prototype on, `tools/lobstudy.js` runs without page errors. You keep 67% (A) / 70% (B) / 66% (C) of 47-51
   scripted lobs (branch: 75%). The computer's open-play lobs over 30 min are too few to compare (7-18).
+
+---
+
+## 7. Step 1 (t-005, worker-l): A's fixes plus readability, in the game
+
+Luca picked **B, in steps** (24 Oct 03:45); step 1 is "A's fixes plus readability first". The chip keeps its arcade
+dip (`CHIP_DIP` 1.9: "the chip stays arcade"), so A's softer chip did not come in.
+
+| What | Where | Now |
+| --- | --- | --- |
+| Lobs reach their height | `ball.js` `loftLaunch` → `lobSolve` | open-play and power lobs really peak at `lobApex` (drag included). `LOB_H` (the Lab's lob-height knob) still scales it |
+| Shadow | `ball.js` `shadowK`, `core.js` `SHADOW_MIN` / `SHADOW_Z`, one line in `world.js` | 100% on the grass → 62% from 6 m up (the `ball-shadow` sprite scaled; the fade is as before) |
+| Landing ring | `ball.js` `ringSpot` (+ `predict()` now also returns `land`), `ui.js` | every lofted ball (lob, power lob, chip, keeper throw / punt, lofted set piece), either side: a ring on the predicted first bounce, then on the spot it came down, until someone touches it (trap, kick, header, save, deflection) or it goes out. Pink for a chip |
+| Charge arc | `ball.js` `lobPreview`, `ui.js` | the ball's real path: the launch the release will use, flown with `ballStep`; the ring sits where it comes down (a chip: at the goal) |
+| Keeper's read | `keeper.js` `gkRead` / `gkUnread` | their open-play lob: he doesn't go for it (BACK, CLAIM, SWEEP / SMOTHER) until he has read it: 0.35 s Easy, 0.25 Normal, 0.19 Hard, 0.15 Rise (from his `gkReact`). Crosses and other high balls: as before |
+| Prototypes | `core.js`, `ball.js` | A and C removed (`?lob=A` / `?lob=C` do nothing); B stays behind `#lobB` / `?lob=B` |
+
+**Numbers (the real `ballStep`):**
+
+| Kick | Before (v0.10.1) | Now |
+| --- | --- | --- |
+| Tap lob 12 m | 3.5 m peak | 3.75 m (design 3.73), 1.55 s in the air |
+| Tap lob 25 m | 4.2 m, 1.83 s | 4.66 m (design 4.63), 1.9 s, 1.27 s over head height |
+| Tap lob 40 m | 4.7 m | 5.71 m (design 5.67), 2.0 s |
+| Power lob 25 / 50 / 100% | top 3.9 / 5.2 / 6.2 m (N5 at 15 / 55 / 100%) | 4.71 / 5.82 / 8.02 m (design 4.70 / 5.80 / 8.00); full hold 2.58 s in the air (was 2.23) |
+
+Test Lab group **LC** (`GROUP=LC node tools/grp.js`): LC1 (25 m) / LC1-12 / LC1-40 tap lobs, LC2 (100%) / LC2-25 /
+LC2-50 power lobs, LC7 (Normal) / LC7-E / LC7-H / LC7-R the keeper's read by level, LC8 (25 m lob) / LC8-8M (full power
+lob) the ring and the shadow. Each line says what it measured against what it should be (`ok` / `OFF`).
+
+**Keep rates** (`tools/lobstudy.js`, which now takes `PORT`, `SEED` and `SETUP`): one seed is noisy, because any
+change to a flight reshuffles every later dice roll. Seed 99 (the one the 75% / 50% figures came from) is a lucky
+seed for v0.10.1. Over 10 seeds (1-10, ~890 of your lobs and ~510 of the computer's each) step 1 keeps what v0.10.1
+keeps: you 65.2% v 65.4%, the computer 25.8% v 27.4% (± 1.6-1.9).
