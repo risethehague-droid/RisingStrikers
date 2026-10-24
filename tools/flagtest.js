@@ -37,6 +37,10 @@ const URL = `http://localhost:${process.env.PORT || 8765}/index.html`;
     await page.evaluate(() => { window.HC2_SKIP_INTRO = true; window.HC2_NO_DEMO = true; });
     await page.click('#play'); await page.waitForFunction(() => window.HC2_STARTED && window.__hc2.home.players.length, null, { timeout: 60000 });
     await step(9 * 60);                                                           // 9 s of play: more than a flag keeps
+    // v0.11.0 filled in the real FLAG_TRIGGER: check it's there, then switch it off here so the "no trigger id" check
+    // below still means what it says (the page's mcp is the mock above either way: a test never wakes the real fixer).
+    ok(await page.evaluate(() => /^trig_\w+$/.test(FLAG_TRIGGER)), 'the game has the fixer task id (FLAG_TRIGGER)');
+    await page.evaluate(() => { window.__flagTrigger = ''; });
 
     // 1. F: play stops, the box has the keys
     const before = await page.evaluate(() => { const m = window.__hc2; return { clock: m.clock, pos: m.all.map(p => [p.x, p.y]), human: [m.human.x, m.human.y] }; });

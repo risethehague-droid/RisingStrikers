@@ -45,7 +45,9 @@ const BW_CHECKS = {
 // Bug Watch clip (kind 'flag') with the note + the match's settings, and wakes the fixer task on Luca's account through
 // the Claude Code Remote connector (the same call HC2 HQ's "Check now" makes). FLAG_TRIGGER is that task's id: the
 // taskmaster fills it in (and gives the page the 'mcp' capability) when it merges. Empty = the clip is only saved.
-const FLAG_TRIGGER = '';
+// Set at the v0.11.0 merge (24 Oct): the "HC2 INSTA FLAG fixer" scheduled task on Luca's account. Only Luca's own
+// account can wake it (a friend's flag is still saved as a clip; their call is refused and the clip says woke 'failed').
+const FLAG_TRIGGER = 'trig_01VzRQHSabhTC2L8tbWSX2aP';
 const FLAG_SECS = 8, REC_MAX = 660;          // the recorder keeps 11 s at 60 a second: 8 s for a flag, 10 s for REPLAY (LAST 10 S)
 const RP_SPEEDS = [1, 0.5, 0.25];             // the replay player's slow-mo steps
 const BW_VERDICT = { bug: 'BUG', fine: 'FINE', unsure: 'NOT SURE' };

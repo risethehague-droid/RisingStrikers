@@ -2,6 +2,8 @@ HC2 WEB GAME - v0.11.0 (24 Oct) - LUCA'S 05:57 LIST: 11 PRs (#9-#19, Luca's OK 1
 - INSTA FLAG (#9, t-006): F / pad BACK / the FLAG button = the last 8 s + your note to Bug Watch. A REPLAY PLAYER (pause
   menu REPLAY LAST 10 S, LAST GOAL, HIGHLIGHTS, Bug Watch): play / pause, 1x / 0.5x / 0.25x, frame step, scrub, every
   special effect redrawn. Never during live play.
+  A flag sent from Luca's account wakes the "HC2 INSTA FLAG fixer" scheduled task (FLAG_TRIGGER), which looks at the
+  clip and opens a fix PR or a card; anyone else's flag is saved as a clip only.
 - The "you" arrow (#11, t-009): 3x, outlined, pops on a switch, red / blue by kit; a quiet direction pointer (Options:
   POINTER ON / OFF).
 - KEEPER AI (#14, t-007): saves read where the ball crosses him (stand / low / mid / high dive / leap / tip / punch), holds
