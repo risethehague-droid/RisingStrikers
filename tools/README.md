@@ -30,6 +30,7 @@ the review opens at full time. Marks and notes reach the taskmaster through the 
 | Command | What it checks |
 | --- | --- |
 | `node tools/smoke.js` | a match at Easy, Normal, Hard and Rise Warrior; must end `errors []` |
+| `node tools/goalkicktest.js` | the goal kick at both ends: the wipe, the keeper holding it, both teams in shape, he plays it out; Bug Watch quiet |
 | `node tools/resumetest.js` | RESUME round trip on `index.html`: quit mid-match, reload, resume, extra time, full time clears it; must end `all ok` |
 | `bash tools/mklab.sh` | builds `game/labtest.html` (the Test Lab as a local page) for `grp.js`, `gk091.js`, `chipgif.js`; rerun after changing `lab.html` |
 | `GROUP=<id> [REP=3] node tools/grp.js` | one Test Lab group, every test, outcome per test. Groups: FP, K, KH, YS, C, P, M, D, T, A, PK, N5, PW, CH, GK, SM, CS, BW |
