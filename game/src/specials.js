@@ -136,7 +136,7 @@ class SpMeter {
     this.m = m; this.idx = idx; this.right = idx === 1; this.e = 0; this.shown = 0; this.flash = 0; this.pop = 0; this.t = 0; this.risen = false;
     const F = '"Press Start 2P"';
     this.W = 168; this.H = 12;
-    this.x = this.right ? VIEW_W - 26 - this.W : 26; this.y = this.right ? 26 : 106;
+    this.x = this.right ? VIEW_W - 26 - this.W : 26; this.y = 106;   // co-designer: both meters on the same level, mirrored (the right one sat at 26 px, the left one under the score box at 106)
     this.g = m.add.graphics();
     this.lab = m.add.text(0, 0, '', { fontFamily: F, fontSize: '8px', color: '#f4f0e4', stroke: '#0c0a0e', strokeThickness: 3 }).setOrigin(this.right ? 1 : 0, 1);
     this.lv = m.add.text(0, 0, '', { fontFamily: F, fontSize: '9px', color: '#ffde1e', stroke: '#0c0a0e', strokeThickness: 4 }).setOrigin(this.right ? 1 : 0, 0.5);
