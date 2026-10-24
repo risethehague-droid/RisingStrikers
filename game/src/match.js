@@ -181,7 +181,8 @@ class Match extends Phaser.Scene {
     this.pickups(pbx);
     if (b.save) { b.save.t -= dt; if (b.save.t <= 0) b.save = null; }
     b.airT = b.owner ? 0 : (b.airT || 0) + dt;
-    if (this.dead) { this.dead.t -= dt; if (this.dead.t <= 0) { const d = this.dead; this.dead = null; this.restart(d.kind, d.team, d.x, d.y); } }
+    if (this.dead) { this.dead.t -= dt; if (this.dead.kind === 'GOAL KICK' && !this.dead.wiped && this.dead.t <= 0.24) { this.dead.wiped = true; this.wipe(); }   // v0.10.4: the wipe covers the goal kick's cut
+      if (this.dead.t <= 0) { const d = this.dead; this.dead = null; this.restart(d.kind, d.team, d.x, d.y); } }
     if (b.owner || b.z < 0.2) for (const t of [this.home, this.away]) t.players[0].claiming = false;
     this.rules();
   }

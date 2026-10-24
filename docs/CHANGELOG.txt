@@ -1,3 +1,14 @@
+HC2 WEB GAME - v0.10.4 (24 Oct) - THE GOAL KICK CUT + NO REPLAYS DURING LIVE PLAY
+- Luca (06:21, "of immediate importance"): "the goal kick should have a clean cut away to the goalie with it in his
+  hands and the team laid out how they would in a normal game". Now: a TV wipe, then the keeper at the edge of his
+  six-yard box holding the ball, his centre-backs split to the corners of the box, the full-backs high and wide,
+  midfield spread, the strikers near halfway; the other team outside his box. He plays it out of his hands as after a
+  catch: yours = PASS throws, LOB punts (after 6 s he plays it himself); the computer's keeper picks his outlet.
+- Luca (06:24): no replays while the ball is live. Big saves, near misses, posts and aerial specials now go to
+  HIGHLIGHTS in CLASSIC too (as in ARCADE); the goal replay after a goal (the ball is dead then) stays.
+- Checked: tools/goalkicktest.js (new: both ends, the wipe, the keeper holds it, nobody of theirs in his box, he plays
+  it out, Bug Watch quiet), smoke errors [], RESUME round trip all ok.
+
 HC2 WEB GAME - v0.10.3 (24 Oct) - ARCADE PACE + LOB STEP 1 (PR #7 + #8, Luca's OK 06:16)
 - PACE: CLASSIC / ARCADE on the start screen and in Pause > Options (worker-f, t-004). CLASSIC is the default and
   plays exactly as before (8/8 seeded matches identical). ARCADE: run 6.0 / sprint 8.8 m/s, snappier starts and turns,

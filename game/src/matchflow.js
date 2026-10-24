@@ -66,6 +66,7 @@ hc2Mix(Match, {
   // dead-ball restarts become SET PIECES: play stops, the taker stands over the ball and aims with a cursor
   restart(kind, team, x, y, note, opts = {}) {
     this.dead = null; if (kind === 'FREE KICK' || kind === 'PENALTY') SFX.whistle(1);
+    if (kind === 'GOAL KICK') return this.goalKick(team, y);                     // v0.10.4: a cut to the keeper with it in his hands
     for (const p of this.all) p.spot = null;
     if (kind === 'CORNER') { this.ramiSay('corner', { TEAM: team.name }); this.stat(team).corners++; }
     if (kind === 'PENALTY' && MAN.penalty && !window.HC2_NO_PENCAM && !this.demo) return this.startPenalty(team, note);
@@ -86,6 +87,34 @@ hc2Mix(Match, {
     this.setPiece = { kind, team, taker, t: 0, kicked: false };
     this.charge = -1; this.nextHuman = null;
     this.freeze = paceK().spFreeze; this.say(kind, note || (team === this.home ? (k => `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`)(keyset()) : team.name), team === this.home ? 2.4 : 1.4);
+  },
+  // v0.10.4 GOAL KICK (Luca, 24 Oct 06:21, "of immediate importance": "it should have a clean cut away to the goalie with
+  // it in his hands and the team laid out how they would in a normal game"). Players used to stay wherever the ball went
+  // out and the keeper walked to a ball on the grass. Now a TV wipe covers a cut (match.js starts it 0.24 s before), the
+  // keeper stands at the edge of his six-yard box with the ball in his hands and both teams stand in a goal-kick shape:
+  // his centre-backs split to the corners of the box, the full-backs high and wide, midfield spread, the strikers near
+  // halfway; the other side outside his box, its strikers screening, midfield marking, the back four goal-side of his
+  // strikers. Then he plays it out of his hands as after a catch: yours = you throw (PASS) or punt (LOB), the computer's =
+  // its outlet throw / punt. GK_SHAPE: [metres out from HIS goal line, y] per slot (1-4 back four, 5-8 midfield, 9-10 up front).
+  goalKick(team, y) {
+    const gk = team.players[0], s = team.side, gx = team.ownGoalX, opp = team.opp, b = this.ball;
+    const X = d => gx + s * d, jit = () => rnd(-0.8, 0.8);
+    const OURS = [null, [30, 6], [17, 19], [17, 49], [30, 62], [45, 10], [38, 27], [40, 41], [45, 58], [57, 28], [59, 41]];
+    const THEIRS = [null, [60, 10], [61, 25], [61, 43], [60, 58], [41, 12], [39, 28], [40, 40], [41, 56], [23, 26], [24, 43]];
+    for (const p of this.all) { if (p.sentOff) continue; p.hands = false; p.spot = null; p.stun = 0; p.cool = 0; p.vx = p.vy = 0; p.claiming = false; if (p.busy()) p.setState('idle', 0); else p.state = 'idle'; }
+    const put = (p, sp) => { if (!p || p.sentOff || !sp) return; p.x = clamp(X(sp[0]) + jit(), 0.5, PITCH_L - 0.5); p.y = clamp(sp[1] + jit(), 0.5, PITCH_W - 0.5); };
+    team.players.forEach((p, i) => put(p, OURS[i])); opp.players.forEach((p, i) => put(p, THEIRS[i]));
+    const og = opp.players[0]; if (!og.sentOff) { og.x = opp.ownGoalX + opp.side * 3; og.y = 34; }   // their keeper: on his line, far end
+    gk.x = X(5.5); gk.y = clamp(34 + (y - 34) * 0.3, 31, 37); gk.face = s > 0 ? 0 : 4;
+    for (const p of this.all) if (!p.sentOff && p !== gk) p.face = dirIndex(gk.x - p.x, gk.y - p.y);
+    Object.assign(b, { owner: gk, last: team, lastP: gk, z: 1.1, vx: 0, vy: 0, vz: 0, inNet: false, netRight: undefined, target: null, skid: false, save: null, lob: false, ring: null, shotBy: null });
+    gk.hands = true; gk.hold = -0.4; this.placeAtFeet();                         // (a breath before he plays it)
+    if (this.ref) this.ref.place(b);
+    this.camX = this.camY = undefined;                                           // a cut, not a pan
+    this.setPiece = null; this.pending = null; this.charge = -1; this.nextHuman = null;
+    if (team === this.home) this.human = gk;
+    this.freeze = Math.max(this.freeze, paceK().spFreeze + 0.2);
+    const k = keyset(); this.say('GOAL KICK', team === this.home ? `${k.pass} THROW  ${k.lob} PUNT` : team.name, team === this.home ? 2.0 : 1.2);
   },
   defaultAim(kind, team, taker, x, y) {
     const gx = team.goalX, s = team.side;
