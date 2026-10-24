@@ -21,6 +21,12 @@ const SP_NAMES = ['BLAZE SHOT', 'THUNDER SHOT', 'RISING PHOENIX'];
 // (save / shot)^3 - LV2 v a full LV3 = 34%, LV1 v LV3 = 13%, LV1 v LV2 = 36%; a weakened shot is easier to stop.
 const SP_POWER = [100, 140, 200], SP_PIERCE = [1, 2, 5], SP_PIERCE_LOSS = [0.35, 0.18, 0], SAVE_POWER = [100, 140, 200];
 const SAVE_NAMES = ['IRON WALL', 'THUNDER GLOVE', 'RISING SHIELD'];
+// t-011 the curving special pass: the PixelLab move, the banner and the trail colours for each kind (white-hot at the ball)
+const CURVE_MOVE = { ground: 'cpass', through: 'cthru', lob: 'clob' };
+const CURVE_NAMES = { ground: 'CURLER!', through: 'OUTSIDE CURL!', lob: 'BANANA LOB!' };
+const CURVE_COL = { ground: [0xffffff, 0xc8fbff, 0x8cf0ff, 0x3ed8f0, 0x28c8e6, 0x1ea0c8, 0x1e78b4, 0x1e50a0, 0x1e3c8c],
+  through: [0xffffff, 0xe6ffc8, 0xc8ff8c, 0x9af05a, 0x6ee63e, 0x46c83c, 0x2ea03c, 0x1e7a3c, 0x1e5a3c],
+  lob: [0xffffff, 0xfff4c8, 0xffe68c, 0xffd25a, 0xffbe3e, 0xff9a2e, 0xf0782e, 0xd2582e, 0xb43c2e] };
 // ======================================================================= v0.8.9 ROUGH RIGS (Luca 23 Oct 13:35: "rig 3 cruder new
 // animations for 3 new aerial special shots so the game has working moves, same for the saves, make cut scenes for the
 // special saves too"). PLACEHOLDERS until the real ones are made in PixelLab: each move is put together from PixelLab
@@ -426,6 +432,7 @@ hc2Mix(Match, {
       this.cameras.main.flash(140, 255, 190, 60); this.cameras.main.shake(260, 0.004); }
   },
   tickRise(dt) {
+    this.curveTick(dt);                                                           // (t-011: the curving pass's trail and camera)
     const R = this.rise; if (!R) return; R.t += dt; const T = 2.3;
     if (R.wild) {
       const fire = ['#ffffff', '#ffde1e', '#ffb02e', '#ffde1e'];
@@ -458,6 +465,48 @@ hc2Mix(Match, {
     this.ramiSay('skill', { text: [`A ${SP_NAMES[0]}!\nTHE BALL IS ON FIRE!`, `${SP_NAMES[1]}!\nYOU CAN HEAR IT CRACKLE!`, `THE ${SP_NAMES[2]}!!\nI HAVE NEVER SEEN THAT!`][lv - 1], expr: 'laugh' }, 2);
     SFX.special(lv); this.flagReplay(SP_NAMES[lv - 1] + '!');
     return true;
+  },
+  // ======================================================================= t-011 THE CURVING SPECIAL PASS (Luca 24 Oct 05:57: "add a special
+  // lvl 1 pass that curves impressively and dynamically, make it look cool, [...] one for lob, one for through ball, one
+  // for normal pass (don't add these new passes to the game just yet, only test lab)"). SPECIAL held + PASS / THROUGH /
+  // LOB (actions.js) with a bar in the bank: the same team-mate / space the normal pass picks, but it bends round the man
+  // on the straight line (ball.js curveSolve / curveStep) and spends ONE bar (a special shot spends them all). The look,
+  // with no new art: the PixelLab batch 17 move (contact on its strike frame), a name banner like the special shots', the
+  // ball trail tinted along the curve and the camera easing a little towards where it's going. Behind CURVE_PASS (core.js).
+  curvePass(p, mode, dir) {
+    const mt = this.meterOf(p.team), b = this.ball;
+    if (!CURVE_PASS || mt.level() < 1 || p.keeper || b.owner !== p || p.busy() || this.pending || this.setPiece) return false;
+    this.doPass(p, dir, mode);                                                   // who it goes to: the normal pass's pick
+    const k = this.pending; if (!k || k.p !== p) return false;
+    mt.e -= 1; mt.flash = 0.3; if (mt.level() < 3) mt.risen = false;             // (back under 3 bars: RISE UP may come again)
+    const A = CURVE_MOVE[mode], east = k.tx >= p.x;
+    k.info.curve = { mode, foot: east ? 1 : -1 };                                // (the frames face E; facing W they're mirrored: the other foot)
+    if (MAN.kits[p.kit].anims[`${A}-E`]) { p.face = east ? 0 : 4; p.kickAnim = A; p.setState('kick', 8 / kickRate(A) + 0.05); k.t = (KICK_HIT[A] + 0.6) / kickRate(A); }
+    this.say(CURVE_NAMES[mode], `${p.team.name} · LV1 SPECIAL PASS`, 1.1);
+    return true;
+  },
+  // it's left the boot (ball.js curveLaunch): a small flash in its colour and the trail + camera start
+  curveFx(k, S) {
+    const c = CURVE_COL[k.info.curve.mode];
+    this.cvFx = { t: 0, mode: k.info.curve.mode, cols: c, hist: [], tx: k.tx, ty: k.ty, cam: null };
+    this.cameras.main.flash(70, (c[3] >> 16) & 255, (c[3] >> 8) & 255, c[3] & 255);
+  },
+  // every frame (from tickRise, the per-frame hook this file already has): the tinted trail - the PixelLab ball repeated
+  // along the last ~half second of flight, spaced out so the bend itself shows - and the camera's lean towards the target
+  // (camTarget, world.js: it follows that point with its slower ease), handed back once the ball is played or after CURVE.cam
+  curveTick(dt) {
+    const F = this.cvFx; if (!F) return;
+    const b = this.ball, tr = this.cvTrail || (this.cvTrail = Array.from({ length: 9 }, () => this.add.image(0, 0, 'props', 'ball-x0').setVisible(false)));
+    F.t += dt;
+    const live = !b.owner && !this.replay && F.t < CURVE.trail && this.ballSpr;
+    if (live) { F.hist.unshift([this.ballSpr.x, this.ballSpr.y, this.ballSpr.frame.name, this.ballSpr.depth]); F.hist.length = Math.min(F.hist.length, 30); }
+    tr.forEach((im, i) => { const h = live && F.hist[(i + 1) * 3]; if (!h) { im.setVisible(false); return; }
+      im.setVisible(true).setPosition(h[0], h[1]).setFrame(h[2]).setDepth(h[3] - 0.1).setScale(this.ballSpr.scaleX * (1 - i * 0.07)).setAlpha(0.85 - i * 0.08).setTintFill(F.cols[Math.min(i, F.cols.length - 1)]); });
+    const camOn = live && F.t < CURVE.cam && (!this.camTarget || this.camTarget === F.cam);
+    if (camOn) { const X = wx(F.tx, F.ty), Y = wy(F.ty);
+      F.cam = F.cam || {}; F.cam.x = this.ballSpr.x + (X - this.ballSpr.x) * 0.35; F.cam.y = this.ballSpr.y + (Y - this.ballSpr.y) * 0.35; this.camTarget = F.cam; }
+    else if (F.cam && this.camTarget === F.cam) this.camTarget = null;
+    if (!live) { if (F.cam && this.camTarget === F.cam) this.camTarget = null; tr.forEach(im => im.setVisible(false)); this.cvFx = null; }
   },
   // v0.8 a hard shot the keeper had to deal with: the attacking side earns energy (more for a power shot)
   shotSaved(gk) {

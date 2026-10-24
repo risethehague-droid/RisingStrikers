@@ -22,6 +22,22 @@ hc2Mix(Match, {
       }
     }
   },
+  // t-011 (Luca: "add a special lvl 1 pass that curves [...] only test lab"): with CURVE_PASS on, hold SPECIAL and press
+  // PASS / THROUGH / LOB = the curving special pass (specials.js curvePass); no bar in the bank = that button's normal pass
+  // (the press falls through). So the chord can be made, SPECIAL on its own then fires the special shot when you LET GO
+  // (not on the press), and only if no pass was made while it was held. Returns true when it took the frame.
+  curveInput(p, owns, dir) {
+    if (!owns || p.keeper) { this.spHeld = 0; return false; }
+    if (Input.pressed('special')) this.spHeld = 1;
+    if (this.spHeld && Input.held('special')) {
+      const md = Input.pressed('pass') ? 'ground' : Input.pressed('through') ? 'through' : Input.pressed('lob') ? 'lob' : null;
+      if (md) { this.spHeld = 2; if (this.curvePass(p, md, dir)) return true; }
+    } else if (this.spHeld && Input.released('special')) {
+      const solo = this.spHeld === 1; this.spHeld = 0;
+      if (solo) { if (this.special(p)) return true; this.say('', 'SP METER EMPTY', 0.6); }
+    } else this.spHeld = 0;
+    return false;
+  },
   controlHuman(dt) {
     const b = this.ball, me = this.human, team = this.home;
     const prevAir = this.airSp; this.airSp = null;                               // v0.8.6 (set again below while the moment lasts)
@@ -61,7 +77,8 @@ hc2Mix(Match, {
       if ((p.hold > 5 && !moving) || p.hold > 6) { p.hold = 0; const o = this.keeperOutlet(p); this.doPass(p, o.dir, o.mode); return; }
     }
     this.passAim = owns && !(p.keeper && p.hands) ? this.passTarget(p, dir, 'ground', this.passAim) : null;   // v0.7.4: who a pass would go to right now (shown on the grass)
-    if (owns && Input.pressed('special') && !p.keeper) { if (this.special(p)) return; this.say('', 'SP METER EMPTY', 0.6); }
+    if (CURVE_PASS) { if (this.curveInput(p, owns, dir)) return; }              // t-011 (Test Lab only): SPECIAL held + a pass = the curving pass
+    else if (owns && Input.pressed('special') && !p.keeper) { if (this.special(p)) return; this.say('', 'SP METER EMPTY', 0.6); }
     if (owns) {
       if (Input.pressed('pass')) this.doPass(p, dir, 'ground');
       else if (Input.pressed('through')) this.doPass(p, dir, 'through');
