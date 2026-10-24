@@ -99,6 +99,46 @@ let BOUNCE_Z = 0.64, BOUNCE_X = 0.84, BOUNCE_MIN = 1.1, BOUNCE_DROP = 0.16, BOUN
 let BALL_MAG = 1;                                  // how close the dribbled ball stays to the feet (ball.js dribble)
 let LOB_H = 1;                                     // lob height: scales the arc of open-play and power lobs (ball.js lobApex)
 let LOB_MAX = 50;                                  // how far a fully held power lob goes, metres (a tap: 12 m)
+// t-008 LOB REMAKE (Luca 24 Oct 05:57: "the lob pass needs to be re made completely [...] make the lob a hold until its
+// the right spot then release is the actual lob kick"). Every number of the hold-to-aim lob, the receiving run and the
+// AERIAL BATTLE in one place, so they can be tuned in the Lab (docs/lob-chip.md "8. Step 2, Luca's version")
+const LOB2 = {
+  tapT: 0.18,          // LOB let go sooner than this = the instant lob to a team-mate (as before)
+  ringV: 16,           // how fast the stick moves the landing ring, m/s (at full speed)
+  ease: 0.22,          // seconds of stick to reach that speed (from easeK of it): a tap of a key nudges the ring
+  easeK: 0.25,
+  minD: 8, maxD: 45,   // the ring stays this far from the kicker (metres), and on the pitch
+  startD: 20,          // where it starts with no team-mate that way: this far ahead
+  magnet: 3,           // a team-mate this close to the ring: it settles on the spot he'll reach (he walks there)
+  magnetOut: 3.8,      // ...and lets go of him past this (no flicker on the edge)
+  magnetPull: 0.6,     // how far towards him the ring settles (0 = where you put it, 1 = on him)
+  aimSlow: 0.35,       // the kicker's speed while he aims (x his top speed): he shields it, the ring does the moving
+  clearZ: 3.2,         // a lob climbs at least this high over an opponent in its path
+  apexMax: 9,          // ...but never higher than this
+  drivenD: 22,         // a clear lane and shorter than this: a flatter, driven ball (peak drivenLo-drivenHi m)
+  drivenLo: 2.3, drivenHi: 3.3,
+  markDelay: 0.35,     // the receiver's marker reads the drop this much later than the receiver (s)
+  shootWin: 1.4,       // SHOOT pressed while a lob drops to you is kept this long (s, at most) for the header / volley
+};
+const AERIAL = {
+  on: true,            // the Lab's switch
+  gap: 2.3,            // a clear contest: attacker and defender both within this of the drop and of each other (m)
+  reach: 3.0,          // (measured just before the drop: either may still be closing in, so this is a little wider)
+  chance: 0.9,         // not every contest becomes a battle: the rest are the quick duel (lobDuel)
+  cool: 5,             // never two within this many seconds of play
+  mashT: 1.2,          // how long you mash (s, real time)
+  introT: 0.25,        // the slow-motion lead-in before MASH! (s)
+  outroT: 0.2,         // the result frozen a beat before play goes on (s)
+  holdZ: 2.15,         // the ball hangs at this height while they fight for it
+  cpuRate: 6.5,        // the computer's presses per second at base (NORMAL); its level scales it (difficulty.js `mash`)
+  cpuJit: 0.18,        // ...a little random, each battle
+  hsDist: 1.4,         // head start (in presses) per metre closer to the drop
+  hsFace: 0.8,         // ...for facing it
+  hsRun: 0.6,          // ...for the man it was meant for (he has the run on it)
+  hsSpring: 0.6,       // ...for fresh legs (stamina: a higher jump)
+  hsMax: 3,
+  clearRand: 0.5,      // the loser clears it: this much random direction, the rest by position (up the pitch, to the near touchline)
+};
 const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the weather scales these (clear = as tuned)
 const HALF_END = [45, 90, 105, 120];                                // v0.8.5: the minute each half ends (3 + 4 = extra time)
 const RULE_OPTS = {                                                 // v0.8.5 match settings (arenas / light / weather: placeholders for the art)
