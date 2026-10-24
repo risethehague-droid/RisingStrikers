@@ -12,7 +12,12 @@ function ballStep(b, h, owned) {
   const sp = !!b.special && !owned && (b.spF ?? 1) > 0.85;                     // (out of its range it's just a hard shot)
   const ch = !!b.chip && !owned;                                                // v0.9.2 CHIP: struck with backspin-then-dip - it climbs fast, then drops hard
   if (b.z > 0 || b.vz > 0) {
-    b.vz -= G * h * (sp ? 0.35 : 1) + (ch && b.vz < 0 ? G * h * CHIP_DIP : 0);
+    b.vz -= G * h * (sp ? 0.35 : 1) + (ch && b.vz < 0 ? G * h * (LOB_PROTO === 'A' ? 1.0 : CHIP_DIP) : 0);   // (t-002 prototype A: a softer dip)
+    if (b.spin || b.curl) {                                                     // t-002 prototype B / C: Magnus lift - backspin (+) floats it,
+      const vh = Math.hypot(b.vx, b.vy), k = MAGNUS_K * (b.spin || 0) * h, q = MAGNUS_K * (b.curl || 0) * h, vx = b.vx;   // topspin (-) dips it,
+      if (vh > 0) { const f = -k * b.vz / vh; b.vx += b.vx * f - q * b.vy; b.vy += b.vy * f + q * vx; }   // curl bends it sideways
+      b.vz += k * vh; b.spin = (b.spin || 0) * (1 - h / SPIN_TAU); b.curl = (b.curl || 0) * (1 - h / SPIN_TAU);
+    }
     const s = Math.hypot(b.vx, b.vy, b.vz), f = AIR_K * s * h * (sp ? 0.25 : ch ? 0.7 : 1);
     b.vx -= b.vx * f; b.vy -= b.vy * f; b.vz -= b.vz * f;
     b.z += b.vz * h;
@@ -25,6 +30,7 @@ function ballStep(b, h, owned) {
         b.bounced = (b.bounced || 0) + 1;
       } else b.vz = 0;
       b.chip = false;                                                             // (one bounce and it's an ordinary ball)
+      if (b.spin || b.curl) { if (b.spin > 0) { const k = 1 - Math.min(0.45, b.spin * 0.008); b.vx *= k; b.vy *= k; } b.spin = 0; b.curl = 0; }   // (t-002 prototype: backspin checks it)
       b.skid = true; b.rollV = 0.8 * Math.hypot(b.vx, b.vy);
     }
   } else {
@@ -65,12 +71,21 @@ function passTime(d) { const i = Math.round(clamp(d, 1, 50)); if (PASS_T[i] == n
 // players in between: 3.6 m for a short one up to 6 m for a long one; a held (power) lob 3.6 to 8 m.
 function lobApex(d, pow) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 4.4 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H; }   // (LOB_H: the Lab's lob-height knob, 1 in the game)
 // lofted ball: the forward speed that makes it come down at `dist` for a given upward speed
-function solveLob(dist, vz) {
-  const land = v0 => { const b = { x: 0, y: 0, z: 0.05, vx: v0, vy: 0, vz, skid: true, rollV: 0 }, h = 1 / 120;
+function solveLob(dist, vz, spin) {
+  const land = v0 => { const b = { x: 0, y: 0, z: 0.05, vx: v0, vy: 0, vz, skid: true, rollV: 0, spin }, h = 1 / 120;
     for (let t = 0; t < 6; t += h) { ballStep(b, h, false); if (b.z <= 0 && t > 0.1) return b.x; } return b.x; };
   let lo = 2, hi = KICK_MAX;
   for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (land(mid) < dist) lo = mid; else hi = mid; }
   return hi;
+}
+// t-002 prototype: the kick that lands at `dist` AND really peaks at `apex` (drag and spin included - sqrt(2 g h)
+// ignores drag, so friend/lob-mechanics' "3.6-6 m" lobs measured 3.5-4.7 m)
+function lobSolve(dist, apex, spin) {
+  const peak = (v0, vz) => { const b = { x: 0, y: 0, z: 0.05, vx: v0, vy: 0, vz, skid: true, rollV: 0, spin }, h = 1 / 120; let p = 0;
+    for (let t = 0; t < 6; t += h) { ballStep(b, h, false); p = Math.max(p, b.z); if (b.vz < 0) break; } return p; };
+  let lo = 1, hi = 20, v = 10;
+  for (let i = 0; i < 14; i++) { const vz = (lo + hi) / 2; v = solveLob(dist, vz, spin); if (peak(v, vz) < apex) lo = vz; else hi = vz; }
+  return { speed: solveLob(dist, hi, spin), vz: hi };
 }
 
 // ---------------------------------------------------------------- Match methods: ball
@@ -105,9 +120,13 @@ hc2Mix(Match, {
     else if (mode === 'lob' && k.info.lobPow != null) { const T = 1.0 + k.info.lobPow * 1.5; vz = G * T / 2; speed = solveLob(Math.max(4, d - 1), vz); }   // v0.8.5 power lob: up to ~8 m high
     else if (mode === 'lob') { const T = clamp(0.7 + d / 25, 0.9, 1.9); vz = G * T / 2 * 1.05; speed = solveLob(Math.max(4, d - 2), vz); }
     if (k.info.chip) { const S = this.chipSolve(b, k.tx, k.ty, k.p.team, k.info.chipC || 0); speed = S.speed; vz = S.vz; }   // v0.9.2 CHIP: fast, over the keeper, dipping under the bar
+    const P = LOB_PROTO && ((mode === 'lob' && k.info.loft) || k.info.chip) ? this.lobProto(k, d) : null;   // t-002 prototypes (off in a normal match)
+    if (P && P.speed) { speed = P.speed; vz = P.vz; }
     speed = Math.min(speed, k.info.special ? 40 : KICK_MAX);
     b.special = k.info.special || 0; b.power = k.info.shot ? (k.info.power ?? 0.6) : 0;   // v0.8: the keeper guard needs to know
-    b.chip = !!k.info.chip; b.chipSlow = false;
+    b.chip = !!k.info.chip && !(P && P.spin); b.chipSlow = false;
+    if (P) { b.spin = P.spin || 0; b.curl = 0; b.aft = P.aft || null; }         // (t-002 prototype B / C: a spinning ball, no fake dip)
+    else if (b.spin || b.curl || b.aft) { b.spin = 0; b.curl = 0; b.aft = null; }   // (any other kick: no spin left over)
     b.spP = b.special ? (k.info.spP || SP_POWER[b.special - 1]) : 0; b.spF = b.special ? (k.info.spF ?? 1) : 1; b.pierce = b.special ? SP_PIERCE[b.special - 1] : 0; b.spT = this.time.now; b.spTeam = b.special ? k.p.team : null;   // v0.8.6
     if (b.special) this.saveCall(k.p.team.opp);                                  // v0.8.6: the defending side can answer with a special save
     b.owner = null; b.vx = dx / d * speed; b.vy = dy / d * speed; b.vz = vz; b.z = Math.max(b.z, 0.05);
@@ -227,7 +246,7 @@ hc2Mix(Match, {
   },
   // where the loose ball will be over the next 3 seconds (for receivers and chasers)
   predict() {
-    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip }, out = [], h = 1 / 60;
+    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl }, out = [], h = 1 / 60;
     for (let i = 1; i <= 180; i++) { ballStep(c, h, false); if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
   },
@@ -277,7 +296,8 @@ hc2Mix(Match, {
     const gk = team.opp.players[0], dx = tx - b.x, dy = ty - b.y, d = len(dx, dy) || 1, ux = dx / d, uy = dy / d, h = 1 / 120;
     const off = gk && !gk.sentOff ? (gk.x - team.opp.ownGoalX) * team.opp.side : 0;   // (a keeper on his line can't be chipped - the ball has nowhere to drop)
     const along = off > 3.5 ? (gk.x - b.x) * ux + (gk.y - b.y) * uy : -1, reachZ = 2.8 + c * 0.8, minPeak = 2.4 + c * 0.9, zg = clamp(1.3 + c * 0.4 + (Math.random() - 0.5) * 0.3, 0.9, 2.1);
-    const fly = (v, vz) => { const q = { x: 0, y: 0, z: Math.max(b.z, 0.05), vx: v, vy: 0, vz, skid: true, rollV: 0, chip: true }; let atK = null;
+    const sp = LOB_PROTO === 'B' || LOB_PROTO === 'C' ? CHIP_SPIN : undefined;   // (t-002 prototype B / C: a backspin scoop instead of the dip)
+    const fly = (v, vz) => { const q = { x: 0, y: 0, z: Math.max(b.z, 0.05), vx: v, vy: 0, vz, skid: true, rollV: 0, chip: !sp, spin: sp }; let atK = null;
       for (let t = 0; t < 3; t += h) { const ox = q.x; ballStep(q, h, false); if (atK == null && along > 0 && q.x >= along) atK = q.z; if (q.x >= d - 1.5) return { z: q.z, atK, peak: q.peak }; if (q.z <= 0 && t > 0.05) return { z: -1, atK }; q.peak = Math.max(q.peak || 0, q.z); }
       return { z: -1, atK }; };
     let best = null;
@@ -289,8 +309,29 @@ hc2Mix(Match, {
     return best || { speed: (d - 1.5) / 1.6 * 1.06, vz: 9 };                       // (keeper right on top of him: a high one and hope)
   },
 
+  // t-002 prototypes: the lofted kick per direction. A = today's lobs, but they really reach their height. B = three
+  // kicks with backspin: a tap is a high floated lob, SPRINT + LOB a driven lob (low, fast, onto his feet), the chip a
+  // scoop that floats over the keeper. C = one lofted kick that the stick shapes for 0.4 s after it leaves the boot.
+  lobProto(k, d) {
+    const pow = k.info.lobPow, mine = k.p === this.human && !this.demo;
+    if (k.info.chip) return LOB_PROTO === 'A' ? null : { spin: CHIP_SPIN, aft: LOB_PROTO === 'C' && mine ? this.aftOf(k) : null };   // (chipSolve already flew it with the spin)
+    if (LOB_PROTO === 'A') return lobSolve(Math.max(4, d - (pow != null ? 1 : 2)), lobApex(d, pow), undefined);
+    const driven = LOB_PROTO === 'B' && mine && pow == null && Input.held('sprint');
+    const apex = driven ? clamp(1.8 + d * 0.05, 2.4, 3.8) : pow != null ? 4.5 + pow * 7 : LOB_PROTO === 'C' ? clamp(3 + d * 0.1, 4, 7.5) : clamp(3 + d * 0.12, 4.5, 9);
+    const spin = driven ? 8 : LOB_PROTO === 'C' ? 20 : 30;
+    return { ...lobSolve(Math.max(4, d - (driven ? 0.5 : pow != null ? 1 : 2)), apex, spin), spin, aft: LOB_PROTO === 'C' && mine ? this.aftOf(k) : null };
+  },
+  aftOf(k) { const dx = k.tx - k.p.x, dy = k.ty - k.p.y, l = len(dx, dy) || 1; return { t: 0.4, ux: dx / l, uy: dy / l }; },
+  // t-002 prototype C (Sensible Soccer's aftertouch, in words): for 0.4 s after the kick the stick shapes the flight -
+  // pull back = backspin (higher, floats, stops), push on = topspin (dips, runs on), sideways = curl that way
+  aftertouch(dt) {
+    const b = this.ball, A = b.aft; if (b.owner || (A.t -= dt) <= 0) { b.aft = null; return; }
+    const ax = Input.axis, along = ax.x * A.ux + ax.y * A.uy, side = A.ux * ax.y - A.uy * ax.x;
+    b.spin = clamp((b.spin || 0) - along * 220 * dt, -45, 80); b.curl = clamp((b.curl || 0) + side * 70 * dt, -20, 20);   // (curl: ~3 m of bend on a 25 m lob; 160 bent it 7 m)
+  },
   ballPhysics(dt) {
     const b = this.ball; if (b.owner && b.owner.hands) return;
+    if (b.aft) this.aftertouch(dt);
     const owned = !!b.owner, sub = 3, h = dt / sub;
     for (let i = 0; i < sub; i++) {
       const ox = b.x;
@@ -432,6 +473,7 @@ hc2Mix(Match, {
       if (vn < 0) { b.vx -= 1.4 * vn * nx; b.vy -= 1.4 * vn * ny; }
       b.vx *= 0.6; b.vy *= 0.6; b.vz = Math.abs(b.vz) * 0.3 + 0.6; b.z = Math.max(b.z, 0.05);
       b.skid = true; b.rollV = 0; hit.cool = 0.25; b.last = hit.team; b.target = null; b.lob = false;
+      if (b.spin || b.curl || b.aft) { b.spin = 0; b.curl = 0; b.aft = null; }   // (t-002 prototype: a deflection kills the spin)
     }
   },
   gain(p, incoming) {
@@ -443,6 +485,7 @@ hc2Mix(Match, {
     const back = p.keeper && b.last === p.team && b.lastP && b.lastP !== p && b.how && b.how.kind === 'pass';   // v0.9.1 (IFAB Law 12): a team-mate's pass / throw-in back to him - feet only
     const box = p.keeper && !back && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
     b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false;
+    if (b.spin || b.curl || b.aft) { b.spin = 0; b.curl = 0; b.aft = null; }     // (t-002 prototype)
     if (prev) { prev.cool = 0.4; }
     if (box) {
       if (len(b.vx, b.vy) > 2 && p.state !== 'dive') p.face = dirIndex(-b.vx, -b.vy);
