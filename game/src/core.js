@@ -39,6 +39,16 @@ let LOB_PROTO = (() => { try { const q = new URLSearchParams(location.search).ge
   return q === 'B' || m ? 'B' : null; } catch (e) { return null; } })();
 const MAGNUS_K = 0.0058, SPIN_TAU = 5, CHIP_SPIN = 55;   // lift accel = MAGNUS_K x spin (rad/s) x speed: rho*A/(2m) * r (Cl ~ spin ratio, Goff & Carre 2009); spin halves in ~3.5 s;
                                          // a chip leaves the boot with ~9 rev/s of backspin
+// t-011 CURVING SPECIAL PASS (Luca 24 Oct 05:57: "add a special lvl 1 pass that curves impressively and dynamically, make
+// it look cool [...] don't add these new passes to the game just yet, only test lab"). SPECIAL held + PASS / THROUGH / LOB
+// with a bar in the bank = the bending version (specials.js curvePass, ball.js curveStep / curveSolve). OFF in matches;
+// the Test Lab turns it on (lab.js). let: the Lab sets it.
+let CURVE_PASS = false;
+// the spin: tau = how fast it wears off (s; the bend is strongest off the boot, then straightens as the ball slows);
+// clear = how far (m) the curve keeps from a defender standing on the straight line; ang = the launch angles (degrees off
+// the straight line) tried, smallest first, and the default bend when nobody is in the way; kMax = the most curvature
+// (1/m) a solve may ask for; trail / cam = the look (s)
+const CURVE = { tau: 1.6, clear: 2.8, ang: [14, 18, 22, 26, 30, 34, 38], angFree: 20, kMax: 0.35, trail: 2.2, cam: 1.1 };
 // t-005 (lob step 1, readability): the ball's shadow shrinks as it climbs - full size on the grass, SHADOW_MIN of it from
 // SHADOW_Z metres up (docs/lob-chip.md: "100% to about 60% between 0 and 6 m"); the ball-shadow sprite scaled, nothing drawn
 const SHADOW_MIN = 0.62, SHADOW_Z = 6;
@@ -193,8 +203,8 @@ const COIN_Y = Math.round(VIEW_H * 0.555), COIN_S = 2.4;                        
 const COIN_SPIN = ['rise-0', 'rise-1', 'rise-2', 'edge', 'arrow-2', 'arrow-1', 'arrow-0', 'arrow-1', 'arrow-2', 'edge', 'rise-2', 'rise-1'];   // one turn of the coin (PixelLab faces)
 const mulCol = (a, b) => (((((a >> 16) & 255) * ((b >> 16) & 255) / 255) << 16) | ((((a >> 8) & 255) * ((b >> 8) & 255) / 255) << 8) | (((a & 255) * (b & 255)) / 255)) >>> 0;
 // v0.7 kick timing: the ball leaves on the frame where the boot meets it (frame index in the PixelLab strip, played at 18 fps)
-const KICK_HIT = { pass: 2, kick: 2, shot: 3, super: 8, sp1: 6, sp2: 8, punt: 6, chip: 3, tap: 3 }, KICK_FPS = 18;   // tap: t-010 PixelLab batch 16 (the toe meets it on frame 3)   // chip: v0.9.4 PixelLab batch 15 (the stab under it)   // punt: v0.8.1 keeper drop-kick (PixelLab batch 13)
-const KICK_RATE = { pass: 22, shot: 22, super: 14, sp1: 18, sp2: 16, punt: 16, chip: 20, tap: 24 };   // (t-010: the tap is played quick - snappy, it leaves in 0.15 s)          // sp1 spin strike, sp2 thunder strike (batch 11b)                               // batch 11 strips play a little faster (super: the leap takes its time)
+const KICK_HIT = { pass: 2, kick: 2, shot: 3, super: 8, sp1: 6, sp2: 8, punt: 6, chip: 3, tap: 3, cpass: 3, cthru: 4, clob: 4 }, KICK_FPS = 18;   // tap: t-010 PixelLab batch 16 (the toe meets it on frame 3)   // cpass / cthru / clob: t-011 batch 17 (contact on frames 3 / 4 / 4)   // chip: v0.9.4 PixelLab batch 15 (the stab under it)   // punt: v0.8.1 keeper drop-kick (PixelLab batch 13)
+const KICK_RATE = { pass: 22, shot: 22, super: 14, sp1: 18, sp2: 16, punt: 16, chip: 20, tap: 24, cpass: 18, cthru: 18, clob: 18 };   // (t-010: the tap is played quick - snappy, it leaves in 0.15 s)          // sp1 spin strike, sp2 thunder strike (batch 11b)                               // batch 11 strips play a little faster (super: the leap takes its time)
 const kickRate = a => KICK_RATE[a] || KICK_FPS;
 // keeper: how fast he flies sideways in a dive (m/s) and how far past his centre his hands reach when stretched (m)
 let GK_DIVE_V = 5.2, GK_REACH = 1.0;               // v0.9.9: let, for the Test Lab's keeper knobs

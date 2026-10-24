@@ -46,6 +46,7 @@ function ballStep(b, h, owned) {
       const ns = Math.max(0, s - dec * h); b.vx *= ns / s; b.vy *= ns / s;
     }
   }
+  if (b.cv && !owned) curveStep(b, h);                                        // t-011: a curving special pass (never set in a match)
   b.x += b.vx * h; b.y += b.vy * h;
 }
 // t-013: when (0..1) a point moving from (x0, y0) to (x1, y1) first comes within R of (cx, cy); null if it doesn't
@@ -56,6 +57,60 @@ function gpSweep(x0, y0, x1, y1, cx, cy, R) {
   const a = dx * dx + dy * dy; if (a < 1e-12) return null;
   const q = 2 * (fx * dx + fy * dy), disc = q * q - 4 * a * c; if (disc < 0) return null;
   const t = (-q - Math.sqrt(disc)) / (2 * a); return t >= 0 && t <= 1 ? t : null;
+}
+// t-011 CURVE PASS: sideways spin. b.cv is the path's curvature (1/m, + turns it towards +y): each step the velocity turns by
+// cv x speed x h, so the sideways pull grows with pace (Magnus: spin x speed) - strongest off the boot, fading as the ball
+// slows - and the spin wears off with CURVE.tau. On the grass too (a normal ball's curl stops at its first bounce: Luca wants
+// the ground pass itself to bend), and it never changes the pace, so the pass solvers' timing still holds.
+function curveStep(b, h) {
+  const a = b.cv * Math.hypot(b.vx, b.vy) * h, c = Math.cos(a), s = Math.sin(a), vx = b.vx;
+  b.vx = vx * c - b.vy * s; b.vy = vx * s + b.vy * c; b.cv *= 1 - h / CURVE.tau;
+  if (Math.abs(b.cv) < 1e-4) b.cv = 0;
+}
+// fly a curving test ball from (0,0) towards (d,0): launched th radians off the line to side s (+1 = +y), curvature k
+// bringing it back. Ground: where it is when it first gets d along (null: it stopped or turned round first); lob: where it
+// lands. `at`: the ball's lateral offset and height as it passes each man in `block` (along a). arc: the distance flown.
+function curveFly(speed, vz, th, k, s, lob, d, block) {
+  const b = { x: 0, y: 0, z: 0.05, vx: speed * Math.cos(th), vy: speed * Math.sin(th) * s, vz, skid: true, rollV: 0.8 * speed, cv: -k * s }, h = 1 / 120;
+  let arc = 0, bend = 0; const at = block ? block.map(() => null) : null;
+  for (let t = 0; t < 6; t += h) {
+    const ox = b.x, oy = b.y, z0 = b.z; ballStep(b, h, false); arc += Math.hypot(b.x - ox, b.y - oy);
+    if (Math.abs(b.y) > Math.abs(bend)) bend = b.y;
+    if (at) block.forEach((o, i) => { if (!at[i] && ox < o.a && b.x >= o.a) at[i] = { y: b.y, z: b.z }; });
+    if (lob) { if (z0 > 0 && b.z <= 0) return { x: b.x, y: b.y, arc, bend, at, t }; }
+    else if (b.x >= d) { const f = (d - ox) / (b.x - ox || 1); return { x: d, y: oy + (b.y - oy) * f, arc, bend, at, t }; }
+    else if (b.vx <= 0 || Math.hypot(b.vx, b.vy) < 0.3) return null;
+  }
+  return null;
+}
+// the curving pass of `mode` over d metres: which side it bends to, how far off the line it sets off, and the spin that
+// brings it back onto the target. opps: the other side in the pass's frame (a along, l across, + = right of the line).
+// A man on the straight line decides the side (round him, away from the side he leans to) and the smallest launch
+// angle that keeps CURVE.clear from him (a lob also clears him by going over: 2.3 m up). Nobody in the way: the
+// kicker's natural bend (foot: +1 = the right foot as the frames show it facing E, -1 = mirrored) - the side-foot pass and
+// the scoop lob bend in from the right, the outside-of-the-boot through ball the other way. The pace: the mode's own
+// (ground and through arrive as firm as the straight pass over the distance it really flies; the lob peaks at `apex`).
+function curveSolve(mode, d, opps, foot, apex) {
+  const lob = mode === 'lob', vz0 = mode === 'through' ? 0.25 : 0.2, arrive = mode === 'through' ? 4.5 : clamp(4.5 + d * 0.15, 5.5, 11);
+  const block = opps.filter(o => o.a > 1.5 && o.a < d - 1.2 && Math.abs(o.l) < CURVE.clear + 0.6);
+  const near = block.reduce((m, o) => !m || Math.abs(o.l) < Math.abs(m.l) ? o : m, null);
+  const s = near && Math.abs(near.l) > 0.3 ? -Math.sign(near.l) : (mode === 'through' ? -1 : 1) * foot;
+  const at = th => {
+    let L = d, speed = 0, vz = vz0, k = 0, r = null;
+    for (let it = 0; it < (lob ? 3 : 2); it++) {
+      if (lob) { const S = lobSolve(Math.max(4, L), apex, undefined, true); speed = S.speed; vz = S.vz; } else speed = solveGround(Math.min(50, L), arrive, vz);
+      let lo = 0, hi = CURVE.kMax;
+      for (let i = 0; i < 15; i++) { const mid = (lo + hi) / 2, f = curveFly(speed, vz, th, mid, s, lob, d); if (f && f.y * s > 0) lo = mid; else hi = mid; }
+      k = (lo + hi) / 2; r = curveFly(speed, vz, th, k, s, lob, d, block); if (!r) return null;
+      L = lob ? L * d / Math.max(1, Math.hypot(r.x, r.y)) : r.arc;
+    }
+    const clear = block.every((o, i) => { const q = r.at[i]; return !q || (q.y - o.l) * s >= CURVE.clear || q.z > 2.3; });
+    return { th, k, s, speed, vz, bend: Math.abs(r.bend), miss: Math.hypot(r.x - d, r.y), t: r.t, clear, block: block.length };
+  };
+  let best = null;
+  // (a lob clears a man by going over him: its bend is the show, so it takes the free angle)
+  for (const deg of block.length && !lob ? CURVE.ang : [CURVE.angFree]) { const S = at(deg * Math.PI / 180); if (!S || S.miss > 1.2) continue; best = S; if (S.clear) break; }
+  return best;
 }
 // fly a test ball along +x and report when/how fast it gets to `dist` (or where it stops)
 function simKick(v0, vz, dist) {
@@ -162,6 +217,7 @@ hc2Mix(Match, {
     b.chip = !!k.info.chip && !(P && P.spin); b.chipSlow = false;
     if (P) { b.spin = P.spin || 0; b.curl = 0; }                                // (t-002 prototype B: a spinning ball, no fake dip)
     else if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }                      // (any other kick: no spin left over)
+    if (b.cv) b.cv = 0;                                                         // (t-011: nor a curving pass's)
     // t-005 (lob step 1): every lofted ball (lob, power lob, chip, a keeper's throw or punt, a lofted set piece) keeps a
     // landing ring on the grass until someone touches it (docs/lob-chip.md: "you can't see where it lands once it's gone")
     b.ring = mode === 'lob' || k.info.chip ? { by: k.p, chip: !!k.info.chip, n: b.bounced || 0, at: null } : null;
@@ -171,6 +227,7 @@ hc2Mix(Match, {
     if (k.p.kickAnim === 'super') b.z = 1.0;                                      // struck in mid-air, at the height of his boot
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
     b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft; b.aimLob = !!k.info.aim;   // lob-mechanics: an open-play lob (its drop is a duel)
+    if (k.info.curve) this.curveLaunch(b, k);                                     // t-011: the curving special pass (Test Lab only)
     b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null;   // (t-012: the runners attack a cross until someone touches it)
     if (k.info.tap) this.tapSfx(); else if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
     k.p.hands = false;
@@ -260,6 +317,18 @@ hc2Mix(Match, {
       const a = rnd(-1, 1) * e, dx = tx - p.x, dy = ty - p.y, c = Math.cos(a), s = Math.sin(a); tx = p.x + dx * c - dy * s; ty = p.y + dx * s + dy * c; } }
     this.kick(p, tx, ty, 0, 0, 0.12, { mode, target: q, loft: mode === 'lob' && !p.keeper && !this.setPiece });
     if (q && p.team === this.home) { this.nextHuman = q; this.passRing = { p: q, t: 1.0 }; this.passStick = { ...Input.axis }; }
+  },
+  // t-011: the curving special pass leaves the boot - solved from where the ball really is at contact, round the men in
+  // the way now (specials.js curvePass set it up; nothing solvable = it goes as the straight pass it already is)
+  curveLaunch(b, k) {
+    const C = k.info.curve, dx = k.tx - b.x, dy = k.ty - b.y, d = len(dx, dy) || 1, ux = dx / d, uy = dy / d;
+    const opps = k.p.team.opp.players.filter(o => !o.sentOff).map(o => ({ a: (o.x - b.x) * ux + (o.y - b.y) * uy, l: (o.y - b.y) * ux - (o.x - b.x) * uy, o }));
+    const S = curveSolve(C.mode, d, opps, C.foot, C.mode === 'lob' ? this.lobAimApex(k.p, k.tx, k.ty) : 0);
+    this.curveLast = S ? { ...S, mode: C.mode, by: k.p, to: k.info.target, from: { x: b.x, y: b.y }, tx: k.tx, ty: k.ty, d } : null;
+    if (!S) return;
+    const a = S.th * S.s, c = Math.cos(a), s = Math.sin(a), lx = ux * c - uy * s, ly = ux * s + uy * c;   // the line turned by th to side s
+    b.vx = lx * S.speed; b.vy = ly * S.speed; b.vz = S.vz; b.rollV = 0.8 * S.speed; b.cv = -S.k * S.s;
+    this.curveFx(k, S);                                                         // the look (specials.js)
   },
   // v0.8.5 (Luca): HOLD the lob for a high ball where you point - the longer you hold, the further and higher (12-50 m)
   powerLob(p, dir, c) {
@@ -384,7 +453,7 @@ hc2Mix(Match, {
   // where the loose ball will be over the next 3 seconds (for receivers and chasers). t-005: plus `land`, where a ball
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
   predict() {
-    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too)
+    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
     for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
   },
@@ -799,6 +868,7 @@ hc2Mix(Match, {
       b.vx *= 0.6; b.vy *= 0.6; b.vz = Math.abs(b.vz) * 0.3 + 0.6; b.z = Math.max(b.z, 0.05);
       b.skid = true; b.rollV = 0; hit.cool = 0.25; b.last = hit.team; b.target = null; b.lob = false;
       if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }                          // (t-002 prototype: a deflection kills the spin)
+      if (b.cv) b.cv = 0;                                                        // (t-011: and a curving pass's)
       b.ring = null;                                                             // (t-005: touched - no landing ring)
     }
   },
@@ -828,7 +898,7 @@ hc2Mix(Match, {
       b.vx = side * rnd(1.5, 3.5) - b.vx * 0.1; b.vy = s * rnd(5, 9) + b.vy * 0.15; b.vz = rnd(1.5, 4) + (b.z > 1.6 ? 2 : 0);
     }
     b.z = Math.max(b.z, 0.3); b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.lob = false; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
-    if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }                            // (t-002 prototype)
+    if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }          // (t-002 prototype; t-011 the curving pass)
     b.camUp = how !== 'parry' || b.vz > 3;                                       // t-007: the camera follows it up and out (world.js)
   },
   // t-007: the keeper's frames for a save he makes on the spot (a special he gets a hand to): a dive if he's flying already
@@ -867,7 +937,7 @@ hc2Mix(Match, {
     const back = p.keeper && b.last === p.team && b.lastP && b.lastP !== p && b.how && b.how.kind === 'pass';   // v0.9.1 (IFAB Law 12): a team-mate's pass / throw-in back to him - feet only
     const box = p.keeper && !back && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
     b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null; b.camUp = false;   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
-    if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }                            // (t-002 prototype)
+    if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }          // (t-002 prototype; t-011 the curving pass)
     if (prev) { prev.cool = 0.4; }
     if (box) {
       if (len(b.vx, b.vy) > 2 && p.state !== 'dive') p.face = dirIndex(-b.vx, -b.vy);
