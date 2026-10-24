@@ -39,9 +39,9 @@ function ballStep(b, h, owned) {
     if (s > 0) {
       let dec;
       if (owned) dec = DRIB_DEC;
-      else if (sp) dec = SKID_DEC * 0.3;
-      else if (b.skid && s > b.rollV) dec = SKID_DEC;
-      else { b.skid = false; dec = ROLL_DEC + ROLL_K * s * s; }
+      else if (sp) dec = SKID_DEC * 0.3 * PACE_GRIP;
+      else if (b.skid && s > b.rollV) dec = SKID_DEC * PACE_GRIP;
+      else { b.skid = false; dec = (ROLL_DEC + ROLL_K * s * s) * PACE_GRIP; }   // (arcade-2: PACE_GRIP 0.88 on ARCADE: loose balls keep rolling into races)
       if (b.tap && !owned && !sp) dec += TAP.grip;                                 // t-010: a tap kick grips the grass and dies (a close-range finish)
       const ns = Math.max(0, s - dec * h); b.vx *= ns / s; b.vy *= ns / s;
     }
@@ -130,12 +130,13 @@ function solveGround(dist, arrive, vz) {
 }
 // v0.8.2 how long an AI ground pass of d metres takes to arrive (cached per metre; the AI's interception check uses it)
 const PASS_T = [];
-function passTime(d) { const i = Math.round(clamp(d, 1, 50)); if (PASS_T[i] == null) { const v = solveGround(i, clamp(4.5 + i * 0.15, 5.5, 11), 0.2); PASS_T[i] = simKick(v, 0.2, i).t; } return PASS_T[i]; }
+function passTime(d) { const i = Math.round(clamp(d, 1, 50)), k = paceK().passArrive, T = k === 1 ? PASS_T : (PASS_T.firm = PASS_T.firm || []);   // (arcade-2: ARCADE's firmer passes have their own table)
+  if (T[i] == null) { const v = solveGround(i, clamp(4.5 + i * 0.15, 5.5, 11) * k, 0.2); T[i] = simKick(v, 0.2, i).t; } return T[i]; }
 // friend/lob-mechanics (co-designer: "it never makes sense to lob the ball - easily interrupted, glitchy"). Measured:
 // a 12 m lob peaked at 1.8 m and a 25 m one at 3.5 m, so the ball stayed at head height (under 2.7 m) for most of its
 // flight and anyone near the line headed it away (28 of 60 of your lobs). An open-play lob now climbs over the
 // players in between: 3.6 m for a short one up to 6 m for a long one; a held (power) lob 3.6 to 8 m.
-function lobApex(d, pow) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 3.0 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H; }   // (LOB_H: the Lab's lob-height knob, 1 in the game)
+function lobApex(d, pow) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 3.0 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H * paceK().lobH; }   // (LOB_H: the Lab's lob-height knob, 1 in the game; arcade-2: ARCADE 0.72 = ~15% less hang time)
 // (v0.10.3, Luca's OK on PR #8's call 3, "lean arcade": a full power lob peaks at 6.6 m and hangs ~2.35 s, was 8 m / 2.58 s)
 // lofted ball: the forward speed that makes it come down at `dist` for a given upward speed
 // (n: bisection steps - t-005's charge-arc preview asks for 12, about 1 cm; every kick keeps the full 22)
@@ -201,8 +202,8 @@ hc2Mix(Match, {
     const dx = k.tx - b.x, dy = k.ty - b.y, d = len(dx, dy) || 1;
     let speed = k.speed, vz = k.vz;
     const mode = k.info.mode;
-    if (mode === 'ground') { vz = 0.2; speed = solveGround(d, clamp(4.5 + d * 0.15, 5.5, 11), vz); }   // arrives firm, then dies
-    else if (mode === 'through') { vz = 0.25; speed = solveGround(d, 4.5, vz); }                          // slows into the runner's path
+    if (mode === 'ground') { vz = 0.2; speed = solveGround(d, clamp(4.5 + d * 0.15, 5.5, 11) * paceK().passArrive, vz); }   // arrives firm, then dies (arcade-2: ARCADE 20% firmer)
+    else if (mode === 'through') { vz = 0.25; speed = solveGround(d, 4.5 * paceK().passArrive, vz); }                          // slows into the runner's path
     else if (mode === 'lob' && k.info.aim) { const L = lobSolve(d, k.info.aim.apex); speed = L.speed; vz = L.vz; }   // t-008: the hold-aimed lob lands ON the ring (solved from where the ball is as it leaves the boot)
     else if (mode === 'lob' && k.info.loft) { const L = this.loftLaunch(d, k.info.lobPow); speed = L.speed; vz = L.vz; }   // lob-mechanics: over their heads (t-005: really as high as lobApex says)
     else if (mode === 'lob' && k.info.lobPow != null) { const T = 1.0 + k.info.lobPow * 1.5; vz = G * T / 2; speed = solveLob(Math.max(4, d - 1), vz); }   // v0.8.5 power lob: up to ~8 m high
@@ -254,14 +255,15 @@ hc2Mix(Match, {
   // a camera kick; a charged power shot (held shoot) freezes longer, shakes harder and drags a hot trail behind the ball
   impact(k) {
     const pw = k.info.shot ? (k.info.power ?? 0.6) : 0, power = k.info.shot && pw > 0.72;
-    this.hitStop = k.info.shot ? 0.05 + pw * 0.08 : (k.info.mode === 'lob' ? 0.035 : 0.025);
+    const P = paceK(); this.hitStop = k.info.shot ? (0.05 + pw * 0.08) * P.hsShot : (k.info.mode === 'lob' ? 0.035 : 0.025) * P.hsPass;   // (arcade-2: ARCADE no hit-stop on passes, 35% more on shots)
     this.flashT = this.hitStop + 0.03;
     if (k.info.shot) this.cameras.main.shake(power ? 260 : 150, power ? 0.004 + pw * 0.004 : 0.0015 + pw * 0.002);
     else this.cameras.main.shake(70, 0.0008);
     this.trailT = power ? 0.9 : 0; this.trailHot = pw; this.trailSp = 0;
+    if (P.trails && k.info.shot && pw > 0.5) { this.trailT = 0.6 + pw * 0.9; this.trailHot = Math.min(1, pw + 0.15); }   // (arcade-2: ARCADE a hot trail on every hard shot, longer)
     if (power) SFX.boom(pw);
     const sp = k.info.special || 0;
-    if (sp) { this.hitStop = 0.14 + sp * 0.05; this.flashT = this.hitStop; this.trailT = 1.6; this.trailSp = sp;
+    if (sp) { this.hitStop = (0.14 + sp * 0.05) * P.hsShot; this.flashT = this.hitStop; this.trailT = P.trails ? 2.4 : 1.6; this.trailSp = sp;
       const c = [[255, 140, 40], [80, 180, 255], [190, 90, 255]][sp - 1]; this.cameras.main.flash(90 + sp * 40, ...c); this.cameras.main.shake(300 + sp * 80, 0.005 + sp * 0.002); }
     if (this.fxImpact) this.fxImpact(k, pw);                                     // PixelLab impact burst (when the art is in)
   },
@@ -936,7 +938,7 @@ hc2Mix(Match, {
     if (b.shotBy && b.shotBy.team !== p.team && p.keeper) this.missedChance(b.shotBy.team, 'held'); else b.shotBy = null;
     const back = p.keeper && b.last === p.team && b.lastP && b.lastP !== p && b.how && b.how.kind === 'pass';   // v0.9.1 (IFAB Law 12): a team-mate's pass / throw-in back to him - feet only
     const box = p.keeper && !back && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
-    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null; b.camUp = false;   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
+    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null; b.camUp = false; b.duelTry = false;   // (arcade-2: a new loose ball can be a duel again)   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
     if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }          // (t-002 prototype; t-011 the curving pass)
     if (prev) { prev.cool = 0.4; }
     if (box) {

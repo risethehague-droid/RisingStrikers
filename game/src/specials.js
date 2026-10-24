@@ -150,7 +150,7 @@ class SpMeter {
   reset() { this.e = this.shown = 0; this.risen = false; }
   add(v, src) {
     const m = this.m; if (m.over || m.replay || window.__lab || !(window.HC2_STARTED || m.demo)) return;
-    const before = this.level(); this.e = clamp(this.e + v, 0, 3); const after = this.level();
+    const before = this.level(); this.e = clamp(this.e + (v > 0 ? v * paceK().spGain : v), 0, 3); const after = this.level();   // (arcade-2: ARCADE fills 1.75x - specials and special saves several times a match)
     if (after > before) { this.flash = 0.45; this.pop = 0.9; SFX.level(after); if (after === 3 && !this.risen) { this.risen = true; m.riseQ = this.team; }
       if (SP_STYLE === 'wild') { const u = after / 3, X = this.right ? this.x + this.W - u * this.W : this.x + u * this.W;
         this.burst('sparks', X, this.y + this.H / 2, 0.6, 1.8, 420); if (after >= 2) this.burst('bolt', X, this.y - 6, 0.7, 1.1, 300); } }
@@ -479,7 +479,7 @@ hc2Mix(Match, {
     gk.spSave = 0;
     if (mt.level() < 1) return;
     if (def === this.home && !this.demo) { this.saveAsk = { team: def, t: 0.75 }; this.say('', `SPECIAL SAVE! PRESS ${keyset().special}`, 0.75); return; }
-    if (Math.random() < 0.8) { gk.spSave = mt.spend(); this.saveFx(gk); }
+    if (Math.random() < (paceK().gkAnswer > 0.6 ? 0.95 : 0.8)) { gk.spSave = mt.spend(); this.saveFx(gk); }   // (arcade-2: ARCADE nearly always answers a special)
   },
   saveFx(gk) {
     const lv = gk.spSave; if (!lv) return;
@@ -536,7 +536,7 @@ hc2Mix(Match, {
     if (!gk || gk.sentOff || pen || b.special || !s || s.gk !== gk || s.off || gk.spSave || mt.level() < 1) return;
     b.saveable = shooters;
     if (def === this.home && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset().special}`, 0.75); return; }
-    if (s.dy > s.cover * 0.95 && Math.random() < 0.55 * this.dk(def).gkSave) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it
+    const P = paceK(); if (s.dy > s.cover * P.gkCover && Math.random() < P.gkAnswer * this.dk(def).gkSave) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it (arcade-2: ARCADE answers more, and a little sooner: a keeper's move against every big shot)
   },
   // the clash at the keeper: true = saved, 'hand' = he only gets a hand to it (t-007: it goes out), false = beaten
   clash(gk) {

@@ -112,7 +112,8 @@ hc2Mix(Match, {
         } else { tx = bl.x + ubx * 0.6; ty = bl.y + uby * 0.6; }
       }
       v = Math.min(p.top(false, false) * 1.05, len(carrier.vx, carrier.vy) + 1.2 + d * 0.5); p.look(carrier.x - p.x, carrier.y - p.y); }
-    p.moveTo(tx, ty, v * this.dk(team).press, dt);                             // (v0.9.2: how hard he closes down, by level)
+    p.moveTo(tx, ty, v * this.dk(team).press * paceK().pressK, dt);           // (v0.9.2: how hard he closes down, by level; arcade-2: ARCADE harder - the dash
+                                                                                   // mustn't make dribbling past the computer easier)
     p.watch = d < AI.MIRROR ? carrier : null;                                    // close: jockey him, facing him
     if (d < AI.MIRROR && p.speed < 2.5) p.look(carrier.x - p.x, carrier.y - p.y);
     // commit only from in front (or on a heavy touch), not every time he's near
@@ -357,7 +358,7 @@ hc2Mix(Match, {
       if (p.takeT <= 0) { const lat = front.y - p.y, edge = p.y < 9 ? 1 : p.y > PITCH_W - 9 ? -1 : 0;
         p.takeSide = edge || (Math.abs(lat) > 0.5 ? -Math.sign(lat) : (Math.sign(34 - p.y) || 1)); p.takeT = rnd(0.9, 1.5); }
       const a = clamp((6 - fd) / 6, 0, 1) * 0.85; dx = side * Math.cos(a); dy = p.takeSide * Math.sin(a) + dy * 0.25;
-      const KB = this.dk(team); if (fd < 3.2 && p.stamina > 0.35 && (p.burstCd || 0) <= this.time.now && Math.random() < dt * 2.5 * KB.burst) { p.burst = 0.5; p.burstCd = this.time.now + 1800 * KB.burstCd; }   // (v0.9.3: by level)
+      const KB = this.dk(team); if (fd < 3.2 && p.stamina > 0.35 && (p.burstCd || 0) <= this.time.now && Math.random() < dt * 2.5 * KB.burst) { p.burst = 0.5 * (paceK().burstT / 0.55); p.burstCd = this.time.now + 1800 * KB.burstCd; }   // (v0.9.3: by level)
     }
     const go = (near > 7 || p.burst > 0) && p.stamina > 0.3;                    // open grass / beating his man: knock it on and sprint
     p.sprinting = go; const v = p.top(go, true) * 0.95, dl = len(dx, dy) || 1;
@@ -370,8 +371,9 @@ hc2Mix(Match, {
     { const gko = team.opp.players[0];                                           // v0.9.2: a keeper rushing out at him - chip him (a smart side does it more)
       if (gko && !gko.sentOff && toGoal < 19) { const gH = (gko.x - team.opp.ownGoalX) * team.opp.side, gap = len(gko.x - p.x, gko.y - p.y);
         if (gH > K.chipOff && gap > 3 && gap < 12 && this.chipCan(p, { x: gx - p.x, y: 34 - p.y }) && Math.random() < (gap < 7 || gH > 7 ? 0.55 : 0.3) * K.chip) { this.chipShot(p, clamp((gap - 3) / 8, 0, 1) * 0.6, 0); return; } } }   // (Easy chips too early and rarely; Rise only when he's well off his line)
-    const sh = toGoal < 32 ? this.shotLook(team, p.x, p.y) : { q: 0, aim: 0 }, Q = K.shotQ;   // (v0.9.2: a weaker side needs a better look before it shoots, and shoots less)
-    const want = (sh.q > 0.85 + Q ? 0.9 : sh.q > 0.6 + Q ? (toGoal < 20 ? 0.6 : 0.3) : sh.q > 0.42 + Q ? (toGoal < 26 ? 0.12 : 0.04) : 0) * K.shotWant;
+    const PR = paceK().shotRange;                                                // (arcade-2: ARCADE shoots from ~20% further, and sooner - both sides)
+    const sh = toGoal < 32 * PR ? this.shotLook(team, p.x, p.y) : { q: 0, aim: 0 }, Q = K.shotQ;   // (v0.9.2: a weaker side needs a better look before it shoots, and shoots less)
+    const want = (sh.q > 0.85 + Q ? 0.9 : sh.q > 0.6 + Q ? (toGoal < 20 * PR ? 0.6 : 0.3) : sh.q > 0.42 + Q ? (toGoal < 26 * PR ? 0.12 : 0.04) : 0) * K.shotWant * paceK().shotWant;
     if (want && Math.random() < want) {
       const pw = toGoal < 14 ? rnd(0.5, 0.72) : toGoal < 22 ? rnd(0.62, 0.84) : rnd(0.76, 0.9);
       this.doShot(p, pw, clamp(sh.aim + rnd(-0.15, 0.15), -1, 1)); return;
