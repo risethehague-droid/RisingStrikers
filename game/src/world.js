@@ -54,6 +54,7 @@ hc2Mix(Match, {
       const near = this.add.image(ox, oy, 'props', `goal-${side}-net_near`).setOrigin(0, 0).setDepth(oy + a.sort_near_post_y);
       this.nets[side] = { imgs: [back, near], x: ox };
       this.add.image(ox, oy, 'props', `goal-${side}-post_near`).setOrigin(0, 0).setDepth(oy + a.sort_near_post_y + 1);
+      if (gpOn()) this.netCells(this.nets[side]);                               // t-013: cut now, not on the first goal (~30 ms once)
     }
     const sz = MAN.propSizes['flag-0'], foot = MAN.flags.pole_foot_in_sprite;
     this.flags = [];
@@ -65,6 +66,47 @@ hc2Mix(Match, {
     }
     if (!this.anims.exists('flag')) this.anims.create({ key: 'flag', frames: [0, 1, 2, 3].map(i => ({ key: 'props', frame: `flag-${i}` })), frameRate: 6, repeat: -1 });
     this.flags.forEach(f => f.play('flag'));
+  },
+  // t-013 THE NET WITH GIVE (Luca: "slight give on a net so it can dramatically hit the net"): the existing net art
+  // (props atlas goal-*-net_back / net_near) is cut into small cells that move with the bulges the ball makes (ball.js
+  // gpNet), so the mesh itself bends and ripples - no new art. At rest the plain images show and the cells sleep.
+  netDraw() {
+    for (const side of ['L', 'R']) {
+      const n = this.nets && this.nets[side], L = this.netS[side]; if (!n) continue;
+      if (!L.length) { if (n.cellsOn) { for (const c of n.cells) c.img.setVisible(false); for (const im of n.imgs) im.setVisible(true); n.cellsOn = false; } continue; }
+      if (!n.cells) this.netCells(n);
+      if (!n.cellsOn) { for (const c of n.cells) c.img.setVisible(true); for (const im of n.imgs) im.setVisible(false); n.cellsOn = true; }
+      const B = L.map(q => { const u = Math.hypot(q.sx, q.sy) || 1;
+        return { X: wx(q.hx, q.hy), Y: wy(q.hy, q.hz) - 9, d: q.d, sx: q.sx, sy: q.sy, ux: q.sx / u, uy: q.sy / u, s2: 2 * ((GP.netSig + 0.6 * Math.abs(q.d)) * PX_X) ** 2,
+          front: GP.ripV * q.age, rip: GP.ripPx * Math.min(1, q.peak / 0.25) * Math.exp(-q.age / GP.ripTau) }; });
+      const M = GP.drawMax;
+      for (const c of n.cells) {
+        let dx = 0, dy = 0;
+        for (const q of B) {
+          const rx = c.x - q.X, ry = c.y - q.Y, r2 = rx * rx + ry * ry, a = q.d * Math.exp(-r2 / q.s2);   // the bulge: deepest where the ball is
+          dx += a * q.sx; dy += a * q.sy;
+          if (q.rip > 0.05) { const r = Math.sqrt(r2); if (r < q.front) { const w = q.rip * Math.sin(2 * Math.PI * (r - q.front) / GP.ripL) * Math.exp((r - q.front) / (2 * GP.ripL)); dx += w * q.ux; dy += w * q.uy; } }   // and a ripple running out
+        }
+        const m = Math.hypot(dx, dy); if (m > M) { dx *= M / m; dy *= M / m; }
+        c.img.setPosition(c.x0 + Math.round(dx), c.y0 + Math.round(dy));
+      }
+    }
+  },
+  // cut the two net images of one goal into GP.cell-pixel cells (empty ones skipped; each overlaps the next by a pixel so
+  // no seams open as they move apart), hidden until the net moves
+  netCells(n) {
+    const C = GP.cell, src = this.textures.get('props').getSourceImage(); n.cells = [];
+    for (const im of n.imgs) {
+      const f = im.frame, ss = f.data && f.data.trim ? f.data.spriteSourceSize : { x: 0, y: 0 }, w = f.cutWidth, h = f.cutHeight;
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d');
+      g.drawImage(src, f.cutX, f.cutY, w, h, 0, 0, w, h); const A = g.getImageData(0, 0, w, h).data;
+      for (let y = 0; y < h; y += C) for (let x = 0; x < w; x += C) {
+        let any = false; for (let j = y; j < Math.min(h, y + C) && !any; j++) for (let i = x; i < Math.min(w, x + C); i++) if (A[(j * w + i) * 4 + 3]) { any = true; break; }
+        if (!any) continue;
+        const img = this.add.image(im.x, im.y, im.texture.key, f.name).setOrigin(0, 0).setDepth(im.depth).setCrop(ss.x + x, ss.y + y, C + 1, C + 1).setVisible(false);
+        n.cells.push({ img, x0: im.x, y0: im.y, x: im.x + ss.x + x + C / 2, y: im.y + ss.y + y + C / 2 });
+      }
+    }
   },
   buildSky() {
     const R = this.mset || {}, tod = R.tod || 'day', w = R.weather || 'clear';
@@ -95,6 +137,7 @@ hc2Mix(Match, {
     const b = this.ball, cam = this.cameras.main;
     for (const p of this.all) p.draw();
     if (this.ref) this.ref.draw();
+    if (this.netS) this.netDraw();                                              // t-013: the net's give (GOAL_PHYS)
     const X = wx(b.x, b.y), Y = wy(b.y);
     const horiz = Math.abs(b.vx * PX_X) >= Math.abs(b.vy * PX_Y);
     // spin: never step more than ~1 frame per screen refresh, or a fast ball looks frozen / spinning backwards

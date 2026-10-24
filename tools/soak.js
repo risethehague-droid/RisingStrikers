@@ -8,6 +8,8 @@
 //   ONE='seed=8919 home=IS away=IRO lvl=hard ai=new weather=rain tod=night' node tools/soak.js    replay one match
 //   OUT=soak-out node tools/soak.js                      also write soak-out/soak-<time>.json and .md
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
+//   GOAL_PHYS=1 node tools/soak.js                       t-013: the goal physics forced ON in the matches (it's off in a match
+//                                                        until Luca's OK); the summary adds woodwork hits, rebounds back in play, pop-ups
 //
 // The set-ups rotate with different strides, so pairs of factors (teams x level, level x weather, AI x light...)
 // get covered in a few matches instead of every combination. Your side plays at base, theirs at the level.
@@ -34,13 +36,14 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     window.__bwHook = x => window.__soakInc.push({ code: x.code, title: x.title, sev: x.sev, msg: String(x.msg).slice(0, 300), half: x.half, min: x.min, who: x.whoName, where: x.where, score: x.score });
     window.__rngOf = seed => { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
     window.__RND = Math.random; return GAME_VER; });
+  if (process.env.GOAL_PHYS) await page.evaluate(() => { GOAL_PHYS = true; });   // t-013
   const out = { game: ver, at: new Date().toISOString(), matches: [], errors: errs };
   for (let i = 0; i < list.length; i++) {
     const c = list[i]; cur = i; const t0 = Date.now();
     await page.evaluate(c => { window.__ready = false; window.__hc2.setTeams(c.home, c.away, () => { window.__ready = true; }); }, c);
     await page.waitForFunction(() => window.__ready, null, { timeout: 120000 });
     await page.evaluate(c => { const m = window.__hc2; window.__soakInc = []; Math.random = window.__rngOf(c.seed);
-      setAiMode(c.ai); setDiff(c.lvl === 'base' ? 'normal' : c.lvl);
+      m.gpStats = { wood: 0, back: 0, pops: 0, net: 0 }; setAiMode(c.ai); setDiff(c.lvl === 'base' ? 'normal' : c.lvl);
       window.__diffTeams = { home: Object.assign({}, DIFF_TRAITS.base, { lvl: 'base' }), away: Object.assign({}, DIFF_TRAITS[c.lvl] || DIFF_TRAITS.normal, { lvl: c.lvl }) };
       m.mset = { arena: 'loo', tod: c.tod, weather: c.weather, ending: 'none' }; m.applyRules();
       m.demo = true; m.kickoff(m.home); }, c);
@@ -56,10 +59,10 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     const st = await page.evaluate(() => { const m = window.__hc2, S = m.mstats || {}, H = S[m.home.name] || {}, A = S[m.away.name] || {}; Math.random = window.__RND;
       const poss = (H.poss || 0) + (A.poss || 0);
       return { score: `${m.home.score}-${m.away.score}`, shots: `${H.shots || 0}-${A.shots || 0}`, fouls: `${H.fouls || 0}-${A.fouls || 0}`,
-        possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), incidents: window.__soakInc.slice() }; });
+        possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null }; });
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
     const tr = Object.entries(st.trips).map(([k, v]) => `${k} ${v}`).join(', ');
-    console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · ${tr || 'no trips'}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
+    console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · ${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
   }
   await br.close();
   // summary: every Bug Watch code across all matches, bugs first
