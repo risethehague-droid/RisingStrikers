@@ -995,6 +995,74 @@
         { kind: 'battle', battle: true, cpu: true, mash: 2, from: [45, 30], mates: [[9, 17, 35]], opps: [[3, 20.2, 34.6]], gk: true, lvl: 'normal' }),
     ];
   }
+  // ======================================================================= t-011 CURVING SPECIAL PASSES (Luca 24 Oct 05:57: "add a special lvl
+  // 1 pass that curves impressively and dynamically, make it look cool [...] one for lob, one for through ball, one for
+  // normal pass (don't add these new passes to the game just yet, only test lab)"). The Lab plays YOU through the touch
+  // buttons (the game's own input code): SPECIAL held, then PASS / THROUGH / LOB, with one bar in the bank (CP5: none).
+  // Each line: the move, how far it swung off the straight line from the boot to where it was first touched (m), who got it.
+  // The markers in CP1-CP3 read the STRAIGHT pass (they step onto its line); CP4's extra defender reads the real curve.
+  const cpRead = (straight) => (d, dt) => { const b = m.ball, C = m.curveLast;
+    if (b.owner || b.last === d.team || !C || C.by.team === d.team) { d.steer(0, 0, dt); return; }
+    if (straight) { const dx = C.to.x - C.from.x, dy = C.to.y - C.from.y, l = len(dx, dy) || 1, t = clamp(((d.x - C.from.x) * dx + (d.y - C.from.y) * dy) / (l * l), 0, 1);
+      d.moveTo(C.from.x + dx * t, C.from.y + dy * t, d.top(false, false) * 0.6, dt); return; }   // (where a straight pass would come: a step)
+    const pt = m.intercept(d, d.top(true, false), 0.15, 0.9); d.moveTo(pt.x, pt.y, d.top(true, false), dt); };
+  const cpRun = (vx) => (q, dt) => { const b = m.ball; if (!b.owner && b.target === q) return lbBot(q, dt); if (b.owner && b.owner !== q) q.steer(vx, 0, dt); else lbBot(q, dt); };
+  function cpTest(id, name, sub, o) {
+    return { id, group: 'CP', name, sub, kind: 'cp', you: true,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+        const H = m.home.players, A = m.away.players, K = H[6], list = [K];
+        const mates = (o.mates || []).map(([i, x, y, run]) => { const q = H[i]; list.push(q); return [q, x, y, run]; });
+        const opps = (o.opps || []).map(([i, x, y, read]) => { const q = A[i]; list.push(q); return [q, x, y, read]; });
+        cast(list);
+        put(K, o.from[0], o.from[1], 0); atFeet(K);
+        for (const [q, x, y, run] of mates) { put(q, x, y, 0); r.bots.set(q, run ? cpRun(run) : lbBot); if (run) { q.vx = run; q.speed = run; } }
+        for (const [q, x, y, read] of opps) { put(q, x, y, 4); r.bots.set(q, cpRead(read !== 'curve')); }
+        Object.assign(m, { lobAim: null, lobCharge: -1, spArm: null, curveLast: null, curveCam: null, camTarget: null, aerial: null });
+        for (const mt of m.meters || []) mt.e = 0; if (m.meters) m.meters[0].e = o.sp ?? 1;
+        Object.assign(r, { human: K, kicker: K, o, rcv: mates[0] ? mates[0][0] : null, e0: o.sp ?? 1, pts: [] });
+      },
+      check: cpCheck };
+  }
+  function cpCheck(r) {
+    const b = m.ball, o = r.o, K = r.kicker, T = Input.touch, f1 = v => v.toFixed(1);
+    const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); return res; };
+    if (r.t >= 0.5 && r.t < 0.8) { T.btn.special = true; if (r.t >= 0.5 + 2 * STEP) T.btn[o.key] = true; }   // SPECIAL held, then the pass button
+    else if (r.t >= 0.8) { T.btn.special = false; T.btn[o.key] = false; }
+    if (r.kickT == null) { if (!b.owner && !m.pending && b.lastP === K) { r.kickT = r.t; r.start = { x: b.x, y: b.y }; r.tgt = b.target; r.curve = m.curveLast && m.curveLast.by === K ? m.curveLast : null; r.e1 = m.meters ? m.meters[0].e : 0; }
+      else return r.t > 4 ? done({ o: 'NO KICK' }) : null; }
+    const ft = r.t - r.kickT;
+    if (!r.touch) { r.pts.push({ x: b.x, y: b.y }); r.maxZ = Math.max(r.maxZ, b.z); }
+    const opp = b.last !== K.team ? K.team.opp.players.filter(q => !q.sentOff).sort((a, c) => len(a.x - b.x, a.y - b.y) - len(c.x - b.x, c.y - b.y))[0] : null;   // (a block off his body names only his side)
+    const tp = b.owner && b.owner !== K ? b.owner : b.lastP && b.lastP !== K ? b.lastP : opp;   // (taking it under control doesn't name a lastP)
+    if (!r.touch && tp) r.touch = { p: tp, z: b.z, at: { x: b.x, y: b.y }, ft };
+    if (!r.touch && !r.out && ft < 5 && !(len(b.vx, b.vy) < 0.2 && b.z < 0.05)) return null;
+    // the swing: the furthest the ball got from the straight line between the boot and where it was first touched (or stopped)
+    const E = r.touch ? r.touch.at : { x: b.x, y: b.y }, dx = E.x - r.start.x, dy = E.y - r.start.y, l = len(dx, dy) || 1;
+    let sw = 0, sd = 0; for (const P of r.pts) { const L = (dx * (P.y - r.start.y) - dy * (P.x - r.start.x)) / l, al = ((P.x - r.start.x) * dx + (P.y - r.start.y) * dy) / l; if (al > 0 && al < l && Math.abs(L) > Math.abs(sw)) { sw = L; } }
+    const C = r.curve, name = C ? CURVE_FX[C.mode].name.replace('!', '') : 'NORMAL PASS', spent = r.e0 - (r.e1 ?? r.e0);
+    const side = sw === 0 ? '' : (sw > 0 ? ' right' : ' left');   // (of its line, as the ball travels: y runs down the screen, so + is to its right)
+    const round = C && C.blk ? ` round their #${C.blk.num}` : '';
+    const head = `${name} · swung ${f1(Math.abs(sw))} m out${side}${round} over ${f1(l)} m${C ? ` (${f1(C.bend)} m off the line to its target)` : ''}${o.key === 'lob' ? ` (peak ${f1(r.maxZ)} m)` : ''} · ${spent > 0.5 ? `${Math.round(spent)} bar spent` : 'no bar spent'} · `;
+    if (!r.touch) return done({ o: head + (r.out ? `went OUT (${r.out.toLowerCase()})` : 'nobody got it'), hold: 0.6 });
+    const who = r.touch.p, wn = `${who.team === m.home ? 'your' : 'their'} #${who.num}`;
+    if (who.team === m.home) return done({ o: head + `${wn}${who === r.tgt ? '' : ' (not the man aimed at)'} got it (${r.touch.z > 0.9 ? 'chest / head' : 'feet'}) after ${r.touch.ft.toFixed(2)} s`, hold: 0.6 });
+    return done({ o: head + `CUT OUT by ${wn} (${b.owner === who ? 'he has it' : 'off him, loose'}) after ${r.touch.ft.toFixed(2)} s`, hold: 0.8 });
+  }
+  function cpTests() {
+    return [
+      cpTest('CP1', 'CURLER: a curling ground pass round a marker', 'SPECIAL + PASS, one bar: it swings out and bends back in round the man in the line, to your team-mate\'s feet',
+        { key: 'pass', from: [40, 34], mates: [[9, 60, 30]], opps: [[3, 50, 32.6]] }),
+      cpTest('CP2', 'OUTSIDE CURL: a through ball into a run behind the line', 'SPECIAL + THROUGH: the outside of the boot, the opposite curve, round the man in the line into your runner\'s path',
+        { key: 'through', from: [45, 30], mates: [[9, 60, 40, 6]], opps: [[3, 57, 34], [4, 66, 33]] }),
+      cpTest('CP3', 'BANANA LOB: a curling lob over a defender', 'SPECIAL + LOB: up over the man in the line, bending down into your team-mate\'s path',
+        { key: 'lob', from: [40, 34], mates: [[9, 64, 29]], opps: [[3, 51, 31.4]] }),
+      cpTest('CP4', 'a defender on the curve reads it', 'the CP1 pass, plus a defender standing where it swings out to who reads the real curve: he should cut it out (it\'s not unstoppable)',
+        { key: 'pass', from: [40, 34], mates: [[9, 60, 30]], opps: [[3, 50, 32.6], [4, 51.5, 29.8, 'curve']] }),
+      cpTest('CP5', 'no SP in the bank: the normal pass', 'SPECIAL + PASS with an empty meter: SP METER EMPTY, then the ordinary straight pass, nothing spent',
+        { key: 'pass', from: [40, 34], mates: [[9, 60, 30]], opps: [], sp: 0 }),
+    ];
+  }
   // ======================================================================= t-012 WING PLAY (Luca 24 Oct: "make the attacking ai look for
   // more wing plays where they play lobs and try to get arial shot"). The REAL team AI on both sides here, not the Lab's
   // bots: WG1 the computer's winger goes down the flank and crosses, its runners attack it (WG1-SP: with 2 bars banked,
@@ -1329,6 +1397,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
+    add('CP', 't-011 · CURVING SPECIAL PASSES (LAB ONLY)', 'One bar in the bank: hold SPECIAL and press PASS / THROUGH / LOB for a pass that bends round the man in the way - CURLER (to feet), OUTSIDE CURL (into the run), BANANA LOB. Off in matches for now (CURVE_PASS).', cpTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
     add('GK', 'v0.9.1 · KEEPER AI', 'Their keeper with the real AI in 11 situations: walking up with the ball far away, the angle, 1v1s, sweeping, back passes, lobs. The yellow diamond is where he wants to be; the label says what he is doing.', gkTests());
@@ -1356,7 +1425,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     m.dead = null;
     if (m.penaltyMode || m.scene.isActive('penalty')) { m.scene.stop('penalty'); m.penaltyMode = false; }
     Object.assign(m, { setPiece: null, pending: null, diving: null, freeze: 0, hitStop: 0, path: null, passRing: null, nextHuman: null,
-      charge: -1, headBuf: 0, penaltyKick: false, over: false, paused: false, msgT: 0, aimPt: null });
+      charge: -1, headBuf: 0, penaltyKick: false, over: false, paused: false, msgT: 0, aimPt: null, spArm: null, curveCam: null, trailCurve: null });
     m.msg.setText(''); m.sub.setText(''); m.home.score = m.away.score = 0; m.clock = 600; m.half = 1;
     const wx = (sc.kind === 'free' ? LAB.fp.wx : sc.wx) || 'clear'; setWx(wx);                                   // v0.8.7 weather tests
     if (LAB.tune) applyTune(sc.kind === 'free' ? LAB.tune : LAB.def, wx === 'clear');   // (v0.9.9: every other test plays the game's own values)
@@ -1707,7 +1776,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (!m || !m.home || typeof MAN === 'undefined' || !MAN) return setTimeout(boot, 200);
     loadLocal();
     m.setTeams('IS', 'IRO', () => {
-      window.HC2_STARTED = true; hook(); LAB.groups = buildTests(); LAB.active = true;
+      window.HC2_STARTED = true; CURVE_PASS = true; hook(); LAB.groups = buildTests(); LAB.active = true;   // (t-011: CURVE_PASS - the curving special passes are Lab-only for now)
       try { const at = JSON.parse(localStorage.getItem('hc2-lab-at2') || 'null'); if (at && LAB.groups[at[0]] && LAB.groups[at[0]].tests[at[1]]) { LAB.g = at[0]; LAB.i = at[1]; } } catch (e) {}
       fromHash();                                                                  // a test named in the link wins over where you left off
       addEventListener('hashchange', () => { if (fromHash()) { menu(false); start(false); } });

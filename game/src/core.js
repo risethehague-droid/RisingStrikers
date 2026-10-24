@@ -120,6 +120,20 @@ const LOB2 = {
   markDelay: 0.35,     // the receiver's marker reads the drop this much later than the receiver (s)
   shootWin: 1.4,       // SHOOT pressed while a lob drops to you is kept this long (s, at most) for the header / volley
 };
+// t-011 CURVING SPECIAL PASSES (Luca 24 Oct 05:57: "add a special lvl 1 pass that curves impressively and dynamically,
+// make it look cool [...] one for lob, one for through ball, one for normal pass (don't add these new passes to the game
+// just yet, only test lab)"). SPECIAL held + PASS / THROUGH / LOB with a bar in the bank spends LV1 on a pass that bends
+// round the man in the straight line (specials.js curvePass, ball.js curveLaunch / curveStep). OFF in matches: the
+// Test Lab turns it on (lab.js). With it off nothing in a match changes (the soak is identical).
+let CURVE_PASS = false;
+const CURVE = {
+  armT: 0.25,          // SPECIAL held this long with no pass pressed (or let go sooner) = the special shot, as before
+  tau: { ground: 0.55, through: 0.6, lob: 0.95 },   // how fast the spin dies (s): the bend is strongest off the boot and straightens out
+  bulge: { ground: 3.0, through: 3.4, lob: 3.6 },   // how far off the straight line it swings with nobody in the way (m)
+  clear: 1.9,          // ...with a man in the straight line: it swings at least this far past him on the other side
+  maxTurn: 1.4,        // the most the spin turns the ball (rad, ~80 degrees) - past that it looks like a boomerang
+  lane: 2.6,           // an opponent this close to the straight line (m), not at the two ends, is "in the way"
+};
 const AERIAL = {
   on: true,            // the Lab's switch
   gap: 2.3,            // a clear contest: attacker and defender both within this of the drop and of each other (m)
@@ -152,8 +166,8 @@ const COIN_Y = Math.round(VIEW_H * 0.555), COIN_S = 2.4;                        
 const COIN_SPIN = ['rise-0', 'rise-1', 'rise-2', 'edge', 'arrow-2', 'arrow-1', 'arrow-0', 'arrow-1', 'arrow-2', 'edge', 'rise-2', 'rise-1'];   // one turn of the coin (PixelLab faces)
 const mulCol = (a, b) => (((((a >> 16) & 255) * ((b >> 16) & 255) / 255) << 16) | ((((a >> 8) & 255) * ((b >> 8) & 255) / 255) << 8) | (((a & 255) * (b & 255)) / 255)) >>> 0;
 // v0.7 kick timing: the ball leaves on the frame where the boot meets it (frame index in the PixelLab strip, played at 18 fps)
-const KICK_HIT = { pass: 2, kick: 2, shot: 3, super: 8, sp1: 6, sp2: 8, punt: 6, chip: 3 }, KICK_FPS = 18;   // chip: v0.9.4 PixelLab batch 15 (the stab under it)   // punt: v0.8.1 keeper drop-kick (PixelLab batch 13)
-const KICK_RATE = { pass: 22, shot: 22, super: 14, sp1: 18, sp2: 16, punt: 16, chip: 20 };          // sp1 spin strike, sp2 thunder strike (batch 11b)                               // batch 11 strips play a little faster (super: the leap takes its time)
+const KICK_HIT = { pass: 2, kick: 2, shot: 3, super: 8, sp1: 6, sp2: 8, punt: 6, chip: 3, cpass: 3, cthru: 4, clob: 4 }, KICK_FPS = 18;   // t-011: the curving passes (batch 17) meet the ball on frame 3 (the swoosh) / 4 (the leg comes through)   // chip: v0.9.4 PixelLab batch 15 (the stab under it)   // punt: v0.8.1 keeper drop-kick (PixelLab batch 13)
+const KICK_RATE = { pass: 22, shot: 22, super: 14, sp1: 18, sp2: 16, punt: 16, chip: 20, cpass: 20, cthru: 20, clob: 18 };          // sp1 spin strike, sp2 thunder strike (batch 11b)                               // batch 11 strips play a little faster (super: the leap takes its time)
 const kickRate = a => KICK_RATE[a] || KICK_FPS;
 // keeper: how fast he flies sideways in a dive (m/s) and how far past his centre his hands reach when stretched (m)
 let GK_DIVE_V = 5.2, GK_REACH = 1.0;               // v0.9.9: let, for the Test Lab's keeper knobs

@@ -21,6 +21,12 @@ const SP_NAMES = ['BLAZE SHOT', 'THUNDER SHOT', 'RISING PHOENIX'];
 // (save / shot)^3 - LV2 v a full LV3 = 34%, LV1 v LV3 = 13%, LV1 v LV2 = 36%; a weakened shot is easier to stop.
 const SP_POWER = [100, 140, 200], SP_PIERCE = [1, 2, 5], SP_PIERCE_LOSS = [0.35, 0.18, 0], SAVE_POWER = [100, 140, 200];
 const SAVE_NAMES = ['IRON WALL', 'THUNDER GLOVE', 'RISING SHIELD'];
+// t-011 the curving special passes: the PixelLab move (batch 17), the banner, the trail's colours (white-hot to deep)
+const CURVE_FX = {
+  ground: { anim: 'cpass', name: 'CURLER!', rgb: [60, 230, 190], cols: [0xffffff, 0xc8fff0, 0x7affd8, 0x2ee6b4, 0x14b48c, 0x0a785a] },
+  through: { anim: 'cthru', name: 'OUTSIDE CURL!', rgb: [190, 255, 90], cols: [0xffffff, 0xf0ffc8, 0xd2ff7a, 0xa8f03c, 0x78c81e, 0x4a8c14] },
+  lob: { anim: 'clob', name: 'BANANA LOB!', rgb: [255, 230, 60], cols: [0xffffff, 0xfffac8, 0xfff07a, 0xffde32, 0xf0b41e, 0xb47814] },
+};
 // ======================================================================= v0.8.9 ROUGH RIGS (Luca 23 Oct 13:35: "rig 3 cruder new
 // animations for 3 new aerial special shots so the game has working moves, same for the saves, make cut scenes for the
 // special saves too"). PLACEHOLDERS until the real ones are made in PixelLab: each move is put together from PixelLab
@@ -473,5 +479,66 @@ hc2Mix(Match, {
     b.vx *= 0.85; b.vy *= 0.85; this.hitStop = Math.max(this.hitStop || 0, 0.09); this.cameras.main.shake(220, 0.012); this.cameras.main.flash(120, 255, 240, 200);
     this.say('GUARD BROKEN!', 'IT GOES THROUGH HIM!', 1.2); this.flagReplay('THROUGH THE KEEPER!', gk);
   },
+  // ======================================================================= t-011 CURVING SPECIAL PASSES, LEVEL 1 (Luca 24 Oct 05:57:
+  // "add a special lvl 1 pass that curves impressively and dynamically, make it look cool, [...] one for lob, one for
+  // through ball, one for normal pass (don't add these new passes to the game just yet, only test lab)").
+  // THE INPUT (my call): hold SPECIAL and press PASS / THROUGH / LOB. SPECIAL alone still fires the special shot: with
+  // CURVE_PASS on and a bar in the bank, pressing SPECIAL arms it for CURVE.armT s - a pass button in that time (or in
+  // the same frame) plays the curving pass, letting go sooner or holding past it plays the special shot as before. The
+  // other way round (PASS first) can't work: a pass press kicks at once. No bar: SPECIAL says the meter is empty and
+  // PASS is the normal pass. It spends ONE bar (a level-1 move), not every bar like the special shots.
+  curveArmTick(p, dir, dt) {
+    const A = this.spArm; A.t += dt;
+    const mode = Input.pressed('pass') ? 'ground' : Input.pressed('through') ? 'through' : Input.pressed('lob') ? 'lob' : null;
+    if (mode) { this.spArm = null; return this.curvePass(p, dir, mode); }      // (it couldn't: the press falls through to the normal pass)
+    if (!Input.held('special') || A.t >= CURVE.armT) { this.spArm = null; if (this.special(p)) return true; this.say('', 'SP METER EMPTY', 0.6); }
+    return false;
+  },
+  // the pass itself: the normal pass to the man you aim at (doPass picks him and where: his feet, the space in front of
+  // him, the drop), then the curving move's PixelLab frames (side-on, E / W, the ball leaves on the strike frame) and
+  // its spin (ball.js curveLaunch at the strike). A banner names it, like the special shots' callouts.
+  curvePass(p, dir, mode) {
+    const mt = this.meterOf(p.team), b = this.ball;
+    if (!CURVE_PASS || mt.level() < 1 || p.keeper || b.owner !== p || p.busy() || this.pending) return false;
+    this.doPass(p, dir, mode);
+    const k = this.pending; if (!k || k.p !== p) return false;
+    mt.e = Math.max(0, mt.e - 1); mt.flash = 0.3; if (mt.level() < 3) mt.risen = false;   // one bar (Meter.spend takes them all)
+    const an = CURVE_FX[mode].anim;
+    if (MAN.kits[p.kit].anims[`${an}-E`]) {
+      p.face = k.tx >= p.x ? 0 : 4; p.kickAnim = an; p.setState('kick', 8 / kickRate(an) + 0.05);
+      k.t = (KICK_HIT[an] + 0.6) / kickRate(an);
+    }
+    k.info.curve = mode;
+    this.say(CURVE_FX[mode].name, `${p.team.name} · LV1 SPECIAL PASS`, 1.1);
+    SFX.special(1);
+    return true;
+  },
+  // at the strike: the trail in the move's colour (world.js drawTrail, re-tinted below), a short freeze and flash, a
+  // ring where the boot meets it, and the camera leaning towards where it's going
+  curveFx(k) {
+    const C = CURVE_FX[k.info.curve], b = this.ball;
+    this.trailT = 1.5; this.trailSp = 0; this.trailHot = 0; this.trailCurve = C.cols;
+    this.hitStop = Math.max(this.hitStop || 0, 0.07); this.flashT = this.hitStop;
+    this.cameras.main.flash(80, ...C.rgb);
+    if (this.textures.exists('fx')) { const X = wx(b.x, b.y), Y = wy(b.y) - 12 - b.z * PX_H, im = this.add.image(X, Y, 'fx', 'ring').setScale(0.6).setDepth(wy(b.y) + 2).setTint(C.cols[2]);
+      this.tweens.add({ targets: im, scale: 1.8, alpha: 0, duration: 360, delay: this.hitStop * 600, ease: 'Cubic.easeOut', onComplete: () => im.destroy() }); }
+    this.curveCam = { t: 0, tx: k.tx, ty: k.ty, o: {} };
+  },
+  // a light ease: the camera frames a third of the way from the ball to the target for about a second, then lets go
+  curveCamTick(dt) {
+    const C = this.curveCam, b = this.ball; C.t += dt;
+    if (C.t > 1.3 || (b.owner && C.t > 0.2) || (this.camTarget && this.camTarget !== C.o)) { if (this.camTarget === C.o) this.camTarget = null; this.curveCam = null; return; }
+    const e = 0.35 * clamp(C.t / 0.35, 0, 1) * clamp((1.3 - C.t) / 0.4, 0, 1), bx = wx(b.x, b.y), by = wy(b.y) - b.z * PX_H;
+    C.o.x = bx + (wx(C.tx, C.ty) - bx) * e; C.o.y = by + (wy(C.ty) - by) * e; this.camTarget = C.o;
+  },
+  // the trail: world.js draws the ball's after-images in the power shot's hot colours; for a curving pass they take
+  // the move's own colour (done here, not in world.js: it's the stadium lane's file, and only this move needs it)
+  curveTrailTint() {
+    if (!(this.trailT > 0) || this.ball.owner) { this.trailCurve = null; return; }
+    const cols = this.trailCurve; (this.trail || []).forEach((im, i) => { if (im.visible) im.setTintFill(cols[Math.min(i, cols.length - 1)]); });
+  },
   meterOf(team) { return (this.meters && team && this.meters[team === this.home ? 0 : 1]) || { add() {}, level: () => 0, spend: () => 0 }; },
 });
+// t-011: the curving pass's trail colour goes on after world.js has drawn the trail (it only knows the power-shot and
+// special colours). Nothing changes unless a curving pass set trailCurve - so never in a match while CURVE_PASS is off.
+{ const draw = Match.prototype.drawTrail; hc2Mix(Match, { drawTrail(dt) { draw.call(this, dt); if (this.trailCurve) this.curveTrailTint(); } }); }

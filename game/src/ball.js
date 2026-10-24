@@ -44,7 +44,36 @@ function ballStep(b, h, owned) {
       const ns = Math.max(0, s - dec * h); b.vx *= ns / s; b.vy *= ns / s;
     }
   }
+  if (b.bendW && !owned) curveStep(b, h);                                       // t-011: a curving special pass (0 / unset on every other ball)
   b.x += b.vx * h; b.y += b.vy * h;
+}
+// t-011 THE CURVE of a special pass: sideways spin turns the ball's heading at bendW rad/s (+ = to its left), on the grass
+// and in the air. The spin dies off with bendTau, so the bend is strongest off the boot and the ball straightens out as it
+// slows (Luca: "curves impressively and dynamically"). A curled lob loses it on its first bounce. Kept apart from the
+// t-002 Magnus prototype (b.curl), which is only for the air and is off in the game.
+function curveStep(b, h) {
+  if (b.bendLob && b.z <= 0) { b.bendW = 0; return; }
+  const a = b.bendW * h, c = Math.cos(a), s = Math.sin(a), vx = b.vx;
+  b.vx = vx * c - b.vy * s; b.vy = vx * s + b.vy * c;
+  b.bendW *= Math.exp(-h / b.bendTau);
+  if (Math.abs(b.bendW) < 0.02) b.bendW = 0;
+}
+// t-011: fly a curving ball (the game's own ballStep) until it passes closest to (tx, ty) - a lob: until it lands -
+// and report where that was, how fast it was going and how far it swung off the straight line from where it started
+// (side: which side it swung out to, + = left of the line as it travels, the way a positive bendW turns it)
+function curveFly(b0, vx, vy, vz, w, tau, lob, tx, ty) {
+  const c = { x: b0.x, y: b0.y, z: Math.max(b0.z, 0.05), vx, vy, vz, skid: true, rollV: 0.8 * len(vx, vy), bendW: w, bendTau: tau, bendLob: lob }, h = 1 / 120;
+  const dx = tx - b0.x, dy = ty - b0.y, d = len(dx, dy) || 1;
+  let best = { x: c.x, y: c.y, v: len(vx, vy), dd: 1e9 }, bend = 0, side = 0;
+  for (let t = 0; t < 5; t += h) {
+    const z0 = c.z; ballStep(c, h, false);
+    const lat = (dx * (c.y - b0.y) - dy * (c.x - b0.x)) / d, along = ((c.x - b0.x) * dx + (c.y - b0.y) * dy) / d;
+    if (along > 0 && along < d && Math.abs(lat) > bend) { bend = Math.abs(lat); side = Math.sign(lat); }
+    if (lob) { if (z0 > 0 && c.z <= 0) return { x: c.x, y: c.y, v: len(c.vx, c.vy), bend, side, t }; continue; }
+    const dd = len(c.x - tx, c.y - ty); if (dd < best.dd) best = { x: c.x, y: c.y, v: len(c.vx, c.vy), dd, t };
+    else if (dd > best.dd + 1.5 || len(c.vx, c.vy) < 0.3) break;
+  }
+  return { ...best, bend, side, stopped: best.v < 0.5 };
 }
 // fly a test ball along +x and report when/how fast it gets to `dist` (or where it stops)
 function simKick(v0, vz, dist) {
@@ -155,6 +184,7 @@ hc2Mix(Match, {
     b.spP = b.special ? (k.info.spP || SP_POWER[b.special - 1]) : 0; b.spF = b.special ? (k.info.spF ?? 1) : 1; b.pierce = b.special ? SP_PIERCE[b.special - 1] : 0; b.spT = this.time.now; b.spTeam = b.special ? k.p.team : null;   // v0.8.6
     if (b.special) this.saveCall(k.p.team.opp);                                  // v0.8.6: the defending side can answer with a special save
     b.owner = null; b.vx = dx / d * speed; b.vy = dy / d * speed; b.vz = vz; b.z = Math.max(b.z, 0.05);
+    if (k.info.curve) this.curveLaunch(k, speed, vz); else if (b.bendW) b.bendW = 0;   // t-011: the curving special pass sets off wide and bends in
     if (k.p.kickAnim === 'super') b.z = 1.0;                                      // struck in mid-air, at the height of his boot
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
     b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft; b.aimLob = !!k.info.aim;   // lob-mechanics: an open-play lob (its drop is a duel)
@@ -164,6 +194,7 @@ hc2Mix(Match, {
     b.save = null; b.saveable = null;
     b.how = { kind: k.p.kickAnim === 'volley' ? 'volley' : k.p.kickAnim === 'bicycle' ? 'bicycle' : k.info.shot ? 'shot' : 'pass', x: b.x, y: b.y };
     this.impact(k);                                                               // v0.7: you feel the contact
+    if (k.info.curve && this.curveFx) this.curveFx(k);                            // t-011: its trail, camera ease (specials.js)
     if (k.info.shot) { b.shotBy = k.p; b.shotT = this.time.now + Math.random();   // weight on the strike
       // a defender standing in the line of the shot can block it
       const ux = b.vx / (speed || 1), uy = b.vy / (speed || 1);
@@ -180,6 +211,49 @@ hc2Mix(Match, {
       this.planSave(k.p.team.opp.players[0]); if (!k.info.special) this.shotSaveCall(k.p.team.opp, k.p.team, pen);   // v0.9.0
     }
   },
+  // t-011 THE CURVING PASS LEAVES THE BOOT. The pass was solved as a straight one (releaseKick); here it gets its spin and
+  // sets off wide, solved with the real flight (curveFly) so it still arrives where the straight one would have: the
+  // team-mate's feet, the space in front of the runner, the drop of the lob. Which way it bends: away from the opponent
+  // nearest the straight line (that's the point of it); with nobody in the way the ground pass and the lob swing out
+  // wide and bend in towards the middle (an inside curl) and the through ball does the opposite (the outside of the boot,
+  // Luca's "the opposite curve"). How much: enough to pass CURVE.clear m wide of that man, else CURVE.bulge.
+  curveLaunch(k, speed, vz) {
+    const b = this.ball, mode = k.info.curve, lob = mode === 'lob', s0 = { x: b.x, y: b.y, z: b.z };
+    let tx = k.tx, ty = k.ty, dx = tx - b.x, dy = ty - b.y; const d0 = len(dx, dy) || 1;
+    if (lob) { const dl = Math.max(4, d0 - 2); tx = b.x + dx / d0 * dl; ty = b.y + dy / d0 * dl; dx = tx - b.x; dy = ty - b.y; }   // (loftLaunch drops it 2 m short of him)
+    const d = len(dx, dy) || 1, ux = dx / d, uy = dy / d;
+    let blk = null, bl = 1e9;
+    for (const o of k.p.team.opp.players) {
+      if (o.sentOff) continue;
+      const rx = o.x - b.x, ry = o.y - b.y, al = rx * ux + ry * uy, L = ux * ry - uy * rx;
+      if (al < 2.5 || al > d - (lob ? 3 : 1.5) || Math.abs(L) > CURVE.lane) continue;
+      if (Math.abs(L) < Math.abs(bl)) { bl = L; blk = { o, t: al / d, L }; }
+    }
+    const toMid = Math.sign(ux * (34 - b.y) - uy * 0) || 1;                      // + : the middle of the pitch is to the left of the pass
+    const sg = blk ? (Math.sign(blk.L) || toMid) : mode === 'through' ? -toMid : toMid;   // + = it bends left (and so swings out to the right first)
+    let H = CURVE.bulge[mode];
+    if (blk) { const t = clamp(blk.t, 0.2, 0.8); H = Math.max(H * 0.8, (CURVE.clear - Math.abs(blk.L)) / (4 * t * (1 - t))); }
+    H = Math.min(H, d * 0.2);
+    const tau = CURVE.tau[mode], arrive = mode === 'ground' ? clamp(4.5 + d * 0.15, 5.5, 11) : 4.5;
+    let A = Math.min(CURVE.maxTurn, 8 * H / d), th = -sg * A * 0.55, v = speed, F = null;
+    for (let outer = 0; outer < 3; outer++) {
+      const w = sg * A / tau;
+      for (let it = 0; it < 8; it++) {
+        F = curveFly(s0, Math.cos(th) * ux * v - Math.sin(th) * uy * v, Math.sin(th) * ux * v + Math.cos(th) * uy * v, vz, w, tau, lob, tx, ty);
+        const px = F.x - s0.x, py = F.y - s0.y, r = len(px, py) || 0.1;
+        th += Math.atan2(px * uy - py * ux, px * ux + py * uy);                  // (it ended up that much to the side: aim the other way)
+        if (lob) v = Math.min(v * d / r, KICK_MAX);
+        else if (F.stopped && r < d - 0.5) v = Math.min(v * Math.sqrt(d / r) * 1.03, KICK_MAX);
+        else v = clamp(v + (arrive - F.v) * 0.6, 4, KICK_MAX);
+      }
+      if (F.bend < 0.05 || Math.abs(F.bend - H) < 0.15 || A >= CURVE.maxTurn - 1e-6) break;
+      A = Math.min(CURVE.maxTurn, A * H / F.bend);
+    }
+    const w = sg * A / tau;
+    Object.assign(b, { vx: Math.cos(th) * ux * v - Math.sin(th) * uy * v, vy: Math.sin(th) * ux * v + Math.cos(th) * uy * v, vz, bendW: w, bendTau: tau, bendLob: lob, bendBy: k.p });
+    b.rollV = 0.8 * v;
+    this.curveLast = { by: k.p, mode, bend: F ? F.bend : 0, side: F ? F.side : 0, sg, from: { x: s0.x, y: s0.y }, to: { x: tx, y: ty }, blk: blk && blk.o, v, w, A };   // (the Lab's CP lines read it)
+  },
   // v0.7 IMPACT: hit-stop (everything freezes on the contact frame for a few hundredths), the ball flashes white,
   // a camera kick; a charged power shot (held shoot) freezes longer, shakes harder and drags a hot trail behind the ball
   impact(k) {
@@ -189,6 +263,7 @@ hc2Mix(Match, {
     if (k.info.shot) this.cameras.main.shake(power ? 260 : 150, power ? 0.004 + pw * 0.004 : 0.0015 + pw * 0.002);
     else this.cameras.main.shake(70, 0.0008);
     this.trailT = power ? 0.9 : 0; this.trailHot = pw; this.trailSp = 0;
+    if (this.trailCurve) this.trailCurve = null;                                  // (t-011: a curving pass's colour is for its own trail only)
     if (power) SFX.boom(pw);
     const sp = k.info.special || 0;
     if (sp) { this.hitStop = 0.14 + sp * 0.05; this.flashT = this.hitStop; this.trailT = 1.6; this.trailSp = sp;
@@ -330,7 +405,7 @@ hc2Mix(Match, {
   // where the loose ball will be over the next 3 seconds (for receivers and chasers). t-005: plus `land`, where a ball
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
   predict() {
-    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl }, out = [], h = 1 / 60;
+    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, bendW: b.bendW, bendTau: b.bendTau, bendLob: b.bendLob }, out = [], h = 1 / 60;   // (t-011: a curving pass's path bends - the receiver and a defender who reads it go where it really goes)
     for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
   },
@@ -439,6 +514,8 @@ hc2Mix(Match, {
   ballPhysics(dt) {
     const b = this.ball; if (b.owner && b.owner.hands) return;
     const owned = !!b.owner, sub = 3, h = dt / sub;
+    if (b.bendW && (owned || b.lastP !== b.bendBy || b.last !== b.bendBy.team)) b.bendW = 0;   // t-011: touched, deflected off a man, saved - the spin is gone
+    if (this.curveCam) this.curveCamTick(dt);
     for (let i = 0; i < sub; i++) {
       const ox = b.x;
       ballStep(b, h, owned);

@@ -61,7 +61,11 @@ hc2Mix(Match, {
       if ((p.hold > 5 && !moving) || p.hold > 6) { p.hold = 0; const o = this.keeperOutlet(p); this.doPass(p, o.dir, o.mode); return; }
     }
     this.passAim = owns && !(p.keeper && p.hands) ? this.passTarget(p, dir, 'ground', this.passAim) : null;   // v0.7.4: who a pass would go to right now (shown on the grass)
-    if (owns && Input.pressed('special') && !p.keeper) { if (this.special(p)) return; this.say('', 'SP METER EMPTY', 0.6); }
+    if (owns && Input.pressed('special') && !p.keeper) {
+      if (CURVE_PASS && this.meterOf(team).level() >= 1 && !this.pending && !p.busy()) this.spArm = { t: 0 };   // t-011: SPECIAL held + a pass button = the curving pass (specials.js curveArmTick)
+      else { if (this.special(p)) return; this.say('', 'SP METER EMPTY', 0.6); }
+    }
+    if (this.spArm) { if (!owns || p.keeper) this.spArm = null; else if (this.curveArmTick(p, dir, dt)) return; }
     if (owns) {
       if (Input.pressed('pass')) this.doPass(p, dir, 'ground');
       else if (Input.pressed('through')) this.doPass(p, dir, 'through');
