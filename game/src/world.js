@@ -105,7 +105,7 @@ hc2Mix(Match, {
       .setVisible(!(b.owner && b.owner.carrying) && !this.toss);                // the sprite is drawing the ball itself (v0.8.5: none during the coin toss)
     if (this.flashT > 0) { this.flashT -= dt; this.ballSpr.setTintFill(0xffffff); } else if (this.ballSpr.isTinted) this.ballSpr.clearTint();
     this.drawTrail(dt);
-    this.ballSh.setPosition(Math.round(X), Math.round(Y - 7)).setDepth(Y - 40).setAlpha(clamp(1 - b.z / 6, 0.35, 1)).setScale(ballPx() * ballS() / 24 * shadowK(b.z));   // t-005: it shrinks as the ball climbs (ball.js shadowK)
+    this.ballSh.setPosition(Math.round(X), Math.round(Y - 7)).setDepth(Y - 40).setAlpha(clamp(1 - b.z / 12, 0.65, 1)).setScale(ballPx() * ballS() / 24 * shadowK(b.z));   // t-005: it shrinks as the ball climbs (ball.js shadowK); v0.10.3 (PR #8's call 4): fades less, so a high ball's shadow stays easy to see
     // camera: follow the ball, a little ahead of it
     let tx = X + b.vx * 14, ty = wy(b.y, b.z * 0.3) - 40 - clamp(1 - b.y / 20, 0, 1) * 170;
     const fs = this.foulScene;

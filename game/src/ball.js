@@ -69,7 +69,8 @@ function passTime(d) { const i = Math.round(clamp(d, 1, 50)); if (PASS_T[i] == n
 // a 12 m lob peaked at 1.8 m and a 25 m one at 3.5 m, so the ball stayed at head height (under 2.7 m) for most of its
 // flight and anyone near the line headed it away (28 of 60 of your lobs). An open-play lob now climbs over the
 // players in between: 3.6 m for a short one up to 6 m for a long one; a held (power) lob 3.6 to 8 m.
-function lobApex(d, pow) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 4.4 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H; }   // (LOB_H: the Lab's lob-height knob, 1 in the game)
+function lobApex(d, pow) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 3.0 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H; }   // (LOB_H: the Lab's lob-height knob, 1 in the game)
+// (v0.10.3, Luca's OK on PR #8's call 3, "lean arcade": a full power lob peaks at 6.6 m and hangs ~2.35 s, was 8 m / 2.58 s)
 // lofted ball: the forward speed that makes it come down at `dist` for a given upward speed
 // (n: bisection steps - t-005's charge-arc preview asks for 12, about 1 cm; every kick keeps the full 22)
 function solveLob(dist, vz, spin, n = 22) {

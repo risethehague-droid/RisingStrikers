@@ -1,3 +1,17 @@
+HC2 WEB GAME - v0.10.3 (24 Oct) - ARCADE PACE + LOB STEP 1 (PR #7 + #8, Luca's OK 06:16)
+- PACE: CLASSIC / ARCADE on the start screen and in Pause > Options (worker-f, t-004). CLASSIC is the default and
+  plays exactly as before (8/8 seeded matches identical). ARCADE: run 6.0 / sprint 8.8 m/s, snappier starts and turns,
+  sprints last longer; kick-off and restarts straight away, one short goal replay any key skips, saves and near misses
+  only in HIGHLIGHTS, an 8 s half-time card. Over 4 matches: goals 2.5 -> 5.3, shots 9.8 -> 12.3. The Lab plays CLASSIC.
+- LOB STEP 1 (worker-l, t-005): lobs really reach their planned height; the ball's shadow shrinks as it climbs; a ring
+  stays on the grass where every lofted ball comes down until someone touches it; the power-lob charge arc is the real
+  path; the keeper reads a lob by level (Easy 0.35 s ... Rise 0.15 s) before he claims, sweeps or backs off. Prototypes
+  A and C are gone; B stays behind #lobB. New Test Lab group LC.
+- The 4 calls (Luca: OK with the taskmaster's picks): keep rates "same as before" accepted; the keeper's read also holds
+  claim / sweep (their open-play lobs only); a full power lob trimmed to ~2.35 s in the air (peak 6.6 m, was 8 m /
+  2.58 s); the shadow of a high ball fades less (min 65%, was 35%).
+- Checked: smoke errors [], RESUME round trip all ok, Test Lab K / C / P unchanged, LC all ok.
+
 HC2 WEB GAME - v0.10.2 (24 Oct) - RESUME YOUR LAST MATCH
 - Luca: "make it so i can resume a game that was last played in the menu". The start screen now shows a green
   RESUME button (e.g. "RESUME IS 2-1 IRO · 68'") when you left a match before the end.
