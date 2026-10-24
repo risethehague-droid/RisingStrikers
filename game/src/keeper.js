@@ -67,8 +67,10 @@ hc2Mix(Match, {
   // stretch hardly ever (a hard ball he can only push away is what makes corners). His level (gkSave) moves
   // it: Rise holds a ball ~10% faster than Normal, Easy ~4% slower. A ball at his body is easier than one he stretches
   // for ('stand' / 'leap' / a dive), and a cross or lob he comes for and meets ('claim': no shooter's pace on it) easiest.
+  // t-010: a tap kick at his body (Luca: "a goalie can deal with them easy in their range") - straight, no swerve, no
+  // weight behind it - is held like a cross he comes for: ~96% at 6 m. Out of his reach it's a dive like any other.
   gkHoldChance(gk, spd, kind) {
-    const q = this.dk(gk.team).gkSave, v = spd * (1.15 - 0.15 * q) * (kind === 'claim' ? 0.75 : kind === 'stand' ? 0.9 : kind === 'leap' || kind === 'tip' ? 0.95 : 1.05);
+    const q = this.dk(gk.team).gkSave, v = spd * (1.15 - 0.15 * q) * (kind === 'claim' ? 0.75 : kind === 'stand' && this.ball.tap ? 0.8 : kind === 'stand' ? 0.9 : kind === 'leap' || kind === 'tip' ? 0.95 : 1.05);
     return clamp(0.97 - (v - 13) * 0.085, 0.05, 0.97);
   },
   // t-007: a touch he can't hold - does he push it out (a corner) or keep it in play? Off his line or on his heels he

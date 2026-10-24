@@ -7,7 +7,7 @@
   const GX = PITCH_L, LINE_X = PITCH_L - 1.3;
   const LAB = { groups: [], g: 0, i: 0, run: null, slow: 1, boxes: true, rated: {}, log: [], db: null, reasons: null,
     menu: false, acc: 0, rand: Math.random, active: false, zoom: (() => { try { return clamp(+localStorage.getItem('hc2-lab-zoom') || 1, 0.5, 2); } catch (e) { return 1; } })(),
-    fp: { sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', loop: false, anim: '' }, tune: null, base: null };
+    fp: { tap: true, sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', loop: false, anim: '' }, tune: null, base: null };
   let m = null;
   const $ = id => document.getElementById(id);
 
@@ -351,12 +351,13 @@
     if (r.resetAt || (r.gk && r.gk.hands) || m.ball.inNet) fpReset(r);              // (the keeper still has it / it's in the net: the ball comes back first)
     r.air = null;
     if (kind.startsWith('air-')) { airMove(r, p, kind.slice(4)); return; }
-    if (/^(pass|through|lob|plob\d+|shot|power|sp\d|chip)$/.test(kind) && b.owner !== p) atFeet(p);
-    r.last = { pass: 'PASS', through: 'THROUGH BALL', lob: 'LOB', shot: 'SHOT', power: 'POWER SHOT', chip: 'CHIP', sp1: 'LV1 BLAZE', sp2: 'LV2 THUNDER', sp3: 'LV3 PHOENIX', slide: 'SLIDE',
+    if (/^(pass|through|lob|plob\d+|shot|power|tap|sp\d|chip)$/.test(kind) && b.owner !== p) atFeet(p);
+    r.last = { pass: 'PASS', through: 'THROUGH BALL', lob: 'LOB', shot: 'SHOT', tap: 'TAP KICK', power: 'POWER SHOT', chip: 'CHIP', sp1: 'LV1 BLAZE', sp2: 'LV2 THUNDER', sp3: 'LV3 PHOENIX', slide: 'SLIDE',
       head: 'BALL TO YOUR HEAD · your turn', waist: 'BALL TO YOUR WAIST · your turn', feet: 'BALL TO YOUR FEET' }[kind] || (kind.startsWith('plob') ? `POWER LOB ${kind.slice(4)}%` : kind.toUpperCase());
     if (kind === 'pass' || kind === 'through' || kind === 'lob') m.doPass(p, dv, kind === 'pass' ? 'ground' : kind);
     else if (kind.startsWith('plob')) m.powerLob(p, dv, +kind.slice(4) / 100);
     else if (kind === 'chip') { const gx = p.team.goalX; p.face = dirIndex(gx - p.x, 34 - p.y); atFeet(p); m.chipShot(p, 0.25, 0); }   // v0.9.2 (anywhere, for testing: in a match it's LOB in their box facing goal)
+    else if (kind === 'tap') m.tapKick(p, dv);                                  // t-010 (the button works with TAP KICK off too: to see the move)
     else if (kind === 'shot') m.doShot(p, 0.6, 0);
     else if (kind === 'power') m.doShot(p, 0.88, 0);
     else if (kind[0] === 's' && kind[1] === 'p') { const mt = m.meters && m.meters[0]; if (mt) mt.e = +kind[2]; m.special(p); }
@@ -481,6 +482,7 @@
     // v0.8.8 cycling switches: WEATHER (dry / rain / snow - the ball physics and the look) and KEEPER SAVE (off / LV1-3)
     const CYC = { wx: { vals: ['clear', 'rain', 'snow'], label: v => `WEATHER: ${{ clear: 'DRY', rain: 'RAIN', snow: 'SNOW' }[v]}`,
                         set: v => { setWx(v); if (LAB.tune) applyTune(LAB.tune, v === 'clear'); } },
+                  tap: { vals: [false, true], label: v => `TAP KICK: ${v ? 'ON' : 'OFF'}`, set: v => { TAP_KICK = v; } },   // t-010
                   save: { vals: [0, 1, 2, 3], label: v => `KEEPER SAVE: ${v ? 'LV' + v : 'OFF'}`, set: () => {} },
                   cpu: { vals: ['normal', 'hard', 'rise', 'easy'], label: v => `CPU LEVEL: ${{ easy: 'EASY', normal: 'NORMAL', hard: 'HARD', rise: 'RISE WARRIOR' }[v]}`, set: () => {} } };   // v0.9.2 their keeper at each difficulty
     const cycShow = [];
@@ -502,6 +504,7 @@
     $('fp-play').addEventListener('click', () => { playAnim(LAB.fp.anim); $('fp-play').blur(); });
     $('fp-loop').addEventListener('click', () => { LAB.fp.loop = !LAB.fp.loop; $('fp-loop').setAttribute('aria-pressed', LAB.fp.loop); $('fp-loop').blur(); });
     $('fp-reset').addEventListener('click', () => { fpReset(); $('fp-reset').blur(); });
+    $('fp-tapadd').addEventListener('click', () => { const i = $('fp-tapinfo'), on = i.hidden; i.hidden = !on; $('fp-tapadd').setAttribute('aria-expanded', on); $('fp-tapadd').blur(); });   // t-010: explains only
     $('fp-mini').addEventListener('click', () => { fpMini(); $('fp-mini').blur(); });
   }
 
@@ -1227,6 +1230,64 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     try { await LAB.db.collection('bugwatch').doc(d._id).update({ review }); d.review = review; } catch (e) {}
   }
 
+  // ======================================================================= t-010 TAP KICK (Luca 24 Oct 05:57: "give me a test lab of the
+  // new simple tap kick"). TAP_KICK is on for these. TK1-TK5: you - the Lab presses SHOOT through the real controls (a
+  // quick tap, or a hold for TK5) with the stick where the test says; TK6: the computer on the ball. Each line says how
+  // long SHOOT was down, what came off the boot (tap / power shot, km/h, the move it played) and what happened.
+  function tkTest(id, name, sub, o) {
+    return { id, group: 'TK', name, sub, kind: 'tk', you: !o.cpu, tap: true, o,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+        const H = m.home.players, s = H[9], gk = m.away.players[0], mate = o.mate ? H[7] : null; cast([s, gk, ...(mate ? [mate] : [])]);
+        put(s, o.from[0], o.from[1], o.face != null ? o.face : 0); if (!mate) atFeet(s);
+        put(gk, o.gk[0], o.gk[1], 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+        if (mate) { put(mate, o.mate[0], o.mate[1], dirIndex(s.x - o.mate[0], s.y - o.mate[1])); atFeet(mate);
+          r.action = { at: 0.4, fire: () => m.doPass(mate, { x: s.x - mate.x, y: s.y - mate.y }, 'ground', s) }; }   // the cut-back along the grass
+        else r.fired = true;
+        if (o.cpu) { LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true; }          // (the computer on the ball: its own decision, as in a match)
+        if (o.cpu) r.bots.set(s, (p, dt) => { if (m.ball.owner === p) m.carrierAI2(p, dt); else p.steer(0, 0, dt); });
+        Object.assign(r, { human: s, shooter: s, gk, marks: o.marks || [], o });
+      },
+      check: tkCheck };
+  }
+  function tkCheck(r) {
+    const b = m.ball, o = r.o, s = r.shooter, gk = r.gk, T = Input.touch, f1 = v => v.toFixed(1);
+    const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); return res; };
+    // ---- you: SHOOT down once he has the ball (and is free), the stick where the test points, up after o.hold s
+    if (!o.cpu && r.kickT == null) {
+      if (r.downT == null && b.owner === s && !s.busy() && r.t >= (o.at || 0.4)) { r.downT = r.t; T.btn.shoot = true; if (o.stick) { T.x = o.stick[0]; T.y = o.stick[1]; } }
+      else if (r.downT != null && T.btn.shoot && r.t - r.downT >= (o.hold || 0.06)) { T.btn.shoot = false; r.held = r.t - r.downT; r.charge = m.charge; }
+    }
+    if (m.pending && m.pending.p === s && !r.anim) { r.anim = s.kickAnim; r.info = m.pending.info; }
+    if (r.kickT == null) {
+      if (!b.owner && !m.pending && b.lastP === s && r.anim) { r.kickT = r.t; r.v0 = len(b.vx, b.vy); r.dir = Math.atan2(b.vy, b.vx); r.start = { x: b.x, y: b.y }; r.tapB = !!b.tap; T.x = T.y = 0; }
+      else return r.t > 6 ? done({ o: 'NO KICK' }) : null;
+    }
+    const what = r.info && r.info.tap ? 'TAP KICK' : r.info && r.info.shot ? `POWER SHOT (charge ${(r.info.power || 0).toFixed(2)})` : 'a kick';
+    let head = `${o.cpu ? 'the computer' : `SHOOT down ${(r.held || 0).toFixed(2)} s`} → ${what} · ${kmh(r.v0)} km/h · move: ${r.anim}${r.tapB ? '' : r.info && r.info.tap ? ' (NO DROP-OFF)' : ''}`;
+    if (!r.slow && !b.owner && len(b.vx, b.vy) < 1.5 && b.z < 0.05) r.slow = { d: len(b.x - r.start.x, b.y - r.start.y), line: Math.abs(GX - b.x) };   // where it died
+    if (o.arrow) { const want = Math.atan2(o.stick[1], o.stick[0]), err = Math.abs(((r.dir - want + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) * 180 / Math.PI;
+      return done({ o: `${head} · went ${Math.round(r.dir * -180 / Math.PI)}° (the arrow: ${Math.round(want * -180 / Math.PI)}°), ${err.toFixed(1)}° off (${err <= 4 ? 'ok' : 'OFF'})`, hold: 1 }); }
+    const P = r.plan; head += P ? ` · his read: ${P.kind}${P.kind === 'leave it' ? '' : ` (${f1(P.dy)} m across, he can cover ${f1(P.reach)} m)`} · ` : ' · ';
+    if (b.inNet) return done({ o: head + `GOAL (${(r.t - r.kickT).toFixed(2)} s)`, hold: 1.4 });
+    if (b.owner === gk && r.slow) return done({ o: head + `it DIED after ${f1(r.slow.d)} m, ${f1(r.slow.line)} m out from the goal line (the keeper walked out and picked it up)`, hold: 1 });
+    if (b.owner === gk && gk.hands) return done({ o: head + 'keeper HELD it', hold: 1 });
+    if (r.ev('PARRIED') || r.ev('SAVED') || r.ev('A HAND TO IT') || r.ev('ROUND THE POST')) return done({ o: head + 'keeper saved it (parried)', hold: 1 });
+    if (r.out) return done({ o: head + 'OUT · ' + r.out.toLowerCase() });
+    if (!b.owner && len(b.vx, b.vy) < 0.2 && b.z < 0.05) return done({ o: head + `it DIED after ${f1(len(b.x - r.start.x, b.y - r.start.y))} m, ${f1(Math.abs(GX - b.x))} m out from the goal line`, hold: 1 });
+    if (b.owner === gk) return done({ o: head + `it died before him: the keeper took it at his feet (${f1(len(b.x - r.start.x, b.y - r.start.y))} m from the kick)`, hold: 1 });
+    return r.t - r.kickT > 4 ? done({ o: head + 'ball loose' }) : null;
+  }
+  function tkTests() {
+    return [
+      tkTest('TK1', 'tap from 6 m straight at a set keeper', 'SHOOT tapped, stick idle, facing goal: in his reach - he should hold it', { from: [98.5, 34], gk: [LINE_X, 34] }),
+      tkTest('TK2', 'a cut-back, the keeper on the far post: tap into the near corner', 'a team-mate pulls it back from the byline; SHOOT tapped with the stick at the bottom corner: out of his reach - goal', { from: [97, 37.5], gk: [LINE_X, 31], mate: [103.2, 22], stick: [0.93, 0.37], at: 0.3 }),
+      tkTest('TK3', 'tap from 20 m', 'SHOOT tapped from 20 m straight at goal: it should die on the grass before the keeper', { from: [85, 34], gk: [LINE_X, 34] }),
+      tkTest('TK4', 'tap while pushing up-left', 'stick up-left, SHOOT tapped in midfield: the ball goes the way of the arrow, within a few degrees', { from: [52, 34], gk: [LINE_X, 34], stick: [-0.707, -0.707], arrow: true }),
+      tkTest('TK5', 'hold SHOOT', 'SHOOT held 0.5 s from 17 m: the power shot, exactly as before', { from: [88, 34], gk: [LINE_X, 34], hold: 0.5 }),
+      tkTest('TK6', 'the computer, an open goal from 5 m', 'the computer\'s striker on the ball 5 m out, their keeper stranded 14 m out: it taps it in', { from: [100, 31], gk: [91, 40], face: 0, cpu: true }),
+    ];
+  }
   function buildTests() {
     const G = [];
     const add = (id, name, blurb, tests) => G.push({ id, name, blurb, tests });
@@ -1331,6 +1392,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
+    add('TK', 't-010 · TAP KICK', 'SHOOT tapped (let go within 0.15 s) = a snappy, low stab along your arrow that dies on the grass: a close-range finish. Held = the power shot as before. In the keeper\'s reach he holds most; out of it, it goes in. (On in the Test Lab only.)', tkTests());
     add('GK', 'v0.9.1 · KEEPER AI', 'Their keeper with the real AI in 11 situations: walking up with the ball far away, the angle, 1v1s, sweeping, back passes, lobs. The yellow diamond is where he wants to be; the label says what he is doing.', gkTests());
     add('SM', 'v0.8.9 · SPECIAL MOVES (ROUGH RIGS)', 'Placeholders made from our PixelLab frames + effects until the real ones come from PixelLab: 3 aerial specials, 3 keeper special saves with their cut scene. v0.9.0: the keeper saves stop normal shots too (SM8-11).', [
       smAir('SM1', 1), smAir('SM2', 2), smAir('SM3', 3),
@@ -1362,6 +1424,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (LAB.tune) applyTune(sc.kind === 'free' ? LAB.tune : LAB.def, wx === 'clear');   // (v0.9.9: every other test plays the game's own values)
     for (const mt of m.meters || []) mt.e = 0;
     if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; }           // (t-012: a WG test plays the computer on both sides)
+    TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
     if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null; Object.assign(m, { aerial: null, lobAim: null, slowMo: 0 }); Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
     sc.setup(r);

@@ -11,6 +11,7 @@ function ballStep(b, h, owned) {
   // grass - so LV3 "from anywhere" really gets there (from your own half it died on the grass at 87 m: the Lab's PW4)
   const sp = !!b.special && !owned && (b.spF ?? 1) > 0.85;                     // (out of its range it's just a hard shot)
   const ch = !!b.chip && !owned;                                                // v0.9.2 CHIP: struck with backspin-then-dip - it climbs fast, then drops hard
+  if (owned && b.tap) b.tap = false;                                            // (t-010: someone has it - it's an ordinary ball again)
   if (b.z > 0 || b.vz > 0) {
     b.vz -= G * h * (sp ? 0.35 : 1) + (ch && b.vz < 0 ? G * h * CHIP_DIP : 0);   // (t-005: the chip keeps its hard dip - Luca: "the chip stays arcade")
     if (b.spin || b.curl) {                                                     // t-002 prototype B: Magnus lift - backspin (+) floats it,
@@ -41,6 +42,7 @@ function ballStep(b, h, owned) {
       else if (sp) dec = SKID_DEC * 0.3;
       else if (b.skid && s > b.rollV) dec = SKID_DEC;
       else { b.skid = false; dec = ROLL_DEC + ROLL_K * s * s; }
+      if (b.tap && !owned && !sp) dec += TAP.grip;                                 // t-010: a tap kick grips the grass and dies (a close-range finish)
       const ns = Math.max(0, s - dec * h); b.vx *= ns / s; b.vy *= ns / s;
     }
   }
@@ -123,6 +125,7 @@ hc2Mix(Match, {
     if (p.keeper && p.hands) delay = p.kickAnim === 'roll' ? 0.3 : 0.22;         // overarm throw / underarm roll: lets go on PixelLab's release frame
     if (info.shot && !p.keeper && MAN.kits[p.kit].anims[`shot-${DIRS[p.face]}`]) p.kickAnim = 'shot';   // v0.7: the new PixelLab strike
     if (info.chip && MAN.kits[p.kit].anims[`chip-${DIRS[p.face]}`]) p.kickAnim = 'chip';   // v0.9.4: the PixelLab chip (the scoop under it)
+    if (info.tap) this.tapAnim(p);                                                // t-010: the PixelLab tap (made E / W only)
     if (KICK_HIT[p.kickAnim] != null && !(this.setPiece && this.setPiece.kind === 'THROW-IN')) delay = (KICK_HIT[p.kickAnim] + 0.6) / kickRate(p.kickAnim);   // ball leaves on the contact frame
     this.pending = { p, tx, ty, speed, vz, t: delay, info };
   },
@@ -142,6 +145,7 @@ hc2Mix(Match, {
     else if (mode === 'lob') { const T = clamp(0.7 + d / 25, 0.9, 1.9); vz = G * T / 2 * 1.05; speed = solveLob(Math.max(4, d - 2), vz); }
     if (k.info.cross === 'whip') { const S = crossSolve(d, rnd(1.35, 1.85), 0.25 + d / 21); speed = S.speed; vz = S.vz; }   // t-012: the computer's whipped cross
     if (k.info.chip) { const S = this.chipSolve(b, k.tx, k.ty, k.p.team, k.info.chipC || 0); speed = S.speed; vz = S.vz; }   // v0.9.2 CHIP: fast, over the keeper, dipping under the bar
+    b.tap = !!k.info.tap;                                                         // t-010: the tap kick's drop-off (ballStep); any other kick is a normal ball
     const P = LOB_PROTO && ((mode === 'lob' && k.info.loft) || k.info.chip) ? this.lobProto(k, d) : null;   // t-002 prototype B (off in a normal match)
     if (P && P.speed) { speed = P.speed; vz = P.vz; }
     speed = Math.min(speed, k.info.special ? 40 : KICK_MAX);
@@ -159,7 +163,7 @@ hc2Mix(Match, {
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
     b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft; b.aimLob = !!k.info.aim;   // lob-mechanics: an open-play lob (its drop is a duel)
     b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null;   // (t-012: the runners attack a cross until someone touches it)
-    if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
+    if (k.info.tap) this.tapSfx(); else if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
     k.p.hands = false;
     b.save = null; b.saveable = null;
     b.how = { kind: k.p.kickAnim === 'volley' ? 'volley' : k.p.kickAnim === 'bicycle' ? 'bicycle' : k.info.shot ? 'shot' : 'pass', x: b.x, y: b.y };
@@ -317,8 +321,49 @@ hc2Mix(Match, {
       if (i % 2 === 0 || f.z <= 0) pts.push({ x: b.x + ux * f.x * k, y: b.y + uy * f.x * k, z: f.z }); if (z0 > 0 && f.z <= 0) break; }
     return { pts, apex };
   },
+  // ======================================================================= t-010 TAP KICK (Luca 24 Oct 05:57: "a snappier kick from
+  // up close and it drops off [...] it follows a predictable path which just faces the direction of the arrow you point
+  // with, but a goalie can deal with them easy in their range"). SHOOT tapped (actions.js tapKickTry) or the computer's
+  // tap-in (doShot): low, ~65 km/h off the boot, straight along `dir`, about a degree of error, no curve, and it grips the
+  // grass (TAP.grip in ballStep) so it's dead by ~15 m. It's a shot like any other once it leaves the boot: a defender
+  // in the line blocks it, and the keeper's t-007 planSave reads it - in his reach he holds most (a soft ball at his
+  // body), out of it (committed, wrong-footed, the far post after a cut-back) it goes in. No dice for that.
+  tapKick(p, dir) {
+    const b = this.ball, l = len(dir.x, dir.y) || 1, e = rnd(-1, 1) * (TAP.err + (p.sprinting || p.tired ? TAP.errRun : 0));
+    const c = Math.cos(e), s = Math.sin(e), ux = (dir.x * c - dir.y * s) / l, uy = (dir.x * s + dir.y * c) / l;
+    const at = this.tapOnGoal(p, b.x, b.y, ux, uy);                               // heading for their goal: a shot (stats, the keeper's read)
+    if (at && (!this.setPiece || this.setPiece.kind !== 'PENALTY')) this.stat(p.team).shots++;
+    this.kick(p, b.x + ux * 30, b.y + uy * 30, TAP.speed * SHOT_K, TAP.vz, 0.13, { shot: at, tap: true, power: 0.3 });
+  },
+  // a tap along (ux, uy) from (x, y): does it cross their goal line between the posts (with a little to spare)?
+  tapOnGoal(p, x, y, ux, uy) {
+    const gx = p.team.goalX; if ((gx - x) * ux <= 0) return false;
+    const t = (gx - x) / ux, yy = y + uy * t; return yy > GOAL_Y0 - 1 && yy < GOAL_Y1 + 1;
+  },
+  // the PixelLab tap (batch 16) is drawn E / W: side-on to the way it goes, like the specials. A kit without it: the shot
+  tapAnim(p) {
+    if (!MAN.kits[p.kit].anims['tap-E']) return;
+    p.face = dirVec(p.face).x >= 0 ? 0 : 4; p.kickAnim = 'tap';
+  },
+  // a short, sharp click off the toe: higher and shorter than a shot's thump (no boom), the existing synth voices
+  tapSfx() { SFX.tone('triangle', 330, 110, 0.05, 0.45); SFX.hiss(2400, 1.4, 0.03, 0.28); },
+  // the computer's tap-in (t-010, with TAP_KICK on): on the ball close in, the corner away from the keeper past his
+  // reach (the same keeperCover his save uses, with the tap's travel time) - it slots it there instead of blasting
+  aiTap(p) {
+    const b = this.ball, gx = p.team.goalX, gk = p.team.opp.players[0];
+    if (!TAP_KICK || (p === this.human && !this.demo) || b.owner !== p || b.z > 0.25 || this.setPiece || p.keeper) return false;
+    if (len(gx - b.x, 34 - b.y) > TAP.aiD) return false;
+    const ty = !gk || gk.sentOff ? 34 : gk.y < 34 ? GOAL_Y1 - 0.6 : GOAL_Y0 + 0.6, dx = gx - b.x, dy = ty - b.y, d = len(dx, dy);
+    if (gk && !gk.sentOff) {
+      const T = d / (TAP.speed * 0.8) - 0.15, t = (gk.x - b.x) / dx, gap = Math.abs(b.y + dy * clamp(t, 0, 1) - gk.y);   // where it passes him
+      const busy = gk.state === 'dive' || gk.stun > 0 || Math.abs(gk.x - gx) > 6;   // down, stranded, or far off his line
+      if (!busy && gap < this.keeperCover(T, 0.2) + TAP.aiGap) return false;   // he'd get there: a normal shot
+    }
+    this.tapKick(p, { x: dx / d, y: dy / d }); return true;
+  },
   // power 0..1 from holding the button; aimY -1..1 from the stick (far post / near post)
   doShot(p, power, aimY) {
+    if (this.aiTap(p)) return;                                                    // t-010: the computer's tap-in (only with TAP_KICK on)
     const gx = p.team.goalX; if (!this.setPiece || this.setPiece.kind !== 'PENALTY') this.stat(p.team).shots++;
     if (power > 0.93 && p === this.human) this.ramiSay('power_shot', {}, 1);
     const err = rnd(-1, 1) * (0.35 + Math.max(0, power - 0.85) * 5 + (p.sprinting ? 0.7 : 0) + (p.tired ? 0.6 : 0)) * (p === this.human && !this.demo ? 1 : this.dk(p.team).shotErr);   // (v0.9.2: the computer's finishing by level)
@@ -330,7 +375,7 @@ hc2Mix(Match, {
   // where the loose ball will be over the next 3 seconds (for receivers and chasers). t-005: plus `land`, where a ball
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
   predict() {
-    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl }, out = [], h = 1 / 60;
+    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too)
     for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
   },

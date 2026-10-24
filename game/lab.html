@@ -194,6 +194,26 @@ body.free #live{font-size:17px}
     </div>
   </div>
 
+  <!-- t-010 (Luca 24 Oct 05:57: "give me a test lab of the new simple tap kick [...] add an 'add to game' prompt"): the
+       tap kick is on here only. ADD TO GAME just explains what switching it on in matches would change - the real
+       switch is a code change the taskmaster makes after Luca's OK. -->
+  <div class="fp-sec">
+    <div class="fp-lab">TAP KICK · new, Test Lab only</div>
+    <div class="fp-grid">
+      <button type="button" data-cyc="tap" class="wide" aria-pressed="true" title="SHOOT tapped quickly = a snappy stab along your arrow; held = the power shot">TAP KICK: ON</button>
+      <button type="button" id="fp-tapadd" class="wide" aria-expanded="false" aria-controls="fp-tapinfo">ADD TO GAME</button>
+    </div>
+    <div class="fp-hint">Tap SHOOT (let go within 0.15 s): a low, quick shot along your arrow that dies by about 15 m. Hold it: the power shot, as before.</div>
+    <div class="fp-chg" id="fp-tapinfo" hidden>
+      <b>ADD THE TAP KICK TO THE GAME?</b> In matches it would change:<br>
+      · SHOOT tapped (let go within 0.15 s) = the tap kick: about 65 km/h, low, straight along your arrow (or the way he faces), about 1&deg; of error, dead by about 15 m. Held = the power shot, exactly as now.<br>
+      · Set pieces, the chip, specials, volleys and headers: unchanged.<br>
+      · The computer taps it in too: on the ball within 9 m of goal with the far corner out of the keeper's reach.<br>
+      · Keepers: no change to how they save. In his reach he holds most taps; out of it they go in.<br>
+      Nothing changes from this button. To add it: <b>OK the t-010 card on the Taskboard</b> (or tell the taskmaster "add the tap kick to the game"); the taskmaster switches TAP_KICK on in the code and publishes.
+    </div>
+  </div>
+
   <!-- v0.9.9 (Luca 02:50: "add the sliders from the training ground to the classic version"): the knobs from the
        Test Lab v3 prototype, in tabs, each in plain words. They change only this Lab's FREE PLAY, never the game. -->
   <details class="fp-sec" data-k="tune" open>
@@ -210,7 +230,7 @@ body.free #live{font-size:17px}
     <div class="fp-lab">ON THE GROUND</div>
     <div class="fp-grid">
       <button type="button" data-mv="pass">PASS</button><button type="button" data-mv="through">THROUGH</button><button type="button" data-mv="lob">LOB</button>
-      <button type="button" data-mv="shot">SHOT</button><button type="button" data-mv="power">POWER SHOT</button><button type="button" data-mv="slide">SLIDE</button><button type="button" data-mv="chip" title="in a match: LOB in their box while facing goal">CHIP</button>
+      <button type="button" data-mv="shot">SHOT</button><button type="button" data-mv="tap" title="t-010: the tap kick (in play: tap SHOOT)">TAP KICK</button><button type="button" data-mv="power">POWER SHOT</button><button type="button" data-mv="slide">SLIDE</button><button type="button" data-mv="chip" title="in a match: LOB in their box while facing goal">CHIP</button>
     </div>
     <div class="fp-row fp-seg" role="group" aria-label="Power lob"><span>POWER LOB</span><button type="button" data-mv="plob30">30%</button><button type="button" data-mv="plob60">60%</button><button type="button" data-mv="plob100">100%</button></div>
   </div>

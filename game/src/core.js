@@ -139,6 +139,21 @@ const AERIAL = {
   hsMax: 3,
   clearRand: 0.5,      // the loser clears it: this much random direction, the rest by position (up the pitch, to the near touchline)
 };
+// t-010 TAP KICK (Luca 24 Oct 05:57: "the kick if just pressed quickly once so not held should be a snappier kick from
+// up close and it drops off [...] it follows a predictable path which just faces the direction of the arrow"): SHOOT
+// tapped = a low stab along your arrow that dies on the grass; held = the power shot as before. OFF in matches until
+// Luca's OK (the Test Lab turns it on; ADD TO GAME there says what flipping it changes) - with it off nothing differs.
+let TAP_KICK = false;
+const TAP = {
+  tapT: 0.15,          // SHOOT let go sooner than this (s) = the tap kick; held longer = the power shot
+  speed: 18,           // off the boot, m/s (~65 km/h; ~55 km/h by 6 m, ~38 by 10 m: soft enough at a set keeper's body that he holds most)
+  vz: 0.25,            // a little hop off the toe, then it skims the grass
+  grip: 3.5,           // extra slowing on the grass (m/s^2): it's dead by ~15 m - a close-range finish, useless from 20 m
+  err: 0.02,           // aim error, radians either way (~1 degree): it goes where the arrow points
+  errRun: 0.03,        // ...a little more sprinting or tired
+  aiD: 9,              // the computer taps it in from this close (metres from the goal's centre)...
+  aiGap: 0.6,          // ...when the corner away from the keeper is this much past his reach
+};
 const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the weather scales these (clear = as tuned)
 const HALF_END = [45, 90, 105, 120];                                // v0.8.5: the minute each half ends (3 + 4 = extra time)
 const RULE_OPTS = {                                                 // v0.8.5 match settings (arenas / light / weather: placeholders for the art)
@@ -152,8 +167,8 @@ const COIN_Y = Math.round(VIEW_H * 0.555), COIN_S = 2.4;                        
 const COIN_SPIN = ['rise-0', 'rise-1', 'rise-2', 'edge', 'arrow-2', 'arrow-1', 'arrow-0', 'arrow-1', 'arrow-2', 'edge', 'rise-2', 'rise-1'];   // one turn of the coin (PixelLab faces)
 const mulCol = (a, b) => (((((a >> 16) & 255) * ((b >> 16) & 255) / 255) << 16) | ((((a >> 8) & 255) * ((b >> 8) & 255) / 255) << 8) | (((a & 255) * (b & 255)) / 255)) >>> 0;
 // v0.7 kick timing: the ball leaves on the frame where the boot meets it (frame index in the PixelLab strip, played at 18 fps)
-const KICK_HIT = { pass: 2, kick: 2, shot: 3, super: 8, sp1: 6, sp2: 8, punt: 6, chip: 3 }, KICK_FPS = 18;   // chip: v0.9.4 PixelLab batch 15 (the stab under it)   // punt: v0.8.1 keeper drop-kick (PixelLab batch 13)
-const KICK_RATE = { pass: 22, shot: 22, super: 14, sp1: 18, sp2: 16, punt: 16, chip: 20 };          // sp1 spin strike, sp2 thunder strike (batch 11b)                               // batch 11 strips play a little faster (super: the leap takes its time)
+const KICK_HIT = { pass: 2, kick: 2, shot: 3, super: 8, sp1: 6, sp2: 8, punt: 6, chip: 3, tap: 3 }, KICK_FPS = 18;   // tap: t-010 PixelLab batch 16 (the toe meets it on frame 3)   // chip: v0.9.4 PixelLab batch 15 (the stab under it)   // punt: v0.8.1 keeper drop-kick (PixelLab batch 13)
+const KICK_RATE = { pass: 22, shot: 22, super: 14, sp1: 18, sp2: 16, punt: 16, chip: 20, tap: 24 };   // (t-010: the tap is played quick - snappy, it leaves in 0.15 s)          // sp1 spin strike, sp2 thunder strike (batch 11b)                               // batch 11 strips play a little faster (super: the leap takes its time)
 const kickRate = a => KICK_RATE[a] || KICK_FPS;
 // keeper: how fast he flies sideways in a dive (m/s) and how far past his centre his hands reach when stretched (m)
 let GK_DIVE_V = 5.2, GK_REACH = 1.0;               // v0.9.9: let, for the Test Lab's keeper knobs
