@@ -1,3 +1,39 @@
+HC2 WEB GAME - v0.9.9 (24 Oct) - THE TRAINING-GROUND KNOBS IN THE CLASSIC TEST LAB (Luca 02:50: "add the sliders from
+the training ground to the classic version and lets go with that for now")
+- Test Lab > FREE PLAY > CHANGE HOW IT FEELS: the knobs from the Test Lab v3 prototype, in 5 tabs. PLAYER: run speed,
+  sprint speed, energy, getting energy back. BALL: magnetism (how close it sticks to the feet), grass grip, bounce.
+  LOBS & CHIPS: lob height, power-lob distance, chip dip. SHOTS: shot power (curve isn't in the game yet). KEEPER: level,
+  reaction time, reach, dive speed.
+- Each knob says what it does and what the number means on the pitch ("30 metres takes about 3.9 seconds"), with
+  Less / Normal / More and a reset; a strip shows what you changed, a comment box, RESET ALL, and SUGGEST THIS FOR THE
+  GAME (saved for Claude with your comment; the game only changes after a card you OK).
+- The knobs change FREE PLAY only: every other test plays the game's own values.
+- Game code: RUN, JOG, SPRINT_DRAIN, REST_GAIN, RUN_GAIN, CHIP_DIP, GK_REACH, GK_DIVE_V are let now, and three inline
+  numbers have names (BALL_MAG, LOB_H, LOB_MAX). The game plays exactly as before: 8 seeded matches identical, Test Lab
+  groups K, KH, CH, N5, PW, C identical (SM wobbles run to run on the old version too).
+- The Test Lab revamp (prototypes v1-v3) is parked for now; Test Lab classic (frozen v0.9.7) is kept.
+
+HC2 WEB GAME - v0.9.8 (24 Oct) - LOBS THAT MAKE SENSE (the co-designer, PR #2: "it never makes sense to lob the ball -
+easily interrupted, glitchy")
+- An open-play lob now climbs over the players in between: 3.6 m for a short one up to 6 m for a long one; a held (power)
+  lob 3.6-8 m. Set pieces and keepers' kicks are unchanged.
+- The drop is a fair aerial duel: everyone in reach contests it once (nearer + the run on it + luck). Your winner heads at
+  goal near the box, chests it down, cushions it to his feet or nods it on; theirs heads it clear. Ordinary headers go to
+  the nearest man first (the home side used to win every tie).
+- The defender goes with the receiver instead of sprinting to the landing spot; the receiver meets the ball in the air.
+- A rising lob can only be blocked by a man square in front of it (a third of the computer's lobs were taken off the boot).
+- Your header press window: 0.35 s -> 0.7 s. PASS = nod it on, SHOOT = header at goal.
+- Measured (tools/lobstudy.js, new): your lobs reach a team-mate 45% -> 75%, the computer's 33% -> 50%, at the same number
+  of computer lobs. Shots, ground passes, crosses and set pieces play as before (Test Lab groups C, P, PW, SM, CH, N5, KH).
+
+TEST LAB + TOOLS (24 Oct, game still v0.9.7) - A PREVIEW ON EVERY PULL REQUEST (the co-designer + Luca: "make a
+preview part of every pull request", so HC2 HQ shows each change playing on its Needs OK card)
+- Test Lab: a link ending in a test's id opens that test and starts it (…#CH1, …#lab-CH1, or a group: …#CH).
+- tools/preview.js: one command records a PR's preview GIF (a Test Lab test or a match moment), under 1 MB.
+- tools/prpreview.sh: builds the "HC2 PR #N preview" page (the PR on top of main: #play = the game, #lab-CH1 = the Lab).
+- The rule: CLAUDE.md "The ## Preview section" (work skill, friend README, agents brief template, inbox skill, taskmaster
+  handover point to it). The GIFs stay in main under docs/previews/.
+
 HC2 WEB GAME - v0.9.7 (23 Oct) - WATCH MODE + BACKGROUND SIMULATIONS (Luca 22:36: "a 1v1 computer game that
 simulates games... manual so i can pause etc plus manually comment on after for bug etc but also run simulations of
 the games in the background catching any bugs and improving")

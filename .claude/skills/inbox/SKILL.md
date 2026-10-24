@@ -19,10 +19,16 @@ ArtifactData, pinning every write to an existing card with `if_version`.
      the brief's "Files you may touch" needs a reason in the report, or it's needs-work.
    - Run the tests the brief's "Done means" lists, at least the smoke test (CLAUDE.md "Testing"), on the branch
      merged with the latest `main`.
-   - Look at the PR: is the description complete (CLAUDE.md "Pull requests")?
+   - Look at the PR: is the description complete (CLAUDE.md "Pull requests")? It needs its `## Preview` section with
+     exactly one `Preview: … · Test Lab: …` line, and the GIF on the branch (under 1 MB, showing the change).
+     Missing → needs-work.
+   - `ok`: build the card's preview too (docs/taskmaster.md "Previews on Needs OK cards").
 4. **Verdict**: write it to a file, then `bash tools/agent.sh review <report name> <verdict> <file>`:
    - `ok`: it does what the brief asked and the tests pass. Card → status `review` (Needs OK), `result` = PR link,
      and put "Taskmaster review (<date>): <2-3 lines>" at the top of the card's notes. Luca gives the final OK.
+   - Every card going to Needs OK also gets `next` = `{agent, what}`: who picks it up after Luca's OK and what they'll do
+     (a PR: `{agent: "taskmaster", what: "merges it and publishes"}`; a stage-1 question: the worker who builds it). HQ
+     shows it as "If you OK: …" (Luca, 24 Oct: "include which agent is being assigned a task when it is approved").
    - `needs-work`: say exactly what to fix. Card → status `ready`, log line with the reason.
    - `answered`: a `question` or `blocked` you can settle from the repo, the board or CLAUDE.md. Answer it in the
      review. Card stays `doing`, log line.
@@ -39,6 +45,7 @@ ArtifactData, pinning every write to an existing card with `if_version`.
 
 ## Never
 
-- merge, push to `main` or publish from here. Merging happens in Luca's main chat after his OK on the card.
+- merge, push to `main` or publish the game / Test Lab from here. Merging happens in Luca's main chat after his OK on
+  the card. (The only publishing here: HQ assets and "HC2 PR #N preview" pages, docs/taskmaster.md "Previews".)
 - change a card that isn't a `t-NNN` or `qa-*` card, or delete one
 - edit an agent's report: answer in the review instead

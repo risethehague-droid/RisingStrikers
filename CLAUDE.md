@@ -13,7 +13,7 @@ These rules apply to every session on this repo, on either account. If you're on
   - Never push to `main`.
   - Never merge.
   - Never publish to the official pages.
-- Taskboard: https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 · Team setup: https://claude.ai/artifact/8QEZs4UX4XEGYGWYdqPssF
+- HC2 HQ (the Taskboard): https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 · Team setup: https://claude.ai/artifact/8QEZs4UX4XEGYGWYdqPssF
 
 ## How to talk to Luca and the co-designer
 
@@ -75,7 +75,7 @@ These rules apply to every session on this repo, on either account. If you're on
 2. Smoke test: `node tools/smoke.js` plays a match at all four difficulty levels. It must end with `errors []`.
 3. Test Lab groups: `bash tools/mklab.sh` once (and after any change to `lab.html`), then `GROUP=<id> node tools/grp.js` (GK, CH, SM, ...). Run the groups your lane brief lists.
 4. Lane-specific tests: the ones in your brief, e.g. the difficulty checks `tools/proxy093.js` and `tools/train093.js`.
-5. Anything visual: put a screenshot or a short GIF in the pull request (`tools/chipgif.js` shows how).
+5. Anything visual: record the PR's preview GIF with `tools/preview.js` (see "The `## Preview` section" below).
 
 Tests use Node with Playwright and Chromium, run headless; time is stepped by hand, so a 5-minute match takes seconds.
 
@@ -88,5 +88,30 @@ Tests use Node with Playwright and Chromium, run headless; time is stepped by ha
   - which files it touches
   - test results
   - any PixelLab generations it used
+  - a `## Preview` section (below)
 - Then put the PR link on the card and move the card to *Needs OK*.
   - Exception: PRs from `friend/` branches get their Needs OK card automatically (the "HC2 taskmaster check" scheduled task on Luca's account, every 2 hours 09:00 to 23:00 Dutch time, which also reviews the agents' reports). The co-designer's account can't write to the board.
+
+### The `## Preview` section (every PR, every agent)
+
+HC2 HQ shows it on the PR's Needs OK card: the GIF playing, **Play it** (the PR's code as a game) and **Try it in
+the Test Lab** (the tests you name). The taskmaster and the 2-hourly check build those from this section, so keep its
+shape exactly.
+
+1. **Open the PR first** to learn its number `<N>`.
+2. **Record a GIF** of the change in action, 3-5 s, under 1 MB, with the game served (Testing, step 1):
+   - a Test Lab test: `TEST=CH1 OUT=docs/previews/pr<N>-<topic>.gif node tools/preview.js` (run `bash tools/mklab.sh` once first)
+   - a match moment: `MATCH=1 SKIP=<seconds in> OUT=docs/previews/pr<N>-<topic>.gif node tools/preview.js`
+   - `SETUP='<js>'` sets something up first (a camera, a weather). The tool's header lists every option.
+3. **Commit it on your branch** under `docs/previews/`, push, then add the section to the description:
+   ```
+   ## Preview
+   ![a lob over midfield, won in the air](https://github.com/risethehague-droid/RisingStrikers/blob/<branch>/docs/previews/pr<N>-<topic>.gif?raw=true)
+   Preview: docs/previews/pr<N>-<topic>.gif · Test Lab: CH1,A4
+   ```
+   - The `Preview:` line comes exactly once, in that shape. After `Test Lab:` go the tests that show the change, comma-separated, or `none`.
+   - Updating a description: `gh api -X PATCH repos/risethehague-droid/RisingStrikers/pulls/<N> -F body=@body.md` (`gh pr edit` needs GraphQL, which is blocked here).
+4. **Nothing to see** (docs, tools, a refactor): `Preview: none · Test Lab: none`, plus one line saying why.
+
+The GIFs **stay in `main`** after the merge. `docs/previews/` is the game's picture history; it sits outside `game/`,
+so it's never published.

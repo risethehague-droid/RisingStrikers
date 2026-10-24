@@ -69,7 +69,7 @@ function passTime(d) { const i = Math.round(clamp(d, 1, 50)); if (PASS_T[i] == n
 // a 12 m lob peaked at 1.8 m and a 25 m one at 3.5 m, so the ball stayed at head height (under 2.7 m) for most of its
 // flight and anyone near the line headed it away (28 of 60 of your lobs). An open-play lob now climbs over the
 // players in between: 3.6 m for a short one up to 6 m for a long one; a held (power) lob 3.6 to 8 m.
-function lobApex(d, pow) { return pow != null ? 3.6 + clamp(pow, 0, 1) * 4.4 : clamp(2.9 + d * 0.07, 3.6, 6.0); }
+function lobApex(d, pow) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 4.4 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H; }   // (LOB_H: the Lab's lob-height knob, 1 in the game)
 // lofted ball: the forward speed that makes it come down at `dist` for a given upward speed
 function solveLob(dist, vz, spin) {
   const land = v0 => { const b = { x: 0, y: 0, z: 0.05, vx: v0, vy: 0, vz, skid: true, rollV: 0, spin }, h = 1 / 120;
@@ -225,13 +225,13 @@ hc2Mix(Match, {
   },
   // v0.8.5 (Luca): HOLD the lob for a high ball where you point - the longer you hold, the further and higher (12-50 m)
   powerLob(p, dir, c) {
-    const l = len(dir.x, dir.y) || 1, d = 12 + c * 38, tx = clamp(p.x + dir.x / l * d, 1, PITCH_L - 1), ty = clamp(p.y + dir.y / l * d, 1, PITCH_W - 1);
+    const l = len(dir.x, dir.y) || 1, d = 12 + c * (LOB_MAX - 12), tx = clamp(p.x + dir.x / l * d, 1, PITCH_L - 1), ty = clamp(p.y + dir.y / l * d, 1, PITCH_W - 1);
     const q = p.team.players.filter(m => m !== p && !m.sentOff && !m.keeper).sort((a, b) => len(a.x - tx, a.y - ty) - len(b.x - tx, b.y - ty))[0];
     const target = q && len(q.x - tx, q.y - ty) < 9 ? q : null;
     this.kick(p, tx, ty, 0, 0, 0.14, { mode: 'lob', target, lobPow: c, loft: !p.keeper && !this.setPiece });
     if (target && p.team === this.home) { this.nextHuman = target; this.passRing = { p: target, t: 1.0 }; this.passStick = { ...Input.axis }; }
   },
-  lobSpot(p) { const ax = Input.axis, dv = len(ax.x, ax.y) > 0.1 ? ax : dirVec(p.face), l = len(dv.x, dv.y) || 1, d = 12 + this.lobCharge * 38;
+  lobSpot(p) { const ax = Input.axis, dv = len(ax.x, ax.y) > 0.1 ? ax : dirVec(p.face), l = len(dv.x, dv.y) || 1, d = 12 + this.lobCharge * (LOB_MAX - 12);
     if (this.chipCan(p, dv)) return { x: p.team.goalX, y: clamp(34 + (Math.abs(ax.y) > 0.2 ? ax.y * 2.4 : 0), GOAL_Y0 + 0.4, GOAL_Y1 - 0.4), chip: true };   // v0.9.2 a chip: at the goal
     return { x: clamp(p.x + dv.x / l * d, 1, PITCH_L - 1), y: clamp(p.y + dv.y / l * d, 1, PITCH_W - 1) }; },
   // power 0..1 from holding the button; aimY -1..1 from the stick (far post / near post)
@@ -367,16 +367,16 @@ hc2Mix(Match, {
     // in front of his boot and he knocks it on in rhythm with his stride - short quick touches when he's slow, longer
     // ones at a sprint (that's when it can be nicked). The ball eases after him, it never snaps; he turns in arcs.
     const rx = b.x - p.x, ry = b.y - p.y, dist = len(rx, ry);
-    if (dist > 2.6) { b.owner = null; b.target = null; return; }                // too heavy a touch: it's a loose ball now
+    if (dist > 2.6 * BALL_MAG) { b.owner = null; b.target = null; return; }     // too heavy a touch: it's a loose ball now (BALL_MAG: the Lab's magnetism knob, 1 in the game)
     if (p.state === 'kick') return;                                              // let it roll into the swing
     const sp = p.speed, want = p.wantDir;
     const dir = sp > 0.6 ? { x: p.vx / sp, y: p.vy / sp } : (want || dirVec(p.face));
     p.touchT -= dt;
-    if (sp > 0.6 && p.touchT <= 0) { p.touchT = clamp(0.5 - sp * 0.035, 0.24, 0.45); p.touchPush = (p.sprinting ? 0.6 : 0.2) + sp * 0.02; }
+    if (sp > 0.6 && p.touchT <= 0) { p.touchT = clamp(0.5 - sp * 0.035, 0.24, 0.45); p.touchPush = ((p.sprinting ? 0.6 : 0.2) + sp * 0.02) / BALL_MAG; }
     p.touchPush = (p.touchPush || 0) * Math.exp(-dt * 5);
-    const lead = (sp < 0.6 ? 0.5 : clamp(0.42 + sp * 0.04, 0.45, 0.75)) + p.touchPush;
+    const lead = (sp < 0.6 ? 0.5 : clamp(0.42 + sp * 0.04, 0.45, 0.75)) / BALL_MAG + p.touchPush;
     const tx = p.x + dir.x * lead, ty = p.y + dir.y * lead * 0.84;               // (in front of the boot, like at kick-off)
-    const k = sp < 0.6 ? 9 : 7;
+    const k = (sp < 0.6 ? 9 : 7) * BALL_MAG;
     b.vx = p.vx + (tx - b.x) * k; b.vy = p.vy + (ty - b.y) * k; b.skid = false; if (b.z <= 0) b.vz = 0;
   },
   // the carrier runs where you point, turning in an arc (tighter when he's slower); only an about-turn stops him first.
