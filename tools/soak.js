@@ -5,6 +5,7 @@
 //
 //   node tools/soak.js                                   12 full matches (2 x 3 real minutes each, fast-forwarded)
 //   MATCHES=30 node tools/soak.js                        more
+//   FROM=12 MATCHES=12 node tools/soak.js                the next 12 set-ups (a second sample)
 //   ONE='seed=8919 home=IS away=IRO lvl=hard ai=new weather=rain tod=night' node tools/soak.js    replay one match
 //   OUT=soak-out node tools/soak.js                      also write soak-out/soak-<time>.json and .md
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
@@ -23,7 +24,7 @@ const parseOne = s => Object.fromEntries(s.trim().split(/\s+/).map(kv => kv.spli
 const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=${c.ai} weather=${c.weather} tod=${c.tod}`;
 
 (async () => {
-  const list = process.env.ONE ? [parseOne(process.env.ONE)] : Array.from({ length: +(process.env.MATCHES || 12) }, (_, i) => setup(i));
+  const list = process.env.ONE ? [parseOne(process.env.ONE)] : Array.from({ length: +(process.env.MATCHES || 12) }, (_, i) => setup(i + +(process.env.FROM || 0)));   // (t-007: FROM=12 = the next 12 set-ups)
   const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const page = await br.newPage({ viewport: { width: 640, height: 360 } }); const errs = []; let cur = -1;
   page.on('pageerror', e => errs.push({ match: cur, msg: e.message, stack: String(e.stack || '').split('\n').slice(1, 4).join(' | ') }));
@@ -55,11 +56,13 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     }
     const st = await page.evaluate(() => { const m = window.__hc2, S = m.mstats || {}, H = S[m.home.name] || {}, A = S[m.away.name] || {}; Math.random = window.__RND;
       const poss = (H.poss || 0) + (A.poss || 0);
-      return { score: `${m.home.score}-${m.away.score}`, shots: `${H.shots || 0}-${A.shots || 0}`, fouls: `${H.fouls || 0}-${A.fouls || 0}`,
+      const sum = k => (H[k] || 0) + (A[k] || 0);                       // t-007: the keeper numbers (both sides together)
+      return { score: `${m.home.score}-${m.away.score}`, shots: `${H.shots || 0}-${A.shots || 0}`, goals: m.home.score + m.away.score,
+        corners: sum('corners'), onT: sum('onT'), held: sum('held'), parried: sum('parried'), kOut: sum('kOut'), kIn: sum('kIn'), fouls: `${H.fouls || 0}-${A.fouls || 0}`,
         possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), incidents: window.__soakInc.slice() }; });
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
     const tr = Object.entries(st.trips).map(([k, v]) => `${k} ${v}`).join(', ');
-    console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · ${tr || 'no trips'}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
+    console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${tr || 'no trips'}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
   }
   await br.close();
   // summary: every Bug Watch code across all matches, bugs first
@@ -71,13 +74,15 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
   }
   out.summary = Object.values(by).sort((a, b) => (a.sev === 'bug' ? 0 : 1) - (b.sev === 'bug' ? 0 : 1) || b.trips - a.trips);
   const fin = out.matches.filter(m => m.finished).length, stalls = out.matches.filter(m => m.stall);
+  const tot = k => out.matches.reduce((a, m) => a + (m[k] || 0), 0), per = k => (tot(k) / (out.matches.length || 1)).toFixed(1);   // t-007: per-match keeper numbers
   const md = [`# Soak ${out.game} · ${out.matches.length} matches · ${out.at.slice(0, 16).replace('T', ' ')} UTC`, '',
     `- Finished: ${fin} of ${out.matches.length}${stalls.length ? ` · STALLS: ${stalls.map(m => `#${m.n}`).join(', ')}` : ''}`,
-    `- Page errors: ${errs.length}${errs.length ? '' : ' (none)'}`, ...errs.slice(0, 5).map(e => `  - #${e.match + 1}: ${e.msg} ${e.stack}`), '',
+    `- Page errors: ${errs.length}${errs.length ? '' : ' (none)'}`,
+    `- Per match: goals ${per('goals')} · shots on target ${per('onT')} · corners ${per('corners')} · saves held ${per('held')} · parried ${per('parried')} · keeper touches out ${per('kOut')} / in play ${per('kIn')} (totals ${tot('goals')} / ${tot('onT')} / ${tot('corners')} / ${tot('held')} / ${tot('parried')})`, ...errs.slice(0, 5).map(e => `  - #${e.match + 1}: ${e.msg} ${e.stack}`), '',
     '| Code | Kind | Trips | In matches | Example |', '| --- | --- | --- | --- | --- |',
     ...out.summary.map(e => `| ${e.code} | ${e.sev || '?'} | ${e.trips} | ${e.matches} | ${(e.examples[0] || '').replace(/\|/g, '/').slice(0, 160)} |`), '',
-    '| # | Set-up | Result | Shots | Possession (home) | Repro |', '| --- | --- | --- | --- | --- | --- |',
-    ...out.matches.map(m => `| ${m.n} | ${m.setup.home} v ${m.setup.away}, ${m.setup.lvl}, ${m.setup.ai} AI, ${m.setup.weather}/${m.setup.tod} | ${m.finished ? m.score : 'not finished'} | ${m.shots} | ${m.possHome}% | \`${m.repro}\` |`)].join('\n');
+    '| # | Set-up | Result | Shots | On target | Corners | Held / parried | Possession (home) | Repro |', '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    ...out.matches.map(m => `| ${m.n} | ${m.setup.home} v ${m.setup.away}, ${m.setup.lvl}, ${m.setup.ai} AI, ${m.setup.weather}/${m.setup.tod} | ${m.finished ? m.score : 'not finished'} | ${m.shots} | ${m.onT} | ${m.corners} | ${m.held} / ${m.parried} | ${m.possHome}% | \`${m.repro}\` |`)].join('\n');
   console.log('\n' + md + '\n');
   if (process.env.OUT) { fs.mkdirSync(process.env.OUT, { recursive: true }); const f = `${process.env.OUT}/soak-${out.at.replace(/[:.]/g, '-').slice(0, 19)}`;
     fs.writeFileSync(f + '.json', JSON.stringify(out, null, 1)); fs.writeFileSync(f + '.md', md); console.log('wrote', f + '.json', f + '.md'); }

@@ -462,12 +462,21 @@ hc2Mix(Match, {
         if (Math.abs(b.y - 34) > 4.3 || b.z > 3.2) { p.spSave = 0; continue; }   // off target: nothing to save
         const K = SAVE_POWER[p.spSave - 1], ok = this.clash(p);
         if (!ok) { this.guardBreak(p); continue; }
+        if (ok === 'hand') {                                                     // t-007: too strong to stop, but he gets a hand to it: over or wide
+          p.y = clamp(b.y - Math.sign(b.y - p.y || 1) * 0.5, 29.6, 38.4); p.vx = p.vy = 0;
+          this.gkDeflect(p, b.z > 1.3 || Math.random() < 0.5 ? 'tip' : 'wide'); b.special = 0; b.spP = 0;
+          this.gkSaveAnim(p); this.gkCount(p.team, 'parried'); this.flagReplay('A HAND TO IT!', p); this.shotSaved(p); return;
+        }
         p.y = clamp(b.y, 30.6, 37.4); p.vx = p.vy = 0;
-        if ((b.spP || 0) < K * 0.8) { b.special = 0; best = p; bd = 0; viaChest = false; break; }   // held
-        const rel = b.y - 34 || rnd(-1, 1);                                        // fisted away
-        b.vx = -b.vx * 0.2 + p.team.side * rnd(3, 5); b.vy = Math.sign(rel) * rnd(5, 9); b.vz = rnd(3, 5); b.z = Math.max(b.z, 0.4);
-        b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.special = 0; b.spP = 0; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
-        if (MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45);
+        if ((b.spP || 0) < K * 0.8) { b.special = 0; best = p; bd = 0; viaChest = false; this.gkCount(p.team, 'held'); break; }   // held
+        // fisted away. t-007 (Luca: "from special saves that dont fully save a ball maybe if the ball is too strong it goes
+        // over to give a corner"): a special he only just matched goes over the bar or round the post 60% of the time
+        if (Math.random() < 0.6) this.gkDeflect(p, b.z > 1.3 ? 'tip' : 'wide');
+        else { const rel = b.y - 34 || rnd(-1, 1);
+          b.vx = -b.vx * 0.2 + p.team.side * rnd(3, 5); b.vy = Math.sign(rel) * rnd(5, 9); b.vz = rnd(3, 5); b.z = Math.max(b.z, 0.4);
+          b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; p.cool = 0.5; b.ring = null; }   // (t-005: touched - no landing ring)
+        b.special = 0; b.spP = 0;
+        if (MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45); this.gkCount(p.team, 'parried');
         this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
       }
       if (b.save && b.save.gk === p) {                                           // a shot at this keeper: his body and gloves decide
@@ -480,16 +489,21 @@ hc2Mix(Match, {
           if (dmg > g + 1e-6) { this.guardBreak(p); continue; }
           p.guard = g - dmg; p.guardT = 0; if (p.guard < GUARD_POWER) this.say('', 'THE KEEPER IS RATTLED!', 0.9);
         }
-        if (hit === 'catch') { if ((p.state === 'dive' && len(b.vx, b.vy) > 20) || len(b.vx, b.vy) > 28) this.flagReplay('WHAT A SAVE!', p); best = p; bd = 0; viaChest = false; break; }
-        const rel = b.y - p.y || rnd(-1, 1), spd = len(b.vx, b.vy);               // parried: pushed wide, off the line
-        b.vx = -b.vx * 0.22 + p.team.side * rnd(2, 4); b.vy = Math.sign(rel) * rnd(4, 8) + b.vy * 0.15; b.vz = rnd(1.5, 4) + (b.z > 1.6 ? 2 : 0);
-        b.z = Math.max(b.z, 0.3); b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; p.cool = 0.5; b.ring = null;   // (t-005)
+        if (hit === 'catch') { this.gkCount(p.team, 'held'); if ((p.state === 'dive' && len(b.vx, b.vy) > 20) || len(b.vx, b.vy) > 28) this.flagReplay('WHAT A SAVE!', p); best = p; bd = 0; viaChest = false; break; }
+        const spd = len(b.vx, b.vy); this.gkCount(p.team, 'parried');           // not held: t-007 over the bar, round the post, or pushed out to the side
+        this.gkDeflect(p, hit);
         if (b.z > 1.5 && p.state !== 'dive' && MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45);   // fists it away
         if (b.special >= 2) {                                                     // v0.7: a big special knocks him flat (PixelLab 'blasted back')
           if (MAN.kits[p.kit].anims['blasted-E']) { p.setState('blasted', 1.3); p.stun = 1.3; p.face = p.team.side > 0 ? 0 : 4; p.vx = p.team.side * -2.5; p.vy = 0; }
           else if (p.state !== 'dive') { p.setState('fall', 0.7); p.vx = -b.vx * 0.05; } }
         b.special = 0;
-        this.say(spd > 24 ? 'WHAT A SAVE!' : '', 'PARRIED!', 0.8); if ((p.state === 'dive' && spd > 20) || spd > 28) this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
+        this.say(spd > 24 ? 'WHAT A SAVE!' : '', hit === 'tip' ? 'TIPPED OVER THE BAR!' : hit === 'wide' ? 'PARRIED ROUND THE POST!' : 'PARRIED!', 0.8); if ((p.state === 'dive' && spd > 20) || spd > 28) this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
+      }
+      if (box && !b.save && b.z > 1.6 && b.z < 3.15 && d < 1.3 && b.last !== p.team && !this.gkUnread(p)) {   // t-007: a high ball (a lob, a cross) he goes up for
+        const a = this.gkAerial(p);
+        if (a === 'catch') { best = p; bd = 0; viaChest = false; break; }
+        if (a === 'done') return;
+        if (a === 'skip') continue;
       }
       const smax = box ? 40 : (b.target === p ? 26 : 17);                       // the intended receiver can take a firm ball
       // chest / thigh control of a dropping ball (headers come with the v0.2 animations)
@@ -511,6 +525,62 @@ hc2Mix(Match, {
       b.ring = null;                                                             // (t-005: touched - no landing ring)
     }
   },
+  // t-007: where the ball goes off a keeper's hands (his touch is his side's last touch, so 'tip' and 'wide' are corners):
+  //  'tip'   up and over the bar (aimed to clear it by ~0.6 m at the goal line)
+  //  'wide'  round the post: it crosses the goal line 0.7-2.4 m outside the near post
+  //  'punch' a high ball fisted clear, out and up
+  //  'parry' pushed out to the side of the box, away from the middle (not back into it)
+  // Well off his line a tip (over 9 m out) or a round-the-post (over 14 m: a 1v1 out at the edge of his box) becomes a
+  // parry: there's no goal behind him to put it past. Off his line it carries on faster (up to ~60% of its pace), so
+  // it still gets there: no looping balloon.
+  gkDeflect(p, how) {
+    const b = this.ball, side = p.team.side, H = Math.max(0, (b.x - p.team.ownGoalX) * side), sp = len(b.vx, b.vy);
+    const s = Math.sign(b.y - 34) || Math.sign(b.y - p.y) || (Math.random() < 0.5 ? -1 : 1);   // the near post's side
+    const tip = how === 'tip' && H < 9, wide = how === 'wide' && H < 14;
+    this.gkCount(p.team, tip || wide ? 'kOut' : 'kIn');                         // (the soak: touches turned out v kept in play)
+    if (tip) {
+      const v1 = Math.max(rnd(2.5, 4.5), Math.min(H / 0.42, sp * 0.55)), T = Math.max(0.12, H / v1);
+      b.vx = -side * v1; b.vy = b.vy * 0.25 + rnd(-0.6, 0.6); b.vz = clamp((BAR_Z + 0.6 - b.z + 0.5 * G * T * T) / T, 3.2, 9);
+    } else if (wide) {
+      const ty = 34 + s * (3.66 + rnd(0.7, 2.4)); let v1 = Math.max(rnd(3.5, 6.5), Math.min(H / 0.5, sp * 0.6)), T = Math.max(0.12, H / v1);
+      if (Math.abs(ty - b.y) / T > 12) { T = Math.abs(ty - b.y) / 12; v1 = H / T; }
+      b.vx = -side * v1; b.vy = (ty - b.y) / T; b.vz = rnd(0.6, 2.2);
+    } else if (how === 'punch') {
+      b.vx = side * rnd(9, 14); b.vy = s * rnd(2, 6) + b.vy * 0.2; b.vz = rnd(4, 6.5);
+    } else {
+      b.vx = side * rnd(1.5, 3.5) - b.vx * 0.1; b.vy = s * rnd(5, 9) + b.vy * 0.15; b.vz = rnd(1.5, 4) + (b.z > 1.6 ? 2 : 0);
+    }
+    b.z = Math.max(b.z, 0.3); b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.lob = false; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
+    if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }                            // (t-002 prototype)
+    b.camUp = how !== 'parry' || b.vz > 3;                                       // t-007: the camera follows it up and out (world.js)
+  },
+  // t-007: the keeper's frames for a save he makes on the spot (a special he gets a hand to): a dive if he's flying already
+  gkSaveAnim(p) { if (p.state === 'dive') return; const K = MAN.kits[p.kit].anims; if (K['punch-S']) p.setState('punch', 0.45); },
+  // t-007 (Luca: "jump for a ball i lob is coming his way or at least punch it"): a high ball within his reach in his box
+  // (a lob he has read, a cross). Held when the dice say so (by its pace and his level; far less often with one of
+  // theirs on him); otherwise punched clear, or tipped over when it's dropping towards his goal near the bar.
+  // He jumps for anything over 2 m. Returns 'catch' (pickups gives it him), 'done' (it's off his fists) or 'skip'.
+  gkAerial(p) {
+    const b = this.ball, side = p.team.side, H = (b.x - p.team.ownGoalX) * side, sp = len(b.vx, b.vy, b.vz);
+    const up = p.state === 'dive' && (p.saveKind === 'leap' || p.saveKind === 'tip');
+    if (b.z > (up ? 3.1 : 2.95)) return 'skip';                                 // (over him even with a jump)
+    if (p.state === 'dive' && !up) return 'skip';                                 // (on the grass from another save)
+    const opp = p.team.opp.players.filter(o => !o.keeper && !o.sentOff);
+    const crowd = opp.some(o => len(o.x - b.x, o.y - b.y) < 0.7) || opp.filter(o => Math.min(len(o.x - b.x, o.y - b.y), len(o.x - p.x, o.y - p.y)) < 1.8).length >= 2;   // (one of theirs right under it, or two around him)
+    const hold = Math.random() < this.gkHoldChance(p, sp, 'claim') * (crowd ? 0.2 : 1);
+    if (b.z > 2.0 && !up) {                                                       // he goes up for it
+      p.setState('dive', 0.55); p.diveLen = 0.55; p.diveFly = 0.12; p.diveDir = 0; p.diveZ = clamp(b.z, 1.8, 2.9); p.vx = p.vy = 0;
+      p.saveKind = hold ? 'leap' : 'tip'; p.leap = clamp(b.z - 1.9, 0.25, 0.7);
+    }
+    if (hold) { if (p.state === 'dive') p.diveAnim = gkMoveAnim(p, 'leap', b.y > p.y); p.gkMode = 'LEAP'; return 'catch'; }
+    const how = b.vx * -side > 1.5 && H < 5 && b.z > 2.1 && !crowd ? 'tip' : 'punch';
+    if (p.state === 'dive') p.saveKind = how;
+    this.gkDeflect(p, how); this.gkCount(p.team, 'punched'); p.gkMode = how === 'tip' ? 'TIP' : 'PUNCH';
+    if (p.state === 'dive') p.diveAnim = gkMoveAnim(p, how, b.y > p.y);
+    else if (MAN.kits[p.kit].anims['punch-S']) { const pa = gkMoveAnim(p, 'punch', false); p.setState('dive', 0.45); p.diveLen = 0.45; p.diveFly = 0.1; p.diveDir = 0; p.saveKind = 'punch'; p.leap = 0.15; p.diveAnim = pa; }
+    this.say('', how === 'tip' ? 'TIPPED OVER THE BAR!' : 'PUNCHED CLEAR!', 0.8);
+    return 'done';
+  },
   gain(p, incoming) {
     const b = this.ball, prev = b.owner;
     // v0.8.1 (Luca): no SP for passes - the AI just passed it back and forth to farm it. SP fills with time only.
@@ -519,7 +589,7 @@ hc2Mix(Match, {
     if (b.shotBy && b.shotBy.team !== p.team && p.keeper) this.missedChance(b.shotBy.team, 'held'); else b.shotBy = null;
     const back = p.keeper && b.last === p.team && b.lastP && b.lastP !== p && b.how && b.how.kind === 'pass';   // v0.9.1 (IFAB Law 12): a team-mate's pass / throw-in back to him - feet only
     const box = p.keeper && !back && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
-    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null;   // (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
+    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null; b.camUp = false;   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
     if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }                            // (t-002 prototype)
     if (prev) { prev.cool = 0.4; }
     if (box) {
