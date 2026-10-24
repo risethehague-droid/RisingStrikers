@@ -221,9 +221,9 @@ class SpMeter {
 // ---------------------------------------------------------------- Match methods: specials
 hc2Mix(Match, {
   // v0.8.6 the aerial special itself: LV by the bars spent; LV1 a volley, LV2 an overhead kick (or volley if it's low), LV3 the leap
-  airSpecial(p) {
-    const b = this.ball, mt = this.meterOf(p.team), lv = mt.spend(); if (!lv) return; this.airSp = null;
-    const aim = Math.abs(Input.axis.y) > 0.2 ? Input.axis.y : (Math.random() < 0.5 ? -1 : 1) * rnd(0.55, 1), KA = MAN.kits[p.kit].anims;
+  airSpecial(p, aimAI) {
+    const b = this.ball, mt = this.meterOf(p.team), lv = mt.spend(); if (!lv) return; if (aimAI == null) this.airSp = null;
+    const aim = aimAI != null ? aimAI : Math.abs(Input.axis.y) > 0.2 ? Input.axis.y : (Math.random() < 0.5 ? -1 : 1) * rnd(0.55, 1), KA = MAN.kits[p.kit].anims;   // (t-012: the computer passes its own aim, not your stick)
     { const dv = dirVec(p.face); b.x = p.x + dv.x * 0.45; b.y = p.y + dv.y * 0.35; b.vx = b.vy = b.vz = 0; }   // he meets it (the leap / volley closes the gap) - v0.8.7: and it stops there for the strike (it flew on and the kick missed: the Lab's PW10 caught it)
     b.owner = p; this.doShot(p, 0.85, aim);
     const k = this.pending; if (!k || k.p !== p) return;
@@ -247,6 +247,17 @@ hc2Mix(Match, {
     this.say(['AIR ' + SP_NAMES[0], 'SKY ' + SP_NAMES[1], SP_NAMES[2] + ' FROM THE SKY'][lv - 1] + '!', `${p.team.name} · LV${lv} AERIAL SPECIAL`, 1.3);
     this.ramiSay('skill', { text: ['ON THE VOLLEY -\nAND IT IS ON FIRE!', 'AN OVERHEAD SPECIAL!!\nUNBELIEVABLE!', 'HE FLIES!!\nTHE RISING PHOENIX!'][lv - 1], expr: 'laugh' }, 3);
     SFX.special(lv); this.flagReplay('AERIAL SPECIAL!'); this.hitStop = 0.08; this.cameras.main.flash(90, 255, 230, 120);
+  },
+  // t-012 THE COMPUTER'S AERIAL SPECIAL: it never used one (airSpecial was only for your SPECIAL key), so the aerial
+  // moves were yours alone. Now the man meeting a cross / a lob near their goal (22 m, in front of it) spends its bars on
+  // one: how often by level (K.sp), never twice inside 30 s for a side. Only the computer's side: your bars are yours
+  // to spend (your team-mates head it as before)
+  aiAirSpecial(p) {
+    const b = this.ball, team = p.team, lv = this.meterOf(team).level();
+    if (lv < 1 || p.keeper || (team === this.home && !this.demo) || b.owner || b.inNet || b.z < 0.55 || b.z > 2.6 || p.busy() || this.pending) return false;
+    const gx = team.goalX, toGoal = len(gx - p.x, 34 - p.y); if (toGoal > 22 || (gx - p.x) * team.side < 3 || Math.abs(p.y - 34) > 14) return false;
+    if ((team.airSpAt ?? -1e9) > this.time.now - 30000 || !(Math.random() < 0.45 * this.dk(team).sp)) return false;
+    team.airSpAt = this.time.now; p.face = dirIndex(gx - p.x, 34 - p.y); this.airSpecial(p, (Math.random() < 0.5 ? -1 : 1) * rnd(0.5, 1)); return true;
   },
   // ---------- v0.8.9 ROUGH RIGS: where a rig puts him at time t (frame, place, turn, squash) - shared by the drawing and
   // by the aerial special (to hang the ball where his boot will be)
