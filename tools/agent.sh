@@ -8,8 +8,9 @@
 #   bash tools/agent.sh report <agent> <task> <status> <file>   send a report (status: done | blocked | question | progress)
 #   bash tools/agent.sh inbox                                   (taskmaster) reports that have no review yet
 #   bash tools/agent.sh next-id                                 (taskmaster) the next free task id
-#   bash tools/agent.sh assign <agent> <task> <file> [--replace] (taskmaster) post a brief (--replace: rewrite one
-#                                                                no one has reported on yet)
+#   bash tools/agent.sh assign <agent> <task> <file> [--replace|--move] (taskmaster) post a brief (--replace: rewrite
+#                                                                one no one has reported on yet; --move: hand that one
+#                                                                to another agent)
 #   bash tools/agent.sh review <report> <verdict> <file>        (taskmaster) post a review (verdict: ok | needs-work |
 #                                                                answered | for-luca | dropped)
 # Agents: worker-l (Luca's account), worker-f (the co-designer's account), co-designer, qa (the nightly QA run). How it all fits: docs/agents.md.
@@ -29,11 +30,13 @@ valid_agent() { case " $AGENTS " in *" $1 "*) return 0;; esac; die "unknown agen
 now() { TZ=Europe/Amsterdam date '+%Y-%m-%d %H:%M'; }
 stamp() { TZ=Europe/Amsterdam date '+%Y%m%d-%H%M%S'; }
 
-publish() {  # $1 path under agents/, $2 source file, $3 commit message. One new file per call, so pushes never clash.
+publish() {  # $1 path under agents/, $2 source file, $3 commit message, $4 (optional) a path under agents/ to remove in
+             # the same commit (a brief moved to another agent). One new file per call, so pushes never clash.
   local tmp; tmp="$(mktemp -d)"; fetch || { rmdir "$tmp"; die "couldn't reach GitHub - nothing sent"; }
   have || { rmdir "$tmp"; die "there's no agents branch on GitHub yet - ask the taskmaster"; }
   git worktree add -q --detach "$tmp" $REF 2>/dev/null || { rmdir "$tmp"; die "couldn't open the agents branch"; }
   mkdir -p "$tmp/agents/$(dirname "$1")" && cp "$2" "$tmp/agents/$1"
+  [ -n "${4:-}" ] && ( cd "$tmp" && git rm -q "agents/$4" )
   local id=(); git config user.name >/dev/null 2>&1 || id=(-c user.name="HC2 agent" -c user.email="noreply@anthropic.com")
   local msg="$3"; [ -n "${AGENT_COMMIT_TRAILER:-}" ] && msg="$msg
 
@@ -98,13 +101,17 @@ case "$cmd" in
     [ -s "$f" ] || die "the brief file '$f' is missing or empty"; grep -q '^title: ' "$f" || die "the brief needs a 'title: ...' line"
     fetch || die "couldn't reach GitHub"
     taken="$(git ls-tree -r --name-only $REF -- agents/tasks 2>/dev/null | grep "/$t\.md$")"
+    moved=""
     if [ -n "$taken" ]; then
-      [ "${4:-}" = --replace ] || die "$t is already taken (add --replace to rewrite its brief before anyone reports on it)"
-      [ "$taken" = "agents/tasks/$a/$t.md" ] || die "$t belongs to another agent: $taken"
+      case "${4:-}" in --replace|--move) ;; *) die "$t is already taken (add --replace to rewrite its brief, or --move to hand it to another agent, before anyone reports on it)";; esac
       [ -z "$(last_report "$t")" ] || die "$t already has a report - assign a new task instead"
+      if [ "$taken" != "agents/tasks/$a/$t.md" ]; then
+        [ "${4:-}" = --move ] || die "$t belongs to another agent: $taken (use --move to hand it over)"
+        moved="${taken#agents/}"                                               # (Luca 24 Oct: "Assign t005 to worker L")
+      fi
     fi
-    tmpf="$(mktemp)"; { echo "---"; echo "task: $t"; echo "agent: $a"; echo "assigned: $(now)${taken:+ (brief rewritten)}"; cat "$f"; } > "$tmpf"
-    publish "tasks/$a/$t.md" "$tmpf" "brief: $t for $a${taken:+ (rewritten)}"; rm -f "$tmpf";;
+    tmpf="$(mktemp)"; { echo "---"; echo "task: $t"; echo "agent: $a"; echo "assigned: $(now)${taken:+ (brief ${moved:+moved from ${moved#tasks/}, }rewritten)}"; cat "$f"; } > "$tmpf"
+    publish "tasks/$a/$t.md" "$tmpf" "brief: $t for $a${moved:+ (moved from ${moved#tasks/})}${taken:+ (rewritten)}" "$moved"; rm -f "$tmpf";;
   review)
     r="${1:-}"; v="${2:-}"; f="$(abs "${3:-}")"; r="${r#agents/}"; r="${r#reports/}"
     case "$v" in ok|needs-work|answered|for-luca|dropped) ;; *) die "verdict must be ok, needs-work, answered, for-luca or dropped";; esac
