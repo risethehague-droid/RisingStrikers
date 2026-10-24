@@ -1,3 +1,16 @@
+HC2 WEB GAME - v0.9.8 (24 Oct) - LOBS THAT MAKE SENSE (the co-designer, PR #2: "it never makes sense to lob the ball -
+easily interrupted, glitchy")
+- An open-play lob now climbs over the players in between: 3.6 m for a short one up to 6 m for a long one; a held (power)
+  lob 3.6-8 m. Set pieces and keepers' kicks are unchanged.
+- The drop is a fair aerial duel: everyone in reach contests it once (nearer + the run on it + luck). Your winner heads at
+  goal near the box, chests it down, cushions it to his feet or nods it on; theirs heads it clear. Ordinary headers go to
+  the nearest man first (the home side used to win every tie).
+- The defender goes with the receiver instead of sprinting to the landing spot; the receiver meets the ball in the air.
+- A rising lob can only be blocked by a man square in front of it (a third of the computer's lobs were taken off the boot).
+- Your header press window: 0.35 s -> 0.7 s. PASS = nod it on, SHOOT = header at goal.
+- Measured (tools/lobstudy.js, new): your lobs reach a team-mate 45% -> 75%, the computer's 33% -> 50%, at the same number
+  of computer lobs. Shots, ground passes, crosses and set pieces play as before (Test Lab groups C, P, PW, SM, CH, N5, KH).
+
 TEST LAB + TOOLS (24 Oct, game still v0.9.7) - A PREVIEW ON EVERY PULL REQUEST (the co-designer + Luca: "make a
 preview part of every pull request", so HC2 HQ shows each change playing on its Needs OK card)
 - Test Lab: a link ending in a test's id opens that test and starts it (…#CH1, …#lab-CH1, or a group: …#CH).
