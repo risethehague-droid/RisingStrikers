@@ -72,9 +72,10 @@ hc2Mix(Match, {
     } else {
       this.charge = -1; this.lobCharge = -1;
       // v0.8.6 AERIAL SPECIAL: a ball dropping to you at volley / head height in their half, near enough to goal, SP in the bank
+      // (t-014: or a low driven ball with one bar: TIDE CUTTER's window, specials.js tideWin)
       const mtA = this.meterOf(team), dA = len(b.x - p.x, b.y - p.y), toG = len(team.goalX - p.x, 34 - p.y);
       const coming = (b.x - p.x) * b.vx + (b.y - p.y) * b.vy < 0 || dA < 1.2;     // dropping towards him
-      this.airSp = !b.owner && !b.inNet && b.last === team && b.z > 0.55 && b.z < 2.6 && b.vz < 2 && dA < 3.6 && coming && toG < 30 && !p.busy() && mtA.level() >= 1 ? (prevAir || { t: 0 }) : null;
+      this.airSp = !b.owner && !b.inNet && b.last === team && (b.z > 0.55 || this.tideWin(p)) && b.z < 2.6 && b.vz < 2 && dA < 3.6 && coming && toG < 30 && !p.busy() && mtA.level() >= 1 ? (prevAir || { t: 0 }) : null;
       if (this.airSp) { this.airSp.t += dt; if (Input.pressed('special')) { this.airSpecial(p); return; } }
       // v0.8.1 defending: CHALLENGE = pass button, SLIDE = shoot button (in the direction you push)
       if (Input.pressed('pass') && b.owner && b.owner.team !== team) this.challenge(p, b.owner);

@@ -991,6 +991,71 @@
       } };
   }
 
+  // ======================================================================= t-014 AERIAL SPECIALS BY THE ARC (AS) and KEEPER SPECIAL SAVES BY
+  // THE SHOT (KS). AS: a team-mate puts the ball in with a set arc, the Lab presses SPECIAL as it reaches you (the popup
+  // is up); the line: the move the arc picked, the frame on screen as the ball leaves his boot (the contact frame),
+  // what came of it. KS: a shot at their keeper, who has a special save ready; the line: the move the shot picked,
+  // whether it started early (its contact frame on the ball), held / parried / a hand to it.
+  function asTest(id, name, sub, o) {
+    return { id, group: 'AS', name, sub, kind: 'air', you: true,
+      setup(r) {
+        const you = m.home.players[9], c = m.home.players[7], gk = m.away.players[0]; cast([you, c, gk]);
+        put(you, 92, 31, 0); put(c, o.from[0], o.from[1]); faceTo(c, 93, 31); atFeet(c); put(gk, LINE_X, 33, 4);
+        for (const mt of m.meters || []) mt.e = 0; m.airLast = null;
+        Object.assign(r, { human: you, shooter: c, gk, marks: [{ x: 93, y: 31, r: 0.5 }] });
+        r.action = { at: 0.8, fire: () => { m.meters[0].e = o.lv; const b = m.ball, s = aimAir(b.x, b.y, 93, 31, o.z, o.T); m.kick(c, 93, 31, s.speed, s.vz, 0.13, {}); } };
+      },
+      check(r) {
+        const b = m.ball, you = r.human;
+        if (m.airSp) r.popup = true;
+        // the Lab presses as the ball reaches him: inside 1.3 m of him or under the height it was put in at
+        if (m.airSp && !r.pressed && (len(b.x - you.x, b.y - you.y) < 1.3 || (b.vz < 0 && b.z < o.z + 0.15))) { r.pressed = true; m.airSpecial(you); }
+        if (r.shotT == null) { if (!b.owner && r.fired && b.lastP === r.shooter) r.shotT = r.t; else return null; }
+        if (m.pending && m.pending.p === you) return null;                       // his strike is on its way
+        if (r.pressed && r.hitFr == null && b.lastP === you) r.hitFr = you.rig ? m.rigAt(you, you.rig.n, you.rig.t, you.rig.d, you.rig).fr : you.spr.frame ? you.spr.frame.name : '?';   // the frame up as the ball leaves his boot
+        const A = m.airLast, head = !r.pressed ? 'NO SPECIAL · ' : `${A ? A.name + ' (' + A.n + ')' : '?'} · contact frame ${r.hitFr || '?'}${A && A.f >= 0 && r.hitFr && r.hitFr.endsWith('-' + A.f) ? ' ✓' : ''} · `;
+        if (b.inNet) return { o: head + 'GOAL', hold: 1.2 };
+        if (b.owner === r.gk) return { o: head + 'SAVED' };
+        if (r.ev('PARRIED') || r.ev('SAVED!') || r.ev('TIPPED')) return { o: head + 'SAVED', hold: 1 };
+        if (r.out) return { o: head + 'OUT' };
+        if (r.t - r.shotT > 5) return { o: head + (r.popup ? 'nothing happened' : 'no popup') };
+        return null;
+      } };
+  }
+  function ksOut(r) {
+    const b = m.ball, gk = r.gk, g = gk.rig;
+    if (g && RIGS[g.n] && RIGS[g.n].gk && g.e0 == null) r.pre = g.n;           // started before the ball got there
+    const S = m.gkSpLast; if (!S) return b.inNet ? { o: 'NO SPECIAL SAVE · GOAL', hold: 1 } : (r.t - (r.shotT || 0) > 5 ? { o: 'NO SPECIAL SAVE' } : null);
+    if (r.hitT == null) r.hitT = r.t;
+    const R = RIGS[S.n], how = S.res === 'hand' ? 'a hand to it' : 'saved';
+    const head = `${S.n} (${R.name}, contact frame ${R.keys.find(q => q.hit).f}) · ${r.pre === S.n ? 'started early, contact frame on the ball' : r.pre ? `started early as ${r.pre}, switched at the contact` : 'shown from the contact'} · `;
+    if (b.owner === gk) return { o: head + 'HELD', hold: 1 };
+    if (r.out) return { o: head + `${how === 'saved' ? 'parried' : how} · OUT · ${r.out.toLowerCase()}`, hold: 0.6 };
+    if (b.inNet) return { o: head + 'GOAL', hold: 1 };
+    if (r.t - r.hitT > 3) return { o: head + (how === 'saved' ? 'parried' : how) + ' · in play' };
+    return null;
+  }
+  function ksShot(id, name, sub, spot, tgt, speed, power, lv) {
+    return { id, group: 'KS', name, sub, kind: 'shot',
+      setup(r) { shotSetup(r, spot, false); Object.assign(r.gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0, spSave: 0, rig: null }); m.gkSpLast = null;
+        const ty = tgt.y == null ? r.gk.y : tgt.y; r.marks = [{ x: GX, y: ty, r: 0.3 }];
+        r.action = { at: 0.7, fire: () => fireShot(r, tgt, speed, power) }; },
+      check(r) { const b = m.ball;
+        if (r.shotT == null) { if (!b.owner && b.lastP === r.shooter && r.fired) { r.shotT = r.t; b.saveable = m.home; r.gk.spSave = lv; m.saveFx(r.gk); } else return null; }   // (off his boot: his LV special save on a normal shot, v0.9.0: a sure stop)
+        return ksOut(r); } };
+  }
+  function ksTests() {
+    const ks4 = Object.assign(pwTest('KS4', 'too strong to hold → ktip → corner', 'a LV2 special at his LV1 save: a hand to it (made to happen here), fingertips over or round', { lv: 2, from: [86, 33], block: [], save: 1 }), { group: 'KS', force: 'hand' });
+    const pc = ks4.check, ks4set = ks4.setup; ks4.setup = r => { ks4set(r); m.gkSpLast = null; r.gk.rig = null; };
+    ks4.check = r => { pc(r); if (r.shotT == null) return null; return ksOut(r); };
+    return [
+      ksShot('KS1', 'a lob dropping under the bar → kleap', 'leap & snatch: he goes up and takes it', SPOTS[1], { y: null, z: 1.7 }, 15, 0.3, 1),
+      ksShot('KS2', 'a straight shot at him → kblock', 'iron block: knee up, palms out, pushed back, holds', SPOTS[1], { y: null, z: 1.0 }, 24, 0.6, 1),
+      ksShot('KS3', 'a shot far to the side → kdivecatch', 'flying dive catch across his goal', SPOTS[1], { y: GOAL_Y1 - 0.7, z: 1.0 }, 22, 0.6, 2),
+      ks4,
+    ];
+  }
+
   // ---- CUT SCENES: the real thing, on demand (the Lab normally skips them) - window.__labCut lets the game play them in full
   function csTest(id, name, sub, setup, done) {
     return { id, group: 'CS', name, sub, kind: 'cut',
@@ -1218,6 +1283,15 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       smSave('SM4', 1, 1, [84, 34], 'win'), smSave('SM5', 2, 2, [85, 31], 'win'), smSave('SM6', 3, 3, [84, 37], 'win'), smSave('SM7', 1, 3, [84, 34], 'lose'),
       normSave('SM8', 1), normSave('SM9', 2), normSaveYou('SM10', true), normSaveYou('SM11', false),
     ]);
+    add('AS', 't-014 · AERIAL SPECIALS BY THE ARC', 'Two per level, picked by how the ball arrives: LV1 AIR BLAZE (chest-high drop) / TIDE CUTTER (low driven cross), LV2 SKY THUNDER (over his head) / CYCLONE HEEL (behind the shoulder), LV3 PHOENIX (very high) / METEOR DRIVE (sky-high loop). The Lab presses SPECIAL as it reaches you.', [
+      asTest('AS1', 'LV1 · a chest-high drop → AIR BLAZE', 'comet volley', { lv: 1, from: [99, 6], z: 1.3, T: 1.35 }),
+      asTest('AS2', 'LV1 · a low driven cross → TIDE CUTTER', 'knee-slide side volley (the low popup window)', { lv: 1, from: [100, 14], z: 0.6, T: 0.75 }),
+      asTest('AS3', 'LV2 · dropping over his head → SKY THUNDER', 'overhead kick', { lv: 2, from: [99, 6], z: 2.2, T: 1.5 }),
+      asTest('AS4', 'LV2 · behind the shoulder → CYCLONE HEEL', 'spinning heel kick: the ball comes from behind him', { lv: 2, from: [80, 22], z: 1.4, T: 1.0 }),
+      asTest('AS5', 'LV3 · a very high ball → PHOENIX', 'the leap and dive', { lv: 3, from: [99, 6], z: 1.8, T: 1.5 }),
+      asTest('AS6', 'LV3 · a sky-high loop → METEOR DRIVE', 'somersault axe kick', { lv: 3, from: [96, 8], z: 1.8, T: 2.4 }),
+    ]);
+    add('KS', 't-014 · KEEPER SPECIAL SAVES BY THE SHOT', 'Their keeper has a special save ready; the shot picks the move: a lob → kleap, straight → kblock, wide → kdivecatch, too strong to hold → ktip (a corner). Who wins stays as before.', ksTests());
     add('CS', 'CUT SCENES', 'Every cut scene in full (the Lab normally skips them). R plays it again. Rate how it looks; ENTER moves the menus on.', buildCuts());
     add('BW', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai). 1 = the game was right · 2 = it\'s a bug.', [{ id: 'BW0', group: 'BW', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,
       setup(r) { cast([]); r.fired = true; }, check() { return { o: 'NOTHING TO WATCH YET' }; } }]);

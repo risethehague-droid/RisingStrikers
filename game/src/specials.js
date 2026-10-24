@@ -21,6 +21,9 @@ const SP_NAMES = ['BLAZE SHOT', 'THUNDER SHOT', 'RISING PHOENIX'];
 // (save / shot)^3 - LV2 v a full LV3 = 34%, LV1 v LV3 = 13%, LV1 v LV2 = 36%; a weakened shot is easier to stop.
 const SP_POWER = [100, 140, 200], SP_PIERCE = [1, 2, 5], SP_PIERCE_LOSS = [0.35, 0.18, 0], SAVE_POWER = [100, 140, 200];
 const SAVE_NAMES = ['IRON WALL', 'THUNDER GLOVE', 'RISING SHIELD'];
+// t-014 Rami's line for each aerial special (the commentary hook the specials already use)
+const AIR_RAMI = { air1: 'AIR BLAZE!\nTHE VOLLEY IS ON FIRE!', tide: 'TIDE CUTTER!\nHE SLIDES IN AND SLICES IT!', air2: 'SKY THUNDER!!\nAN OVERHEAD - UNBELIEVABLE!',
+  cyclone: 'CYCLONE HEEL!!\nHE SPINS AND HEELS IT!', air3: 'HE FLIES!!\nTHE PHOENIX!', meteor: 'METEOR DRIVE!!!\nOUT OF THE SKY!' };
 // ======================================================================= v0.8.9 ROUGH RIGS (Luca 23 Oct 13:35: "rig 3 cruder new
 // animations for 3 new aerial special shots so the game has working moves, same for the saves, make cut scenes for the
 // special saves too"). PLACEHOLDERS until the real ones are made in PixelLab: each move is put together from PixelLab
@@ -29,29 +32,68 @@ const SAVE_NAMES = ['IRON WALL', 'THUNDER GLOVE', 'RISING SHIELD'];
 // hit: the key where the boot (foot) / glove (fist) meets the ball - a point on that frame (x, y of the 128 x 160 E frame).
 const RIG_COL = [0xff8c28, 0x50b4ff, 0xbe5aff];
 const RIG_BREAK = /^(fall|hit|blasted|slide|dive|dheader|tackle)$/;               // knocked over / a new move: the rig stops
+// t-014: a batch 16 move as rig keys - one key per PixelLab frame at the times given (the last time = the end of the
+// move), the contact frame marked with where the boot (foot) / glove (fist) is on it: x, y of the E frame in its own
+// window (256 x 184 for the aerial specials and most keeper saves, 128 x 160 for the turned dive catch)
+function rigSeq(a, ts, hit, pt, fist) {
+  const keys = ts.slice(0, -1).map((t, f) => ({ t, a, f }));
+  keys.push({ t: ts[ts.length - 1], a, f: ts.length - 2 });
+  Object.assign(keys[hit], { hit: true, [fist ? 'fist' : 'foot']: pt });
+  return keys;
+}
+const AIR_TINT = { tide: 0x30d8c8, cyclone: 0xd8f0ff, meteor: 0xffc828 };          // t-014: TIDE teal wave, CYCLONE pale wind, METEOR gold
+const GK_BRK = /^(fall|hit|blasted)$/;                                             // t-014: a keeper's special-save move stops only when he's knocked over
 const RIGS = {
-  air1: { name: 'BLAZING SCISSOR', dur: 0.85, cy: 0.56, col: RIG_COL[0], ghost: [0.05, 0.42], keys: [
-    { t: 0, a: 'jump', f: 0, sx: 1.08, sy: 0.9 }, { t: 0.08, a: 'jump', f: 1, lift: 16 }, { t: 0.18, a: 'header', f: 1, lift: 30, rot: -22 },
-    { t: 0.32, a: 'volley', f: 1, lift: 30, rot: -28, hit: true, foot: [124, 53] }, { t: 0.46, a: 'volley', f: 2, lift: 22, rot: -12 },
-    { t: 0.62, a: 'volley', f: 3, lift: 6, rot: -3 }, { t: 0.74, a: 'volley', f: 4, sx: 1.08, sy: 0.92 }, { t: 0.85, a: 'volley', f: 4 }],
+  // ======================================================================= t-014 THE BATCH 16 MOVES IN PLAY (Luca 24 Oct 05:57: "re pick
+  // up the alternate animations for lvl 1 - 2 - 3, make them unique and impactful - make them match to the arc of the ball
+  // from passes"; 14:16: "new aerial shots with different names / vibe / animation / effect"). The PixelLab frames
+  // (PR #12) replace the v0.8.9 stand-ins: the art carries the pose and most of the body's path, the rig times the frames
+  // so the boot meets the ball on the contact frame and lifts him (rise .. riseMax px) to where the ball arrives
+  // (airSpecial). Two per level, picked by the ball's arc (airPick). ev / ghost as before; the new three tint the
+  // existing PixelLab fx (no new art)
+  air1: { name: 'AIR BLAZE', lv: 1, dur: 0.95, col: RIG_COL[0], ghost: [0.06, 0.5], rise: 14, riseMax: 54,
+    keys: rigSeq('air1', [0, 0.06, 0.12, 0.18, 0.24, 0.3, 0.36, 0.42, 0.52, 0.62, 0.72, 0.82, 0.95], 7, [196, 92]),
     ev: [{ t: 0, fx: 'dust', at: 'feet', s: [0.4, 1], ms: 320 }, { t: 0.02, fx: 'flame', at: 'feet', s: [0.7, 1.7], ms: 420, dy: -24 },
-      { t: 0.32, fx: 'flame', at: 'foot', s: [0.9, 2.3], ms: 380 }, { t: 0.32, fx: 'sparks', at: 'foot', s: [0.7, 2], ms: 360 }, { t: 0.74, fx: 'dust', at: 'feet', s: [0.4, 1], ms: 300 }] },
-  air2: { name: 'THUNDER OVERHEAD', dur: 1.15, cy: 0.55, back: true, bike: true, col: RIG_COL[1], ghost: [0.08, 0.6], keys: [
-    { t: 0, a: 'jump', f: 0, sx: 1.08, sy: 0.9 }, { t: 0.08, a: 'bicycle', f: 2, lift: 14 }, { t: 0.24, a: 'bicycle', f: 3, lift: 36, rot: -25 },
-    { t: 0.44, a: 'bicycle', f: 4, lift: 46, rot: -15, hit: true, foot: [113, 40] }, { t: 0.6, a: 'bicycle', f: 5, lift: 30, rot: -8 },
-    { t: 0.78, a: 'bicycle', f: 6, lift: 8 }, { t: 0.92, a: 'bicycle', f: 7 }, { t: 1.15, a: 'bicycle', f: 7 }],
-    ev: [{ t: 0, fx: 'dust', at: 'feet', s: [0.4, 1], ms: 320 }, { t: 0.1, fx: 'bolt', at: 'body', s: [0.8, 1.4], ms: 240, n: 2, sp: 26 },
-      { t: 0.28, fx: 'bolt', at: 'body', s: [0.9, 1.5], ms: 240, n: 2, sp: 30 }, { t: 0.44, fx: 'bolt', at: 'foot', s: [1.2, 2.1], ms: 300, n: 3, sp: 18 },
-      { t: 0.44, fx: 'impactBig', at: 'foot', s: [0.8, 2], ms: 260 }, { t: 0.92, fx: 'dust', at: 'feet', s: [0.5, 1.2], ms: 340, shake: [160, 0.006] }] },
-  air3: { name: 'PHOENIX DIVE', dur: 1.2, cy: 0.56, col: RIG_COL[2], ghost: [0.1, 0.72], keys: [
-    { t: 0, a: 'super', f: 2, sx: 1.1, sy: 0.88 }, { t: 0.12, a: 'super', f: 4, lift: 30 }, { t: 0.3, a: 'super', f: 5, lift: 64, rot: -8 },
-    { t: 0.46, a: 'super', f: 5, lift: 70, rot: -14 }, { t: 0.54, a: 'dheader', f: 2, lift: 54, rot: 22 },
-    { t: 0.62, a: 'volley', f: 1, lift: 34, rot: 12, hit: true, foot: [124, 53] }, { t: 0.78, a: 'volley', f: 2, lift: 22, rot: 5 },
-    { t: 0.95, a: 'super', f: 9, sx: 1.1, sy: 0.9 }, { t: 1.2, a: 'super', f: 11 }],
+      { t: 0.42, fx: 'flame', at: 'foot', s: [0.9, 2.3], ms: 380 }, { t: 0.42, fx: 'sparks', at: 'foot', s: [0.7, 2], ms: 360 }, { t: 0.82, fx: 'dust', at: 'feet', s: [0.4, 1], ms: 300 }] },
+  tide: { name: 'TIDE CUTTER', lv: 1, dur: 0.78, col: AIR_TINT.tide, ghost: [0.12, 0.45], rise: 0, riseMax: 12,
+    keys: rigSeq('tide', [0, 0.07, 0.14, 0.21, 0.28, 0.4, 0.52, 0.64, 0.78], 4, [165, 120]),
+    ev: [{ t: 0, fx: 'dust', at: 'feet', s: [0.4, 1], ms: 300 }, { t: 0.14, fx: 'whoosh', at: 'feet', s: [0.6, 1.5], ms: 300, dy: -10, tint: AIR_TINT.tide },
+      { t: 0.21, fx: 'dust', at: 'feet', s: [0.6, 1.6], kx: 2, ms: 380 },
+      { t: 0.28, fx: 'ring', at: 'foot', s: [0.6, 2.8], kx: 1.7, ky: 0.5, ms: 460, tint: AIR_TINT.tide }, { t: 0.28, fx: 'impactBig', at: 'foot', s: [0.8, 2], ms: 260, tint: 0x9ff8ee },
+      { t: 0.28, fx: 'sparkle', at: 'foot', s: [0.7, 1.8], ms: 380, n: 3, sp: 20, tint: AIR_TINT.tide }, { t: 0.34, fx: 'ring', at: 'feet', s: [0.5, 3.4], kx: 2, ky: 0.35, ms: 520, tint: AIR_TINT.tide }] },
+  air2: { name: 'SKY THUNDER', lv: 2, dur: 1.2, back: true, bike: true, col: RIG_COL[1], ghost: [0.06, 0.6], rise: 10, riseMax: 50,
+    keys: rigSeq('air2', [0, 0.08, 0.16, 0.26, 0.38, 0.48, 0.58, 0.68, 0.78, 0.88, 0.98, 1.08, 1.2], 3, [184, 32]),
+    ev: [{ t: 0, fx: 'dust', at: 'feet', s: [0.4, 1], ms: 320 }, { t: 0.08, fx: 'bolt', at: 'body', s: [0.8, 1.4], ms: 240, n: 2, sp: 26 },
+      { t: 0.16, fx: 'bolt', at: 'body', s: [0.9, 1.5], ms: 240, n: 2, sp: 30 }, { t: 0.26, fx: 'bolt', at: 'foot', s: [1.2, 2.1], ms: 300, n: 3, sp: 18 },
+      { t: 0.26, fx: 'impactBig', at: 'foot', s: [0.8, 2], ms: 260 }, { t: 0.98, fx: 'dust', at: 'feet', s: [0.5, 1.2], ms: 340, shake: [160, 0.006] }] },
+  cyclone: { name: 'CYCLONE HEEL', lv: 2, dur: 0.82, col: AIR_TINT.cyclone, ghost: [0.08, 0.5], rise: 8, riseMax: 44,
+    keys: rigSeq('cyclone', [0, 0.08, 0.16, 0.24, 0.32, 0.44, 0.56, 0.68, 0.82], 4, [186, 84]),
+    ev: [{ t: 0, fx: 'dust', at: 'feet', s: [0.4, 1], ms: 300 }, { t: 0.08, fx: 'whoosh', at: 'body', s: [0.8, 1.8], ms: 320, tint: AIR_TINT.cyclone },
+      { t: 0.18, fx: 'ring', at: 'body', s: [0.5, 2.2], kx: 1.5, ky: 0.45, ms: 380, a: 0.8, tint: AIR_TINT.cyclone },
+      { t: 0.32, fx: 'whoosh', at: 'foot', s: [1, 2.4], ms: 300, tint: AIR_TINT.cyclone }, { t: 0.32, fx: 'impactBig', at: 'foot', s: [0.8, 2], ms: 260, tint: 0xffffff },
+      { t: 0.32, fx: 'ring', at: 'foot', s: [0.6, 2.6], ms: 420, tint: AIR_TINT.cyclone }, { t: 0.68, fx: 'dust', at: 'feet', s: [0.5, 1.2], ms: 320 }] },
+  air3: { name: 'PHOENIX', lv: 3, dur: 1.05, col: RIG_COL[2], ghost: [0.08, 0.7], rise: 80, riseMax: 140,
+    keys: rigSeq('air3', [0, 0.1, 0.2, 0.32, 0.44, 0.54, 0.64, 0.82, 1.05], 6, [172, 126]),
     ev: [{ t: 0, fx: 'flamePurple', at: 'feet', s: [0.9, 2.4], ky: 1.6, ms: 520, dy: -40 }, { t: 0.04, fx: 'whoosh', at: 'body', s: [0.8, 1.6], ms: 300 },
-      { t: 0.4, fx: 'orb', at: 'body', s: [0.6, 2.2], ms: 480, a: 0.8 }, { t: 0.62, fx: 'impactBig', at: 'foot', s: [1, 2.6], ms: 300 },
-      { t: 0.62, fx: 'ring', at: 'foot', s: [0.8, 3.4], ms: 420 }, { t: 0.62, fx: 'flamePurple', at: 'foot', s: [1, 2.4], ms: 380 },
-      { t: 0.95, fx: 'dust', at: 'feet', s: [0.6, 1.4], ms: 360, shake: [200, 0.008] }] },
+      { t: 0.36, fx: 'orb', at: 'body', s: [0.6, 2.2], ms: 480, a: 0.8 }, { t: 0.64, fx: 'impactBig', at: 'foot', s: [1, 2.6], ms: 300 },
+      { t: 0.64, fx: 'ring', at: 'foot', s: [0.8, 3.4], ms: 420 }, { t: 0.64, fx: 'flamePurple', at: 'foot', s: [1, 2.4], ms: 380 },
+      { t: 0.82, fx: 'dust', at: 'feet', s: [0.6, 1.4], ms: 360, shake: [200, 0.008] }] },
+  meteor: { name: 'METEOR DRIVE', lv: 3, dur: 1.0, col: AIR_TINT.meteor, ghost: [0.08, 0.72], rise: 30, riseMax: 96,
+    keys: rigSeq('meteor', [0, 0.08, 0.18, 0.3, 0.42, 0.54, 0.7, 0.84, 1.0], 5, [152, 34]),
+    ev: [{ t: 0, fx: 'flame', at: 'feet', s: [0.8, 2], ky: 1.4, ms: 420, dy: -30, tint: AIR_TINT.meteor }, { t: 0.18, fx: 'orb', at: 'body', s: [0.6, 2], ms: 440, a: 0.7, tint: AIR_TINT.meteor },
+      { t: 0.54, fx: 'impactBig', at: 'foot', s: [1, 2.6], ms: 300, tint: AIR_TINT.meteor }, { t: 0.54, fx: 'ring', at: 'foot', s: [0.8, 3.6], ms: 460, tint: AIR_TINT.meteor },
+      { t: 0.54, fx: 'sparks', at: 'foot', s: [0.8, 2.2], ms: 380, tint: 0xffe890 },
+      { t: 0.72, fx: 'ring', at: 'feet', s: [0.6, 4.4], kx: 1.9, ky: 0.45, ms: 540, tint: AIR_TINT.meteor, shake: [220, 0.009] }, { t: 0.72, fx: 'dust', at: 'feet', s: [0.8, 2], ms: 380 }] },
+  // t-014 the keeper's special saves (Luca: "for a lob it can do a leap and grab it, if its straight it does something, if its
+  // far to the sides gk does a dynamic leap and catches it"): picked by the shot (gkSpecialMove), started early so the
+  // contact frame meets the ball (gkSpecialRoll); their effects are the level's (save1-3 below) from the contact on
+  kleap: { name: 'LEAP & SNATCH', gk: true, brk: GK_BRK, dur: 0.88, keys: rigSeq('kleap', [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.36, 0.46, 0.56, 0.66, 0.76, 0.88], 7, [130, 14], true) },
+  kblock: { name: 'IRON BLOCK', gk: true, brk: GK_BRK, dur: 1.1, keys: rigSeq('kblock', [0, 0.06, 0.12, 0.18, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1], 3, [208, 86], true) },
+  kdivecatchDown: { name: 'FLYING CATCH', gk: true, brk: GK_BRK, dur: 1.06, keys: rigSeq('kdivecatchDown', [0, 0.05, 0.1, 0.16, 0.26, 0.36, 0.46, 0.56, 0.66, 0.76, 0.86, 0.96, 1.06], 3, [60, 156], true) },
+  kdivecatchUp: { name: 'FLYING CATCH', gk: true, brk: GK_BRK, dur: 1.06, keys: rigSeq('kdivecatchUp', [0, 0.05, 0.1, 0.16, 0.26, 0.36, 0.46, 0.56, 0.66, 0.76, 0.86, 0.96, 1.06], 3, [66, 4], true) },
+  ktip: { name: 'FINGERTIPS', gk: true, brk: GK_BRK, dur: 0.72, keys: rigSeq('ktip', [0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.72], 2, [185, 42], true) },
+  // v0.8.9 stand-in save rigs: their effects / after-images are each level's special-save look (t-014 plays them on the
+  // batch 16 moves); the frames are only used by a keeper kit without the batch 16 moves
   save1: { name: 'IRON WALL', dur: 0.8, cy: 0.55, col: RIG_COL[0], keys: [
     { t: 0, a: 'punch', f: 4, sx: 1.18, sy: 1.06, hit: true, fist: [91, 70] }, { t: 0.25, a: 'punch', f: 4, sx: 1.1, sy: 1.02 },
     { t: 0.45, a: 'punch', f: 5 }, { t: 0.62, a: 'kset', f: 5 }, { t: 0.8, a: 'kset', f: 6 }],
@@ -223,20 +265,28 @@ hc2Mix(Match, {
   // v0.8.6 the aerial special itself: LV by the bars spent; LV1 a volley, LV2 an overhead kick (or volley if it's low), LV3 the leap
   airSpecial(p, aimAI) {
     const b = this.ball, mt = this.meterOf(p.team), lv = mt.spend(); if (!lv) return; if (aimAI == null) this.airSp = null;
+    const pick = this.airPick(p, lv), bz0 = b.z;                                  // t-014: which of the level's two, from the ball's arc as it arrives (before it's stopped for the strike)
     const aim = aimAI != null ? aimAI : Math.abs(Input.axis.y) > 0.2 ? Input.axis.y : (Math.random() < 0.5 ? -1 : 1) * rnd(0.55, 1), KA = MAN.kits[p.kit].anims;   // (t-012: the computer passes its own aim, not your stick)
     { const dv = dirVec(p.face); b.x = p.x + dv.x * 0.45; b.y = p.y + dv.y * 0.35; b.vx = b.vy = b.vz = 0; }   // he meets it (the leap / volley closes the gap) - v0.8.7: and it stops there for the strike (it flew on and the kick missed: the Lab's PW10 caught it)
     b.owner = p; this.doShot(p, 0.85, aim);
     const k = this.pending; if (!k || k.p !== p) return;
-    // v0.8.9 ROUGH RIG per level (RIGS air1-3): he takes off, the ball hangs where his boot will meet it, then the strike
-    const n = 'air' + lv, R = RIGS[n], toE = p.team.side > 0, d = (R && R.back ? !toE : toE) ? 'E' : 'W';
-    const P = R && this.rigAt(p, n, R.keys.find(q => q.hit).t, d);
+    // v0.8.9 RIG per move: he takes off, the ball hangs where his boot will meet it, then the strike. t-014: the batch 16
+    // move the arc picked (its kit lacks it: the level's first move); lifted so his boot meets the ball about where it
+    // arrived (g.up, between the move's rise and riseMax)
+    const toE = p.team.side > 0, dOf = R => (R && R.back ? !toE : toE) ? 'E' : 'W';
+    let n = pick, R = RIGS[n], d = dOf(R), g = { up: 0 }, P = R && this.rigAt(p, n, R.keys.find(q => q.hit).t, d, g);
+    if (!P && n !== 'air' + lv) { n = 'air' + lv; R = RIGS[n]; d = dOf(R); P = R && this.rigAt(p, n, R.keys.find(q => q.hit).t, d, g); }
     if (P) {
-      const hk = R.keys.find(q => q.hit), f = this.rigPt(P, hk.foot, d);
-      p.face = d === 'E' ? 0 : 4; p.kickAnim = 'rig'; p.rig = { n, t: 0, d }; p.stateT = R.dur; if (R.bike) p.bike = true;
+      const hk = R.keys.find(q => q.hit), z0 = (wy(p.y) - 12 - this.rigPt(P, hk.foot, d).y) / PX_H;
+      g.up = clamp((bz0 - z0) * PX_H, R.rise || 0, R.riseMax || 0);
+      const f = this.rigPt(this.rigAt(p, n, hk.t, d, g), hk.foot, d);
+      p.face = d === 'E' ? 0 : 4; p.kickAnim = 'rig'; p.rig = { n, t: 0, d, up: g.up }; p.stateT = R.dur; if (R.bike) p.bike = true;
+      this.airLast = { n, name: R.name, f: hk.f, at: hk.t };                     // (the Test Lab's AS lines read it)
       k.info.air = { x: clamp(p.x + (f.x - wx(p.x, p.y)) / (PX_X * scaleAt(p.y)), 0.5, PITCH_L - 0.5), y: p.y, z: clamp((wy(p.y) - 12 - f.y) / PX_H, 0.3, 3.2) };
       Object.assign(b, { x: k.info.air.x, y: k.info.air.y, z: k.info.air.z });
       k.t = hk.t;                                                                 // the strike lands on the rig's contact key
     } else {                                                                      // (no rig for this kit: the old moves)
+      this.airLast = { n: 'old', name: RIGS['air' + lv].name, f: -1, at: 0 };
       const anim = lv === 3 && KA['super-E'] ? 'super' : lv >= 2 && b.z > 1.2 && KA['bicycle-E'] ? 'bicycle' : 'volley';
       p.kickAnim = anim; if (anim === 'super' || anim === 'bicycle') { p.face = p.team.side > 0 ? 0 : 4; } if (anim === 'bicycle') { p.stateT = 0.7; p.bike = true; }
       k.t = Math.min(k.t, 0.18);                                                   // in the air: struck at once
@@ -244,9 +294,86 @@ hc2Mix(Match, {
     const f = spRange(lv, p);
     k.ty = clamp(34 + aim * 2.9 + rnd(-0.25, 0.25), GOAL_Y0 + 0.5, GOAL_Y1 - 0.5); k.tx = p.team.goalX + p.team.side * 2;
     k.speed = [31, 35, 39][lv - 1] * (0.7 + 0.3 * f); k.vz = [0.6, -0.6, 1.2][lv - 1]; k.info.special = lv; k.info.power = 1; k.info.spP = SP_POWER[lv - 1] * f; k.info.spF = f;
-    this.say(['AIR ' + SP_NAMES[0], 'SKY ' + SP_NAMES[1], SP_NAMES[2] + ' FROM THE SKY'][lv - 1] + '!', `${p.team.name} · LV${lv} AERIAL SPECIAL`, 1.3);
-    this.ramiSay('skill', { text: ['ON THE VOLLEY -\nAND IT IS ON FIRE!', 'AN OVERHEAD SPECIAL!!\nUNBELIEVABLE!', 'HE FLIES!!\nTHE RISING PHOENIX!'][lv - 1], expr: 'laugh' }, 3);
+    // t-014: struck from up high (METEOR DRIVE's axe kick, a PHOENIX or SKY THUNDER lifted to a high ball) it's driven down, so it comes in
+    // under the bar (~1.6 m at the goal) instead of flying over it
+    const za = k.info.air && k.info.air.z; if (za > 1.6) { const T = len(k.tx - b.x, k.ty - b.y) / k.speed; k.vz = Math.min(k.vz, (1.6 - za + 0.5 * G * T * T) / T); }
+    // t-014: the move's own name on the banner (like RISE UP / THUNDER SHOT) and its own line from Rami
+    const nm = (P && R.name) || RIGS['air' + lv].name;
+    this.say(nm + '!', `${p.team.name} · LV${lv} AERIAL SPECIAL`, 1.3);
+    this.ramiSay('skill', { text: AIR_RAMI[P ? n : 'air' + lv] || AIR_RAMI['air' + lv], expr: 'laugh' }, 3);
     SFX.special(lv); this.flagReplay('AERIAL SPECIAL!'); this.hitStop = 0.08; this.cameras.main.flash(90, 255, 230, 120);
+  },
+  // t-014 (Luca 24 Oct 05:57: "make them match to the arc of the ball from passes"): which of the level's two aerial
+  // specials, from how the ball arrives - its height now, how high its arc goes (z + vz^2 / 2g: a dropping ball came from
+  // about that high, a rising one is going that high) and where it comes from (behind his back or his shoulder, or at
+  // his face). No dice, so the same ball always gives the same move, for you and for the computer (aiAirSpecial ends in
+  // airSpecial too). The level is still the bars spent.
+  //   LV1  a low driven ball (under ~1 m, flat)               -> TIDE CUTTER   · else (chest-high drop)  -> AIR BLAZE
+  //   LV2  shoulder height (under 1.75 m) from his side / back -> CYCLONE HEEL  · else (over his head)    -> SKY THUNDER
+  //   LV3  a sky-high loop (arc over 6.5 m)                     -> METEOR DRIVE  · else (very high ball)   -> PHOENIX
+  airPick(p, lv) {
+    const b = this.ball, arc = b.z + b.vz * b.vz / (2 * G), gx = p.team.goalX - p.x, gy = 34 - p.y, gl = len(gx, gy) || 1, v = len(b.vx, b.vy) || 1;
+    const along = (b.vx * gx + b.vy * gy) / (v * gl);                            // +1 the ball travels the way he faces (from behind him), -1 it comes at his face
+    const tc = clamp(-((b.x - p.x) * b.vx + (b.y - p.y) * b.vy) / (v * v), 0, 0.6), z = Math.max(0, b.z + b.vz * tc - G * tc * tc / 2);   // its height as it reaches him (SPECIAL pressed a moment early still reads the ball he'll meet)
+    if (lv === 1) return z < 1.0 && arc < 2.0 ? 'tide' : 'air1';
+    if (lv === 2) return z < 1.75 && arc < 4.5 && along > -0.3 ? 'cyclone' : 'air2';
+    return arc > 6.5 ? 'meteor' : 'air3';
+  },
+  // t-014 TIDE CUTTER's low window: the aerial-special popup normally needs the ball over 0.55 m; a low driven ball (0.3 m
+  // up, flat and fast) opens it too, only with exactly one bar - the only level that has a move for it (actions.js)
+  tideWin(p) {
+    const b = this.ball; return b.z > 0.3 && b.z <= 0.9 && Math.abs(b.vz) < 3 && len(b.vx, b.vy) > 8 && this.meterOf(p.team).level() === 1;
+  },
+  // ======================================================================= t-014 KEEPER SPECIAL SAVES PICKED BY THE SHOT (Luca 24 Oct 05:57:
+  // "these animations are chosen by the game depending on the shot, so for a lob it can do a leap and grab it, if its
+  // straight it does something, if its far to the sides gk does a dynamic leap and catches it or attempts it (all
+  // animations have to follow the power logic we are building but be fluid)"). Only the frames: who wins, held / pushed
+  // out / a hand to it stays clash() + pickups (t-007). Where the ball will cross his line picks the move:
+  //   a lob / high dropping ball -> kleap · straight at him -> kblock · far to a side -> kdivecatchDown / Up (towards / away
+  //   from the camera, as diveAnimFor) · too strong to hold (a hand to it) -> ktip (over the bar: a corner)
+  // LV2 / LV3 use the same four with their stronger aura, hit-stop, effects and cut scene (Luca adds a LV3 pop-up later).
+  gkSpecialCross(gk) {                                                            // where (and in how long) the ball crosses his line - planSave's way, no dice
+    const b = this.ball, c = { ...b }, h = 1 / 120, px = gk.x; let t = 0;
+    while (t < 1.2) { const ox = c.x; ballStep(c, h, false); t += h; if ((ox - px) * (c.x - px) <= 0) return { t, x: c.x, y: c.y, z: c.z, vz: c.vz }; }
+    return null;
+  },
+  gkSpecialMove(gk, x) {
+    const K = MAN.kits[gk.kit].anims, d = gk.team.side > 0 ? 'E' : 'W', dy = x.y - gk.y;
+    const n = x.z > 1.9 || (x.vz < -2.5 && x.z > 1.5) ? 'kleap' : Math.abs(dy) > 1.2 ? (dy > 0 ? 'kdivecatchDown' : 'kdivecatchUp') : 'kblock';
+    return K[`${n}-${d}`] ? n : null;
+  },
+  // every step for a keeper with a special save ready (player.js): the move starts early enough that its contact frame
+  // lands as the ball reaches him, and holds that frame if the ball is a moment late; a shot that's gone (blocked, out,
+  // off target) calls it off before the contact
+  gkSpecialRoll(gk) {
+    const b = this.ball, g = gk.rig, R = g && RIGS[g.n];
+    const live = !!gk.spSave && !b.owner && !b.inNet && (b.special ? !!b.spTeam && b.spTeam !== gk.team : !!b.saveable && b.saveable !== gk.team);
+    if (!live) gk.spPick = null;
+    if (R && R.gk && g.e0 == null) {
+      const hk = R.keys.find(q => q.hit); if (!live) gk.rig = null; else if (g.t > hk.t) g.t = hk.t;
+      return;
+    }
+    if (!live || g) return;
+    const x = this.gkSpecialCross(gk); if (!x || Math.abs(x.y - 34) > 4.3 || x.z > 3.2) return;
+    // the move is read from where he stood as the shot came (picked once: his own steps / dive towards it don't turn a
+    // shot to the side into a straight one)
+    if (!gk.spPick) gk.spPick = { n: this.gkSpecialMove(gk, x) };
+    const n = gk.spPick.n, hk = n && RIGS[n].keys.find(q => q.hit); if (!hk || x.t > hk.t) return;
+    gk.face = gk.team.side > 0 ? 0 : 4; gk.rig = { n, t: hk.t - x.t, d: gk.team.side > 0 ? 'E' : 'W', B: { x: wx(x.x, x.y), y: wy(x.y) - 12 - x.z * PX_H } };   // (B: the ball on screen as it reaches him)
+  },
+  // the clash: the move shows its contact frame now, with the level's effects. A hand to it: the fingertips (ktip).
+  // A kit without the batch 16 moves: the v0.8.9 stand-in rig, as before
+  gkSpecialHit(gk, res, lv) {
+    const b = this.ball, d = gk.team.side > 0 ? 'E' : 'W', K = MAN.kits[gk.kit].anims, S = RIGS['save' + lv];
+    let g = gk.rig && RIGS[gk.rig.n] && RIGS[gk.rig.n].gk ? gk.rig : null;
+    if (res === 'hand') g = K[`ktip-${d}`] ? { n: 'ktip', d } : null;
+    else if (!g) { const n = gk.spPick ? gk.spPick.n : this.gkSpecialMove(gk, { y: b.y, z: b.z, vz: b.vz }); g = n ? { n, d } : null; }
+    gk.spPick = null;
+    gk.face = gk.team.side > 0 ? 0 : 4;
+    if (!g) { gk.rig = res === true && S ? { n: 'save' + lv, t: 0, d } : null; return; }
+    const hk = RIGS[g.n].keys.find(q => q.hit);
+    Object.assign(g, { t: hk.t, e0: hk.t, B: { x: wx(b.x, b.y), y: wy(b.y) - 12 - b.z * PX_H }, off: null, ei: 0, col: RIG_COL[lv - 1], ev: res === true ? S.ev : [{ t: 0, fx: 'impact', at: 'fist', s: [0.6, 1.5], ms: 240 }], ghost: res === true ? S.ghost : [0, 0.25] });
+    gk.rig = g; this.gkSpLast = { n: g.n, res };                                  // (the Test Lab's KS lines read it)
   },
   // t-012 THE COMPUTER'S AERIAL SPECIAL: it never used one (airSpecial was only for your SPECIAL key), so the aerial
   // moves were yours alone. Now the man meeting a cross / a lob near their goal (22 m, in front of it) spends its bars on
@@ -261,18 +388,36 @@ hc2Mix(Match, {
   },
   // ---------- v0.8.9 ROUGH RIGS: where a rig puts him at time t (frame, place, turn, squash) - shared by the drawing and
   // by the aerial special (to hang the ball where his boot will be)
-  rigAt(p, n, t, d) {
+  rigAt(p, n, t, d, g) {
     const R = RIGS[n], K = MAN.kits[p.kit]; if (!R || !K) return null;
     const keys = R.keys; let i = 0; while (i < keys.length - 1 && keys[i + 1].t <= t) i++;
     const a = keys[i], b = keys[Math.min(i + 1, keys.length - 1)], u = b === a ? 0 : clamp((t - a.t) / (b.t - a.t), 0, 1);
     const L = (q, d0) => (a[q] ?? d0) + ((b[q] ?? d0) - (a[q] ?? d0)) * u;
     const list = K.anims[`${a.a}-${d}`]; if (!list || !list.length) return null;
+    const fr = list[Math.min(a.f, list.length - 1)], org = K.origins && K.origins[`${a.a}-${d}`], rot = L('rot', 0) * (d === 'W' ? -1 : 1) * Math.PI / 180;
+    if (org) {
+      // t-014 a batch 16 frame: drawn from the manifest's origin (its feet line, or the centre of the turned dive catch),
+      // on its own window. The art carries the pose; the rig adds the lift to the ball's height (g.up, else R.rise),
+      // easing in to the contact frame and out by the landing. A keeper's move is slid so his gloves on the contact
+      // frame meet the ball: towards where the shot will cross him (g.B) before the contact, from where it met him
+      // (g.off) after it, fading out as he lands - only the picture: where he really is stays the keeper AI's / the save's
+      const F = this.textures.getFrame(p.kit, fr), hk = keys.find(q => q.hit), th = hk ? hk.t : R.dur / 2, tl = keys[keys.length - 2].t;
+      const env = t < th ? Math.sin(Math.PI / 2 * t / th) : Math.max(0, 1 - (t - th) / Math.max(tl - th, 0.05));
+      const up = (g && g.up != null ? g.up : R.rise || 0) * env;
+      const P = { fr, x: wx(p.x, p.y), y: wy(p.y) - L('lift', 0) - up, rot, sx: L('sx', 1), sy: L('sy', 1), ox: org[0], oy: org[1], fw: F ? F.realWidth : 256, fh: F ? F.realHeight : 184 };
+      if (g && R.gk && hk && (g.B || g.off)) {
+        let o = g.off, k = t < th ? 1 : Math.max(0, 1 - (t - th) / Math.max(R.dur - th, 0.05));
+        if (!o || t < th) { const h = this.rigPt(this.rigAt(p, n, th, d), hk.fist, d); o = { x: g.B.x - h.x, y: g.B.y - h.y };
+          if (t < th) k = Math.sin(Math.PI / 2 * clamp(t / th, 0, 1)); else g.off = o; }   // (from the contact on: frozen where the ball met him - the save has put him on its line by then)
+        P.x += clamp(o.x, -160, 160) * k; P.y += clamp(o.y, -160, 160) * k;
+      }
+      return P;
+    }
     const cy = R.cy ?? 0.56, FH = K.frameH || 160, sy = L('sy', 1), lift = L('lift', 0);
-    return { fr: list[Math.min(a.f, list.length - 1)], x: wx(p.x, p.y), y: wy(p.y) - (K.feetY - cy * FH) * sy - lift, rot: L('rot', 0) * (d === 'W' ? -1 : 1) * Math.PI / 180,
-      sx: L('sx', 1), sy, cy, FH };
+    return { fr, x: wx(p.x, p.y), y: wy(p.y) - (K.feetY - cy * FH) * sy - lift, rot, sx: L('sx', 1), sy, ox: 0.5, oy: cy, fw: 128, fh: FH };
   },
   rigPt(P, pt, d) {                                                               // a point of the frame (E frame, px) on the screen
-    const lx = (d === 'W' ? 128 - pt[0] : pt[0]) - 64, ly = pt[1] - P.FH * P.cy, c = Math.cos(P.rot), s = Math.sin(P.rot);
+    const lx = (d === 'W' ? P.fw - pt[0] : pt[0]) - P.fw * P.ox, ly = pt[1] - P.fh * P.oy, c = Math.cos(P.rot), s = Math.sin(P.rot);   // (t-014: any window and origin)
     return { x: P.x + lx * P.sx * c - ly * P.sy * s, y: P.y + lx * P.sx * s + ly * P.sy * c };
   },
   rigPop(name, x, y, depth, o = {}) {                                             // one PixelLab effect: grows, rises, fades
@@ -284,11 +429,14 @@ hc2Mix(Match, {
     return im;
   },
   rigFx(p, P) {                                                                   // the rig's effects + after-images, as its clock passes them
-    const g = p.rig, R = RIGS[g.n], ev = R.ev || []; g.ei = g.ei || 0;
-    while (g.ei < ev.length && ev[g.ei].t <= g.t) { this.rigEvent(p, R, ev[g.ei], P); g.ei++; }
-    if (R.ghost && g.t >= R.ghost[0] && g.t <= R.ghost[1] && this.time.now - (g.gAt || 0) > 40) {
+    // t-014: a keeper's special-save move plays its level's effects from the contact on (g.ev / g.ghost / g.col, timed
+    // from g.e0, set by gkSpecialHit) - nothing before it, while he's still getting there
+    const g = p.rig, R = RIGS[g.n]; if (R.gk && g.e0 == null) return;
+    const ev = g.ev || R.ev || [], t = g.t - (g.e0 || 0), gh = g.ghost || R.ghost; g.ei = g.ei || 0;
+    while (g.ei < ev.length && ev[g.ei].t <= t) { this.rigEvent(p, R, ev[g.ei], P); g.ei++; }
+    if (gh && t >= gh[0] && t <= gh[1] && this.time.now - (g.gAt || 0) > 40) {
       g.gAt = this.time.now; const s = p.spr;
-      const im = this.add.image(s.x, s.y, s.texture.key, s.frame.name).setOrigin(s.originX, s.originY).setRotation(s.rotation).setScale(s.scaleX, s.scaleY).setDepth(s.depth - 0.3).setTintFill(R.col).setAlpha(0.5);
+      const im = this.add.image(s.x, s.y, s.texture.key, s.frame.name).setOrigin(s.originX, s.originY).setRotation(s.rotation).setScale(s.scaleX, s.scaleY).setDepth(s.depth - 0.3).setTintFill(g.col || R.col).setAlpha(0.5);
       this.tweens.add({ targets: im, alpha: 0, duration: 240, onComplete: () => im.destroy() });
     }
   },
@@ -298,6 +446,7 @@ hc2Mix(Match, {
     const s = p.spr, hk = R.keys.find(q => q.hit) || R.keys[0], W = p.rig.d === 'W';
     let x = s.x, y = s.y;
     if (e.at === 'feet') { x = wx(p.x, p.y); y = wy(p.y) - 4; }
+    else if (e.at === 'body' && P.oy > 0.8) y -= 64 * s.scaleY;                   // (t-014: a batch 16 frame hangs from his feet: his body is ~64 px up)
     else if (e.at === 'foot' || e.at === 'fist') { const q = this.rigPt(P, hk[e.at] || [64, 60], p.rig.d); x = q.x; y = q.y; }
     x += (e.dx || 0) * (W ? -1 : 1);
     for (let i = 0; i < (e.n || 1); i++) this.rigPop(e.fx, x + (e.n > 1 ? rnd(-e.sp, e.sp) : 0), y + (e.n > 1 ? rnd(-e.sp, e.sp) : 0), wy(p.y) + 1, { ...e, flip: W, delay: i * 40 });
@@ -396,8 +545,8 @@ hc2Mix(Match, {
     let hand = !ok && Math.random() < clamp(K / P, 0.3, 0.85);
     if (norm && lv === 1 && (b.power || 0) > 0.72 && Math.random() < 0.5) { ok = false; hand = true; }
     this.cameras.main.flash(140, 255, 240, 160); this.hitStop = Math.max(this.hitStop || 0, 0.12); SFX.boom(1);
-    if (hand) { this.say('A HAND TO IT!', norm ? `${SAVE_NAMES[lv - 1]} CAN ONLY PUSH IT AWAY` : `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4); return 'hand'; }
-    if (ok && RIGS['save' + lv]) { gk.face = gk.team.side > 0 ? 0 : 4; gk.rig = { n: 'save' + lv, t: 0, d: gk.team.side > 0 ? 'E' : 'W' }; }   // v0.8.9 rough save rig
+    if (hand) { this.gkSpecialHit(gk, 'hand', lv); this.say('A HAND TO IT!', norm ? `${SAVE_NAMES[lv - 1]} CAN ONLY PUSH IT AWAY` : `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4); return 'hand'; }
+    if (ok) this.gkSpecialHit(gk, true, lv);                                      // t-014: the batch 16 move picked by the shot (v0.8.9: the rough save rig)
     if (ok) this.say('SAVED!', norm ? `${SAVE_NAMES[lv - 1]} STOPS THE SHOT` : `${SAVE_NAMES[lv - 1]} ${K} v ${Math.round(P)} ${SP_NAMES[b.special - 1]}`, 1.4);
     else this.say('IT BREAKS THROUGH!', `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4);
     return ok;
