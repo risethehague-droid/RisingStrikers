@@ -130,7 +130,7 @@ class Player {
     let v = RUN * (0.9 + 0.1 * Math.min(1, this.stamina / 0.3));
     if (sprint && !this.tired) v = RUN + (SPRINT - RUN) * clamp(this.stamina / 0.35, 0.25, 1);
     if (sprint && !this.tired && this.burst > 0) v *= 1.1;                       // v0.8: the first half second of a sprint is a burst
-    return v * (withBall ? (sprint ? 0.94 : WITH_BALL) : 1) * (this.injury ? this.injury.k : 1);   // v0.8.5: injured = limping
+    return v * (withBall ? (sprint ? WITH_BALL_SPRINT : WITH_BALL) : 1) * (this.injury ? this.injury.k : 1);   // v0.8.5: injured = limping
   }
   moveTo(tx, ty, speed, dt) {
     const dx = tx - this.x, dy = ty - this.y, d = len(dx, dy);
