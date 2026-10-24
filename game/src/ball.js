@@ -463,11 +463,11 @@ hc2Mix(Match, {
         const K = SAVE_POWER[p.spSave - 1], ok = this.clash(p);
         if (!ok) { this.guardBreak(p); continue; }
         p.y = clamp(b.y, 30.6, 37.4); p.vx = p.vy = 0;
-        if ((b.spP || 0) < K * 0.8) { b.special = 0; best = p; bd = 0; viaChest = false; break; }   // held
+        if ((b.spP || 0) < K * 0.8) { b.special = 0; best = p; bd = 0; viaChest = false; this.gkCount(p.team, 'held'); break; }   // held
         const rel = b.y - 34 || rnd(-1, 1);                                        // fisted away
         b.vx = -b.vx * 0.2 + p.team.side * rnd(3, 5); b.vy = Math.sign(rel) * rnd(5, 9); b.vz = rnd(3, 5); b.z = Math.max(b.z, 0.4);
         b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.special = 0; b.spP = 0; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
-        if (MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45);
+        if (MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45); this.gkCount(p.team, 'parried');
         this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
       }
       if (b.save && b.save.gk === p) {                                           // a shot at this keeper: his body and gloves decide
@@ -480,8 +480,8 @@ hc2Mix(Match, {
           if (dmg > g + 1e-6) { this.guardBreak(p); continue; }
           p.guard = g - dmg; p.guardT = 0; if (p.guard < GUARD_POWER) this.say('', 'THE KEEPER IS RATTLED!', 0.9);
         }
-        if (hit === 'catch') { if ((p.state === 'dive' && len(b.vx, b.vy) > 20) || len(b.vx, b.vy) > 28) this.flagReplay('WHAT A SAVE!', p); best = p; bd = 0; viaChest = false; break; }
-        const rel = b.y - p.y || rnd(-1, 1), spd = len(b.vx, b.vy);               // parried: pushed wide, off the line
+        if (hit === 'catch') { this.gkCount(p.team, 'held'); if ((p.state === 'dive' && len(b.vx, b.vy) > 20) || len(b.vx, b.vy) > 28) this.flagReplay('WHAT A SAVE!', p); best = p; bd = 0; viaChest = false; break; }
+        const rel = b.y - p.y || rnd(-1, 1), spd = len(b.vx, b.vy); this.gkCount(p.team, 'parried');   // parried: pushed wide, off the line
         b.vx = -b.vx * 0.22 + p.team.side * rnd(2, 4); b.vy = Math.sign(rel) * rnd(4, 8) + b.vy * 0.15; b.vz = rnd(1.5, 4) + (b.z > 1.6 ? 2 : 0);
         b.z = Math.max(b.z, 0.3); b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; p.cool = 0.5; b.ring = null;   // (t-005)
         if (b.z > 1.5 && p.state !== 'dive' && MAN.kits[p.kit].anims['punch-S']) p.setState('punch', 0.45);   // fists it away

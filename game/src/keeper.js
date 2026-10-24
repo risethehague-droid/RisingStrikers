@@ -29,7 +29,10 @@ hc2Mix(Match, {
     for (let u = 0; u < 1.5 && (g.x - gx) * gk.team.side > 0; u += h) ballStep(g, h, false);
     const off = g.y < GOAL_Y0 - 0.3 || g.y > GOAL_Y1 + 0.3 || g.z > BAR_Z + 0.25;
     b.save = { gk, y, z: c.z, t: t + 0.6, t0: t, react, act: null, off, dy: Math.abs(c.y - gk.y), cover: this.keeperCover(t - react, c.z), sp };
+    if (!off) this.gkCount(gk.team.opp, 'onT');
   },
+  // t-007: match counts for the soak (tools/soak.js: shots on target, saves held v parried) - counting only, no dice
+  gkCount(team, key) { if (!team || !this.stat) return; const S = this.stat(team); S[key] = (S[key] || 0) + 1; },
   // how far sideways he can get his hands in time T (seconds after he reacts), for a ball at height z
   keeperCover(T, z) { return Math.min(GK_DIVE_V * Math.max(0, T - 0.05), 3.0) + GK_REACH - Math.max(0, z - 1.7) * 0.6; },
   // t-005 (lob step 1, docs/lob-chip.md: "the keeper reads a lob instantly"): how long he needs to read a lob, by level -
