@@ -118,7 +118,7 @@ hc2Mix(Match, {
       for (const p of this.all) {
         if (p === this.human || (b.tried && b.tried.has('b' + p.team.name + p.i)) || !this.canBicycle(p)) continue;
         (b.tried = b.tried || new Set()).add('b' + p.team.name + p.i);
-        if (Math.random() < 0.3) { this.bicycle(p); return; }
+        if (Math.random() < 0.3) { if (!this.aiAirSpecial(p)) this.bicycle(p); return; }   // (t-012: or the aerial special, SP in the bank)
       }
     }
     if (!b.owner && !b.inNet && b.z < 1.0 && bsp > 8 && !this.diving) {
@@ -127,7 +127,7 @@ hc2Mix(Match, {
         const d = len(p.x - b.x, p.y - b.y), toGoal = len(p.team.goalX - p.x, 34 - p.y);
         if (d < 1.0 && toGoal < 20 && (p.team.goalX - p.x) * p.team.side > 2) {
           (b.tried = b.tried || new Set()).add('v' + p.team.name + p.i);
-          if (Math.random() < 0.8) { const volley = b.z > 0.35; b.owner = p; this.doShot(p, rnd(0.45, 0.75), rnd(-1, 1)); if (volley) p.kickAnim = 'volley'; return; }
+          if (Math.random() < 0.8) { if (b.z > 0.55 && this.aiAirSpecial(p)) return; const volley = b.z > 0.35; b.owner = p; this.doShot(p, rnd(0.45, 0.75), rnd(-1, 1)); if (volley) p.kickAnim = 'volley'; return; }
         }
       }
     }
@@ -151,6 +151,7 @@ hc2Mix(Match, {
         if ((chestable && toGoal > 20) || (b.tried && b.tried.has('h' + p.team.name + p.i))) continue;
         (b.tried = b.tried || new Set()).add('h' + p.team.name + p.i); if (Math.random() > (toGoal < 20 ? 0.9 : 0.75)) continue;
         kind = toGoal < 18 ? 'goal' : (Math.abs(p.x - p.team.ownGoalX) < 25 ? 'clear' : 'pass');
+        if (kind === 'goal' && this.aiAirSpecial(p)) return;                     // t-012: SP banked - the aerial special instead of the header
       }
       this.header(p, kind); return;
     }
@@ -176,7 +177,7 @@ hc2Mix(Match, {
     if (win.team !== q.team) { this.header(win, win === this.human && this.headBuf > 0 && this.headKind === 'shoot' ? 'goal' : 'clear'); return true; }
     const toGoal = len(win.team.goalX - win.x, 34 - win.y);
     if (win === this.human && this.headBuf > 0) { this.header(win, this.headKind === 'shoot' ? 'goal' : 'pass'); return true; }
-    if (win !== this.human && toGoal < 18 && b.z > 1.1) { this.header(win, 'goal'); return true; }
+    if (win !== this.human && toGoal < 18 && b.z > 1.1) { if (!this.aiAirSpecial(win)) this.header(win, 'goal'); return true; }   // (t-012: or the aerial special)
     if (b.z < 1.75) {                                                             // chest / thigh it down: his ball
       const ivx = b.vx, ivy = b.vy, sp = len(b.vx, b.vy); this.gain(win, sp);
       if (!win.hands) { win.setState('trap', 0.32); win.face = dirIndex(-ivx || win.team.side, -ivy); }
@@ -189,7 +190,9 @@ hc2Mix(Match, {
   },
   header(p, kind) {
     const b = this.ball, s = p.team.side; let tx, ty, spd, vz, best = null;
-    if (kind === 'goal') { tx = p.team.goalX + s * 2; ty = 34 + (p === this.human ? Input.axis.y * 2.6 : rnd(-2.6, 2.6)); spd = rnd(12, 15); vz = rnd(-1.5, 0.8); }
+    if (kind === 'goal') { tx = p.team.goalX + s * 2; ty = 34 + (p === this.human ? Input.axis.y * 2.6 : rnd(-2.6, 2.6)); spd = rnd(12, 15); vz = rnd(-1.5, 0.8);
+      if (p !== this.human) { const toG = len(p.team.goalX - p.x, 34 - p.y), e = (0.9 + toG * 0.13) * this.dk(p.team).shotErr;   // t-012: the computer's headers
+        ty += rnd(-1, 1) * e; vz += rnd(0, 1) * e * 0.5; } }                     // miss too (the soak: a headed cross went in 1 in 2 - the posts were never missed)
     else if (kind === 'clear') { tx = p.x + s * 25; ty = clamp(p.y + rnd(-12, 12), 4, 64); spd = 15; vz = 4.5; }
     else if (kind === 'down') {                                                  // lob-mechanics: cushioned down to his feet, on the side away from his marker
       const o = p.team.opp.players.filter(e => !e.sentOff && !e.keeper).sort((u, v) => len(u.x - p.x, u.y - p.y) - len(v.x - p.x, v.y - p.y))[0];
