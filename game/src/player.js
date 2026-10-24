@@ -40,9 +40,10 @@ class Player {
   draw() {
     const X = wx(this.x, this.y), Y = wy(this.y);
     // t-007: a keeper's leap or high dive takes him off the grass: up to `leap` metres at the top of his flight (diveFly),
-    // back down over 0.3 s (the frames stay his PixelLab ones; only where they're drawn moves)
+    // back down over 0.3 s (the frames stay his PixelLab ones; only where they're drawn moves). Not for the dive frames
+    // drawn centred on him (kit origins): those already show him in the air
     let lift = 0;
-    if (this.keeper && this.state === 'dive' && this.leap > 0) { const age = (this.diveLen || 0.85) - this.stateT, f = this.diveFly || 0.3;
+    if (this.keeper && this.state === 'dive' && this.leap > 0 && !(MAN.kits[this.kit].origins || {})[this.diveAnim]) { const age = (this.diveLen || 0.85) - this.stateT, f = this.diveFly || 0.3;
       lift = this.leap * (age < f ? Math.sin(Math.PI / 2 * age / f) : Math.max(0, 1 - (age - f) / 0.3)); }
     this.spr.setPosition(Math.round(X), Math.round(Y - lift * PX_H)).setDepth(Y);
     if (this.keeper && this.spSave && !this.sentOff && (this.m.ball.special || this.m.ball.saveable)) this.m.auraFx(this);   // v0.8.9 his special save is ready: he burns in its colour
