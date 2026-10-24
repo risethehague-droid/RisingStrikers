@@ -1220,6 +1220,14 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     try { localStorage.setItem('hc2-lab-zoom', String(LAB.zoom)); } catch (e) {}
   }
   function jump(j) { if (j < 0 || j >= LAB.groups.length) return; LAB.g = j; LAB.i = 0; menu(false); start(false); }
+  // (Luca + the co-designer, 24 Oct: "Try it in the Test Lab" on every Needs OK card) a link ending in a test's id opens
+  // that test and starts it: …#CH1, also #lab-CH1 (from a PR preview page), or a whole group: #CH. Ids ignore case.
+  function fromHash() {
+    const id = decodeURIComponent((location.hash || '').slice(1)).replace(/^lab-?/i, '').toLowerCase(); if (!id) return false;
+    for (let g = 0; g < LAB.groups.length; g++) { const i = LAB.groups[g].tests.findIndex(t => t.id.toLowerCase() === id); if (i >= 0) { LAB.g = g; LAB.i = i; return true; } }
+    const g = LAB.groups.findIndex(x => x.id.toLowerCase() === id); if (g >= 0) { LAB.g = g; LAB.i = 0; return true; }
+    return false;
+  }
 
   function keys() {
     addEventListener('keydown', e => {
@@ -1274,6 +1282,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     m.setTeams('IS', 'IRO', () => {
       window.HC2_STARTED = true; hook(); LAB.groups = buildTests(); LAB.active = true;
       try { const at = JSON.parse(localStorage.getItem('hc2-lab-at2') || 'null'); if (at && LAB.groups[at[0]] && LAB.groups[at[0]].tests[at[1]]) { LAB.g = at[0]; LAB.i = at[1]; } } catch (e) {}
+      fromHash();                                                                  // a test named in the link wins over where you left off
+      addEventListener('hashchange', () => { if (fromHash()) { menu(false); start(false); } });
       $('loading').hidden = true; keys(); fpUI(); start(false);
       $('bw-ask').addEventListener('click', e => { askClaude(); e.currentTarget.blur(); });
       $('bw-again').addEventListener('click', e => { start(false); e.currentTarget.blur(); });

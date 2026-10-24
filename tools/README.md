@@ -36,7 +36,9 @@ the review opens at full time. Marks and notes reach the taskmaster through the 
 | `LEVELS=... node tools/train093.js probe 0 <matches> <secs>` | computer v computer strength per level (S against the old Normal) |
 | `node tools/train093.js <level> <iters> <matches> <secs>` | self-play tuning of one level's traits (writes `train093-out/`) |
 | `node tools/gk091.js` | keeper situations with the keeper's plan printed |
-| `node tools/chipgif.js` | example of recording Test Lab frames for a preview GIF |
+| `TEST=<id> OUT=docs/previews/pr<N>-<topic>.gif node tools/preview.js` | the PR's preview GIF (CLAUDE.md "The `## Preview` section"): a Test Lab test, or `MATCH=1 SKIP=<s>` for a match moment; 3-5 s, under 1 MB |
+| `bash tools/prpreview.sh <commit> <dir> <N> "<title>"` | taskmaster / 2-hourly check: builds the "HC2 PR #N preview" page (the PR on top of `main`; `#play` = the game, `#lab-CH1` = the Lab at a test) |
+| `node tools/chipgif.js` | the v0.9.4 chip frames (the first preview GIF; `preview.js` replaces it) |
 | `tools/train092.js` | the v0.9.2 trainer (kept for history) |
 
 ## Builds

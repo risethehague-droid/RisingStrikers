@@ -48,16 +48,16 @@ All art is made in PixelLab and Aseprite. The official game and its Test Lab are
 2. **Branch:** start from the latest `main`: `git checkout -b friend/<topic>`.
 3. **Change:** keep it small and focused. Touch only the files your lane brief lists. If you must touch another area's file, say why in the pull request.
 4. **Test:** run the tests above and the ones in your brief.
-5. **Preview (recommended):** publish your branch as your **own private page**, named `HC2 Football · preview · <topic>`. Share it with Luca by email.
+5. **Your own preview page (optional now):** Luca's side builds an "HC2 PR #N preview" page from your branch for every PR (step 7), so you no longer need to share one. For trying things yourself you can still publish your branch as your **own private page** (`HC2 Football · preview · <topic>`).
    - The game is about 300 files and one publish takes at most 255, so publish twice to the same page.
    - Never publish to Luca's pages.
 6. **Pull request:** push and open a PR. Put in the description:
    - what changed and why
    - how to try it (what to click)
    - which files it touches
-   - a screenshot or GIF
    - how many PixelLab generations it used
-7. **Card: automatic.** Every open PR from a `friend/` branch gets a **Needs OK** card on its own, with the PR's title, description and link. A scheduled task on Luca's account checks GitHub every 2 hours, 09:00 to 23:00 Dutch time, so allow up to 2 hours. Put the preview link in the PR description so it lands on the card too.
+   - the **`## Preview` section**: once the PR has its number, record a GIF with `tools/preview.js`, commit it on your branch as `docs/previews/pr<N>-<topic>.gif`, and add the one line `Preview: docs/previews/pr<N>-<topic>.gif · Test Lab: <tests or none>`. CLAUDE.md "The `## Preview` section" has the exact shape and commands.
+7. **Card: automatic.** Every open PR from a `friend/` branch gets a **Needs OK** card on its own, with the PR's title, description and link, plus its preview: your GIF playing, **Play it** (your branch on top of today's `main` as a game) and **Try it in the Test Lab** (the tests on your `Preview:` line). A scheduled task on Luca's account checks GitHub every 2 hours, 09:00 to 23:00 Dutch time, so allow up to 2 hours.
 8. **Review:** the taskmaster checks it and writes a verdict on the card. Luca decides:
    - **OK:** the taskmaster merges and publishes.
    - **Not yet:** fix it on the same branch and push. The card moves back to Needs OK on its own at the next check.

@@ -23,6 +23,9 @@ If it doesn't, ask once. `docs/agents.md` explains the whole setup; CLAUDE.md's 
 6. **Pull request** (when you changed files): push the branch and open a PR to `main`.
    - Title: `<task> · <brief title>`.
    - Body: as CLAUDE.md "Pull requests", plus a line `Task: <task>`.
+   - **Preview:** once the PR has its number, record the GIF with `tools/preview.js` and commit it as
+     `docs/previews/pr<N>-<topic>.gif`. Then add the `## Preview` section with its one `Preview: … · Test Lab: …` line
+     (CLAUDE.md "The `## Preview` section"). Nothing visible: `Preview: none · Test Lab: none` and why.
    - No version bump. Never merge.
 7. **Report**: write the report below to a file in your scratchpad, then
    `bash tools/agent.sh report <you> <task> done <file>`.

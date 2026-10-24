@@ -68,7 +68,8 @@ What to make or fix, and why (the request behind it, in the requester's words wh
 - ...
 
 ## Done means
-- the tests to run and what they must show (smoke "errors []", Test Lab group X, a screenshot of Y)
+- the tests to run and what they must show (smoke "errors []", Test Lab group X, ...)
+- the PR has its `## Preview` section: the GIF of <what to show> and `Test Lab: <ids>` (CLAUDE.md "Pull requests")
 
 ## Notes
 Anything that saves time: where the code lives, what was tried, what to avoid.
