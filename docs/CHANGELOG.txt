@@ -1,3 +1,11 @@
+HC2 WEB GAME - v0.10.1 (24 Oct) - THE FIRST NIGHTLY QA FIXES (PR #5 + #6)
+- Bug Watch no longer changes the match it watches. It named each saved clip with the game's own dice, so the same
+  seed played a different match with Bug Watch on or off (and repro lines didn't replay). Now on = off.
+- Animation flicker down about 90% (you marked it "bug" 6 times): players no longer blink between two pictures for a
+  frame when they turn while changing pace. Every idle / walk / run picture, direction included, stays up at least
+  0.11 s. Not your own player (he turns the moment you steer), not in replays. About 200 a match -> 8-24.
+- Checked: 4 seeded matches the same with Bug Watch on and off, and the same as v0.10.0. Smoke errors [].
+
 HC2 WEB GAME - v0.10.0 (24 Oct) - THE LOB AND CHIP REVAMP STARTS (t-002 stage 1, worker-f, PR #3)
 - The plan is in: docs/lob-chip.md (real ball flight, how football games do it, a measured audit, three directions).
 - Three prototypes, OFF in the game. Try one by opening the game with #lobA, #lobB or #lobC on the end of the link:
