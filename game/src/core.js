@@ -93,9 +93,9 @@ const PACE = {
   // reactions). 1 more big moments: the SP meter fills 1.75x, both sides shoot from ~20% further and sooner, power shots
   // charge 25% quicker, shots +12% (KICK_MAX 33), keepers answer a shot they'd lose with a special save far more often.
   // 2 the MASH duel also on 50-50 loose balls and contested tackles. 3 a longer sprint dash, higher headers, hot trails on
-  // hard shots. 4 passes 20% firmer, lobs ~15% less hang time (0.72 of the height), a little less grass grip.
+  // hard shots. 4 passes 20% firmer, lobs ~8% less hang time (0.85 of the height: at 0.72 defenders headed them away and the AERIAL BATTLE nearly vanished), a little less grass grip.
   // 5 no hit-stop on passes (more on shots), advantage: a foul stops play only for a card or a penalty.
-    KICK_MAX: 33, SHOT_K: 1.12, GRIP: 0.88, spGain: 1.75, shotRange: 1.2, shotWant: 0.85, chargeT: 0.6, gkCover: 0.7, gkAnswer: 0.85, passArrive: 1.2, lobH: 0.72,
+    KICK_MAX: 33, SHOT_K: 1.12, GRIP: 0.88, spGain: 1.75, shotRange: 1.2, shotWant: 0.85, chargeT: 0.6, gkCover: 0.7, gkAnswer: 0.85, passArrive: 1.2, lobH: 0.85,
     hsPass: 0, hsShot: 1.35, trails: true, advantage: true, duels: true, duelCool: 3.5, duelGap: 9, pressK: 1.2, shK: 1.5, shAdd: 0.08, aiBurst: 1.4, burstT: 0.8, headZ: 3.1 },
 };
 let PACE_MODE = (() => { try { const v = localStorage.getItem('hc2-pace'); return PACE[v] ? v : 'classic'; } catch (e) { return 'classic'; } })();
