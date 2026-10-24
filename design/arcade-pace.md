@@ -21,6 +21,19 @@ Style recipes, in words only (house rule):
 The common thread: **more decisions per minute, fewer seconds of waiting, and every touch feels strong.**
 Not: chaos, or the AI making silly mistakes. It should still be football.
 
+**Part 2's vision (the co-designer, 25 Oct):** "The point of arcade is to improve overall pacing of the game to feel
+more like a mini-game button masher. It should give the same energy as football anime. Exciting, fast pace, more than
+human almost."
+- **Not easier.** What helps the attacker helps the computer too; keepers get *more* spectacular, not slower. The
+  difficulty levels stay as far apart as on Classic.
+- **Cut-scenes stay or grow:** the special shots, special saves and their cut-ins *are* the arcade feel. Only the dull
+  waits get shorter.
+- More style recipes, in words only:
+  - **Captain Tsubasa / Inazuma Eleven:** a shot is an event (a wind-up, a named move, a trail, the keeper answering
+    with his own move), and players leap higher and run faster than people can.
+  - **Mario Strikers:** physical, bangs, back into play at once.
+  - **Super Sidekicks:** big specials.
+
 ## 2. Today, measured
 
 `node tools/pacestudy.js 4`: 4 full computer v computer matches (normal, hard, easy, rise), 1x speed, replays and

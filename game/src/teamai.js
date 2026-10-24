@@ -121,7 +121,7 @@ hc2Mix(Match, {
     const front = (cv.x * (p.x - carrier.x) + cv.y * (p.y - carrier.y)) / (d || 1), loose = len(b.x - carrier.x, b.y - carrier.y) > 1.1;
     const vsHuman = carrier === this.human && !this.demo;
     p.standoff = carrier.speed < 1.5 && len(b.x - p.x, b.y - p.y) < 2.5 ? (p.standoff || 0) + dt : 0;   // (a stand-off that drags on: he pokes at it anyway)
-    if (p.cool <= 0 && len(b.x - p.x, b.y - p.y) < AI.REACH && (front > 0.25 || loose || (carrier.speed < 1.5 && front > -0.3) || p.standoff > 3) && Math.random() < dt * (vsHuman ? AI.COMMIT_VS_YOU * this.dkY(team).cmt : AI.COMMIT) * this.dk(team).commit) { p.standoff = 0; this.challenge(p, carrier); return; }
+    if (p.cool <= 0 && len(b.x - p.x, b.y - p.y) < AI.REACH && (front > 0.25 || loose || (carrier.speed < 1.5 && front > -0.3) || p.standoff > 3) && Math.random() < dt * (vsHuman ? AI.COMMIT_VS_YOU * this.dkY(team).cmt * paceK().cmtK : AI.COMMIT) * this.dk(team).commit) {   /* (arcade-2: ARCADE it goes in on you more - by level, via cmt) */ p.standoff = 0; this.challenge(p, carrier); return; }
     // v0.8.2 BEATEN (he's got past): a recovery slide from the side, or a lunge from behind when he's through - so the
     // computer gives fouls away too (it never did: no foul scenes or foul replays for its tackles)
     const beaten = front < -0.2, toOwn = len(carrier.x - gx, carrier.y - 34), db = len(b.x - p.x, b.y - p.y);

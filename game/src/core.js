@@ -81,7 +81,7 @@ const PACE = {
     koFreeze: 1.2, half2Freeze: 1.6, spFreeze: 0.5, deadT: 1, aiTake: 1.3, htOff: 3.2, htCard: 25, htAnyKey: false,
     goalWaitMs: 1450, goalFrames: 330, goalSlowPre: 1.7, goalSlow: 2.0, skipAfter: 0.4, evReplays: false,
     KICK_MAX: 30, SHOT_K: 1, GRIP: 1, spGain: 1, shotRange: 1, shotWant: 1, chargeT: 0.8, gkCover: 0.95, gkAnswer: 0.55, passArrive: 1, lobH: 1,
-    hsPass: 1, hsShot: 1, trails: false, advantage: false, duels: false, duelCool: 5, duelGap: 30, pressK: 1, shK: 1, shAdd: 0, aiBurst: 1, burstT: 0.55, headZ: 2.7 },   // v0.10.4 (Luca 06:24: "dont do replays mid game being live, its janky"): big saves / near misses go to HIGHLIGHTS in CLASSIC too
+    hsPass: 1, hsShot: 1, trails: false, advantage: false, duels: false, duelCool: 5, duelGap: 30, pressK: 1, cmtK: 1, shK: 1, shAdd: 0, aiBurst: 1, burstT: 0.55, headZ: 2.7 },   // v0.10.4 (Luca 06:24: "dont do replays mid game being live, its janky"): big saves / near misses go to HIGHLIGHTS in CLASSIC too
   // A: end to end in ~12 s, snappier starts and turns, sprint more, dribbles that go somewhere. D: kick-off 0.6 s,
   // restarts taken after ~0.8 s, one short (~4 s) goal replay skippable at once, saves / near misses only in
   // HIGHLIGHTS, half time an 8 s card that any key skips
@@ -96,7 +96,7 @@ const PACE = {
   // hard shots. 4 passes 20% firmer, lobs ~8% less hang time (0.85 of the height: at 0.72 defenders headed them away and the AERIAL BATTLE nearly vanished), a little less grass grip.
   // 5 no hit-stop on passes (more on shots), advantage: a foul stops play only for a card or a penalty.
     KICK_MAX: 33, SHOT_K: 1.12, GRIP: 0.88, spGain: 1.75, shotRange: 1.2, shotWant: 0.85, chargeT: 0.6, gkCover: 0.7, gkAnswer: 0.85, passArrive: 1.2, lobH: 0.85,
-    hsPass: 0, hsShot: 1.35, trails: true, advantage: true, duels: true, duelCool: 3.5, duelGap: 9, pressK: 1.2, shK: 1.5, shAdd: 0.08, aiBurst: 1.4, burstT: 0.8, headZ: 3.1 },
+    hsPass: 0, hsShot: 1.35, trails: true, advantage: true, duels: true, duelCool: 3.5, duelGap: 9, pressK: 1.3, cmtK: 1.35, shK: 1.5, shAdd: 0.08, aiBurst: 1.4, burstT: 0.8, headZ: 3.1 },
 };
 let PACE_MODE = (() => { try { const v = localStorage.getItem('hc2-pace'); return PACE[v] ? v : 'classic'; } catch (e) { return 'classic'; } })();
 function paceK() { return window.__lab ? PACE.classic : PACE[PACE_MODE] || PACE.classic; }
