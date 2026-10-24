@@ -5,13 +5,48 @@ give us all the data that we want and give us all the permutations of different 
 Please reference in industry standards for game testing. Make sure that it is accessible for us, though, because we
 are beginners in this field. Make sure you include all the actions, the animations."
 
-This is stage 1: research, an audit of today's Lab, the design, the build stages, and a clickable prototype. Nothing
-in the real Lab changes in this stage. The build waits for Luca's three decisions (section 7).
+## Plain version (read this first)
 
-- **Prototype:** `game/lab/prototype.html` (+ `proto-data.js`, `proto-pitch.jpg`), published as the private preview
-  "HC2 Test Lab · preview · t-001". It runs on a snapshot of real data: a headless run of today's Lab on v0.9.7,
-  reruns with new dice, the same run on v0.9.4, and the real sprite sheets. Run plays back recorded results; it
-  doesn't run the game.
+Luca on the first preview: "too technical for us". So the new Lab looks like a game menu with **three big buttons**:
+
+1. **Check the game.** One press plays every automatic test (about 10 minutes). A traffic light shows the result:
+   green = all the same as before, amber = something changed, red = something broke. You only look at what changed,
+   in football words ("K12: was a goal, now the keeper pushes it away"), with a clip of last time and now.
+   Looks right → OK. Looks wrong → report it.
+2. **Try a move.** Pick a move from pictures (chip, lob, header, volley, keeper dive...), watch your player do it,
+   then thumbs up or down, with a note if you like.
+3. **Look at the animations.** Flip through every animation of every kit. Mark "looks right" or "looks wrong".
+
+**Report a bug** and **Bug Watch** are always on screen. Everything else (all the numbers, the combinations, the
+history, every move in the code) sits behind **Advanced (for Claude)** at the bottom.
+
+**Nothing old is lost.** Today's Lab stays as **Lab classic** (`game/lab-classic.html`, the same code) until you pick
+the winner. The first preview stays as its own page.
+
+**What we found in today's Lab:**
+- The penalty tests can't be checked automatically yet (the checker gets stuck). Fixable in our tools.
+- 6 of the 108 automatic tests come out differently by luck (K12, K14, K17, C5, C8, CH6).
+- K12 gives a different result depending on which test played just before it. The new check starts every test fresh.
+- Two tests miss what they say they should do: the keeper in GK2 doesn't walk up as far as its text says, and in CH6
+  the computer usually shoots instead of chipping.
+- Every rating is saved with the wrong version number.
+
+**Previews:** "HC2 Test Lab v2" (this design) and "HC2 Test Lab · preview · t-001" (the first, technical one).
+**Next:** four building steps, each a pull request you OK. **Three questions for you** are in section 7.
+
+---
+
+## The technical plan
+
+This is stage 1: research, an audit of today's Lab, the design, the build stages, and two clickable prototypes.
+Nothing in the real Lab changes in this stage. The build waits for Luca's three decisions (section 7).
+
+- **Prototype v2:** `game/lab/prototype-v2.html` (+ `proto-v2-data.js`, `clips/`), published as the private page
+  "HC2 Test Lab v2". The three beginner screens in front; every v1 screen under "Advanced (for Claude)". Clips are
+  filmed headless from the real Lab; the sprite pictures are the real atlases for every kit.
+- **Prototype v1:** `game/lab/prototype.html` (+ `proto-data.js`, `proto-pitch.jpg`), the private page
+  "HC2 Test Lab · preview · t-001", kept as it was. It runs on a snapshot of real data: a headless run of today's Lab
+  on v0.9.7, reruns with new dice, and the real sprite sheets. Run plays back recorded results; it doesn't run the game.
 - **The real Lab** (`game/lab.html`, `game/lab.js`) is untouched.
 
 ---
@@ -197,7 +232,10 @@ The brief named `tuning` and `bugwatch`; **`ratings`** is the third collection a
    ratings can't be grouped by version. Use `GAME_VER`.
 4. **No expected results as data.** Many tests state one in words ("should be a save", "he should NOT come"); none
    is checked. Today a result can only be judged by a person.
-5. **Outcomes that depend on the dice aren't marked.** RESULT_DICE
+5. **Outcomes that depend on the dice aren't marked.** Across three runs of the 108 automatic tests (the Lab's own
+   seeds + two passes with new dice), **6 change outcome**: K12, K14, K17 (goal or parried), C5, C8 (claim, goal or
+   parry after the header) and CH6 (the computer shot twice and chipped once). 41 give identical numbers every time
+   (ball physics, most specials). A single run of these 6 says little: they need a repeat count and a rate target.
 6. **Pass / fail dots are colour only** (`#dots i.good / .bad`): WCAG 1.4.1.
 7. **Contact frames exist only for kicks** (`KICK_HIT`: pass, kick, shot, super, sp1, sp2, punt, chip). Header,
    volley, diving header, overhead kick, slide, tackle and the keeper's catch / punch have none, so the Lab can't
@@ -208,17 +246,43 @@ The brief named `tuning` and `bugwatch`; **`ratings`** is the third collection a
 9. `tools/chipgif.js` has port 8765 hard-coded (the others read `PORT`).
 10. Screenshots taken while stepping in one synchronous loop can show unloaded stadium tiles (black); a runner that
     yields fixes this too.
-11. **One same-seed mismatch.** In one of four separate page loads today, CH1 gave 45 km/h and a 3.2 m peak instead
+11. **A test's result can depend on the test before it.** With the same seed, K12 is a parried save when it plays first,
+    twice in a row, or after K03, and a goal straight after K11 (which is how the recorded group run had it). The
+    same with K17 and new dice: a save on its own, a goal after K16. The keeper's `guard` is not it (it stays 1.00); some other keeper or match state survives `start()` / `cast()`. So a
+    group run is repeatable in its own order, but one test on its own (R, or a single test in "Check the game") is not.
+    The build resets everything per test (or reloads the match), and proves it: every test gives the same result alone
+    and inside its group.
+12. **One same-seed mismatch.** In one of four separate page loads today, CH1 gave 45 km/h and a 3.2 m peak instead
     of 46 km/h and 3.1 m, with the same seed, while another heavy headless run shared the CPU. Replays on one page are
     identical (checked back to back, after another test, and after 6 s of real-time FREE PLAY). The likely cause is
-    something that finishes loading on the wall clock. Until it is found, the stage-2 "same results before and after"
+    something that finishes loading on the wall clock, or the same leak as 11 (FREE PLAY runs in real time at boot,
+    before the first test). Until it is found, the stage-2 "same results before and after"
     proof runs twice on an idle machine, and the runner records a page-load ID with each result.
 
 ---
 
 ## 3. The design
 
-The prototype shows all of it. Section by section:
+### 3.0 The beginner screens (prototype v2), in front of everything below
+Rules (Nielsen's heuristics: recognition over recall, progressive disclosure; Hick's law; for ADHD: low working
+memory, one clear next step): one main action per screen, at most 5 choices visible, short sentences and big text,
+times in plain words ("about a minute"), progress as a bar, nothing to remember from one screen to the next, every
+result says what to do next. No testing words on these screens (no seed, preset, regression, verdict, target...).
+
+| Screen | One main action | What it shows | The next step it writes down |
+| --- | --- | --- | --- |
+| Home | pick one of 3 big buttons | Check the game · Try a move · Look at the animations, each with one sentence and a real sprite picture | "Not sure? Start with Check the game." |
+| Check the game | Start the check | a progress bar and "about N minutes left", then a traffic light and "98 same as before · 4 changed · 0 broken" | one changed moment at a time, in football words: Watch it (last time / now, side by side), then "Looks right → OK" or "Looks wrong → report it"; at the end "All done" |
+| Try a move | pick a move (5 at a time, "More moves") | the move played by your player | "Does it look right?" thumbs up / down + an optional note, then "Try another move" |
+| Look at the animations | Looks right / Looks wrong | one animation of the chosen kit, big; "Turn him" for the other directions; a bar for how many are done | marking it brings the next one |
+| Report a bug (always in the top bar) | Send to Claude | What went wrong? How bad is it (breaks / plays wrong / only looks wrong)? | the Lab adds the test and replay numbers for Claude |
+| Bug Watch (always in the top bar) | watch a clip | the clips the game kept | "The game was right" or "It's a bug" |
+| Advanced (for Claude) | | every v1 screen (3.1-3.7): every test, combinations, history and versions, every move in the code, animation frames, data out, glossary | |
+
+How the build does "Watch it": the Lab is the game, so it replays that test on the pitch with last time's dice, then
+with today's. No video files (the prototype uses short clips filmed from the real Lab instead).
+
+Section by section, the screens behind Advanced (prototype v1):
 
 ### 3.1 Start here
 - A three-step first run: pick a preset → watch it run → read the verdict and rate the feel.
@@ -263,7 +327,8 @@ The prototype shows all of it. Section by section:
 ### 3.4 Results and data
 - **Run history**: every run with its version, preset, seeds and counts.
 - **Compare two runs** (two versions, or the same version with new dice): only what moved, with the change in
-  km/h and height. The prototype compares v0.9.7 with v0.9.4 for real: RESULT_VERSIONS
+  km/h and height. The prototype compares the v0.9.7 run with its new-dice reruns; versions use the same screen once
+  there is a check file per version.
 - **Copy CSV / JSON** of every number (the page can't start a download on claude.ai; a "Save file" button needs the
   page's downloads capability, which the build can add).
 - **Report a bug**: title, severity (Blocker / Major / Minor / Cosmetic, each in plain words), priority (Now / Next
@@ -327,15 +392,17 @@ target   { test, text, check: { kind: 'outcome' | 'range' | 'compare' | 'rate', 
 
 | Stage | What | Files | Size | Proof |
 | --- | --- | --- | --- | --- |
-| 2 · Split + frame | Split `lab.js` by area into `game/lab/` (run loop + hooks, test builders, panel, free play, clips) with no change in behaviour; the new shell (top bar, section rail, glossary) with today's run view inside it | `game/lab.html`, `game/lab.js` → `game/lab/*.js` | M: ~1,300 lines moved, ~350 new | the same seeds give the same `summary()` for all 108 automatic tests before / after (a dump like the prototype's, diffed); `GROUP=CH grp.js`; smoke |
-| 3 · Catalogue, runner, results | Tests page with test cases (`game/lab/cases.js`), run one / selection / group / preset, repeat N, seed field, step frame, 0.25-4×, run history, compare two runs, copy CSV / JSON, Report a bug, version label fixed; storage per decision 2 | `game/lab/*` | L: ~900 new | the same seeded results; screenshots; a saved run read back from the database |
-| 4 · Matrix, actions, animations | factor switches (Lab-side hooks only), pairwise generator, result grid; Actions page with Try it; animation browser for every kit, the referee, props and effects, contact frames for the moves that touch the ball | `game/lab/*` | L: ~800 new | a 30-run pairwise matrix run headless; every animation opens |
-| 5 · Targets + headless | targets as data (decision 3), Pass / Fail, dice-dependent tests with repeat counts; `grp.js`: skip you-play tests, `JSON=1` output, `BASE=` compare with a baseline, yield between tests (fixes PK), a timing column; `chipgif.js` reads `PORT`; a baseline file per version | `game/lab/*`, `tools/grp.js`, `tools/mklab.sh`, `tools/chipgif.js` | M: ~400 | PK3-8 finish headless; `BASE=` on an unchanged build shows 0 changed |
+| 2 · Classic + split + frame | **Lab classic:** today's `lab.html` + `lab.js` copied unchanged to `game/lab-classic.html` + `game/lab-classic.js`, reachable until Luca picks the winner. Then split the new `lab.js` by area into `game/lab/` (run loop + hooks, test builders, panel, free play, clips) with no change in behaviour, and the new frame (top bar with Report a bug and Bug Watch, Home with the 3 buttons, Advanced) with today's screens inside it | `game/lab-classic.*` (new, copies), `game/lab.html`, `game/lab.js` → `game/lab/*.js` | M: ~1,300 lines moved, ~350 new | `lab-classic.js` byte-identical to today's `lab.js`; the same `summary()` for all 108 automatic tests before / after, in group order (a dump like the prototype's, diffed, twice); `GROUP=CH grp.js`; smoke |
+| 3 · The three main screens | Check the game (fresh start per test, see finding 11; traffic light; changed moments in football words; Watch it replays last time / now on the pitch; OK / report it), Try a move (15 moves on picture cards, fired in free play), Look at the animations (every kit, Turn him, looks right / wrong); Report a bug; answers saved per decision 3 | `game/lab/*` | L: ~900 new | a check on an unchanged build says "0 changed"; every test gives the same result alone and in its group; screenshots incl. phone width |
+| 4 · Advanced (for Claude) | every v1 screen: every test as a test case, combinations with the count first, history and versions side by side, copy the data out, every move in the code with Try it, animation frames with contact frames, glossary; the version label fixed | `game/lab/*` | L: ~800 new | a 30-game combination run headless; every animation opens |
+| 5 · The checker | `grp.js`: skip you-play tests, `JSON=1` output, compare with the last OK'd check, yield between tests (fixes PK), luck repeats (decision 2), a timing column; `chipgif.js` reads `PORT`; one check file per version | `tools/grp.js`, `tools/mklab.sh`, `tools/chipgif.js`, `game/lab/*` | M: ~400 | PK3-8 finish headless; an unchanged build shows 0 changed |
 
-- No stage touches `game/src/*`. If decision 3 wants contact frames for headers and volleys **in the game** (not
-  only in the Lab), that is a separate gameplay card.
-- Stage 2 adds files under `game/lab/`: `/publish` has to ship them next to `lab.html`, as it does `src/*.js`.
-- The QA lane brief (`docs/lanes/qa.md`) gets the new runner options after stage 5 (the taskmaster's file).
+- No stage touches `game/src/*`. Contact frames for headers and volleys **in the game** (not only in the Lab) would
+  be a separate gameplay card.
+- Stage 2 adds files under `game/lab/` and `game/lab-classic.*`: `/publish` has to ship them next to `lab.html`, as
+  it does `src/*.js`, and publish Lab classic as its own page.
+- `tools/mklab.sh` keeps building `labtest.html` from the new `lab.html`; the tools keep the API in 2.4.
+- The QA lane brief (`docs/lanes/qa.md`) gets the new checker options after stage 5 (the taskmaster's file).
 
 ---
 
@@ -347,42 +414,40 @@ start paused) · works at 400 px wide (the pitch on top) · both themes.
 ---
 
 ## 7. Decisions for Luca
-The build waits on these three. Each has a recommendation; the prototype lets you click through the choices.
+Three questions, in plain words. Each has a recommendation.
 
-**1. Layout of the run screen.**
-- A · *Workbench*: the queue, the pitch and the numbers side by side, like Unreal's and Unity's test tools.
-- B · *Focus*: the pitch big with one panel beside it (like today), the queue a click away.
-- **Recommendation: B.** Judging keepers, contacts and animations needs pixels; with three panes the pitch shrinks to
-  about half. B is also today's layout (the camera framing assumes it), so it costs least. Workbench stays as a
-  switch for long regression runs.
+**1. "Check the game" compares with...?**
+- A · the last check you said OK to.
+- B · the version before.
+- **Recommended: A.** Then "same as before" means "same as what you already approved", and a change you OK'd stops
+  coming back. (Technical: a check file per OK'd check, written by the checker and kept in the repo; the Lab reads it.)
 
-**2. Where results are kept.**
-- A · The Lab's database only (a new `runs` collection next to `ratings`, `tuning`, `bugwatch`): shared, Claude can
-  read it, but only runs done on claude.ai land there.
-- B · This browser only, plus Copy: simple, nothing shared, lost on another computer.
-- C · The database for runs done by hand, plus one baseline file per version written by the headless runner
-  (`tools/grp.js`), committed with the version.
-- **Recommendation: C.** "Compare with the last version" then works for both of you and for the overnight QA, and a
-  baseline in the repo is reviewable in a pull request.
+**2. Moments that depend on luck** (like K12: sometimes a goal, sometimes the keeper pushes it away)
+- A · the check plays them 10 times and only tells you when the mix changes (for example "was a goal 6 times in 10,
+  now 2 in 10").
+- B · play them once and tell you every time they come out differently.
+- **Recommended: A.** B gives false alarms (the 4 "changed" in the preview are exactly that). A makes the check about
+  5 minutes longer. (Technical: a repeat count and an outcome mix per test; CH6 and PW7 get a "how often" target.)
 
-**3. How a test decides Pass or Fail.**
-- A · *Change detector*: today's numbers become the reference; a test is flagged when its result changes. No writing
-  needed, catches anything a change moved, but can't tell whether today's behaviour is right.
-- B · *Targets*: each test gets a written target ("walks up to 18-20 m"). Means something, but 108 targets to write.
-- C · *Both, in steps*: A for every automatic test straight away; targets added group by group, keepers and the chip
-  first. Draft targets come from each test's own description for you to OK.
-- **Recommendation: C.** The prototype already shows it. 29 draft targets, written from the tests' own words, give
-  on v0.9.7: **22 pass, 2 fail, 4 can't run headless (PK3, PK4, PK6, PK7), 1 needs repeats (PW7, "about 1 in 8")**.
-  The two fails are worth a look on their own: GK2 (the keeper walks up only 8.4 m; its text says about 9-12 m) and
-  CH6 (the computer shoots instead of chipping a keeper who has come out). The other 79 automatic tests use the
-  change detector.
+**3. Where do your answers go** (OK, report it, thumbs up / down, bug reports)?
+- A · into the Lab. Claude reads them the next time it checks.
+- B · you copy them into the chat yourself.
+- **Recommended: A.** Nothing to remember and nothing to paste. (Technical: the Lab's database, next to the
+  `ratings`, `tuning` and `bugwatch` collections it already writes.)
+
+The v1 questions (Focus or Workbench layout; change detector or written targets) are settled by v2: the beginner
+screens replace the run layout, the check works as a change detector, and the 29 draft targets live under Advanced
+(on v0.9.7: 22 pass, 2 fail (GK2, CH6), 4 can't run headless, 1 needs repeats).
 
 ---
 
-## 8. How the prototype was made
-- `proto-data.js` is generated from a headless run of today's Lab: every automatic test once with the Lab's own
-  seeds (the summary numbers), RESULT_FRESHRUNS, the same on v0.9.4, plus the manifest and the frame
-  rectangles of the IS outfield, IS keeper and referee atlases. The scripts are in the worker's scratch space; stage 5
-  turns them into `GROUP=... JSON=1 node tools/grp.js`.
+## 8. How the prototypes were made
+- `proto-data.js` (v1) and `proto-v2-data.js` (v2) are generated from a headless run of today's Lab: every automatic
+  test once with the Lab's own seeds (the summary numbers) and the outcome of passes with new dice (one in v1, two in
+  v2), plus the manifest and the sprite frame positions (v1: the IS outfield, IS keeper and referee sheets; v2: every
+  kit). The scripts are in the worker's scratch space; stage 5 turns them into `GROUP=... JSON=1 node tools/grp.js`.
+- `clips/` (v2): short clips filmed headless from the real Lab with hit boxes off, 12 frames a second: the four
+  moments that came out differently (filmed with the test before them first, the way the group played them) and 15
+  moves (free-play buttons, plus K03, SM5 and C1).
 - `proto-pitch.jpg` is a still of the real Lab (test GK4) taken headless.
 - Sprites load from `../assets/sprites/` in the repo (and from the preview's own copy on claude.ai). No art was made.
