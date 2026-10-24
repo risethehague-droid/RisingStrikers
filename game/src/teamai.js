@@ -386,7 +386,7 @@ hc2Mix(Match, {
     const P = this.path; if (!P) return null;
     return P.find(q => q.z > 0.9 && q.z < 2.3 && 0.1 + len(q.x - p.x, q.y - p.y) / v <= q.t) || P.find(q => q.z <= 0.9 && 0.1 + len(q.x - p.x, q.y - p.y) / v <= q.t) || null;
   },
-  // t-012 THE CROSS: wide (11 m+ off the middle), in the final 30 m, not yet in the box. crossLook finds the best runner
+  // t-012 THE CROSS: wide (10 m+ off the middle), in the last 32 m, not yet in the box. crossLook finds the best runner
   // to hit; he crosses when it's a good one (a smarter side waits for a better look: K.crossRead), always at the
   // byline or with a man in his face, and how often by level (K.cross: Easy crosses less)
   aiCrossTry(p, K, pressed) {

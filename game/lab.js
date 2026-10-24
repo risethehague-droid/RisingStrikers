@@ -819,7 +819,7 @@
       setup(r) {
         const H = m.home.players, A = m.away.players, w = H[8];
         cast([w, H[9], H[10], H[5], H[6], H[7], H[4], A[0], A[1], A[2], A[3], A[4], A[6], A[7]]);
-        put(w, 72, 58, 0); atFeet(w); put(H[9], 80, 37, 0); put(H[10], 78, 29, 0); put(H[5], 70, 17, 0); put(H[6], 64, 33, 0); put(H[7], 63, 43, 0); put(H[4], 58, 62, 0);
+        put(w, 68, 59, 0); atFeet(w); put(H[9], 80, 37, 0); put(H[10], 78, 29, 0); put(H[5], 70, 17, 0); put(H[6], 64, 33, 0); put(H[7], 63, 43, 0); put(H[4], 58, 62, 0);
         put(A[0], LINE_X, 36, 4); put(A[4], 88, 49, 4); put(A[3], 88, 41, 4); put(A[2], 88, 30, 4); put(A[1], 85, 17, 4); put(A[7], 78, 45, 4); put(A[6], 77, 32, 4);
         Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
