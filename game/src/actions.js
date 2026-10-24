@@ -43,7 +43,7 @@ hc2Mix(Match, {
     const ps = this.passStick, sameStick = ps && len(ps.x, ps.y) > 0.1 && moving && (ax.x * ps.x + ax.y * ps.y) / (len(ax.x, ax.y) * len(ps.x, ps.y)) > 0.7;
     if (moving && !sameStick) this.passStick = null;
     if (!b.owner && b.target === p && b.last === team && (!moving || sameStick)) {
-      const v = p.top(sprint, false), pt = this.intercept(p, v); p.moveTo(pt.x, pt.y, v, dt);
+      const v = p.top(sprint, false), pt = this.intercept(p, v, 0.12, b.lob ? 1.9 : 1.0); p.moveTo(pt.x, pt.y, v, dt);   // lob-mechanics: meet it in the air
     } else if (owns && moving) this.carrySteer(p, ax.x, ax.y, spd, dt, sprint ? (p.burst > 0 ? ACC * 1.35 : ACC * 0.85) : ACC);
     else p.steer(ax.x * spd, ax.y * spd, dt, sprint ? (p.burst > 0 ? ACC * 1.35 : ACC * 0.85) : ACC);
     const dir = moving ? ax : dirVec(p.face);
@@ -89,7 +89,7 @@ hc2Mix(Match, {
         this.divingHeader(p);                                                  // too far to volley, too low to head: throw yourself at it
       }
       else if ((Input.pressed('shoot') || Input.pressed('pass')) && !b.owner) {  // ball in the air: get ready to head it
-        this.headBuf = 0.35; this.headKind = Input.pressed('shoot') ? 'shoot' : 'pass';
+        this.headBuf = 0.7; this.headKind = Input.pressed('shoot') ? 'shoot' : 'pass';   // lob-mechanics: 0.7 s (was 0.35 s, near impossible to time)
       }
     }
   },
@@ -112,6 +112,7 @@ hc2Mix(Match, {
   headers() {
     const b = this.ball, bsp = len(b.vx, b.vy);
     if (b.special && b.pierce > 0) return;                                      // v0.8.6: nobody heads / volleys a special that still blows through people
+    if (this.lobDuel()) return;                                                  // lob-mechanics: a lob's drop is a duel first
     // AI: a fast ball across the box at his feet / knees -> hit it first time (a volley if it's off the ground)
     if (!b.owner && !b.inNet && b.z > 1.35 && b.z < 2.4 && !this.diving) {         // AI: the odd bicycle kick
       for (const p of this.all) {
@@ -138,7 +139,7 @@ hc2Mix(Match, {
       }
     }
     if (b.owner || b.inNet || b.z < 1.1 || b.z > 2.7) return;
-    for (const p of this.all) {
+    for (const p of [...this.all].sort((u, v) => len(u.x - b.x, u.y - b.y) - len(v.x - b.x, v.y - b.y))) {   // lob-mechanics: nearest first (was: home side always first)
       if (p.busy() || p.stun > 0 || p.cool > 0) continue;
       if (p.keeper && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2) continue;   // keepers catch it
       if (len(p.x - b.x, p.y - b.y) > 1.2) continue;
@@ -154,14 +155,52 @@ hc2Mix(Match, {
       this.header(p, kind); return;
     }
   },
+  // lob-mechanics: THE DROP OF A LOB IS A DUEL. Before, the nearest defender ran to the landing spot and headed it
+  // away while our man waited to take it at his feet (28 of 60 of your lobs lost that way), and the header check went
+  // down the player list in order, so the home side won every tie. Now, when the ball comes down to head height
+  // (0.6-2.6 m) with the intended man within reach, everyone within reach contests it once: closer to the ball is
+  // better, the intended man has the run on it (+0.35), arriving flat out costs a little, plus luck. Our winner
+  // heads it at goal near the box, chests it down when it's low enough or he has room, else nods it on first time;
+  // their winner heads it clear. You decide it yourself if you pressed PASS / SHOOT in time.
+  lobDuel() {
+    const b = this.ball, q = b.target;
+    if (!b.lob || b.owner || b.inNet || this.diving || b.vz >= 0 || b.z < 0.6 || b.z > 2.6 || !q || q.sentOff || b.last !== q.team) return false;
+    const R = 1.35, inBox = p => p.keeper && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
+    const ok = p => !p.sentOff && !p.busy() && p.stun <= 0 && p.cool <= 0 && !inBox(p) && len(p.x - b.x, p.y - b.y) < R;
+    const us = q.team.players.filter(ok); if (!us.length) return false;          // our man isn't there yet: no duel (a defender alone heads it as before)
+    const them = q.team.opp.players.filter(ok);
+    const sc = p => (R - len(p.x - b.x, p.y - b.y)) + (p === q ? 0.35 : 0) - ((p.speed || 0) > 5.5 ? 0.15 : 0) + Math.random() * 0.5;
+    let win = null, ws = -1e9; for (const p of [...us, ...them]) { const s = sc(p); if (s > ws) { ws = s; win = p; } }
+    b.lob = false; b.tried = null;
+    if (them.length) this.say('', win.team === q.team ? 'WON IT IN THE AIR!' : 'HEADED AWAY!', 0.7);
+    if (win.team !== q.team) { this.header(win, win === this.human && this.headBuf > 0 && this.headKind === 'shoot' ? 'goal' : 'clear'); return true; }
+    const toGoal = len(win.team.goalX - win.x, 34 - win.y);
+    if (win === this.human && this.headBuf > 0) { this.header(win, this.headKind === 'shoot' ? 'goal' : 'pass'); return true; }
+    if (win !== this.human && toGoal < 18 && b.z > 1.1) { this.header(win, 'goal'); return true; }
+    if (b.z < 1.75) {                                                             // chest / thigh it down: his ball
+      const ivx = b.vx, ivy = b.vy, sp = len(b.vx, b.vy); this.gain(win, sp);
+      if (!win.hands) { win.setState('trap', 0.32); win.face = dirIndex(-ivx || win.team.side, -ivy); }
+      return true;
+    }
+    for (const o of them) o.cool = Math.max(o.cool, 0.45);                       // too high to chest: beaten men are out of it for a moment, and he
+    const free = !win.team.opp.players.some(o => !o.sentOff && len(o.x - win.x, o.y - win.y) < 2.0);   // with room: he lets it drop onto his chest (you:
+    if (free && (win === this.human || Math.random() < 0.6)) { b.target = win; (b.tried = new Set()).add('h' + win.team.name + win.i); return true; }   // or volley it)
+    this.header(win, free ? 'down' : 'pass'); return true;                       // or cushions it to his feet; marked tight: nods it on first time
+  },
   header(p, kind) {
     const b = this.ball, s = p.team.side; let tx, ty, spd, vz, best = null;
     if (kind === 'goal') { tx = p.team.goalX + s * 2; ty = 34 + (p === this.human ? Input.axis.y * 2.6 : rnd(-2.6, 2.6)); spd = rnd(12, 15); vz = rnd(-1.5, 0.8); }
     else if (kind === 'clear') { tx = p.x + s * 25; ty = clamp(p.y + rnd(-12, 12), 4, 64); spd = 15; vz = 4.5; }
+    else if (kind === 'down') {                                                  // lob-mechanics: cushioned down to his feet, on the side away from his marker
+      const o = p.team.opp.players.filter(e => !e.sentOff && !e.keeper).sort((u, v) => len(u.x - p.x, u.y - p.y) - len(v.x - p.x, v.y - p.y))[0];
+      let ux = o ? p.x - o.x : -b.vx, uy = o ? p.y - o.y : -b.vy; const ul = len(ux, uy) || 1; ux /= ul; uy /= ul;
+      tx = p.x + ux * 0.5; ty = p.y + uy * 0.5; spd = 0.8; vz = -0.6; best = { q: p };
+    }
     else { best = this.bestOption(p); tx = best ? best.q.x : p.x + s * 12; ty = best ? best.q.y : p.y; spd = clamp(len(tx - p.x, ty - p.y) * 0.9, 7, 14); vz = 2.5; }
     const dx = tx - b.x, dy = ty - b.y, l = len(dx, dy) || 1;
     Object.assign(b, { vx: dx / l * spd, vy: dy / l * spd, vz, skid: true, rollV: 0.72 * spd, last: p.team, lastP: p, save: null, target: best ? best.q : null, special: 0, power: 0, saveable: null });   // v0.8.8: a headed ball is an ordinary ball (a spent special kept its special flight)
-    p.face = dirIndex(dx, dy); p.setState('header', 0.5); p.cool = 0.4; this.headBuf = 0; b.tried = null; SFX.head(); b.how = { kind: 'header', x: b.x, y: b.y };
+    p.face = dirIndex(dx, dy); p.setState('header', 0.5); p.cool = kind === 'down' ? 0 : 0.4; this.headBuf = 0;   // (a cushion: he takes it straight away)
+    b.tried = null; b.lob = false; SFX.head(); b.how = { kind: 'header', x: b.x, y: b.y };
     if (kind === 'goal') { this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }
     if (best && p.team === this.home) { this.nextHuman = best.q; this.passRing = { p: best.q, t: 1.0 }; }
   },
