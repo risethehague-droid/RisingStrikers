@@ -932,6 +932,124 @@
         p => m.powerLob(p, { x: 1, y: 0 }, 1), 1),
     ];
   }
+  // ======================================================================= t-008 LOB REMAKE (Luca 24 Oct 05:57: "make the lob a hold until its
+  // the right spot then release is the actual lob kick [...] a smooth aerial battle where you have to mash kick against
+  // the computer"). The Lab plays YOU here through the touch controls (Input.touch: the same path as the phone's
+  // buttons), so it's the game's own input code: LB1-LB3 hold LOB, walk the ring out to ~12 / 25 / 40 m, let go - does it
+  // land on the ring? LB4 a quick tap (the instant lob, as before). LB5 the ring settles on a team-mate, he walks to it,
+  // then times his run and goes for goal. LB6 / LB7 an AERIAL BATTLE you win (the Lab mashes) / lose (no mash). LB8 the
+  // computer's lob into a contest with your defender. (AERIAL.chance is 1 in LB6-LB8, so the battle always happens.)
+  const lbBot = (q, dt) => { if (m.lobAimMate(q, dt) || m.lobRun(q, dt)) return; const b = m.ball;   // a team-mate: the game's own receiving run
+    if (!b.owner && b.target === q) { const pt = m.intercept(q, q.top(true, false), 0.12, 1.9); q.moveTo(pt.x, pt.y, q.top(true, false), dt); } else q.steer(0, 0, dt); };
+  const lbMark = (man, side) => (d, dt) => { const b = m.ball;                    // a defender on him: goal side, a beat after he moves (as the game's marker)
+    if (b.lob && !b.owner && (b.airT || 0) > LOB2.markDelay) d.moveTo(man.x + side * 0.6, man.y + 0.3, d.top(true, false), dt); else d.steer(0, 0, dt); };
+  const lbWho = p => `${p.team === m.home ? 'your' : 'their'} #${p.num}`;
+  function lbTest(id, name, sub, o) {
+    return { id, group: 'LB', name, sub, kind: 'lb', you: true, lvl: o.lvl,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+        const H = m.home.players, A = m.away.players, list = [];
+        const K = o.cpu ? A[6] : H[6]; list.push(K);
+        const mates = (o.mates || []).map(([i, x, y]) => { const q = (o.cpu ? A : H)[i]; list.push(q); return [q, x, y]; });
+        const opps = (o.opps || []).map(([i, x, y]) => { const q = (o.cpu ? H : A)[i]; list.push(q); return [q, x, y]; });
+        const gk = o.gk ? (o.cpu ? H[0] : A[0]) : null; if (gk) list.push(gk);
+        cast(list);
+        put(K, o.from[0], o.from[1], o.cpu ? 4 : 0); atFeet(K);
+        for (const [q, x, y] of mates) { put(q, x, y, o.cpu ? 4 : 0); r.bots.set(q, lbBot); }
+        for (const [q, x, y] of opps) { put(q, x, y, o.cpu ? 0 : 4); }
+        if (o.mark) { const [di, mi] = o.mark; r.bots.set(opps[di][0], lbMark(mates[mi][0], o.cpu ? -1 : 1)); }
+        if (gk) { put(gk, o.cpu ? PITCH_L - LINE_X : LINE_X, 34, o.cpu ? 0 : 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); }
+        Object.assign(m, { aerial: null, lobAim: null, lobAimLast: null, aerialAt: -1e9, slowMo: 0, camTarget: null, lobCharge: -1 });
+        if (o.battle) { LAB.aerialChance = LAB.aerialChance ?? AERIAL.chance; AERIAL.chance = 1; }
+        const you = o.cpu ? opps[0][0] : K;
+        Object.assign(r, { human: you, shooter: K, kicker: K, gk, o, marks: [], rcv: mates[0] ? mates[0][0] : null, n0: 0 });
+        if (o.cpu) r.action = { at: 0.5, fire: () => m.doPass(K, { x: -1, y: 0 }, 'lob', r.rcv) };   // the computer's own lob (to its man)
+      },
+      check: lbCheck };
+  }
+  function lbCheck(r) {
+    const b = m.ball, o = r.o, K = r.kicker, T = Input.touch, f1 = v => v.toFixed(1), f2 = v => v.toFixed(2);
+    const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); return res; };
+    // ---- you: LOB held, the stick walks the ring to o.aimD along o.ax (o.drag: a push first), then let go - or a tap
+    if (!o.cpu) {
+      if (r.ph == null && r.t >= 0.5) { r.ph = 'hold'; T.btn.lob = true; r.pressT = r.t; }
+      else if (r.ph === 'hold') {
+        const A = m.lobAim, ht = r.t - r.pressT;
+        if (o.tap) { if (ht >= 0.08) { T.btn.lob = false; r.ph = 'gone'; r.tapT = ht; } }
+        else if (A) {
+          const d = len(A.x - K.x, A.y - K.y); r.ring0 = r.ring0 || { x: A.x, y: A.y, q: A.q };
+          if (A.q) { r.mag = A.q; r.magFrom = r.magFrom || { x: A.q.x, y: A.q.y }; }
+          if (o.drag && ht < o.drag[2]) { T.x = o.drag[0]; T.y = o.drag[1]; }
+          else if (o.aimD != null && Math.abs(d - o.aimD) > 0.35 && ht < 4) { const sg = d < o.aimD ? 1 : -1; T.x = o.ax[0] * sg; T.y = o.ax[1] * sg; }
+          else { T.x = T.y = 0; if (ht >= (o.holdT || 0.3)) { r.ringD = d; T.btn.lob = false; r.ph = 'gone'; r.holdT = ht; } }
+        } else if (ht > 0.2) { T.btn.lob = false; r.ph = 'gone'; }
+      }
+    }
+    // ---- the battle: you are the man in it; the Lab mashes SHOOT every o.mash-th step (0: not at all)
+    const AB = m.aerial;
+    if (AB) { if (!r.bat) r.bat = { at: { x: AB.D.x, y: AB.D.y }, steps: 0 }; const me = AB.att.p.team === m.home ? AB.att.p : AB.def.p; r.human = me;
+      r.bat.steps++; T.btn.shoot = !!o.mash && AB.phase === 'mash' && r.bat.steps % (o.mash * 2) < o.mash; }
+    else if (r.bat && !r.bat.over) { r.bat.over = true; T.btn.shoot = false; r.bL = m.aerialLast; }
+    // ---- the kick and its flight
+    if (r.kickT == null) { if (!b.owner && !m.pending && b.lastP === K && (r.ph === 'gone' || o.cpu)) { r.kickT = r.t; r.n0 = b.bounced || 0; r.start = { x: b.x, y: b.y }; r.aimed = m.lobAimLast && m.lobAimLast.by === K ? m.lobAimLast : null; r.tgt = b.target; r.lob = !!b.lob; }
+      else return r.t > 7 ? done({ o: 'NO KICK' }) : null; }
+    const ft = r.t - r.kickT; if (!r.land) r.maxZ = Math.max(r.maxZ, b.z);
+    if (!r.land && !r.touch && (b.bounced || 0) > r.n0) r.land = { x: b.x, y: b.y, t: ft };
+    if (!r.touch && b.lastP && b.lastP !== K) r.touch = { p: b.lastP, how: b.how ? b.how.kind : 'touch', z: b.z, own: b.owner === b.lastP, at: { x: b.x, y: b.y } };
+    const shot = r.touch && (r.touch.how === 'header' || r.touch.how === 'volley' || r.touch.how === 'shot' || r.ev('AERIAL SPECIAL'));
+    const end = (head) => { if (b.inNet) return done({ o: head + 'GOAL', hold: 1.4 }); if (r.gk && b.owner === r.gk) return done({ o: head + 'keeper has it' });
+      if (r.ev('PARRIED') || r.ev('SAVED')) return done({ o: head + 'SAVED', hold: 1 }); if (r.out) return done({ o: head + 'OUT · ' + r.out.toLowerCase() });
+      return null; };
+    // LB1-LB3: on the ring?
+    if (o.kind === 'aim') {
+      if (!r.land) return ft > 6 ? done({ o: `${f1(r.maxZ)} m up · never came down` }) : null;
+      const L = r.aimed, err = L ? len(r.land.x - L.x, r.land.y - L.y) : null, d = L ? len(L.x - r.start.x, L.y - r.start.y) : 0;
+      const why = !L ? '' : L.apex > lobApex(d, null) + 0.05 ? 'higher: over the man in its path' : L.apex < lobApex(d, null) - 0.05 ? 'driven: a clear lane, short' : 'the open-play lob for the distance';
+      return done({ o: L ? `ring ${f1(d)} m out (held ${f2(r.holdT)} s) · peak ${f2(r.maxZ)} m (${why}) · ${f2(r.land.t)} s in the air · lands ${f2(err)} m from the ring (${err <= 1 ? 'ok' : 'OFF'})` : 'NOT AN AIMED LOB', hold: 0.6 });
+    }
+    if (o.kind === 'tap') {
+      const head = `TAP (${f2(r.tapT || 0)} s): ${r.aimed ? 'an AIMED lob (OFF: a tap should be the instant lob)' : 'the instant lob'} to ${r.tgt ? lbWho(r.tgt) : 'nobody'} · peak ${f2(r.maxZ)} m · `;
+      if (b.owner === r.rcv) return done({ o: head + `he CONTROLLED it (${r.touch && r.touch.how === 'header' ? 'header' : r.touch && r.touch.z > 0.9 ? 'chest' : 'feet'})` });
+      if (b.owner && b.owner.team !== K.team) return done({ o: head + 'they won it' });
+      return ft > 6 ? done({ o: head + 'NOT CONTROLLED' }) : null;
+    }
+    if (o.kind === 'magnet') {
+      const mg = r.mag ? `ring settled on ${lbWho(r.mag)} (magnet), he walked ${f1(len(r.mag.x - r.magFrom.x, r.mag.y - r.magFrom.y))} m to it while you aimed` : 'NO MAGNET';
+      const head = `${mg} · ${(() => { const P = r.land || (r.touch && r.touch.at); return r.aimed && P ? `${r.land ? 'lands' : 'met'} ${f2(len(P.x - r.aimed.x, P.y - r.aimed.y))} m from the ring` : 'in the air'; })()} · ${r.touch ? `${lbWho(r.touch.p)} met it at ${f1(r.touch.z)} m: ${r.touch.how.toUpperCase()}` : ''} → `;
+      if (r.touch && !shot && r.touch.own) return done({ o: head + 'controlled (no shot)' });
+      const e = end(head); if (e) return e;
+      return ft > 7 ? done({ o: head + 'nothing' }) : null;
+    }
+    // LB6-LB8: the AERIAL BATTLE
+    if (!r.bat) { if (r.touch || r.land || ft > 6) return done({ o: `NO BATTLE · ${r.touch ? `${lbWho(r.touch.p)} ${r.touch.how}` : 'it came down'}` }); return null; }
+    if (!r.bat.over) return null;
+    const L = r.bL; if (!L) return done({ o: 'BATTLE CALLED OFF' });
+    const youAtt = L.att.team === m.home, yn = youAtt ? L.n[0] : L.n[1], cn = youAtt ? L.n[1] : L.n[0], yh = youAtt ? L.hs[0] : L.hs[1], ch = youAtt ? L.hs[1] : L.hs[0];
+    let head = `AERIAL BATTLE (${lbWho(L.att)} v ${lbWho(L.def)}) · you ${yn} presses + ${f1(yh)} head start v the computer ${cn} + ${f1(ch)} · ${L.res === 'att' ? 'ATTACKER' : 'DEFENDER'} WON (${L.by.team === m.home ? 'you' : 'the computer'}) → `;
+    if (L.res === 'def') { const a = Math.round(Math.atan2(L.dir.y, L.dir.x * L.by.team.side) * 180 / Math.PI);
+      head += `CLEARED ${Math.abs(a) < 20 ? 'up the pitch' : (L.dir.y < 0 ? 'to the top touchline' : 'to the bottom touchline')} (${a > 0 ? '+' : ''}${a}° off straight up, he was ${L.at.y < 34 ? 'top' : 'bottom'} side)`;
+      return r.t - r.kickT > 2.5 || b.owner || r.out ? done({ o: head + (r.out ? ` · out (${r.out.toLowerCase()})` : b.owner ? ` · ${lbWho(b.owner)} has it` : ''), hold: 0.8 }) : null; }
+    head += `${b.how && b.how.kind === 'header' ? 'HEADER' : r.ev('AERIAL SPECIAL') ? 'AERIAL SPECIAL' : b.how ? b.how.kind.toUpperCase() : '?'} at goal · `;
+    const e = end(head); if (e) return e;
+    return r.t - r.kickT > 6 ? done({ o: head + 'ball loose' }) : null;
+  }
+  function lbTests() {
+    const aim = (id, d, opps, why) => lbTest(id, `hold LOB, ring to ~${d} m, let go`, `does it land on the ring (within 1 m)? ${why}`, { kind: 'aim', from: [30, 34], aimD: d, ax: [1, 0], opps });
+    return [
+      aim('LB1', 12, [], 'clear lane: a flatter, driven ball'),
+      aim('LB2', 25, [[3, 36, 34.4]], 'a defender in the path, close to you: it climbs over him'),
+      aim('LB3', 40, [], 'a long one'),
+      lbTest('LB4', 'a quick TAP of LOB to a team-mate', 'under 0.18 s: the instant lob, as before (no ring to aim)', { kind: 'tap', tap: true, from: [30, 34], mates: [[9, 52, 34]] }),
+      lbTest('LB5', 'the ring settles on a team-mate, he goes for goal', 'aim near your striker: the ring settles on the spot he\'ll reach, he walks there, then times his run and heads / volleys at goal',
+        { kind: 'magnet', from: [62, 40], mates: [[9, 89, 29]], drag: [0, -1, 0.25], holdT: 0.6, gk: true }),
+      lbTest('LB6', 'AERIAL BATTLE: you win it (the Lab mashes fast)', 'your lob drops between your striker and his marker: MASH! - mash SHOOT, win it, head it at goal',
+        { kind: 'battle', battle: true, mash: 1, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 1.1, gk: true }),
+      lbTest('LB7', 'AERIAL BATTLE: you lose it (no mash)', 'the same drop; you don\'t press: their man wins and clears it - which way?',
+        { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 0.5, gk: true }),
+      lbTest('LB8', 'AERIAL BATTLE the other way: their lob, your defender', 'the computer lobs to its striker, your defender is on him: PRESS! (the Lab mashes every other step)',
+        { kind: 'battle', battle: true, cpu: true, mash: 2, from: [45, 30], mates: [[9, 17, 35]], opps: [[3, 20.2, 34.6]], gk: true, lvl: 'normal' }),
+    ];
+  }
   // ======================================================================= t-012 WING PLAY (Luca 24 Oct: "make the attacking ai look for
   // more wing plays where they play lobs and try to get arial shot"). The REAL team AI on both sides here, not the Lab's
   // bots: WG1 the computer's winger goes down the flank and crosses, its runners attack it (WG1-SP: with 2 bars banked,
@@ -1265,6 +1383,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
+    add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
     add('GK', 'v0.9.1 · KEEPER AI', 'Their keeper with the real AI in 11 situations: walking up with the ball far away, the angle, 1v1s, sweeping, back passes, lobs. The yellow diamond is where he wants to be; the label says what he is doing.', gkTests());
@@ -1299,6 +1418,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (LAB.tune) applyTune(sc.kind === 'free' ? LAB.tune : LAB.def, wx === 'clear');   // (v0.9.9: every other test plays the game's own values)
     for (const mt of m.meters || []) mt.e = 0;
     if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; }           // (t-012: a WG test plays the computer on both sides)
+    if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
+    if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null; Object.assign(m, { aerial: null, lobAim: null, slowMo: 0 }); Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
     sc.setup(r);
     m.human = r.human; m.camX = m.camY = undefined;
     render();

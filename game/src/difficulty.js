@@ -29,7 +29,10 @@ function diffKnobs(t) {
     burst: clamp(0.6 + 0.4 * t.a, 0.6, 1.9), burstCd: clamp(1.15 - 0.15 * t.a, 0.7, 1.1),   // (v0.9.3: a smart dribbler times his take-on burst - more often, sooner again)   // (v0.9.2 chips: how often, and how far off his line the keeper must be first)
     // t-012 crosses (Luca: "Easy crosses less and worse, Rise Warrior picks the right moment"): how often, how far off
     // the runner's spot it lands (metres), and how good a look it waits for (crossLook's score)
-    cross: clamp(0.15 + t.a, 0.5, 1.6), crossErr: clamp(2.6 - 1.2 * t.a, 0.5, 2.2), crossRead: clamp(0.2 + 0.35 * (t.a - 1), -0.2, 0.6) };
+    cross: clamp(0.15 + t.a, 0.5, 1.6), crossErr: clamp(2.6 - 1.2 * t.a, 0.5, 2.2), crossRead: clamp(0.2 + 0.35 * (t.a - 1), -0.2, 0.6),
+    // t-008 AERIAL BATTLE (Luca: "mash kick against the computer"): how fast it mashes, x AERIAL.cpuRate - by its
+    // reactions: Easy ~5.2 a second, Normal 6.5, Hard ~8.3, Rise Warrior ~10 (a fast human manages 7-10)
+    mash: clamp(0.55 + 0.45 * t.r, 0.7, 1.6) };
 }
 // v0.9.3 (Luca: "The difficulties are too easy. Hard poses barely a challenge"): the edges YOU had over the computer were
 // fixed whatever the level - its tackles on you lost 12-30% win chance, it blocked your dribble at 80% of the rate it

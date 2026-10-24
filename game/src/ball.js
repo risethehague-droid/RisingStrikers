@@ -145,6 +145,7 @@ hc2Mix(Match, {
     const mode = k.info.mode;
     if (mode === 'ground') { vz = 0.2; speed = solveGround(d, clamp(4.5 + d * 0.15, 5.5, 11), vz); }   // arrives firm, then dies
     else if (mode === 'through') { vz = 0.25; speed = solveGround(d, 4.5, vz); }                          // slows into the runner's path
+    else if (mode === 'lob' && k.info.aim) { const L = lobSolve(d, k.info.aim.apex); speed = L.speed; vz = L.vz; }   // t-008: the hold-aimed lob lands ON the ring (solved from where the ball is as it leaves the boot)
     else if (mode === 'lob' && k.info.loft) { const L = this.loftLaunch(d, k.info.lobPow); speed = L.speed; vz = L.vz; }   // lob-mechanics: over their heads (t-005: really as high as lobApex says)
     else if (mode === 'lob' && k.info.lobPow != null) { const T = 1.0 + k.info.lobPow * 1.5; vz = G * T / 2; speed = solveLob(Math.max(4, d - 1), vz); }   // v0.8.5 power lob: up to ~8 m high
     else if (mode === 'lob') { const T = clamp(0.7 + d / 25, 0.9, 1.9); vz = G * T / 2 * 1.05; speed = solveLob(Math.max(4, d - 2), vz); }
@@ -165,7 +166,7 @@ hc2Mix(Match, {
     b.owner = null; b.vx = dx / d * speed; b.vy = dy / d * speed; b.vz = vz; b.z = Math.max(b.z, 0.05);
     if (k.p.kickAnim === 'super') b.z = 1.0;                                      // struck in mid-air, at the height of his boot
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
-    b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft;   // lob-mechanics: an open-play lob (its drop is a duel)
+    b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft; b.aimLob = !!k.info.aim;   // lob-mechanics: an open-play lob (its drop is a duel)
     b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null;   // (t-012: the runners attack a cross until someone touches it)
     if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
     k.p.hands = false;
@@ -267,6 +268,64 @@ hc2Mix(Match, {
   lobSpot(p) { const ax = Input.axis, dv = len(ax.x, ax.y) > 0.1 ? ax : dirVec(p.face), l = len(dv.x, dv.y) || 1, d = 12 + this.lobCharge * (LOB_MAX - 12);
     if (this.chipCan(p, dv)) return { x: p.team.goalX, y: clamp(34 + (Math.abs(ax.y) > 0.2 ? ax.y * 2.4 : 0), GOAL_Y0 + 0.4, GOAL_Y1 - 0.4), chip: true };   // v0.9.2 a chip: at the goal
     return { x: clamp(p.x + dv.x / l * d, 1, PITCH_L - 1), y: clamp(p.y + dv.y / l * d, 1, PITCH_W - 1) }; },
+  // ======================================================================= t-008 THE HOLD-TO-AIM LOB (Luca 24 Oct 05:57: "the sensitivity /
+  // speed of the build up of distance power is janky and too quick [...] make the lob a hold until its the right spot
+  // then release is the actual lob kick"). The old hold charged 0 -> 1 in 0.9 s and the distance came with it, so you
+  // couldn't place it. Now pressing LOB puts the landing ring where a lob would go (the team-mate the pass logic picks that
+  // way, or LOB2.startD ahead), the stick walks it at a steady speed (actions.js lobAimTick), and the release is the kick:
+  // solved with the real flight (lobSolve) so it comes down on the ring. Its arc comes from the distance and what's in
+  // the way (lobAimApex). The tap stays the instant lob; the chip in their box and the keeper's throw keep the old hold.
+  lobAimStart(p, dir) {
+    const l = len(dir.x, dir.y) || 1, ux = dir.x / l, uy = dir.y / l, q = this.passTarget(p, { x: ux, y: uy }, 'lob', p === this.human ? this.passAim : null);
+    const qd = q ? len(q.x - p.x, q.y - p.y) : 0;
+    const s = q && qd >= LOB2.minD && qd <= LOB2.maxD ? { x: q.x + q.vx * 0.5, y: q.y + q.vy * 0.5 } : { x: p.x + ux * LOB2.startD, y: p.y + uy * LOB2.startD };
+    return this.lobAimClamp(p, s.x, s.y);
+  },
+  // the ring stays LOB2.minD-maxD from the kicker and on the pitch
+  lobAimClamp(p, x, y) {
+    let dx = x - p.x, dy = y - p.y, d = len(dx, dy); if (d < 1e-3) { const f = dirVec(p.face); dx = f.x; dy = f.y; d = 1; }
+    const dc = clamp(d, LOB2.minD, LOB2.maxD);
+    return { x: clamp(p.x + dx / d * dc, 1, PITCH_L - 1), y: clamp(p.y + dy / d * dc, 1, PITCH_W - 1) };
+  },
+  // how high it goes: over an opponent in its path it climbs clear of his head (LOB2.clearZ where he stands: the arc is
+  // close to a parabola, 4 h t (1 - t) high t of the way along); a short ball with a clear lane is driven, flatter and
+  // quicker; otherwise the open-play lob's height for the distance (lobApex). Men right next to the kicker (he blocks it
+  // off the boot, pickups) or at the drop (that's the duel) don't count.
+  lobAimApex(p, tx, ty) {
+    const b = this.ball, dx = tx - b.x, dy = ty - b.y, d = len(dx, dy) || 1; let need = 0;
+    for (const o of p.team.opp.players) {
+      if (o.sentOff) continue;
+      const al = ((o.x - b.x) * dx + (o.y - b.y) * dy) / d; if (al < 2.5 || al > d - 2.5) continue;
+      const lat = Math.abs((o.x - b.x) * dy - (o.y - b.y) * dx) / d; if (lat > 2.2) continue;
+      const t = al / d; need = Math.max(need, LOB2.clearZ * (1 - lat / 2.2 * 0.3) / (4 * t * (1 - t)));
+    }
+    const base = !need && d < LOB2.drivenD ? LOB2.drivenLo + (LOB2.drivenHi - LOB2.drivenLo) * clamp((d - LOB2.minD) / (LOB2.drivenD - LOB2.minD), 0, 1) : lobApex(d, null);
+    return clamp(Math.max(base, need), 2, LOB2.apexMax);
+  },
+  // the release: the kick to the ring, and the man who'll get there (the one the ring settled on, else the team-mate
+  // who can reach the drop soonest - he starts his run now: teamai.js lobRun)
+  aimLob(p, A) {
+    const tx = A.x, ty = A.y, apex = this.lobAimApex(p, tx, ty), T = 2 * Math.sqrt(2 * apex / G) * 0.95;   // (time up and down: enough to pick the man)
+    let q = A.q && !A.q.sentOff ? A.q : null;
+    if (!q) { let bt = 1e9; for (const m of p.team.players) { if (m === p || m.sentOff || m.keeper) continue;
+      const t = len(m.x - tx, m.y - ty) / (m.top ? m.top(true, false) : RUN); if (t < bt && t < T + 0.6) { bt = t; q = m; } } }
+    this.kick(p, tx, ty, 0, 0, 0.14, { mode: 'lob', target: q, loft: !p.keeper && !this.setPiece, aim: { apex, x: tx, y: ty } });
+    this.lobAimLast = { x: tx, y: ty, apex, q, by: p };
+    if (q && p.team === this.home) { this.nextHuman = q; this.passRing = { p: q, t: 1.0 }; this.passStick = { ...Input.axis }; }
+  },
+  // the arc drawn while you aim: the same solve the release will use, flown with ballStep (cached by the metre and 0.5 m of
+  // height, ~6 ms a miss headless: it's asked every frame and the ring moves; the path is stretched to end on the ring,
+  // and the kick itself solves exactly)
+  aimPreview(p, x, y) {
+    const b = this.ball, apex = this.lobAimApex(p, x, y), dx = x - b.x, dy = y - b.y, d = len(dx, dy) || 1, ux = dx / d, uy = dy / d;
+    const kd = Math.max(1, Math.round(d)), ka = Math.round(apex * 2) / 2, key = kd + '|' + ka + '|' + LOB_H;
+    const C = this.aimPv || (this.aimPv = new Map()); let S = C.get(key);
+    if (!S) { S = lobSolve(kd, ka, undefined, true); if (C.size > 600) C.clear(); C.set(key, S); }
+    const f = { x: 0, y: 0, z: 0.05, vx: S.speed, vy: 0, vz: S.vz, skid: true, rollV: 0 }, pts = [{ x: b.x, y: b.y, z: 0.05 }], h = 1 / 60;
+    for (let i = 1; i <= 300; i++) { const z0 = f.z; ballStep(f, h, false); const k = d / kd;
+      if (i % 2 === 0 || f.z <= 0) pts.push({ x: b.x + ux * f.x * k, y: b.y + uy * f.x * k, z: f.z }); if (z0 > 0 && f.z <= 0) break; }
+    return { pts, apex };
+  },
   // power 0..1 from holding the button; aimY -1..1 from the stick (far post / near post)
   doShot(p, power, aimY) {
     const gx = p.team.goalX; if (!this.setPiece || this.setPiece.kind !== 'PENALTY') this.stat(p.team).shots++;

@@ -247,11 +247,13 @@ hc2Mix(Match, {
         if (p.state === 'kick' || p.state === 'catch' || p.state === 'dive' || p.state === 'slide' || p.state === 'dheader' || p.state === 'chance' || p.state === 'celebrate' || p.state === 'tackle' || p.state === 'dejected' || p.state === 'roar' || p.state === 'beaten' || p.state === 'protest' || p.state === 'hurt' || p.state === 'blasted' || p.stun > 0) continue;
         if (p.keeper) { this.keeperAI(p, dt); continue; }
         if (owner === p) { this.carrierAI2(p, dt); continue; }
-        if (p === aerial && len(p.x - rcv.x, p.y - rcv.y) < 12) {                // stay touch-tight, goal side, to contest it
+        if (this.lobAimMate(p, dt)) continue;                                    // t-008: you're aiming a lob at him - he walks to the ring
+        if (p === aerial && len(p.x - rcv.x, p.y - rcv.y) < 12 && !this.lobMarkLate(p)) {   // stay touch-tight, goal side, to contest it (t-008: a beat after the receiver)
           const pt = b.lob ? { x: rcv.x + rcv.vx * 0.25, y: rcv.y + rcv.vy * 0.25 } : this.intercept(rcv, rcv.top(true, false)),   // lob-mechanics: he goes with the man (he can't read the drop before the receiver does)
             gs = Math.sign(team.ownGoalX - pt.x) || 1;
           p.sprinting = true; p.moveTo(pt.x + gs * 0.6, pt.y, p.top(true, false), dt); continue;
         }
+        if (!owner && b.target === p && b.last === team && !this.crossLive(team) && this.lobRun(p, dt)) continue;   // t-008: a lob to him - timed to arrive under the drop
         if (!owner && b.target === p && b.last === team) {                       // the receiver of a pass runs onto it
           const far = len(b.x - p.x, b.y - p.y) > 8 && p.stamina > 0.3; p.sprinting = far || (this.crossLive(team) && p.stamina > 0.15);
           const v = p.top(p.sprinting, false), pt = this.crossLive(team) ? this.meetCross(p, v) || this.intercept(p, v, 0.12, 2.1) : this.intercept(p, v, 0.12, b.lob ? 1.9 : 1.0); p.moveTo(pt.x, pt.y, v, dt); continue;   // lob-mechanics: attack the drop (t-012: a cross at head height)
@@ -521,4 +523,27 @@ hc2Mix(Match, {
     }
     return best;
   },
+  // ======================================================================= t-008 RECEIVING A LOB (Luca: "work on the receiving the ball ai logic
+  // so its smooth so aerial shots are easier to do and become more common"). He ran to the first point of the drop he
+  // could reach and stood there waiting (or got there late); now he times his run: he heads for where the ball comes
+  // down through head height (near goal, a header at goal) or chest height, at the speed that gets him there just as it
+  // does - so he meets it on the move. False when he can't make it in time (the old intercept takes over).
+  lobRun(p, dt) {
+    const b = this.ball, P = this.path; if (!b.lob || b.owner || b.target !== p || b.last !== p.team || !P || p.keeper) return false;
+    const toG = len(p.team.goalX - p.x, 34 - p.y), hz = toG < 25 ? 2.0 : 1.6;
+    let hi = b.z > hz, pt = null; for (const q of P) { if (q.z > hz) hi = true; else if (hi) { pt = q; break; } }
+    if (!pt) return false;
+    const d = len(pt.x - p.x, pt.y - p.y), T = Math.max(pt.t - 0.1, 0.05), top = p.top(p.stamina > 0.2, false);
+    if (d / T > top * 1.02) return false;
+    const v = clamp(d / T * 1.05, 0, top); p.sprinting = v > p.top(false, false) * 0.98;
+    if (d < 0.4) { p.steer(0, 0, dt); p.look(b.x - p.x, b.y - p.y); } else p.moveTo(pt.x, pt.y, v, dt);
+    return true;
+  },
+  // while you hold LOB, the team-mate the ring has settled on walks to it (so the ring ends on the spot he'll reach)
+  lobAimMate(p, dt) {
+    const A = this.lobAim; if (!A || A.q !== p || this.ball.owner !== this.human) return false;
+    p.moveTo(A.x, A.y, JOG, dt); return true;
+  },
+  // his marker reads the drop a beat after the receiver does (LOB2.markDelay), then goes with him
+  lobMarkLate(p) { const b = this.ball; return !!b.lob && (b.airT || 0) < LOB2.markDelay; },
 });
