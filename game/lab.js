@@ -555,7 +555,7 @@
   // keeper (the frame and the net on their own); every line says what the ball did. GP7-8 force the pop-up (its dice
   // decide in a match), so you always see it.
   function gpShot(id, name, sub, from, tgt, speed, o = {}) {
-    return { id, group: 'GP', name, sub, kind: 'shot', forcePop: o.pop,
+    return { id, group: 'GP', name, sub, kind: 'shot', forcePop: o.pop, forceParry: o.parry,
       setup(r) {
         const s = m.home.players[9], gk = m.away.players[0], a = m.home.players[8], f = dirIndex(GX - from[0], tgt.y - from[1]), dv = dirVec(f);
         cast(o.gk ? (o.att ? [s, gk, a] : [s, gk]) : [s]);
@@ -608,7 +608,7 @@
       gpShot('GP4', 'a square hit on the post with power', '104 km/h square on the post: back out towards the six-yard line, at a height to meet', [91, GOAL_Y0], { y: GOAL_Y0, z: 0.55 }, 29),
       gpShot('GP5', 'off the underside of the bar', 'it comes down onto the line: in or out off the bounce (backspin)', [94, 34.5], { y: 34.5, z: BAR_Z - 0.1 }, 27),
       gpShot('GP6', 'a glancing touch on the bar', 'just clips the top of the bar: over for a goal kick', [88, 33], { y: 33, z: BAR_Z + 0.15 }, 26),
-      gpShot('GP7', 'a parried hard shot pops UP for an attacker following in', 'straight at him, too hard to hold; the pop-up is forced here (in a match: up to ~40%)', [89, 34], { y: null, z: 1.15 }, 28, { gk: 34, att: [90, 37.5], pop: true }),
+      gpShot('GP7', 'a parried hard shot pops UP for an attacker following in', 'at him, too hard to hold: parried (made a plain parry here) and the pop-up is forced (in a match: up to ~40% of plain parries)', [89, 34], { y: 34.7, z: 1.3 }, 33, { gk: 34, att: [90, 37.5], pop: true, parry: true }),
       gp8,
     ];
   }
@@ -1330,6 +1330,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     const gpPop = m.gpPop.bind(m);                                             // t-013 GP7-8: the pop-up made to happen, so it can be seen
     m.gpPop = function (gk, kind, spd) { const r = LAB.run; if (!(r && r.sc.forcePop)) return gpPop(gk, kind, spd); const R = Math.random; let first = true;
       Math.random = () => (first ? (first = false, 0) : R()); try { return gpPop(gk, kind, spd); } finally { Math.random = R; } };
+    const kTouch = m.keeperTouch.bind(m);                                      // t-013 GP7: his touch made a plain parry (t-007's keeper may hold it or turn it round the post)
+    m.keeperTouch = function (p, pbx) { const r = LAB.run, h = kTouch(p, pbx); return h && r && r.sc.forceParry ? 'parry' : h; };
     const clash = m.clash.bind(m);                                             // v0.8.9 SM tests: the save made to win / lose, so each one can be seen
     m.clash = function (gk) { const r = LAB.run, f = r && r.sc.force; if (!f) return clash(gk); const R = Math.random; let n = 0; Math.random = () => (f === 'win' ? 0 : f === 'hand' && n++ ? 0 : 0.9999); /* (t-007 'hand': beaten, then a hand to it) */ try { return clash(gk); } finally { Math.random = R; } };
     const saveCall = m.saveCall.bind(m);                                       // v0.8.8 free play KEEPER SAVE: off, or always that level
