@@ -83,13 +83,23 @@ class Player {
       let cls = !this.moveLook ? 'idle' : shuffle ? 'shuffle' : this.walkLook ? 'walk' : this.sprintLook ? 'sprint' : 'run';
       const now = this.m.time.now;
       if (cls !== this.loco) { if (this.loco && this.anim === this.locoAnim && now - (this.locoAt || 0) < 140 && !this.m.replay) cls = this.loco; else { this.loco = cls; this.locoAt = now; } }
-      if (cls === 'shuffle') { this.play(`shuffle-${dirVec(this.face).x > 0 ? 'E' : 'W'}`, 10); this.spr.anims.timeScale = clamp(this.speed / 1.8, 0.5, 1.8); }
-      else if (cls === 'walk') { if (this.play(`walk-${d}`, 8)) { this.spr.anims.timeScale = clamp(this.speed / 1.5, 0.45, 1.6);
-          if (this.keeper) { const fw = dirVec(this.face), back = this.vx * fw.x + this.vy * fw.y < -0.5 * this.speed; if (!!this.spr.anims.inReverse !== back) this.spr.anims.reverse(); } }   // v0.9.1 keeper backs off facing the ball: the walk plays backwards
-        else this.play(`run-${d}`, 13); }
+      // QA overnight 24 Oct (Luca marked ANIMATION FLICKER clips "bug"; the soak still counted ~200 a match): the lock above
+      // holds the move but not the direction, so a turn landing a frame before a move change (walk-W, walk-SW for one
+      // frame, run-SW) or just after one still blipped. Now every idle / walk / run picture, direction included, stays
+      // up at least 0.11 s. The dust keeps the unheld pick: it draws a random number, so seeded matches play the same.
+      const dustNow = cls === 'sprint'; let fc = this.face;
+      if (this !== this.m.human && !this.m.replay) {                             // (your own player turns the moment you steer)
+        const lk = cls + ':' + fc;
+        if (this.lkKey && lk !== this.lkKey && this.anim === this.locoAnim && now - (this.lkAt || 0) < 110) { cls = this.lkCls; fc = this.lkFace; }
+        else if (lk !== this.lkKey) { this.lkKey = lk; this.lkCls = cls; this.lkFace = fc; this.lkAt = now; }
+      } else this.lkKey = null;
+      const dd = DIRS[fc];
+      if (cls === 'shuffle') { this.play(`shuffle-${dirVec(fc).x > 0 ? 'E' : 'W'}`, 10); this.spr.anims.timeScale = clamp(this.speed / 1.8, 0.5, 1.8); }
+      else if (cls === 'walk') { if (this.play(`walk-${dd}`, 8)) { this.spr.anims.timeScale = clamp(this.speed / 1.5, 0.45, 1.6);
+          if (this.keeper) { const fw = dirVec(fc), back = this.vx * fw.x + this.vy * fw.y < -0.5 * this.speed; if (!!this.spr.anims.inReverse !== back) this.spr.anims.reverse(); } }   // v0.9.1 keeper backs off facing the ball: the walk plays backwards
+        else this.play(`run-${dd}`, 13); }
       else if (cls === 'run' || cls === 'sprint') {
-        if (!(cls === 'sprint' && this.play(`sprint-${d}`, 13))) this.play(`run-${d}`, 13);
-        if (cls === 'sprint' && now > (this.dustAt || 0) && !this.m.replay) { this.dustAt = now + rnd(320, 460); this.m.dust(this); }   // v0.7 PixelLab dust off the boots
+        if (!(cls === 'sprint' && this.play(`sprint-${dd}`, 13))) this.play(`run-${dd}`, 13);
         const pxs = Math.hypot(this.vx * PX_X * scaleAt(this.y), this.vy * PX_Y);   // legs in step with the ground
         this.spr.anims.timeScale = clamp(pxs / STRIDE_PX / 13, 0.3, 2.0);
       }
@@ -98,9 +108,10 @@ class Player {
         if (sp && !sp.kicked && this.keeper && sp.team !== this.team && (sp.kind === 'CORNER' || sp.kind === 'FREE KICK') && KA['korg-S']) this.play('korg-S', 9);
         else if (sp && !sp.kicked && sp.taker === this && sp.kind === 'CORNER' && sp.t < 2.2 && KA['signal-S']) this.play('signal-S', 9, true);
         else if (sp && !sp.kicked && !this.keeper && sp.taker !== this && this.i % 3 !== 0 && KA['hips-S']) this.play('hips-S', 7);
-        else this.play(`idle-${d}`, 5);
+        else this.play(`idle-${dd}`, 5);
         this.spr.anims.timeScale = 1;
       }
+      if (dustNow && now > (this.dustAt || 0) && !this.m.replay) { this.dustAt = now + rnd(320, 460); this.m.dust(this); }   // v0.7 PixelLab dust off the boots
       this.locoAnim = this.anim;
     }
     // some PixelLab moves show the ball in his hands / on his chest (catch, throw, chest trap): the game hides its own ball then
