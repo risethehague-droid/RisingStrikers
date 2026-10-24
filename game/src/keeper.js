@@ -43,6 +43,8 @@ function gkMoveAnim(k, kind, down) {
 }
 
 // ---------------------------------------------------------------- Match methods: keeper
+const GK_BACKPEDAL = 2.9;                       // t-016: m/s a keeper back-pedals / side-steps with a close ball (player.js: under 3 he watches it)
+
 hc2Mix(Match, {
   // a shot: the keeper reads it - a reaction delay and a small misread that grow with the pace - then really moves.
   // No dice: whether he saves it is decided when the ball meets (or misses) his body and gloves (pickups).
@@ -125,7 +127,21 @@ hc2Mix(Match, {
   //  - BACK: a lob / ball over his head while he's up: he runs back to his line.
   // He walks when nothing is on, jogs to get back into place, runs only when it's urgent. k.gkMode / k.gkTgt = what he is
   // doing (the Lab draws it).
-  keeperAI(k, dt) {
+  keeperAI(k, dt) { this.keeperPlan(k, dt); this.gkFaceBall(k); },
+  // t-016 (Luca's Bug Watch mark, 24 Oct: "if ball is close enough, the keeper should not give his back to the ball" - he
+  // turned for his spot with a loose ball a few metres away; the Lab's KF1 had him 144 deg off it, back to it, at 5.4 m/s).
+  // A ball loose or at an attacker's feet within 6 m, on the ground or about to be: he may back-pedal or side-step to his
+  // spot but not turn and run - moving anywhere but at the ball, he's held under 3 m/s, the speed under which player.js
+  // keeps a keeper watching the ball (faster, he faces where he runs). Coming AT the ball (rush, smother) is untouched,
+  // and so are lobs over him (z > 1.5: he must turn and run, the Lab's GK11) and shots (a ball over 6 m/s, or a special).
+  gkFaceBall(k) {
+    const b = this.ball; if (k.sentOff || k.busy() || k.hands || b.inNet || (b.owner && b.owner.team === k.team) || b.z > 1.5 || (b.save && b.save.gk === k)
+      || b.special || (!b.owner && len(b.vx, b.vy) > 6)) return;   // (a shot or a special at him isn't a ball to back off from: the Lab's GK4 / PW7)
+    const dx = b.x - k.x, dy = b.y - k.y, d = len(dx, dy), sp = len(k.vx, k.vy);
+    if (d > 6 || d < 0.3 || sp <= GK_BACKPEDAL || (k.vx * dx + k.vy * dy) / (sp * d) > 0.5) return;   // (far, on top of it, slow already, or going at it)
+    const f = GK_BACKPEDAL / sp; k.vx *= f; k.vy *= f;
+  },
+  keeperPlan(k, dt) {
     const b = this.ball, side = k.team.side, gx = k.team.ownGoalX, lineX = gx + side * 1.3;
     k.gkSet = false;
     if (b.owner === k) {

@@ -284,6 +284,37 @@ hc2Mix(Match, {
         p.moveTo(t.x, t.y, Math.min(cap, AI.ARRIVE * d + 0.4), dt);
       }
     }
+    this.aiAround(dt);
+  },
+  // t-016 (Luca's Bug Watch mark, 24 Oct: "If player path is blocked they should find alternative paths to the ball or to
+  // be useful" - THUAS #3 stood still: a man stood in his straight line, and separate() shoved him back every frame while
+  // his legs kept going). Cheap, no path-finding: the AI has just set where everyone is heading (their velocity); a man
+  // standing in the way 0.3-2.2 m ahead (within 0.9 m of the line, not the man on the ball, not running away from him)
+  // and he bends round him, to the side with more room (and away from the touchline), keeping that side 0.5 s so he
+  // doesn't dither; once past, he's straight back on line. The pressing man still goes AT the man on the ball.
+  aiAround(dt) {
+    const b = this.ball;
+    for (const p of this.all) {
+      if (p.keeper || p.sentOff || p === b.owner || (p === this.human && !this.demo) || p.busy() || p.stun > 0) { p.around = null; continue; }
+      const v = len(p.vx, p.vy); if (v < 1.2) { p.around = null; continue; }
+      const ux = p.vx / v, uy = p.vy / v; let blk = null, bd = 9;
+      for (const o of this.all) {
+        if (o === p || o.sentOff || o === b.owner) continue;
+        const rx = o.x - p.x, ry = o.y - p.y, al = rx * ux + ry * uy, lat = rx * uy - ry * ux;
+        if (al > 0.3 && al < 2.2 && Math.abs(lat) < 0.9 && o.vx * ux + o.vy * uy < v * 0.6 && al < bd) { blk = { o, lat }; bd = al; }
+      }
+      if (p.around) { p.around.t -= dt; if (p.around.t <= 0 && !blk) p.around = null; }
+      if (!blk) continue;
+      if (!p.around || p.around.o !== blk.o) {
+        const room = sd => { let n = 0; const px = -uy * sd, py = ux * sd;             // (team-mates and opponents within 3 m on that side)
+          for (const o of this.all) { if (o === p || o === blk.o || o.sentOff) continue; const rx = o.x - p.x, ry = o.y - p.y; if (rx * px + ry * py > 0 && len(rx, ry) < 3) n++; }
+          const ey = p.y + py * 1.5; return n + (ey < 2 || ey > PITCH_W - 2 ? 3 : 0); };
+        const pref = blk.lat > 0 ? -1 : 1, ra = room(pref), rb = room(-pref);           // (first choice: away from where he stands off the line)
+        p.around = { o: blk.o, sd: rb < ra ? -pref : pref, t: 0.5 };
+      }
+      const sd = p.around.sd, k = 0.85, nx = ux + -uy * sd * k, ny = uy + ux * sd * k, nl = len(nx, ny);
+      p.vx = nx / nl * v; p.vy = ny / nl * v;                                    // the same speed, bent ~40 deg round him
+    }
   },
   carrierAI(p, dt) {
     const team = p.team, gx = team.goalX;
