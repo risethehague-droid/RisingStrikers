@@ -8,12 +8,13 @@
 //   NET_FX=0 node tools/netperf.js        v0.12.0's net
 //   CANVAS=1 node tools/netperf.js        the canvas renderer (phone SAFE MODE: t-013's cells)
 //   LITE=1 node tools/netperf.js          touch screens' half-size art (#lite): the net images ripple whole
+//   TOUCH=1 CANVAS=1 node tools/netperf.js  a phone in SAFE MODE (a touch screen): the net images ripple whole too
 //   GOALS=10                              how many goals (default 10)
 const { chromium } = require('playwright');
 (async () => {
   const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const page = await br.newPage({ viewport: { width: 1280, height: 720 } }); const errs = []; page.on('pageerror', e => errs.push(e.message));
-  if (process.env.CANVAS) await page.addInitScript(() => { window.HC2_SAFE = true; });
+  const page = await br.newPage({ viewport: { width: 1280, height: 720 }, hasTouch: !!process.env.TOUCH }); const errs = []; page.on('pageerror', e => errs.push(e.message));
+  if (process.env.CANVAS) await page.addInitScript(() => { try { localStorage.setItem('hc2-safe', '1'); } catch (e) {} });   // (the page reads SAFE MODE from here)
   await page.goto(`http://localhost:${process.env.PORT || 8765}/test.html#flow${process.env.LITE ? '&lite' : ''}`);
   await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
   const out = await page.evaluate(([fx, goals]) => {
@@ -38,7 +39,7 @@ const { chromium } = require('playwright');
       if (m.replay) m.endReplay();
     }
     const st = a => { const s = a.slice().sort((x, y) => x - y), q = p => s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))].toFixed(2) : '-'; return `n ${s.length} · median ${q(0.5)} · p95 ${q(0.95)} · max ${q(1)} ms`; };
-    return { renderer: g.renderer.type === Phaser.WEBGL ? 'WebGL' : 'Canvas', lite: typeof LITE !== 'undefined' && LITE, netFx: nfxOn(), live: st(t.live), net: st(t.net), replay: st(t.replay), goals: `${m.home.score + m.away.score}`, shots: res };
+    return { renderer: g.renderer.type === Phaser.WEBGL ? 'WebGL' : 'Canvas', lite: typeof LITE !== 'undefined' && LITE, touch: !!window.HC2_TOUCH, plainNet: netPlain(), netFx: nfxOn(), live: st(t.live), net: st(t.net), replay: st(t.replay), goals: `${m.home.score + m.away.score}`, shots: res };
   }, [process.env.NET_FX ?? null, +(process.env.GOALS || 10)]);
   console.log(JSON.stringify(out, null, 1)); console.log('errors', JSON.stringify(errs.slice(0, 4))); await br.close();
 })();

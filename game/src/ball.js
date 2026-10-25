@@ -1113,8 +1113,7 @@ hc2Mix(Match, {
     if (netOn()) { const b = this.ball; b.gpIn = { vx: b.vx, vz: b.vz };      // t-013: the spring net (gpNet) takes the pace off and draws the give
       if (nfxOn()) { const lv = Math.min(3, b.special || 0), str = clamp((speed - NFX.v0) / (NFX.v1 - NFX.v0), 0, 1);   // t-023: how hard, and which special level (it is
         b.nfx = this.nfxLast = { lv, v: speed, str, S: NFX.base + NFX.byV * str + NFX.lv[lv], peak: 0, roll: 0, rolled: false, tore: false, rip: false, side, t: this.gpT || 0 }; }   // an ordinary ball once it's in - matchflow rules)
-      if (!LITE) return; }                                                      // (t-025: touch screens keep v0.12.0's ripple of the images below - their
-                                                                                // half-size art can't be cut into a mesh: world.js netDraw)
+      if (!netPlain()) return; }                                                // (t-025: touch screens keep v0.12.0's ripple of the images below: core.js netPlain)
     const n = this.nets && this.nets[side]; if (!n) return;
     const amp = clamp(Math.round(speed / 6), 2, 5) * (side === 'L' ? -1 : 1);
     this.tweens.killTweensOf(n.imgs); for (const im of n.imgs) im.x = n.x;

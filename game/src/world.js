@@ -54,7 +54,7 @@ hc2Mix(Match, {
       const near = this.add.image(ox, oy, 'props', `goal-${side}-net_near`).setOrigin(0, 0).setDepth(oy + a.sort_near_post_y);
       this.nets[side] = { imgs: [back, near], x: ox };
       this.add.image(ox, oy, 'props', `goal-${side}-post_near`).setOrigin(0, 0).setDepth(oy + a.sort_near_post_y + 1);
-      if (LITE) continue;                                                       // (t-025: touch screens draw the images whole - netDraw)
+      if (netPlain()) continue;                                                 // (t-025: touch screens draw the images whole - netDraw)
       if (nfxOn() && this.renderer.type === Phaser.WEBGL) this.netMesh(this.nets[side]);   // t-023 NET_FX: the art on a mesh (canvas: t-013's cells)
       else if (netOn()) this.netCells(this.nets[side]);                         // t-013: cut now, not on the first goal (~30 ms once)
     }
@@ -74,9 +74,8 @@ hc2Mix(Match, {
   // gpNet), so the mesh itself bends and ripples - no new art. At rest the plain images show and the cells sleep.
   netDraw() {
     // t-025: touch screens (the paused phone version) keep v0.12.0's look - the net images ripple whole (ball.js
-    // netRipple). Their textures come from assets-lo/ at half size, which the mesh / the cells can't be cut from as they
-    // are, and it spares the phones the extra drawing. The net still catches the ball as on a computer.
-    if (LITE) return;
+    // netRipple; core.js netPlain says why). The net still catches the ball as on a computer.
+    if (netPlain()) return;
     const fx = nfxOn();
     for (const side of ['L', 'R']) {
       const n = this.nets && this.nets[side], L = this.netS[side]; if (!n) continue;

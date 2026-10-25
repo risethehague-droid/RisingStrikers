@@ -341,6 +341,10 @@ const GP = {
 let NET_FX = null;
 const nfxOn = () => NET_FX ?? true;
 const netOn = () => nfxOn() || gpOn();                             // the spring net: with NET_FX, or with all of t-013 (GOAL_PHYS)
+// touch screens (the phone version is paused - "don't break it, don't extend it"): the net catches the ball the same,
+// but it is drawn as in v0.12.0 (the images ripple whole). Their art is half size (io.js LITE), which the mesh / the
+// cells can't be cut from, and in SAFE MODE's canvas the cells cost ~4x the frame time of the plain net (tools/netperf.js)
+const netPlain = () => (typeof LITE !== 'undefined' && LITE) || !!window.HC2_TOUCH;
 // every number in one place (ball.js gpNet / nfxRollStep / nfxTear, world.js netMesh / netWarp)
 const NFX = {
   // the stretch: a goal's net spring is softened by S^2 (and its reach grown by S), so the ball sinks S times deeper than
