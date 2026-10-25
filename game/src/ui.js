@@ -621,7 +621,9 @@ hc2Mix(Match, {
   // teams' colours over the pair (live: who's winning), sparks and impacts off the ball from the fx atlas (aerialPop)
   drawAerial(g, INK) {
     const A = this.aerial;
-    if (!A) { if (this.aerUi) for (const k in this.aerUi) this.aerUi[k].setVisible(false); return; }
+    if (A && A.kind !== 'ground') { this.drawAerialAir(g, INK, A); return; }   // t-034: the aerial battle's own (the grass duel below, as it was)
+    if (!A && this.aerFx && this.time.now - this.aerFx.at < 650) { this.drawAerialAir(g, INK, null); return; }   // (t-034: the result word stays up a moment)
+    if (!A) { if (this.aerUi) { for (const k in this.aerUi) this.aerUi[k].setVisible(false); this.aerUi.t.setAlpha(1); } return; }   // (t-034: and back to full after its result word faded)
     if (!this.aerUi) { const F = '"Press Start 2P"';
       this.aerUi = { t: this.add.text(0, 0, 'MASH!', { fontFamily: F, fontSize: '26px', color: '#ffde1e', stroke: '#0c0a0e', strokeThickness: 7 }).setOrigin(0.5).setDepth(8.6e6),
         k: this.add.text(0, 0, '', { fontFamily: F, fontSize: '9px', color: '#0c0a0e', backgroundColor: '#ffde1e', padding: { x: 5, y: 4 } }).setOrigin(0.5, 0).setDepth(8.6e6) }; }
@@ -634,6 +636,48 @@ hc2Mix(Match, {
     const W = 150, x0 = cx - W / 2, y0 = cy, ca = TEAM_COL[A.att.p.team.name] ?? 0x28c8e6, cd = TEAM_COL[A.def.p.team.name] ?? 0xff2878, mx = Math.round(x0 + W * sh);
     g.fillStyle(INK, 0.9).fillRect(x0 - 3, y0 - 3, W + 6, 14).fillStyle(ca, 1).fillRect(x0, y0, mx - x0, 8).fillStyle(cd, 1).fillRect(mx, y0, x0 + W - mx, 8);
     g.fillStyle(0xf4f0e4, 1).fillRect(mx - 2, y0 - 6, 4, 20).fillStyle(INK, 1).fillRect(cx, y0 - 3, 1, 14);   // the marker, and the middle
+  },
+  // t-034 THE AERIAL BATTLE on screen (Luca 25 Oct 19:14: "fix the mash mechanics use space bar and make it feel
+  // impactful ... when you press is not consistent with click output"). MASH SPACE! (or your SHOOT key) over the pair;
+  // the bar is honest: one notch per press, it starts where the head start puts it (the small white tick stays
+  // there), every press of yours moves the marker one notch towards their end, every press of theirs one notch back -
+  // no easing, no ratio - with a jolt on each; the press counts either side. The end of the bar = won outright.
+  // (A = null: the battle just ended - its word stays up for 0.65 s.)
+  drawAerialAir(g, INK, A) {
+    if (!this.aerUi) { const F = '"Press Start 2P"';
+      this.aerUi = { t: this.add.text(0, 0, 'MASH!', { fontFamily: F, fontSize: '26px', color: '#ffde1e', stroke: '#0c0a0e', strokeThickness: 7 }).setOrigin(0.5).setDepth(8.6e6),
+        k: this.add.text(0, 0, '', { fontFamily: F, fontSize: '9px', color: '#0c0a0e', backgroundColor: '#ffde1e', padding: { x: 5, y: 4 } }).setOrigin(0.5, 0).setDepth(8.6e6) }; }
+    const U = this.aerUi, F = '"Press Start 2P"';
+    if (!U.a) { const st = { fontFamily: F, fontSize: '10px', color: '#f4f0e4', stroke: '#0c0a0e', strokeThickness: 4 };
+      U.a = this.add.text(0, 0, '', st).setOrigin(1, 0.5).setDepth(8.6e6); U.d = this.add.text(0, 0, '', st).setOrigin(0, 0.5).setDepth(8.6e6); }
+    const now = this.time.now;
+    if (!A) { const X = this.aerFx, k = (now - X.at) / 650, cx = Math.round(wx(X.x, X.y)), cy = Math.round(wy(X.y)) - 205;
+      U.t.setText(X.word).setPosition(cx, cy - 34).setScale(1.5 - 0.4 * Math.min(1, k * 3)).setAngle(0).setAlpha(k < 0.7 ? 1 : (1 - k) / 0.3).setVisible(true);
+      U.k.setVisible(false); U.a.setVisible(false); U.d.setVisible(false); return; }
+    U.t.setAlpha(1);
+    const D = A.D, cx = Math.round(wx(D.x, D.y)), cy = Math.round(wy(D.y)) - 205, you = !this.demo ? (A.att.p === this.human ? 'att' : A.def.p === this.human ? 'def' : null) : null;
+    const intro = A.phase === 'intro', jk = A.joltAt != null ? clamp(1 - (now - A.joltAt) / 140, 0, 1) : 0;
+    const s = intro ? 0.3 + 0.7 * clamp(A.t / AERIAL.introT, 0, 1) : 1 + 0.06 * Math.sin(now / 45) + 0.18 * (you && A.joltBy === (you === 'att' ? 1 : -1) ? jk : 0);
+    U.t.setText(you ? 'MASH SPACE!' : 'MASH!').setPosition(cx, cy - 34).setScale(s).setAngle(intro ? 0 : Math.sin(now / 60) * 2).setVisible(A.res == null);
+    U.k.setText(you ? `or ${keyset().shoot}` : '').setPosition(cx, cy - 74).setVisible(!!you && A.res == null);   // (over the word: under the bar it sat on the 'you' arrow)
+    const R = A.R, W = 216, st = W / (2 * R), x0 = cx - W / 2, y0 = cy - Math.round(3 * jk), ca = TEAM_COL[A.att.p.team.name] ?? 0x28c8e6, cd = TEAM_COL[A.def.p.team.name] ?? 0xff2878;
+    const mx = Math.round(cx + clamp(A.pos, -R, R) * st), m0 = Math.round(cx + A.pos0 * st);
+    g.fillStyle(INK, 0.92).fillRect(x0 - 3, y0 - 3, W + 6, 14).fillStyle(ca, 1).fillRect(x0, y0, mx - x0, 8).fillStyle(cd, 1).fillRect(mx, y0, x0 + W - mx, 8);
+    g.fillStyle(INK, 0.35); for (let i = 1; i < 2 * R; i++) g.fillRect(Math.round(x0 + i * st), y0, 1, 8);   // a notch per press
+    g.fillStyle(0xf4f0e4, 0.55).fillRect(m0 - 1, y0 + 9, 2, 4);                                            // where the head start put it
+    if (jk > 0) g.fillStyle(0xffffff, 0.6 * jk).fillRect(A.joltBy > 0 ? mx - st : mx, y0, st, 8);          // the notch just won flashes
+    g.fillStyle(0xf4f0e4, 1).fillRect(mx - 2, y0 - 6 - Math.round(4 * jk), 4, 20 + Math.round(4 * jk)).fillStyle(INK, 1).fillRect(cx, y0 - 3, 1, 14);   // the marker, and the middle
+    const who = sd => (you ? (you === sd ? 'YOU ' : 'CPU ') : '');
+    U.a.setText(`${who('att')}${A.att.n}`).setColor(you === 'att' ? '#ffde1e' : '#f4f0e4').setPosition(x0 - 8, y0 + 4).setVisible(true);
+    U.d.setText(`${A.def.n} ${who('def').trim()}`).setColor(you === 'def' ? '#ffde1e' : '#f4f0e4').setPosition(x0 + W + 8, y0 + 4).setVisible(true);
+  },
+  // t-034 the finish: a big burst off the ball (the fx atlas), on top of the flash and the shake
+  aerialBurst(att) {
+    if (!this.textures.exists('fx') || !this.cameras.main.visible) return;
+    const b = this.ball, X = wx(b.x, b.y), Y = wy(b.y) - 10 - b.z * PX_H;
+    const pop = (name, s0, s1, ms, a, ang = 0) => { const im = this.add.image(X, Y, 'fx', name).setScale(s0).setAlpha(a).setDepth(wy(b.y) + 3).setAngle(ang);
+      this.tweens.add({ targets: im, scale: s1, alpha: 0, duration: ms, delay: 60, ease: 'Cubic.easeOut', onComplete: () => im.destroy() }); };
+    pop('impactBig', 0.6, 1.9, 300, 1); pop('sparks', 0.8, 2.3, 360, 1, att ? 0 : 180); pop('sparkle', 0.7, 1.8, 420, 0.9, 45);
   },
   // a press in the battle: sparks off the ball, an impact for every third (the PixelLab fx atlas)
   aerialPop(att) {

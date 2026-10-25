@@ -1214,6 +1214,7 @@
   // land on the ring? LB4 a quick tap (the instant lob, as before). LB5 the ring settles on a team-mate, he walks to it,
   // then times his run and goes for goal. LB6 / LB7 an AERIAL BATTLE you win (the Lab mashes) / lose (no mash). LB8 the
   // computer's lob into a contest with your defender. (AERIAL.chance is 1 in LB6-LB8, so the battle always happens.)
+  // (t-034: the battle only comes in the defending box now - LB6-LB8's drops moved ~4 m in so they stay battles.)
   const lbBot = (q, dt) => { if (m.lobAimMate(q, dt) || m.lobRun(q, dt)) return; const b = m.ball;   // a team-mate: the game's own receiving run
     if (!b.owner && b.target === q) { const pt = m.intercept(q, q.top(true, false), 0.12, 1.9); q.moveTo(pt.x, pt.y, q.top(true, false), dt); } else q.steer(0, 0, dt); };
   const lbMark = (man, side) => (d, dt) => { const b = m.ball;                    // a defender on him: goal side, a beat after he moves (as the game's marker)
@@ -1330,11 +1331,11 @@
       lbTest('LB5', 'the ring settles on a team-mate, he goes for goal', 'aim near your striker: the ring settles on the spot he\'ll reach, he walks there, then times his run and heads / volleys at goal',
         { kind: 'magnet', from: [62, 40], mates: [[9, 89, 29]], drag: [0, -1, 0.25], holdT: 0.6, gk: true }),
       lbTest('LB6', 'AERIAL BATTLE: you win it (the Lab mashes fast)', 'your lob drops between your striker and his marker: MASH! - mash SHOOT, win it, head it at goal',
-        { kind: 'battle', battle: true, mash: 1, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 1.1, gk: true }),
+        { kind: 'battle', battle: true, mash: 1, from: [62, 40], mates: [[9, 93, 30]], opps: [[3, 94.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 1.1, gk: true }),
       lbTest('LB7', 'AERIAL BATTLE: you lose it (no mash)', 'the same drop; you don\'t press: their man wins and clears it - which way?',
-        { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 0.5, gk: true }),
+        { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 93, 30]], opps: [[3, 94.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 0.5, gk: true }),
       lbTest('LB8', 'AERIAL BATTLE the other way: their lob, your defender', 'the computer lobs to its striker, your defender is on him: PRESS! (the Lab mashes every other step)',
-        { kind: 'battle', battle: true, cpu: true, mash: 2, from: [45, 30], mates: [[9, 17, 35]], opps: [[3, 20.2, 34.6]], gk: true, lvl: 'normal' }),
+        { kind: 'battle', battle: true, cpu: true, mash: 2, from: [45, 30], mates: [[9, 12, 35]], opps: [[3, 15.2, 34.6]], gk: true, lvl: 'normal' }),
       // t-019: the same in AUTO (the arrow held at the man: no ring to walk)
       lbTest('LB4-A', 'AUTO · a quick TAP of LOB to a team-mate', 'the quick AUTO lob to the man ahead, landing a step ahead of him', { kind: 'tap', tap: true, from: [30, 34], mates: [[9, 52, 34]], lobAim: 'auto' }),
       lbTest('LB6-A', 'AUTO · AERIAL BATTLE: you win it', 'arrow at your striker, hold, let go: it drops on him and his marker - MASH!',
@@ -2002,6 +2003,79 @@
       hvTest('HV7', 'a header held through the contact (LATE)', 'still holding SHOOT as it reaches you: struck late - weaker and wilder', { ...hdr, press: 0.75, rel: null }),
     ];
   }
+  // ======================================================================= t-034 AERIAL BATTLES (AB). Luca 25 Oct 19:14: "aerial battles only
+  // within gk box ... header on header or volley on volley ... if you win as attack ball goes like a shot towards the
+  // goal and defender thrown to ground ... if defender wins it gets cleared out ... use space bar ... when you press is
+  // not consistent with click output". A team-mate crosses to your striker (you), their centre-back on him goal side,
+  // their keeper on his line. The Lab presses REAL KEYS (keydown / keyup on the page, SPACE) by the battle's own clock:
+  // o.mash 'fast' a tap every 0.085 s, 'none' nothing, 'script' AB5's list - single taps, two taps inside one frame, a
+  // held key with the OS key repeat (repeat: true) - so the line can say the bar moved exactly as many steps as presses.
+  // Each line: in their box or not, header / volley, presses each side, the bar's start and end, who won and how fast,
+  // the shot (km/h, where it crossed the line) and what came of it, the beaten man on the ground for how long.
+  const abKey = (type, repeat) => window.dispatchEvent(new KeyboardEvent(type, { code: 'Space', key: ' ', repeat: !!repeat }));
+  const abTap = () => { abKey('keydown'); abKey('keyup'); };
+  const AB_SCRIPT = [[0.05, 'tap'], [0.15, 'tap'], [0.25, 'tap'], [0.35, 'tap2'], [0.5, 'down'], [0.55, 'rep'], [0.6, 'rep'], [0.65, 'rep'], [0.7, 'rep'], [0.75, 'up'], [0.85, 'tap'], [0.95, 'tap']];
+  const AB_SCRIPT_N = 8;                                                         // 3 taps + 2 in one frame + 1 held (4 repeats) + 2 taps
+  function abTest(id, name, sub, o) {
+    return { id, group: 'AB', name, sub, kind: 'ab', you: true, lvl: o.lvl || 'normal', pace: o.pace, maxT: 16,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); abKey('keyup'); Input.mashTake();
+        const H = m.home.players, Aw = m.away.players, you = H[9], c = H[7], d = Aw[3], gk = Aw[0], at = o.at || [92, 31];
+        cast([you, c, d, gk]); put(you, at[0], at[1], 0); put(d, at[0] + 0.7, at[1] + 0.6, 4); put(c, o.from[0], o.from[1]); faceTo(c, at[0], at[1]); atFeet(c);
+        put(gk, LINE_X, 33, 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+        for (const mt of m.meters || []) mt.e = 0;
+        Object.assign(m, { aerial: null, aerialLast: null, aerialAt: -1e9, aerialKick: null, aerFx: null, slowMo: 0, camTarget: null });
+        LAB.aerialChance = LAB.aerialChance ?? AERIAL.chance; AERIAL.chance = 1;   // (the battle always happens when it can; start() puts the chance back)
+        Object.assign(r, { human: you, striker: you, shooter: you, gk, gx: PITCH_L, marks: [{ x: at[0], y: at[1], r: 0.5 }], fired: false });
+        if (o.lob) { r.human = c; r.bots.set(you, lbBot); r.bots.set(d, lbMark(you, 1)); }   // (AB4: you lob it; your striker times his run, his marker goes with him - LB's bots)
+        r.action = { at: 0.6, fire: () => { const b = m.ball;
+          if (o.lob) m.kick(c, at[0], at[1], 0, 0, 0.12, { mode: 'lob', target: you, loft: true });
+          else { const a = aimAir(b.x, b.y, at[0], at[1], o.z, o.T); m.kick(c, at[0], at[1], a.speed, a.vz, 0.13, { target: you, cross: 'lab' }); } } };
+      },
+      check(r) {
+        const b = m.ball, A = m.aerial, f1 = v => v.toFixed(1), sg = v => (v > 0 ? '+' : '') + v;
+        if (A && A.kind !== 'ground') {                                          // ---- the battle: the Lab's presses on its clock
+          if (!r.bat) r.bat = { t0: r.t, done: new Set() };
+          if (o.mash === 'fast') { const k = Math.floor(A.t / 0.085); if (k > (r.bat.k ?? -1) && A.res == null) { r.bat.k = k; abTap(); } }
+          if (o.mash === 'script') AB_SCRIPT.forEach(([t, a], i) => { if (A.t >= t && !r.bat.done.has(i)) { r.bat.done.add(i);
+            if (a === 'tap') abTap(); else if (a === 'tap2') { abTap(); abTap(); } else if (a === 'down') abKey('keydown'); else if (a === 'rep') abKey('keydown', true); else abKey('keyup'); } });
+          return null;
+        }
+        if (r.bat && !r.bat.over) { r.bat.over = true; abKey('keyup'); r.L = m.aerialLast; r.endT0 = r.t; r.loser = r.L && r.L.loser; }
+        if (!r.bat) {                                                            // ---- no battle (AB4: outside the box)
+          if (!r.fired) return null;
+          if (!r.touch && b.lastP && b.lastP !== r.striker.team.players[7] && b.lastP.team) r.touch = { p: b.lastP, how: b.how ? b.how.kind : (b.owner ? 'control' : 'touch'), at: { x: b.x, y: b.y }, z: b.z };
+          if (r.touch || r.t > 8) { const t = r.touch, box = t && Math.abs(t.at.x - PITCH_L) < AERIAL.boxX && Math.abs(t.at.y - 34) < AERIAL.boxY;
+            return { o: `NO BATTLE · met ${t ? `at ${f1(t.at.x)}, ${f1(t.at.y)} (${box ? 'IN' : 'outside'} their box), ${f1(t.z)} m up: ${t.p.team === m.home ? 'your' : 'their'} #${t.p.num} ${String(t.how).toUpperCase()} (the quick duel: lobDuel)` : 'nobody'}`, hold: 0.8 }; }
+          return null;
+        }
+        const L = r.L; if (!L) return { o: 'BATTLE CALLED OFF' };
+        if (r.loser && r.floorT == null && r.loser.state !== 'fall' && r.loser.state !== 'getup' && r.loser.state !== 'hit') r.floorT = r.t - r.endT0;
+        if (r.shot == null && L.how === 'shot') r.shot = hvOnTarget(PITCH_L);
+        const box = Math.abs(L.at.x - PITCH_L) < AERIAL.boxX && Math.abs(L.at.y - 34) < AERIAL.boxY, mv = L.move === 'volley' ? 'VOLLEY v VOLLEY' : 'HEADER v HEADER';
+        const yn = L.n[0], cn = L.n[1], moved = L.pos - L.pos0, honest = L.ko ? Math.abs(L.pos) === L.R && moved === yn - cn : moved === yn - cn;
+        let head = `in box ${box ? 'Y' : 'N'} · ${mv} at ${f1(L.move === 'volley' ? AERIAL.holdZv : AERIAL.holdZ)} m · you ${yn} v CPU ${cn} presses${o.mash === 'script' ? ` (script: ${AB_SCRIPT_N} real presses, ${yn === AB_SCRIPT_N ? 'all counted, no repeats' : 'COUNT OFF'})` : ''} · bar ${sg(L.pos0)} → ${sg(L.pos)} of ±${L.R} (${honest ? `moved ${sg(moved)} = ${yn} − ${cn}: 1 step a press` : 'NOT 1:1'})${L.ko ? ' · WON OUTRIGHT' : ''} in ${f1(L.T)} s · ${L.res === 'att' ? 'ATTACKER (you)' : 'DEFENDER (CPU)'} WON → `;
+        if (L.res === 'def') { const a = L.dir ? Math.round(Math.atan2(L.dir.y, L.dir.x * -1) * 180 / Math.PI) : 0;
+          head += `CLEARED ${L.spd} km/h, ${Math.abs(a) < 25 ? 'up the pitch' : L.dir.y < 0 ? 'to the top touchline' : 'to the bottom touchline'}`;
+          if (!r.clr && (b.z <= 0.05 || b.owner || r.out)) r.clr = { x: b.x, y: b.y };
+          if (r.clr && r.floorT != null) return { o: head + ` · came down ${f1(Math.abs(PITCH_L - r.clr.x))} m from the goal line (${Math.abs(PITCH_L - r.clr.x) > AERIAL.boxX ? 'out of the box' : 'STILL IN THE BOX'}) · you stumbled ${f1(r.floorT)} s`, hold: 0.6 };
+          return r.t - r.endT0 > 5 ? { o: head + ' · ?' } : null; }
+        head += L.how === 'special' ? 'AERIAL SPECIAL' : `${L.move === 'volley' ? 'VOLLEY' : 'HEADER'} AT GOAL ${L.spd} km/h (${r.shot}) · their #${r.loser ? r.loser.num : '?'} on the ground ${r.floorT != null ? f1(r.floorT) + ' s' : '…'} → `;
+        const res = r.floorT != null ? gkxOut(r) : null; if (res) return { ...res, o: head + res.o };
+        return r.t - r.endT0 > 6 ? { o: head + (b.owner ? `${b.owner.team === m.home ? 'your side' : 'their side'} has it` : 'loose') } : null;
+      } };
+  }
+  function abTests() {
+    const hdr = { from: [99, 6], z: 1.9, T: 1.3 };
+    return [
+      abTest('AB1', 'a cross in the box at head height, you win it', 'HEADER v HEADER: MASH SPACE! (the Lab taps ~12 a second) - you win: a header at goal at a shot\'s pace, their man floored', { ...hdr, mash: 'fast' }),
+      abTest('AB2', 'the same, the defender wins it', 'no presses: the computer\'s centre-back wins and clears it high and long, out of the box; you stumble', { ...hdr, mash: 'none' }),
+      abTest('AB3', 'a waist-high ball in the box', 'a driven cross met at the waist: VOLLEY v VOLLEY, same mash - you win: a volley at goal', { from: [100, 14], z: 1.0, T: 0.8, mash: 'fast' }),
+      abTest('AB4', 'a contested lob OUTSIDE the box', 'a lob to your man and his marker at 24 m out: NO battle - the quick duel (lobDuel) as before', { from: [62, 40], at: [80, 31], lob: true, mash: 'fast' }),
+      abTest('AB5', 'the mash script: real key presses', '3 taps, 2 taps inside one frame, SPACE held with 4 OS key repeats (one press), 2 taps = 8 presses: the bar moves 8 steps your way, the computer\'s presses 1 each back', { ...hdr, mash: 'script' }),
+      abTest('AB6', 'ARCADE: the same cross, a shorter mash', 'AB1 on ARCADE: the window ~1.0 s (CLASSIC 1.2 s)', { ...hdr, mash: 'fast', pace: 'arcade' }),
+    ];
+  }
   function ksOut(r) {
     const b = m.ball, gk = r.gk, g = gk.rig;
     if (g && RIGS[g.n] && RIGS[g.n].gk && g.e0 == null) r.pre = g.n;           // started before the ball got there
@@ -2492,6 +2566,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       asTest('AS5', 'LV3 · a very high ball → PHOENIX', 'the leap and dive', { lv: 3, from: [99, 6], z: 1.8, T: 1.5 }),
       asTest('AS6', 'LV3 · a sky-high loop → METEOR DRIVE', 'somersault axe kick', { lv: 3, from: [96, 8], z: 1.8, T: 2.4 }),
     ]);
+    add('AB', 't-034 · AERIAL BATTLES', 'Only in their box (outside: the quick duel). The height it is met at picks it: HEADER v HEADER at head height, VOLLEY v VOLLEY at the waist. MASH SPACE! (or your SHOOT key): every press is one step of the bar your way, every one of the computer\'s one step back, from where the head start puts it; the end of the bar wins outright. Attacker wins: a header / volley at goal at a shot\'s pace, the defender floored ~1.3 s. Defender wins: cleared high and long.', abTests());
     add('HV', 't-022 · CHARGED HEADERS + VOLLEYS', 'Hold SHOOT as the ball comes in, let go as it reaches you: the hold is the power (like a ground shot), the timing keeps it - just before the contact = full power and on target, early or late = weaker and wilder, too much = over the bar. A tap is today\'s header / volley. A well-timed one: a white flash, a few sparks, a tiny hit-stop.', hvTests());
     add('KS', 't-014 · KEEPER SPECIAL SAVES BY THE SHOT', 'Their keeper has a special save ready; the shot picks the move: a lob → kleap, straight → kblock, wide → kdivecatch, too strong to hold → ktip (a corner). Who wins stays as before.', ksTests());
     add('KC', 't-028 · THE KEEPER CLASH', 'With a special save on, the keeper gets to anything on target (a dash across his goal). A special shot against it is held on his gloves for a beat - sparks, slow-mo, POWER AGAINST POWER (ENTER skips) - then power decides: HELD, BOUNCES OFF (parried or tipped), HANDS BLOWN AWAY (goal), or THE BODY (blasted into the net with it).', kcTests());
