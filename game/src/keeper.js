@@ -26,17 +26,23 @@ const GK_MOVES = {
   leap: ['kleap', 'claim', 'catch'],      // straight up: jump and catch it over his head
   tip: ['ktip', 'diveUp', 'punch'],       // straight up: fingertips over the bar (diveUp-E / -W is a full upward stretch, no ball in his hands)
   punch: ['kpunch2', 'punch'],            // a high ball fisted clear
+  smother: ['ksmother', 'kdivecatch', 'DIVE'],   // t-017: down at the striker's feet, hands first (a 1v1; batch 18 ksmother)
+  block: ['kstar', 'kblock', 'kset'],     // t-017: a shot from close, straight at him: big - the starfish (batch 18 kstar)
+  collapse: ['kcollapse', 'kdivecatch', 'DIVE'],   // t-017: a low ball just to his side: legs out, down on his side (batch 18 kcollapse)
 };
 // t-014 (taskmaster's call on Luca's 24 Oct brief): the batch 16 keeper moves (kleap, ktip, kdivecatch, kblock) are the
 // SPECIAL save's look (specials.js gkSpecialMove), so they read as special; normal saves keep the existing frames. Flip
-// this to true to let GK_MOVES use them on every normal save too
-const GK_NEW_ON_NORMAL = false, GK_NEW = /^k(leap|tip|divecatch|block)/;
+// this to true to let GK_MOVES use them on every normal save too.
+// t-017 (Luca 25 Oct 02:58: "it need animations and logic into diving etc ... if they are ready start developing the new
+// gk logic"): on. Every dive, leap, tip, smother and close block uses the PixelLab batch 16 moves; a special save still
+// has its own banner, rig and effects on top.
+const GK_NEW_ON_NORMAL = true, GK_NEW = /^k(leap|tip|divecatch|block)/;
 function gkMoveAnim(k, kind, down) {
   const A = MAN.kits[k.kit].anims, sides = [k.team.side > 0 ? 'E' : 'W', DIRS[k.face], 'S'];
   for (const n0 of GK_MOVES[kind] || ['DIVE']) {
     if (n0 === 'DIVE') return diveAnimFor(k, down);
     if (!GK_NEW_ON_NORMAL && GK_NEW.test(n0)) continue;
-    const n = n0 === 'kdivecatch' ? `kdivecatch${down ? 'Down' : 'Up'}` : n0;   // (the dive catch comes as Down / Up, like diveAnimFor's dives)
+    const n = n0 === 'kdivecatch' || n0 === 'kcollapse' ? `${n0}${down ? 'Down' : 'Up'}` : n0;   // (the dive catch and the collapse come as Down / Up, like diveAnimFor's dives)
     for (const d of sides) if (A[`${n}-${d}`]) return `${n}-${d}`;
   }
   return diveAnimFor(k, down);
@@ -90,6 +96,39 @@ hc2Mix(Match, {
     k.vx = 0; k.vy = dy / Math.max(fly, 0.25); k.saveKind = kind; k.leap = clamp(sv.z - 1.9, 0.25, 0.7);
     k.diveAnim = gkMoveAnim(k, kind, dy > 0); k.gkMode = kind === 'tip' ? 'TIP' : 'LEAP';
   },
+  // t-017: down at the striker's feet - a dive at where the ball will be in a quarter of a second, hands first. He
+  // slides ~2 m; gkSmotherTake (called from ball.js's pickups) decides whether his hands get it before the striker does
+  gkSmotherDive(k) {
+    const b = this.ball; let T = 0.4;                                            // where his dive meets the ball: the first moment it can
+    for (let t = 0.05; t <= 0.4; t += 0.05) if (len(b.x + b.vx * t - k.x, b.y + b.vy * t - k.y) <= 0.9 + 7.0 * Math.max(0, t - 0.06)) { T = t; break; }
+    const px = b.x + b.vx * T, py = b.y + b.vy * T;
+    const dx = px - k.x, dy = py - k.y, d = len(dx, dy) || 1, v = Math.min(7.5, Math.max(2.5, (d + 0.3) / 0.32));
+    k.setState('dive', 0.95); k.diveLen = 0.95; k.diveFly = 0.32; k.diveZ = 0.2; k.leap = 0;
+    k.diveDir = Math.sign(dy) || (k.y < 34 ? 1 : -1); k.saveKind = 'smother'; k.smDone = false; k.smU = Math.random(); k.smAt = this.time.now; k.smWant = 0;
+    k.smDir = { x: dx / d, y: dy / d }; k.vx = dx / d * v; k.vy = dy / d * v;
+    k.diveAnim = gkMoveAnim(k, 'smother', dy > 0); k.gkMode = 'SMOTHER';
+  },
+  // t-017: his hands reach the ball at the striker's feet. A touch that's got away from him (over ~0.7 m off his foot):
+  // the keeper's. Tight at his feet: a contest, better keepers win more (Normal ~half, Rise ~3 in 4). Once per dive.
+  gkSmotherTake(o) {
+    const b = this.ball, k = o.team.opp.players[0];
+    if (!k || !k.keeper || k.sentOff || k.state !== 'dive' || k.saveKind !== 'smother' || k.smDone || b.z > 0.7) return false;
+    const age = (k.diveLen || 0.95) - k.stateT; if (age < 0.06 || age > 0.62) return false;
+    const ux = k.smDir ? k.smDir.x : 0, uy = k.smDir ? k.smDir.y : 0, rx = b.x - k.x, ry = b.y - k.y;
+    const along = rx * ux + ry * uy, perp = Math.abs(rx * uy - ry * ux);         // his body on the grass: from his knees (0.4 m back) to his hands (1 m ahead)
+    if (along < -0.4 || along > 1.0 || perp > 0.62) return false;
+    k.smDone = true;
+    const od = len(b.x - o.x, b.y - o.y), q = this.dk(k.team).gkSave;
+    if (!(od > 0.7 || k.smU < clamp(0.45 + 0.25 * (q - 1) + od * 0.3, 0.3, 0.85))) return false;   // he got it away from him: round the keeper
+    k.vx *= 0.2; k.vy *= 0.2; this.gain(k, 0); o.stun = Math.max(o.stun, 0.25);
+    this.gkCount(k.team, 'smothered'); this.say('', 'SMOTHERED!', 0.8);
+    return true;
+  },
+  // t-017: a shot from close (under ~9 m) straight at him: no dive - planted and big (the batch 16 power block)
+  gkBlock(k) {
+    k.setState('dive', 0.7); k.diveLen = 0.7; k.diveFly = 0.05; k.diveDir = 0; k.diveZ = 0.8; k.leap = 0; k.vx = k.vy = 0;
+    k.saveKind = 'block'; k.diveAnim = gkMoveAnim(k, 'block', false); k.gkMode = 'BLOCK';
+  },
   // how far sideways he can get his hands in time T (seconds after he reacts), for a ball at height z
   keeperCover(T, z) { return Math.min(GK_DIVE_V * Math.max(0, T - 0.05), 3.0) + GK_REACH - Math.max(0, z - 1.7) * 0.6; },
   // t-005 (lob step 1, docs/lob-chip.md: "the keeper reads a lob instantly"): how long he needs to read a lob, by level -
@@ -128,6 +167,7 @@ hc2Mix(Match, {
   keeperAI(k, dt) {
     const b = this.ball, side = k.team.side, gx = k.team.ownGoalX, lineX = gx + side * 1.3;
     k.gkSet = false;
+    if (k.state === 'getup') { k.steer(0, 0, dt); return; }                      // t-017: back on his feet first (player.js)
     if (b.owner === k) {
       k.gkMode = 'BALL'; k.gkTgt = null;
       if (!k.hands) {                                                          // ball at his feet: pass it out quickly - or clear it under pressure
@@ -156,6 +196,7 @@ hc2Mix(Match, {
         else if (ady < 1.1 && z > 2.05) {                                     // over his head: jump for it - timed, so he's at the top as it arrives
           if (left > 0.5) { k.moveTo(k.x, sv.y, 6.5, dt); return; }
           sv.act = 'leap'; this.gkLeap(k, sv, dy, left); return; }
+        else if (ady < 0.9 && z < 1.7 && len(b.x - k.x, b.y - k.y) < 9) { sv.act = 'block'; this.gkBlock(k); return; }   // t-017: from close, at him: a wall
         else if (ady < 0.45) sv.act = 'set';
         else if (ady < 1.3 && left > 0.4) sv.act = 'step';
         else {
@@ -165,7 +206,7 @@ hc2Mix(Match, {
           k.setState('dive', 0.85); k.diveLen = 0.85; k.diveFly = fly + 0.08; k.diveDir = Math.sign(dy); k.diveZ = clamp(z, 0.2, 2.1);
           // t-007: low (down at the post), mid, or high (up and across: he leaves the grass, player.js)
           k.saveKind = z < 0.7 ? 'diveLow' : z > 1.6 ? 'diveHigh' : 'dive'; k.leap = k.saveKind === 'diveHigh' ? clamp((z - 1.4) * 0.4, 0.1, 0.4) : 0;
-          k.vx = 0; k.vy = k.diveDir * v; k.diveAnim = gkMoveAnim(k, k.saveKind, dy > 0); k.gkMode = k.saveKind.toUpperCase();
+          k.vx = 0; k.vy = k.diveDir * v; k.diveAnim = gkMoveAnim(k, k.saveKind === 'diveLow' && ady < 1.6 ? 'collapse' : k.saveKind, dy > 0); k.gkMode = k.saveKind.toUpperCase();   // (t-017: a low one close to him: the collapse)
           return;
         }
       }
@@ -205,12 +246,16 @@ hc2Mix(Match, {
     }
     // everything else: where he should stand, and how fast to get there
     const T = this.gkPlan(k, dt); k.gkMode = T.mode;
-    const urgent = T.mode === 'SWEEP' || T.mode === 'SMOTHER' || T.mode === 'RUSH' || T.mode === 'BACK';
+    if (T.dive) { k.gkFace = false; this.gkSmotherDive(k); return; }              // t-017: down at his feet
+    const urgent = T.urgent || T.mode === 'SWEEP' || T.mode === 'SMOTHER' || T.mode === 'RUSH' || T.mode === 'BACK';
+    // t-017: he faces the ball while he tracks it (side-steps and drops back facing it, player.js) - he used to turn his
+    // back on it whenever he moved faster than a jog (Luca's Bug Watch note: "the keeper should not give his back to the ball")
+    k.gkFace = !!T.track && (len(b.x - k.x, b.y - k.y) < 22 || len(T.x - k.x, T.y - k.y) < 3);   // (far out of place with the ball far off: he turns and runs)
     if (urgent || !k.gkS) k.gkS = { x: T.x, y: T.y };                            // positioning targets ease, so he doesn't twitch with every touch
-    else { const a = 1 - Math.exp(-dt * 4); k.gkS.x += (T.x - k.gkS.x) * a; k.gkS.y += (T.y - k.gkS.y) * a; }
+    else { const a = 1 - Math.exp(-dt * (T.track ? 7 : 4)); k.gkS.x += (T.x - k.gkS.x) * a; k.gkS.y += (T.y - k.gkS.y) * a; }   // (t-017: quicker when the ball's near: he was ~1 m off the angle)
     k.gkTgt = { x: k.gkS.x, y: k.gkS.y, set: T.set };
     const D = len(k.gkS.x - k.x, k.gkS.y - k.y);
-    if (T.v <= 0 || (!urgent && D < (k.speed > 0.4 ? 0.2 : 0.45))) { k.steer(0, 0, dt); }   // (a dead band: no shuffling on the spot)
+    if (T.v <= 0 || (!urgent && D < (T.track ? 0.12 : k.speed > 0.4 ? 0.2 : 0.45))) { k.steer(0, 0, dt); }   // (a dead band: no shuffling on the spot)
     else k.moveTo(k.gkS.x, k.gkS.y, T.v, dt);
     k.gkSet = !!T.set && k.speed < 0.7;
   },
@@ -245,20 +290,50 @@ hc2Mix(Match, {
         break;                                                                     // (the first point he reaches decides it)
       }
     }
-    // 1v1: an attacker on the ball with nobody between him and the goal
-    if (!carrier) k.rushT = 0;
+    // t-017 1v1 (Luca 25 Oct 02:58, urgent: "it does not track naturally anymore, many time you could just walk around
+    // it and score"). The v0.9.1 RUSH ran out ~11 m, then BLOCK stood stock still from 3.2 m away, and a keeper can't
+    // tackle - a striker just walked round him (Test Lab KP1-5: 5 goals in 5 on v0.10.4 and v0.11.0). Now, from
+    // goalkeeping coaching (close the gap while the ball is off his foot, be set when he can shoot, stay on the line
+    // between ball and goal, go down at his feet when he tries to go round):
+    //  - CLOSE: on the line that halves the angle, nearer the ball the nearer it is to goal. He follows the ball a beat
+    //    ahead (where the dribbler's next touch puts it), with no easing, so he mirrors every sideways move at once.
+    //  - SET: the striker has it under control within shooting range: small steps, in his stance.
+    //  - SMOTHER: within ~3 m, a touch off the foot, a move round him or right on top of him: he dives at the ball
+    //    (gkSmotherDive) and wins it if his hands get there first (gkSmotherTake, in ball.js's pickups).
+    if (!carrier) { k.rushT = 0; k.smWant = 0; k.oneDeep = false; }
     if (carrier) {
       const ch = H(carrier.x), cd = len(carrier.x - gx, carrier.y - 34);
       const cover = defs.some(p => H(p.x) < ch - 0.3 && len(p.x - carrier.x, p.y - carrier.y) < 9 && Math.abs((p.y - 34) - (carrier.y - 34) * H(p.x) / Math.max(ch, 1)) < 3.5);
-      const coming = ((gx - carrier.x) * carrier.vx + (34 - carrier.y) * carrier.vy) / (cd || 1) > 1.5;   // running at goal (a striker standing on the ball: he sets instead)
-      if (!cover && ch > 2 && cd < 30 && Math.abs(carrier.y - 34) < 20 && (coming || (k.rushT > 0 && cd < 14))) {   // (once out, he doesn't turn back when the dribbler slows)
-        const ux = (carrier.x - gx) / (cd || 1), uy = (carrier.y - 34) / (cd || 1), gap = len(carrier.x - k.x, carrier.y - k.y);
-        const out = clamp(cd - 4.5, 2.0, 14);                                      // meet him ~4-5 m in front of him on the ball line
-        const tx = gx + ux * out, ty = 34 + uy * out;
-        if (gap < 5.2) return { mode: 'BLOCK', x: k.x + (tx - k.x) * 0.3, y: k.y + (ty - k.y) * 0.3, v: gap > 3.2 ? 1.6 : 0, set: true };   // close: small steps, then still, low and big
+      const toG = ((gx - carrier.x) * carrier.vx + (34 - carrier.y) * carrier.vy) / (cd || 1), coming = toG > 1.3 && toG > 0.65 * carrier.speed;   // running AT goal (not across the box)
+      const engaged = !!k.oneDeep;                                                    // (once out, he doesn't turn back when the dribbler slows)
+      if (ch > 0.3 && Math.abs(carrier.y - 34) < 20 && (cd < 9 || (!cover && cd < (coming || engaged ? 26 : 14)))) {
         k.rushT = (k.rushT || 0) + dt;
-        return { mode: 'RUSH', x: tx, y: ty, v: gap > 10 ? kv : 3.2, set: false };
+        const bx = b.x + b.vx * 0.12, by = b.y + b.vy * 0.12, bdd = len(bx - gx, by - 34);
+        const od = len(b.x - carrier.x, b.y - carrier.y), gapNow = len(b.x - k.x, b.y - k.y);
+        const deep = coming || (engaged && cd < 18); k.oneDeep = deep;
+        // when could his dive get his hands on it? (the ball's path a beat at a time against how far a dive reaches by then)
+        let Tm = 9; for (let t = 0; t <= 0.45; t += 0.05) if (len(b.x + b.vx * t - k.x, b.y + b.vy * t - k.y) <= 0.9 + 7.0 * Math.max(0, t - 0.06)) { Tm = t; break; }
+        const smOk = !k.smAt || this.time.now - k.smAt > 1400;                        // (not straight after a dive)
+        // go down when it's almost on him, when a touch gets away from the striker inside his reach, or right on top of
+        // him. A striker cutting across further out is mirrored (CLOSE / BLOCK below), not dived at - a dive that early
+        // is a guess, and a quick cut beats it every time (Test Lab KP2)
+        const want = smOk && b.z < 0.6 && (Tm <= 0.18 || (od > 0.75 && Tm <= 0.35) || gapNow < 1.3);
+        k.smWant = want ? (k.smWant || 0) + dt : 0;
+        if (want && k.smWant >= react * 0.5) return { mode: 'SMOTHER', x: b.x, y: b.y, v: kv, dive: true };   // (a weaker keeper reads it a beat later)
+        const still = carrier.speed < 1.2 && od < 0.6;                               // he's stopped with it under control: don't charge in, be set
+        let g, mode;
+        if (gapNow < 6.5 && bdd < 13 && deep && !still) {                                         // close: step up to ~1.4 m in front of the ball and make him commit (he used to back off to his line)
+          const u = this.gkBisector(bx, by, gx, side, Math.max(0.6, bdd - 1.4)); g = u; mode = 'BLOCK';
+        } else {
+          const gap = clamp(1.4 + bdd * 0.3, 1.9, 7);                                // how far in front of the ball he wants to be
+          const depth = clamp(bdd - gap, 1.0, deep ? 9 : 5.5);                        // (out to ~the penalty spot for a breakaway; a striker walking across the box: ~5 m)
+          g = this.gkBisector(bx, by, gx, side, depth); mode = gapNow < 4 ? 'BLOCK' : 'CLOSE';
+        }
+        const set = gapNow > 2.6 && gapNow < 10 && od < 0.75 && carrier.speed < 3.2 && (still || !deep);
+        const D = len(g.x - k.x, g.y - k.y);
+        return { mode: set && mode === 'CLOSE' ? 'SET' : mode, x: g.x, y: g.y, v: set ? Math.min(1.4 + D * 2, 3) : clamp(1.4 + D * 3.2, 0, kv), set: set && D < 0.6, track: true, urgent: true };
       }
+      k.oneDeep = false;
       k.rushT = 0;
     }
     // ANGLE + SWEEPER: stand on the angle's bisector at a depth set by how close the ball is; with the ball far away,
@@ -275,8 +350,9 @@ hc2Mix(Match, {
     const cdC = carrier ? len(carrier.x - gx, carrier.y - 34) : 99, breaking = carrier && cdC < 55 && ((gx - carrier.x) * carrier.vx + (34 - carrier.y) * carrier.vy) / (cdC || 1) > 2.5;   // they're running at his goal
     const shot = carrier && len(carrier.x - gx, carrier.y - 34) < 25 && Math.abs(carrier.y - 34) < 18;   // a shot could come any moment
     const D = len(tx - k.x, ty - k.y);
-    const v = threat || breaking ? (D > 2.5 ? 5.4 : 2.6) : (D > 6 ? JOG : 1.9);    // walk when nothing is on; jog back into place; run when they break
-    return { mode: w > 0.5 ? (ours ? 'UP' : 'SWEEPER') : shot ? 'SET' : 'ANGLE', x: tx, y: ty, v, set: !!shot && D < 0.8 };
+    // t-017: with a threat on he gets there at a speed set by how far he has to go (it was 5.4 or 2.6 m/s: a lurch, then a crawl)
+    const v = threat || breaking ? clamp(1.0 + D * 2.8, 0, 5.4) : (D > 6 ? JOG : 1.9);   // walk when nothing is on; jog back into place; run when they break
+    return { mode: w > 0.5 ? (ours ? 'UP' : 'SWEEPER') : shot ? 'SET' : 'ANGLE', x: tx, y: ty, v, set: !!shot && D < 0.8, track: bd < 32 };
   },
   // a point on the bisector of the angle between the ball and his two posts, `depth` m out from his goal line
   gkBisector(bx, by, gx, side, depth) {
@@ -297,7 +373,13 @@ hc2Mix(Match, {
     if (!((pbx - p.x) * (b.x - p.x) <= 0 || Math.abs(b.x - p.x) < 0.4)) return null;
     const rel = b.y - p.y, spd = len(b.vx, b.vy, b.vz), diving = p.state === 'dive', up = diving && (p.saveKind === 'leap' || p.saveKind === 'tip');
     let touch, clean;
-    if (up) {                                                                 // jumping: hands up to ~3 m
+    if (diving && p.saveKind === 'block') {                                   // t-017: planted and big - wider than standing, nothing held at pace
+      touch = Math.abs(rel) < 1.0 && b.z < 1.95;
+      clean = Math.abs(rel) < 0.5 && b.z < 1.5 && spd < 18;
+    } else if (diving && p.saveKind === 'smother') {                          // t-017: spread on the grass at his feet
+      touch = Math.abs(rel) < 1.15 && b.z < 0.9;
+      clean = false;
+    } else if (up) {                                                                 // jumping: hands up to ~3 m
       touch = Math.abs(rel) < 0.8 && b.z > 1.1 && b.z < 3.1;
       clean = p.saveKind === 'leap' && Math.abs(rel) < 0.6 && b.z < 2.8;
     } else if (diving) {
@@ -309,7 +391,7 @@ hc2Mix(Match, {
       clean = b.z < 2.2 && Math.abs(rel) < 0.7;
     }
     if (!touch) return null;
-    const sv = b.save, kind = up ? p.saveKind : diving ? 'dive' : 'stand';
+    const sv = b.save, kind = up ? p.saveKind : diving && p.saveKind !== 'block' ? 'dive' : 'stand';
     if (sv && sv.close) return b.z > 1.9 ? 'tip' : 'wide';                    // going wide / over anyway: he makes sure of it
     const hold = clean && !b.special && (sv && sv.u != null ? sv.u < this.gkHoldChance(p, spd, kind) : spd < (diving ? 17 : 24));
     if (hold) return 'catch';

@@ -79,6 +79,7 @@ class Player {
       const a = this.labAnim, k = [d, dirVec(this.face).x >= 0 ? 'E' : 'W', 'S'].find(q => K.anims[`${a}-${q}`]);
       if (!k || !this.play(`${a}-${k}`, this.labFps || 12, true)) this.play(`idle-${d}`, 5);
     }
+    else if (this.state === 'getup' && this.getupAnim && this.play(this.getupAnim, 16, true)) { }   // t-017: the keeper back up off the grass after a dive (batch 18 kgetup)
     else if (ONCE[this.state]) { const [nm, fps] = this.state === 'header' && K.anims['header-S'] ? ['header', 15] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state]; if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
     else if (this.waitingThrowIn()) { if (!this.play(`throwinhold-${this.y < 34 ? 'S' : 'N'}`, 1, true)) this.play(`idle-${d}`, 5); }   // ball held over his head
     else if (this.keeper && this.hands && this.speed < 0.5) { if (!(this.claimHigh && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); }   // holds it as he caught it
@@ -91,9 +92,11 @@ class Player {
       this.moveLook = this.speed > (this.moveLook ? 0.3 : 0.6);
       this.sprintLook = this.moveLook && this.sprinting && this.speed > RUN * (this.sprintLook ? 0.92 : 1.04);   // (sprint: no flicking around top running speed)
       this.walkLook = this.moveLook && !this.sprintLook && !this.m.penaltyMode && !!K.anims[`walk-${d}`] && this.speed < WALK_V * (this.walkLook ? 1.12 : 0.9);   // v0.7.4 PixelLab walk below a jog
-      const fv = this.keeper && this.speed < 3.2 && K.anims['shuffle-E'] ? dirVec(this.face) : null;   // v0.7.4 keeper side-shuffle along his line (made facing E, W = mirror)
-      const shuffle = this.moveLook && fv && Math.abs(fv.x) > 0.3 && Math.abs(fv.x * this.vx + fv.y * this.vy) < 0.55 * this.speed;
-      let cls = !this.moveLook ? 'idle' : shuffle ? 'shuffle' : this.walkLook ? 'walk' : this.sprintLook ? 'sprint' : 'run';
+      const fv = this.keeper && this.speed < (this.gkFace ? 5.6 : 3.2) && K.anims['shuffle-E'] ? dirVec(this.face) : null;   // v0.7.4 keeper side-shuffle along his line (made facing E, W = mirror)
+      const fwd = fv ? fv.x * this.vx + fv.y * this.vy : 0;                      // t-017: dropping back quickly while he faces the ball: the backpedal (PixelLab batch 18 kback), or the shuffle without it
+      const back = this.moveLook && fv && this.gkFace && Math.abs(fv.x) > 0.3 && fwd < -0.5 * this.speed && this.speed > WALK_V * 0.9;
+      const shuffle = this.moveLook && fv && Math.abs(fv.x) > 0.3 && (Math.abs(fwd) < 0.55 * this.speed || (back && !K.anims['kback-E']));
+      let cls = !this.moveLook ? 'idle' : back && K.anims['kback-E'] ? 'kback' : shuffle ? 'shuffle' : this.walkLook ? 'walk' : this.sprintLook ? 'sprint' : 'run';
       const now = this.m.time.now;
       if (cls !== this.loco) { if (this.loco && this.anim === this.locoAnim && now - (this.locoAt || 0) < 140 && !this.m.replay) cls = this.loco; else { this.loco = cls; this.locoAt = now; } }
       // QA overnight 24 Oct (Luca marked ANIMATION FLICKER clips "bug"; the soak still counted ~200 a match): the lock above
@@ -108,6 +111,7 @@ class Player {
       } else this.lkKey = null;
       const dd = DIRS[fc];
       if (cls === 'shuffle') { this.play(`shuffle-${dirVec(fc).x > 0 ? 'E' : 'W'}`, 10); this.spr.anims.timeScale = clamp(this.speed / 1.8, 0.5, 1.8); }
+      else if (cls === 'kback') { this.play(`kback-${dirVec(fc).x > 0 ? 'E' : 'W'}`, 12); this.spr.anims.timeScale = clamp(this.speed / 2.4, 0.6, 1.8); }   // t-017
       else if (cls === 'walk') { if (this.play(`walk-${dd}`, 8)) { this.spr.anims.timeScale = clamp(this.speed / 1.5, 0.45, 1.6);
           if (this.keeper) { const fw = dirVec(fc), back = this.vx * fw.x + this.vy * fw.y < -0.5 * this.speed; if (!!this.spr.anims.inReverse !== back) this.spr.anims.reverse(); } }   // v0.9.1 keeper backs off facing the ball: the walk plays backwards
         else this.play(`run-${dd}`, 13); }
@@ -182,7 +186,10 @@ class Player {
       if (this.stateT <= 0) {                                       // after a slide or a fall you get up first
         if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted' || (this.state === 'kick' && this.bike)) { const won = this.state === 'slide' && this.slideWon; this.bike = false; this.setState('getup', won ? 0.25 : 0.45);
           const b = this.m.ball; if (this.slideKeep && !b.owner && len(b.x - this.x, b.y - this.y) < 1.8 && b.z < 0.5) { this.cool = 0; this.m.gain(this, 0); }   // v0.8.2 the block tackle: yours
-          this.slideKeep = false; } else this.state = 'idle';
+          this.slideKeep = false; }
+        else if (this.keeper && this.state === 'dive' && !this.hands && /^(diveLow|dive|diveHigh|smother)$/.test(this.saveKind || '') && MAN.kits[this.kit].anims['kgetup-E']) {   // t-017: off the grass, not a pop-up
+          this.getupAnim = `kgetup-${this.team.side > 0 ? 'E' : 'W'}`; this.setState('getup', 0.38); }
+        else { this.state = 'idle'; this.getupAnim = null; }
       }
       if (this.state === 'dive') { const age = (this.diveLen || 0.85) - this.stateT, k = Math.exp(-dt * (age > (this.diveFly || 0.4) ? 16 : 0.4)); this.vx *= k; this.vy *= k; }
       else if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted') { const k = Math.exp(-dt * 3.2); this.vx *= k; this.vy *= k; }
@@ -200,7 +207,9 @@ class Player {
     // v0.8.7 (BUG WATCH found it: keepers + slow players flickered between idle / walk / shuffle and two facings several
     // times a second): ONE wish for the way he faces each frame, and a slow player only turns once the new way has
     // held for 0.12 s. You (and anyone running fast) still turn at once.
-    const kw = this.keeper && !this.busy() && b.owner !== this && !human && this.speed < 3 && len(b.x - this.x, b.y - this.y) > 0.3;
+    // t-017: while he tracks the ball (keeper.js sets gkFace) he keeps facing it at any speed - side-steps and drops back
+    // facing it - instead of turning his back on it above a jog (Luca's Bug Watch note, 24 Oct)
+    const kw = this.keeper && !this.busy() && b.owner !== this && !human && (this.speed < 3 || this.gkFace) && len(b.x - this.x, b.y - this.y) > 0.3;
     let wv = kw ? [b.x - this.x, b.y - this.y] : null;                            // keepers watch the ball (unless rushing out)
     // v0.8.2 jockey: containing the dribbler he stays side-on and facing him while he backs off or slides across (a real
     // back-pedal tops out around 6 m/s). Running AT him to close down is a normal run; faster than that he turns and runs.

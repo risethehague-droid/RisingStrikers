@@ -754,6 +754,66 @@
           if (r.t > 4 && !b.owner && b.z < 0.2 && len(b.vx, b.vy) < 1) return { o: 'ball loose · ' + sum() }; return null; }, secs: 7 }),
     ];
   }
+  // ======================================================================= t-017 KEEPER 1v1 + TRACKING (Luca 25 Oct 02:58, urgent:
+  // "very broken gk logic ... it does not track naturally anymore, many time you could just walk around it and score").
+  // Their keeper (right-hand goal) with the real AI against one striker who tries to walk round him: straight at him,
+  // then past his side, then a tap into the empty net. Each line says who won: GOAL (he was walked round), or he won it
+  // (blocked / smothered / took it off his feet), plus how he moved: how close he got, how long he stood still while the
+  // striker was within 4 m, and the modes he went through.
+  const kpRound = o => () => {                                                   // the striker: in, round him, finish
+    const st = { phase: 'in', t: 0 };
+    return (p, dt) => {
+      const b = m.ball, gk = m.away.players[0]; st.t += dt;
+      if (st.phase === 'shot') { p.steer(0, 0, dt); return; }
+      if (b.owner !== p) {                                                       // a heavy touch / a knock: go and get it back
+        if (!b.owner && !b.inNet && !p.busy()) { const pt = m.intercept(p, 6.2); p.moveTo(pt.x, pt.y, 6.2, dt); } else p.steer(0, 0, dt); return; }
+      if (p.busy()) { p.steer(0, 0, dt); return; }
+      const d = len(gk.x - p.x, gk.y - p.y);
+      let tx = gk.x, ty = gk.y, v = o.v;
+      if (st.phase === 'in' && d < o.cut) { st.phase = o.feint ? 'feint' : 'round'; st.side = o.side || (p.y >= gk.y ? 1 : -1); st.t = 0; }
+      if (st.phase === 'feint') { tx = gk.x; ty = gk.y - st.side * 3.2; if (st.t > 0.35) { st.phase = 'round'; st.t = 0; } }
+      if (st.phase === 'round') { tx = gk.x + 0.6; ty = gk.y + st.side * 3.4; v = Math.max(o.v, 4.2); if (p.x > gk.x - 0.3) st.phase = 'finish'; }
+      if (st.phase === 'finish') {                                               // past him: walk it in, tap it into the far side
+        tx = GX + 1; ty = gk.y > 34 ? 31.2 : 36.8;
+        if (GX - p.x < 7.5 || len(gk.x - p.x, gk.y - p.y) > 2.2 && GX - p.x < 11) { st.phase = 'shot'; m.kick(p, GX + 1.5, ty, 14, 0.3, 0.12, { shot: true, power: 0.3 }); return; }
+      }
+      const dx = tx - p.x, dy = ty - p.y, dl = len(dx, dy) || 1; p.wantDir = { x: dx / dl, y: dy / dl }; m.carrySteer(p, dx / dl, dy / dl, v, dt);
+    };
+  };
+  function kpTest(id, name, sub, o) {
+    return gkTest(id, name, sub, {
+      gk: o.gk, secs: o.secs || 9,
+      cast: () => [[m.home.players[9], o.from[0], o.from[1], 0, o.bot || kpRound(o)]],
+      ball: r => { atFeet(m.home.players[9]); r.kp = { minD: 99, stillT: 0, maxOff: 0, offN: 0, offS: 0 }; },
+      end: (r, sum) => {
+        const gk = r.gk, b = m.ball, s = m.home.players[9], K = r.kp, dS = len(gk.x - s.x, gk.y - s.y);
+        K.minD = Math.min(K.minD, len(gk.x - b.x, gk.y - b.y));
+        if (dS < 4 && gk.speed < 0.3 && gk.state !== 'dive') K.stillT += STEP;
+        if (o.track && b.owner === s) { const g = m.gkBisector(b.x, b.y, GX, -1, 3), ux = g.x - b.x, uy = g.y - b.y, ul = len(ux, uy) || 1; const off = Math.abs(((gk.x - b.x) * uy - (gk.y - b.y) * ux) / ul);   // (how far he is off the line that halves the angle, wherever he stands on it)
+          K.maxOff = Math.max(K.maxOff, off); K.offS += off; K.offN++; }
+        const tail = () => `${o.track ? `off the angle: avg ${(K.offS / Math.max(1, K.offN)).toFixed(2)} m, max ${K.maxOff.toFixed(2)} m · ` : ''}closest to the ball ${K.minD.toFixed(1)} m · stood still near him ${K.stillT.toFixed(1)} s · ${sum()}`;
+        if (b.owner === gk) return { o: 'KEEPER WON IT · ' + tail(), hold: 1 };
+        if (!b.owner && b.lastP === gk && r.t > 0.3) return { o: 'KEEPER GOT TO IT · ' + tail(), hold: 1 };
+        if (b.inNet) return { o: 'GOAL (walked round him) · ' + tail(), hold: 1.4 };
+        if (o.track && r.t > (o.secs || 9) - 0.05) return { o: 'TRACKED · ' + tail() };
+        if (r.out) return { o: 'OUT · ' + tail() };
+        if (r.t > (o.secs || 9) - 0.05) return { o: 'no result · ' + tail() };
+        return null;
+      },
+    });
+  }
+  function kpTests() {
+    const across = () => () => { let dir = 1; return (p, dt) => { const b = m.ball; if (b.owner !== p) { p.steer(0, 0, dt); return; }
+      if (p.y > 47) dir = -1; if (p.y < 21) dir = 1; const ty = p.y + dir * 5; const dx = 88 - p.x, dy = ty - p.y, dl = len(dx, dy) || 1; p.wantDir = { x: dx / dl, y: dy / dl }; m.carrySteer(p, dx / dl, dy / dl, 3.4, dt); }; };
+    return [
+      kpTest('KP1', 'walk at him, round his side', 'the striker dribbles at 3 m/s from 22 m and goes round him at 2.5 m: he must not just stand there', { from: [83, 34], v: 3.0, cut: 2.5, side: 1 }),
+      kpTest('KP2', 'run at him, round him early', 'at 5.5 m/s, cutting round him from 3.5 m away', { from: [78, 35], v: 5.5, cut: 3.5, side: -1 }),
+      kpTest('KP3', 'slow walk, round him late', 'at 2 m/s, straight at him, cutting round at 1.8 m', { from: [86, 33], v: 2.0, cut: 1.8, side: 1 }),
+      kpTest('KP4', 'from the angle, round the near side', 'coming in from the right of the box (y 46) at 3.5 m/s, going round him on the near-post side', { from: [86, 47], v: 3.5, cut: 2.8, side: 1 }),
+      kpTest('KP5', 'feint one way, go the other', 'shows him the left at 3 m, then goes round his right', { from: [82, 34], v: 3.6, cut: 3.0, side: 1, feint: true }),
+      kpTest('KP6', 'dribbling across the edge of the box', 'the striker walks the ball side to side along the D (17 m): he must stay on the angle (the line that halves it), smoothly', { from: [88, 22], bot: across(), track: true, secs: 9 }),
+    ];
+  }
   // ======================================================================= t-007 KEEPER SAVES (Luca 24 Oct 05:57: "the gk ai needs major
   // improvements should be able to jump and understand the x y z more, diving left right lower higher ... the gk should try
   // catch more if the kick is weaker ... there are virtually no corners happening"). Their keeper (right-hand goal) with
@@ -1587,6 +1647,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
     add('TK', 't-010 · TAP KICK', 'SHOOT tapped (let go within 0.15 s) = a snappy, low stab along your arrow that dies on the grass: a close-range finish. Held = the power shot as before. In the keeper\'s reach he holds most; out of it, it goes in. (On in the Test Lab only.)', tkTests());
+    add('KP', 't-017 · KEEPER 1v1 + TRACKING', 'Their keeper against a striker who tries to walk round him (straight at him, past his side, a tap into the empty net) and one walking the ball across the edge of the box. GOAL = he was walked round; he should block, smother or take it off his feet, and stay on the angle smoothly.', kpTests());
     add('GK', 'v0.9.1 · KEEPER AI', 'Their keeper with the real AI in 11 situations: walking up with the ball far away, the angle, 1v1s, sweeping, back passes, lobs. The yellow diamond is where he wants to be; the label says what he is doing.', gkTests());
     add('SM', 'v0.8.9 · SPECIAL MOVES (ROUGH RIGS)', 'Placeholders made from our PixelLab frames + effects until the real ones come from PixelLab: 3 aerial specials, 3 keeper special saves with their cut scene. v0.9.0: the keeper saves stop normal shots too (SM8-11).', [
       smAir('SM1', 1), smAir('SM2', 2), smAir('SM3', 3),
