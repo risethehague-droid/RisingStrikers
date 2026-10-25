@@ -73,8 +73,15 @@ const Input = {
   map: { pass: ['KeyZ', 'KeyJ'], shoot: ['KeyX', 'KeyK', 'Space'], lob: ['KeyC', 'KeyL'], through: ['KeyV', 'KeyI'],
          sprint: ['ShiftLeft', 'ShiftRight'], start: ['Enter', 'Escape', 'KeyP'], special: ['KeyB', 'KeyU'], meter: ['KeyT'], flag: ['KeyF'] },   // (t-006: F = INSTA FLAG)
   padMap: { pass: [0], shoot: [1], through: [2], lob: [3], sprint: [5, 7], start: [9], special: [4], flag: [8] },   // (pad BACK / SELECT = INSTA FLAG)
+  // t-034 THE MASH COUNT (Luca 25 Oct 19:14: "the mash mechanic itself when you press is not consistent with click
+  // output"): the aerial battle read SHOOT once a frame (a rising edge), so two taps between frames were one press and
+  // nothing told a press from the OS key repeat but the frame it landed on. Now every keydown of a SHOOT key that isn't
+  // an auto-repeat counts once, here, as it happens (+ a pad / touch SHOOT going down, once a frame in poll);
+  // mashTake() hands the presses over since it was last asked. A held key or its repeat is never a second press.
+  mashN: 0, padShoot: false, touchShoot: false,
+  mashTake() { const n = this.mashN; this.mashN = 0; return n; },
   init() {
-    addEventListener('keydown', e => { this.keys.add(e.code); this.downs.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); });
+    addEventListener('keydown', e => { this.keys.add(e.code); this.downs.add(e.code); if (!e.repeat && this.map.shoot.includes(e.code)) this.mashN++; if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); });
     addEventListener('keyup', e => this.keys.delete(e.code));
     addEventListener('blur', () => this.keys.clear());
   },
@@ -93,6 +100,7 @@ const Input = {
       this.padName = p.id;
       const b = i => p.buttons[i] && p.buttons[i].pressed;
       for (const a in this.padMap) c[a] = c[a] || this.padMap[a].some(b);
+      const ps = this.padMap.shoot.some(b); if (ps && !this.padShoot) this.mashN++; this.padShoot = ps;   // (t-034: a pad's SHOOT going down = one mash press)
       if (b(14)) ax -= 1; if (b(15)) ax += 1; if (b(12)) ay -= 1; if (b(13)) ay += 1;
       const sx = p.axes[0] || 0, sy = p.axes[1] || 0;
       if (len(sx, sy) > 0.3) { ax += sx; ay += sy; }
@@ -100,6 +108,7 @@ const Input = {
     const t = this.touch;
     if (len(t.x, t.y) > 0.25) { ax += t.x; ay += t.y; }
     for (const a in t.btn) c[a] = c[a] || t.btn[a];
+    const ts = !!t.btn.shoot; if (ts && !this.touchShoot) this.mashN++; this.touchShoot = ts;                  // (t-034: and the touch SHOOT button's)
     const l = len(ax, ay);
     this.axis = l > 0.2 ? { x: ax / Math.max(1, l), y: ay / Math.max(1, l) } : { x: 0, y: 0 };
     this.cur = c;

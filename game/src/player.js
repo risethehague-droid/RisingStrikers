@@ -136,6 +136,7 @@ class Player {
     }
     else if (this.state === 'getup' && this.slideUp && this.tacklePlay('slideup', d, this.slideWon ? TACKLE.upWon : TACKLE.upMiss)) { }   // t-018: up off the grass after a slide
     else if (this.state === 'getup' && this.getupAnim && ((this._from = this.getupFrom || 0), this.play(this.getupAnim, 18, true))) { this._from = 0; }   // t-017: the keeper back up off the grass after a dive (batch 18 kgetup)
+    else if (this.state === 'aerial' && this.aerPose && this.posePlay(K, d, this.aerPose)) { }   // t-034: up for the aerial battle, held on the contact
     else if (ONCE[this.state]) { const ap = (this.state === 'header' || this.state === 'dheader') && airPick(K, this.state, d, this.airHit);   // (t-022: the header / dive from AIR_PICKS)
       const [nm, fps] = ap ? [ap.a, ap.fps] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state];
       if (ap && this.state === 'header') this._from = airContact(K, nm, d) || 0;   // batch 20: the ball leaves his head the moment the header starts, so the move opens on the frame that meets it (the snap shows with the thump, flash and hit-stop; the take-off frames before it are skipped)
@@ -300,6 +301,17 @@ class Player {
     const now = this.m.time.now;
     if (want !== this.lookCand) { this.lookCand = want; this.lookAt = now; return; }
     if (now - this.lookAt >= 120) { this.face = want; this.lookCand = null; }
+  }
+  // t-034 THE AERIAL BATTLE's pose: both men play the header (or volley) the AIR_PICKS table gives a power strike at
+  // that height, frame by frame up to its contact frame as they rise (P.f: 0 -> 1 over the battle's lead-in), then
+  // held on it while they fight for the ball - so both contacts meet the ball together. Only picks frames by name.
+  posePlay(K, d, P) {
+    const r = airPick(K, P.kind, d, P.h); if (!r) return false;
+    const nm = K.anims[`${r.a}-${d}`] ? `${r.a}-${d}` : `${r.a}-S`, fr = K.anims[nm]; if (!fr || !fr.length) return false;
+    const c = airContact(K, r.a, d), i = clamp(Math.round(P.f * (c ?? Math.floor(fr.length / 2))), 0, fr.length - 1), key = `${this.kit}:${nm}`;
+    if (this.anim !== key) { this.setOrg(nm); this.spr.anims.stop(); this.anim = key; }
+    if (!this.spr.frame || this.spr.frame.name !== fr[i]) this.spr.setFrame(fr[i]);
+    return true;
   }
   // a one-off move: always restarts its animation
   setState(s, t) { this.state = s; this.stateT = t; this.anim = ''; if (this.rig && ((RIGS[this.rig.n] || {}).brk || RIG_BREAK).test(s)) this.rig = null; }   // (v0.8.9: a rough rig stops when he's knocked over; t-014: a keeper's special-save move only when he's knocked over - his dive / punch states carry on under it)

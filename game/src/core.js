@@ -248,8 +248,8 @@ const AERIAL = {
   reach: 3.0,          // (measured just before the drop: either may still be closing in, so this is a little wider)
   chance: 0.9,         // not every contest becomes a battle: the rest are the quick duel (lobDuel)
   cool: 5,             // never two within this many seconds of play
-  mashT: 1.2,          // how long you mash (s, real time)
-  introT: 0.25,        // the slow-motion lead-in before MASH! (s)
+  mashT: 1.2,          // how long you mash (s, real time; t-034: from the MASH SPACE! prompt, presses count from then)
+  introT: 0.25,        // the slow-motion lead-in before MASH! (s; t-034: in the aerial battle, the rise to the contact - presses already count)
   outroT: 0.2,         // the result frozen a beat before play goes on (s)
   holdZ: 2.15,         // the ball hangs at this height while they fight for it
   cpuRate: 6.5,        // the computer's presses per second at base (NORMAL); its level scales it (difficulty.js `mash`)
@@ -260,6 +260,25 @@ const AERIAL = {
   hsSpring: 0.6,       // ...for fresh legs (stamina: a higher jump)
   hsMax: 3,
   clearRand: 0.5,      // the loser clears it: this much random direction, the rest by position (up the pitch, to the near touchline)
+  // t-034 (Luca 25 Oct 19:14: "aerial battles only within gk box ... header on header or volley on volley ... if you win
+  // as attack ball goes like a shot towards the goal and defender thrown to ground ... if defender wins it gets cleared
+  // out ... make it feel impactful ... when you press is not consistent with click output")
+  boxX: 16.5, boxY: 20.16, // the battle only when the drop is inside the defending side's penalty area (outside: lobDuel)
+  volleyZ: 1.45,       // the contest point under this height = VOLLEY v VOLLEY, over it = HEADER v HEADER
+  lowZ: 0.8,           // ...and nobody contests it under this (it's a ball at his feet)
+  holdZv: 1.0,         // a volley battle: the ball hangs at waist height (a header battle: holdZ)
+  mashTArc: 1.0,       // ARCADE's mash window (s, real time; CLASSIC: mashT)
+  cpuReact: 0.12,      // the computer starts pressing this long after the prompt (s)
+  barR: 12,            // the bar: this many presses from the middle to either end; one press = one step, and the end = won outright
+  hsBar: 4,            // the head start, in whole steps, at most (it is where the bar starts)
+  stopPress: 0.035,    // hit-stop on each of YOUR presses (s, real time)
+  stopEnd: 0.13,       // ...and at the finish
+  hdrV: [19, 25],      // the winning header at goal, m/s (a narrow win .. won outright): ~68-90 km/h
+  volV: [23, 30],      // the winning volley at goal, m/s: ~83-108 km/h
+  shotAim: 2.6,        // aimed this far off the middle of the goal, away from the keeper (posts at 3.66)
+  shotSpread: 0.8,     // ...give or take this much (x the computer's finishing by level)
+  clearV: 21, clearVz: 8,   // the defender's clearance: high and long, out of the box
+  floorT: 0.85,        // the beaten defender on the ground (s), then his get-up (0.45 s): ~1.3 s out of it
 };
 // t-022 CHARGED HEADERS AND VOLLEYS (Luca 25 Oct 07:04: "headers and volleys can also be charged up and hit like a power
 // shot (from kicks) if timed properly ... make the animation feel impactful (add frames flashing sparks etc but still
