@@ -1,3 +1,87 @@
+HC2 WEB GAME - v0.12.3 (25 Oct) - THE KEEPER'S RANGE (PR #35, Luca's OK)
+- Luca 14:42: "gk needs to approach from further range to close in on attackers who are coming close, right now it's
+  easy to run around the goalie". keeper.js GK_1V1: on a breakaway (a striker running at goal, nobody covering) he
+  starts closing at 32 m (was 26), comes out to 14 m along the angle (was 9) once the striker is within ~20 m, attacks
+  the ball from 9.5 m away inside 19 m (was 6.5 / 13), never past 15.5 m; the smother dive only inside his box. A set
+  shooter / a striker walking across: v0.12's positions.
+- Test Lab KP: walk-rounds 22 / 140 -> 4 / 70; he meets the striker ~15-17 m out (was ~11-12). New KP7 / KP8.
+- Computer v computer goals 2.2 -> 3.4 a match (shots beat him when he's out and moving) - Luca: ship it, tune later
+  with t-031 (keeper hands).
+
+HC2 WEB GAME - v0.12.2 (25 Oct) - THE LIVING NET IN EVERY MATCH + ARCADE THROW-INS (PRs #34, #31, #33, Luca's OK)
+- THE LIVING NET (#34, t-025, from the t-023 preview Luca OK'd): in every match, ARCADE too - the PixelLab net on a mesh
+  that stretches by the strike (a soft shot 32 cm ... an LV2 special 2 m), the ball rolls in it 1-2 s, an LV3 special
+  rips through (the hole stays open until the kick-off), Rami's net lines; recorded into every replay (goal replay,
+  highlights, last 10 s, INSTA FLAG). Only the net part of t-013's goal physics: posts, bar and parries as before.
+  Fixed the preview's in-net ball speed bug (Bug Watch BALL_TOO_FAST). Touch screens keep the plain net. Test Lab NT6.
+- ARCADE (#31, t-026, Luca 14:42 "scrap the board for throws"): no touchline boards - throw-ins again; the byline
+  boards stay (no goal kicks / corners, rebounds in front of goal).
+- House rules (#33, t-030, Luca 14:59): CLAUDE.md "Think like football" - every task checks real football and the
+  reference games and builds the whole flow.
+- Checked: smoke, Test Lab NT (NT1-NT6) and AR errors []; #34's 12-match soak 0 page errors, no real bugs; #31's
+  arcade soak 3.7 goals, 0 errors.
+
+HC2 WEB GAME - v0.12.1 (25 Oct) - INSTA FLAG FIX (PR #32, Luca's OK 15:14)
+- Luca's flag (v0.12.0, IS 3-0 IRO, 62:22, HARD): "the final lvl 3 aerial shot was completely blocked that cannot happen".
+  In an aerial special's wind-up the ball hangs at the striker's boot; a defender's standing tackle took it off him
+  there 17 times in 20. Now that tackle lunges at nothing (t-018's miss cost). Pierce, power and knockback unchanged;
+  off the woodwork a special is an ordinary ball (already the code).
+- Checked: smoke, Test Lab PW (PW11 LV3 aerial: goal) and AS errors [].
+
+HC2 WEB GAME - v0.12.0 (25 Oct) - LUCA'S 06:56 / 07:04 / 07:14 LIST: 8 PRs (#23-#30, Luca's OK 13:42)
+- TACKLE (#23, t-018): the slide really slides (3.6 m, was 2.3) and he gets up after (PixelLab batch 19 slide2 /
+  slideup; N / S use the diagonals); a missed slide costs 1.4 s before he can act, 1.5 s before the next tackle; SHOOT
+  pressed on the grass or getting up does nothing (10 presses in 5 s = 3 slides, was 5); a missed standing challenge
+  = 0.6 s off balance, next one after 1 s. The computer plays by the same rules. Test Lab TT.
+- LOB TWO WAYS (#24, t-019): AUTO (the default) - LOB goes to the team-mate your arrow points at (nearest free one in
+  the cone, landing a step ahead of his run; nobody there = into space along the arrow, as far as the hold says);
+  RING - the landing ring, no arc drawn, smoother (overshoot 2.9 -> 2.2 m) and the camera doesn't chase it. Pause >
+  Options > LOB AIM. Camera jolt through a 40 m lob: 25 -> 2 px (AUTO), 88 -> 3 px (RING). Test Lab LV.
+- CHARGED HEADERS + VOLLEYS (#27, t-022): hold SHOOT as the ball comes, let go as it reaches you: the hold is the power,
+  the timing keeps it (sweet window = full power, on target; early / late = weaker, wilder; too much = over the bar);
+  a tap is today's header. A well-timed one: a white flash on the ball, a small spark burst, a tiny hit-stop - less
+  than a special. The computer charges ~3 in 10, its timing by level. PixelLab batch 20 (15 generations): header2
+  (power header) for charged / leaping headers, volley2 (whipped side volley), volleyf (front volley, S / N), dheader2
+  (flat-out diving header); every strike leaves on its move's contact frame. Test Lab HV.
+- OFFSIDE (#29, t-024): IFAB Law 11, simplified, in every match - positions taken as the pass is struck; level is
+  onside; never from a throw-in, corner or goal kick; only when he plays it. The call is instant: OFFSIDE!, the man
+  marked, Rami, the defenders' quick free kick from his spot. Your pass marker goes red on an offside man; the computer
+  waits on the last man's shoulder and won't pick an offside receiver. Options: OFFSIDE ON / OFF. ~0.3 a match for now.
+  Test Lab OF.
+- ARCADE (#26, t-020, on the co-designer's arcade-2): invisible boards along the touchlines and bylines - the ball
+  comes back (lively, popping up) instead of throw-ins and corners, and the team AI attacks the rebounds in the air;
+  SP fills 1.75x plus extras for the big moments; 5.3 s from a goal to the kick-off; arcade-2's MASH duels on the grass.
+  CLASSIC untouched. The smaller pitch is a plan only (decisions for Luca + the co-designer). Test Lab AR.
+- BUG WATCH (#25, t-021): animation flicker / jitter / stutter are counted, never clipped; every error (crash, promise,
+  console.error, a frozen loop) makes a clip; 8 new real-bug checks (frozen clock, ball too fast, ball under the pitch,
+  through the keeper, stuck in the net, a goal counted twice, a frozen team, dead controls). Test Lab BW; the clip
+  review is group CL.
+- NET PREVIEW (#28, t-023): Test Lab only (NET_FX off in matches): the PixelLab net on a mesh that stretches by the
+  strike (32 cm soft -> 2 m for an LV2 special), the ball rolls in it 1-2 s, an LV3 special rips through, a Rami line.
+  Luca OK'd the look: building it into matches is the next card. Test Lab NT.
+- Keeper starfish block redone (#30, PixelLab batch 18b, 1 generation): the keeper alone (batch 18 had a second player
+  drawn in).
+- Checked on the merged build (0afd958): smoke at all four levels; every Test Lab group (TT HV LV LB AR OF NT GP BW KP
+  GK GKX WG SM AS CH KS CP TK LC KF) errors []; flagtest, resumetest, pointertest, goalkicktest clean; 12-match classic
+  soak: 2.2 goals, 0.3 offsides, 0 page errors, no real bugs; 6-match arcade soak: 3.8 goals, 0 corners, ~8 board
+  rebounds a match; keeper 1v1 (KP x150) 18 walk-rounds v 17 on v0.11.1.
+
+HC2 WEB GAME - v0.11.1 (25 Oct) - THE KEEPER REBUILT (PR #22 + #20 + #21, Luca's OK)
+- Luca 02:58 (urgent): "very broken gk logic ... you could just walk around it and score". It wasn't new: 30 of 30
+  walk-rounds scored on v0.11.0 and on v0.10.4 (from close in, the v0.9.1 BLOCK stood stock still and a keeper couldn't
+  take the ball off your feet). Now (#22, t-017): CLOSE - on the line that halves the angle, following the ball a beat
+  ahead, mirroring every sideways move; BLOCK - he steps up to ~1.4 m in front of the ball; SET when you have it under
+  control in range; SMOTHER - he dives through the ball at your feet: SMOTHERED! (gathered), BLOCKED! (off his body) or
+  beaten if you cut late. Test Lab KP: the keeper wins 44 of 50 (was 0). He faces the ball while he tracks (side-step,
+  backpedal), gets up off the grass after a dive, blocks close shots with a starfish, collapses on low balls near him.
+- PixelLab batch 18 (6 generations): ksmother, kback, kstar, kgetup, kcollapse in every keeper kit; every normal save
+  uses the batch 16 dives (they were special-only).
+- Blocked players step round the man in their way (#20, t-016, worker-f); its keeper speed cap left out (t-017 does
+  the facing at full speed). Test Lab KF.
+- Bug Watch: a state change no longer counts as an animation flicker (#21, QA 25 Oct).
+- Checked: smoke, flagtest, resumetest, pointertest clean; Test Lab KP, KF, GK, GKX, PW, SM, WG, K, C, CH errors [];
+  12-match soak: goals 2.75 -> 2.6, corners 4.2 -> 5.2, 0 page errors.
+
 HC2 WEB GAME - v0.11.0 (24 Oct) - LUCA'S 05:57 LIST: 11 PRs (#9-#19, Luca's OK 18:35)
 - INSTA FLAG (#9, t-006): F / pad BACK / the FLAG button = the last 8 s + your note to Bug Watch. A REPLAY PLAYER (pause
   menu REPLAY LAST 10 S, LAST GOAL, HIGHLIGHTS, Bug Watch): play / pause, 1x / 0.5x / 0.25x, frame step, scrub, every

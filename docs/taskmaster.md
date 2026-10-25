@@ -32,7 +32,8 @@ them with the scheduled-task tools (list, update); tell Luca in plain words.
 
 See `docs/agents.md`. In short: worker-l (Luca's account) and worker-f (the co-designer's) take `t-NNN` briefs; the
 co-designer runs his own lanes; QA runs at night. Give work with `bash tools/agent.sh assign <agent> $(bash tools/agent.sh next-id) <brief>`
-plus a `t-NNN` card. Keep two open tasks off the same files. `assign ... --replace` rewrites a brief nobody has
+plus a `t-NNN` card. Every brief has a "How real football and other games do it" section (CLAUDE.md "Think like
+football"). Keep two open tasks off the same files. `assign ... --replace` rewrites a brief nobody has
 reported on yet.
 
 ## Merging a pull request (after Luca's OK on its card)

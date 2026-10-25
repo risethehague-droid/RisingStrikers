@@ -39,15 +39,37 @@ function ballStep(b, h, owned) {
     if (s > 0) {
       let dec;
       if (owned) dec = DRIB_DEC;
-      else if (sp) dec = SKID_DEC * 0.3;
-      else if (b.skid && s > b.rollV) dec = SKID_DEC;
-      else { b.skid = false; dec = ROLL_DEC + ROLL_K * s * s; }
+      else if (sp) dec = SKID_DEC * 0.3 * PACE_GRIP;
+      else if (b.skid && s > b.rollV) dec = SKID_DEC * PACE_GRIP;
+      else { b.skid = false; dec = (ROLL_DEC + ROLL_K * s * s) * PACE_GRIP; }   // (arcade-2: PACE_GRIP 0.88 on ARCADE: loose balls keep rolling into races)
       if (b.tap && !owned && !sp) dec += TAP.grip;                                 // t-010: a tap kick grips the grass and dies (a close-range finish)
       const ns = Math.max(0, s - dec * h); b.vx *= ns / s; b.vy *= ns / s;
     }
   }
   if (b.cv && !owned) curveStep(b, h);                                        // t-011: a curving special pass (never set in a match)
   b.x += b.vx * h; b.y += b.vy * h;
+}
+// t-020 ARCADE REBOUNDS (Luca 25 Oct: "more rebounds that lead into aerials"): the invisible boards along the touchlines and
+// the bylines (ARCADE.boards). A ball past a line - except into the goal mouth under the bar, where the goal / post / net
+// code decides - is put back on the pitch side and comes back off the board: e of its speed into it, tang of its speed
+// along it, and a ball low on the grass pops up (pop x the speed into it, more for a square hit). No dice, so the game's
+// predicted path (predict) and the real flight agree. Returns the board it hit ('T' touchline, 'B' byline) or null.
+// Only called on ARCADE (paceK().arcade).
+function boardBounce(b) {
+  const A = ARCADE.boards; let hit = null;
+  const mouth = b.y > GOAL_Y0 && b.y < GOAL_Y1 && b.z < BAR_Z;
+  const back = (vn, vt) => {                                                     // (vn: speed into the board, > 0)
+    const s = Math.hypot(vn, vt) || 1, sq = vn / s;                               // sq: 1 = square on, 0 = glancing
+    if (b.z < A.popZ && vn > A.popMin) { b.vz = Math.max(b.vz, Math.min(A.popMax, A.pop * vn * (0.55 + 0.45 * sq))); b.skid = true; }
+    return vn * A.e;
+  };
+  if (!A.touch) { }                                                              // t-026: no touchline boards (Luca: throw-ins again)
+  else if (b.y < 0 && b.vy <= 0) { b.y = Math.min(-b.y, 0.5); b.vy = back(-b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
+  else if (b.y > PITCH_W && b.vy >= 0) { b.y = Math.max(2 * PITCH_W - b.y, PITCH_W - 0.5); b.vy = -back(b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
+  if (!mouth && b.x < 0 && b.vx <= 0) { b.x = Math.min(-b.x, 0.5); b.vx = back(-b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
+  else if (!mouth && b.x > PITCH_L && b.vx >= 0) { b.x = Math.max(2 * PITCH_L - b.x, PITCH_L - 0.5); b.vx = -back(b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
+  if (hit) b.rollV = 0.8 * Math.hypot(b.vx, b.vy);
+  return hit;
 }
 // t-013: when (0..1) a point moving from (x0, y0) to (x1, y1) first comes within R of (cx, cy); null if it doesn't
 // (already within R and moving in: 0). The goal frame's swept test (Match.gpWood)
@@ -130,12 +152,13 @@ function solveGround(dist, arrive, vz) {
 }
 // v0.8.2 how long an AI ground pass of d metres takes to arrive (cached per metre; the AI's interception check uses it)
 const PASS_T = [];
-function passTime(d) { const i = Math.round(clamp(d, 1, 50)); if (PASS_T[i] == null) { const v = solveGround(i, clamp(4.5 + i * 0.15, 5.5, 11), 0.2); PASS_T[i] = simKick(v, 0.2, i).t; } return PASS_T[i]; }
+function passTime(d) { const i = Math.round(clamp(d, 1, 50)), k = paceK().passArrive, T = k === 1 ? PASS_T : (PASS_T.firm = PASS_T.firm || []);   // (arcade-2: ARCADE's firmer passes have their own table)
+  if (T[i] == null) { const v = solveGround(i, clamp(4.5 + i * 0.15, 5.5, 11) * k, 0.2); T[i] = simKick(v, 0.2, i).t; } return T[i]; }
 // friend/lob-mechanics (co-designer: "it never makes sense to lob the ball - easily interrupted, glitchy"). Measured:
 // a 12 m lob peaked at 1.8 m and a 25 m one at 3.5 m, so the ball stayed at head height (under 2.7 m) for most of its
 // flight and anyone near the line headed it away (28 of 60 of your lobs). An open-play lob now climbs over the
 // players in between: 3.6 m for a short one up to 6 m for a long one; a held (power) lob 3.6 to 8 m.
-function lobApex(d, pow) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 3.0 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H; }   // (LOB_H: the Lab's lob-height knob, 1 in the game)
+function lobApex(d, pow) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 3.0 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H * paceK().lobH; }   // (LOB_H: the Lab's lob-height knob, 1 in the game; arcade-2: ARCADE 0.85 = ~8% less hang time)
 // (v0.10.3, Luca's OK on PR #8's call 3, "lean arcade": a full power lob peaks at 6.6 m and hangs ~2.35 s, was 8 m / 2.58 s)
 // lofted ball: the forward speed that makes it come down at `dist` for a given upward speed
 // (n: bisection steps - t-005's charge-arc preview asks for 12, about 1 cm; every kick keeps the full 22)
@@ -198,11 +221,12 @@ hc2Mix(Match, {
       if (k.info.special && this.bw) this.bw.flag('WHIFF', `${this.bw.who(k.p)}'s LV${k.info.special} ${k.p.kickAnim || 'special'} never touched the ball (${why}) - the bars were spent`, { p: k.p }); };   // v0.8.7 BUG WATCH
     if (b.owner !== k.p) return b.owner ? undefined : whiff('it got away');     // (someone took it off him in the wind-up: fair)
     if (!k.p.hands && len(b.x - k.p.x, b.y - k.p.y) > 2.0) return whiff(`it was ${len(b.x - k.p.x, b.y - k.p.y).toFixed(1)} m away`);   // the ball ran away from him: air kick
+    if (this.offKick(k)) return;                                                  // t-024 OFFSIDE: who's offside, taken on the contact frame (true = he was, the kick is off)
     const dx = k.tx - b.x, dy = k.ty - b.y, d = len(dx, dy) || 1;
     let speed = k.speed, vz = k.vz;
     const mode = k.info.mode;
-    if (mode === 'ground') { vz = 0.2; speed = solveGround(d, clamp(4.5 + d * 0.15, 5.5, 11), vz); }   // arrives firm, then dies
-    else if (mode === 'through') { vz = 0.25; speed = solveGround(d, 4.5, vz); }                          // slows into the runner's path
+    if (mode === 'ground') { vz = 0.2; speed = solveGround(d, clamp(4.5 + d * 0.15, 5.5, 11) * paceK().passArrive, vz); }   // arrives firm, then dies (arcade-2: ARCADE 20% firmer)
+    else if (mode === 'through') { vz = 0.25; speed = solveGround(d, 4.5 * paceK().passArrive, vz); }                          // slows into the runner's path
     else if (mode === 'lob' && k.info.aim) { const L = lobSolve(d, k.info.aim.apex); speed = L.speed; vz = L.vz; }   // t-008: the hold-aimed lob lands ON the ring (solved from where the ball is as it leaves the boot)
     else if (mode === 'lob' && k.info.loft) { const L = this.loftLaunch(d, k.info.lobPow); speed = L.speed; vz = L.vz; }   // lob-mechanics: over their heads (t-005: really as high as lobApex says)
     else if (mode === 'lob' && k.info.lobPow != null) { const T = 1.0 + k.info.lobPow * 1.5; vz = G * T / 2; speed = solveLob(Math.max(4, d - 1), vz); }   // v0.8.5 power lob: up to ~8 m high
@@ -254,16 +278,18 @@ hc2Mix(Match, {
   // a camera kick; a charged power shot (held shoot) freezes longer, shakes harder and drags a hot trail behind the ball
   impact(k) {
     const pw = k.info.shot ? (k.info.power ?? 0.6) : 0, power = k.info.shot && pw > 0.72;
-    this.hitStop = k.info.shot ? 0.05 + pw * 0.08 : (k.info.mode === 'lob' ? 0.035 : 0.025);
+    const P = paceK(); this.hitStop = k.info.shot ? (0.05 + pw * 0.08) * P.hsShot : (k.info.mode === 'lob' ? 0.035 : 0.025) * P.hsPass;   // (arcade-2: ARCADE no hit-stop on passes, 35% more on shots)
     this.flashT = this.hitStop + 0.03;
     if (k.info.shot) this.cameras.main.shake(power ? 260 : 150, power ? 0.004 + pw * 0.004 : 0.0015 + pw * 0.002);
     else this.cameras.main.shake(70, 0.0008);
     this.trailT = power ? 0.9 : 0; this.trailHot = pw; this.trailSp = 0;
+    if (P.trails && k.info.shot && pw > 0.5) { this.trailT = 0.6 + pw * 0.9; this.trailHot = Math.min(1, pw + 0.15); }   // (arcade-2: ARCADE a hot trail on every hard shot, longer)
     if (power) SFX.boom(pw);
     const sp = k.info.special || 0;
-    if (sp) { this.hitStop = 0.14 + sp * 0.05; this.flashT = this.hitStop; this.trailT = 1.6; this.trailSp = sp;
+    if (sp) { this.hitStop = (0.14 + sp * 0.05) * P.hsShot; this.flashT = this.hitStop; this.trailT = P.trails ? 2.4 : 1.6; this.trailSp = sp;
       const c = [[255, 140, 40], [80, 180, 255], [190, 90, 255]][sp - 1]; this.cameras.main.flash(90 + sp * 40, ...c); this.cameras.main.shake(300 + sp * 80, 0.005 + sp * 0.002); }
     if (this.fxImpact) this.fxImpact(k, pw);                                     // PixelLab impact burst (when the art is in)
+    const air = k.info.airCh; if (air && air.sweet && air.raw >= AIR_CHARGE.impP && this.airImpact) this.airImpact(false);   // t-022: a well-timed charged volley - the flash + sparks (actions.js)
   },
   dust(p) {
     if (!this.textures.exists('fx') || p.speed < RUN) return;
@@ -377,14 +403,36 @@ hc2Mix(Match, {
   },
   // the release: the kick to the ring, and the man who'll get there (the one the ring settled on, else the team-mate
   // who can reach the drop soonest - he starts his run now: teamai.js lobRun)
-  aimLob(p, A) {
-    const tx = A.x, ty = A.y, apex = this.lobAimApex(p, tx, ty), T = 2 * Math.sqrt(2 * apex / G) * 0.95;   // (time up and down: enough to pick the man)
+  aimLob(p, A, apex0) {
+    const tx = A.x, ty = A.y, apex = apex0 || this.lobAimApex(p, tx, ty), T = 2 * Math.sqrt(2 * apex / G) * 0.95;   // (time up and down: enough to pick the man) (t-019: AUTO brings its own height)
     let q = A.q && !A.q.sentOff ? A.q : null;
     if (!q) { let bt = 1e9; for (const m of p.team.players) { if (m === p || m.sentOff || m.keeper) continue;
       const t = len(m.x - tx, m.y - ty) / (m.top ? m.top(true, false) : RUN); if (t < bt && t < T + 0.6) { bt = t; q = m; } } }
     this.kick(p, tx, ty, 0, 0, 0.14, { mode: 'lob', target: q, loft: !p.keeper && !this.setPiece, aim: { apex, x: tx, y: ty } });
-    this.lobAimLast = { x: tx, y: ty, apex, q, by: p };
+    this.lobAimLast = { x: tx, y: ty, apex, q, by: p, auto: !!A.auto };
     if (q && p.team === this.home) { this.nextHuman = q; this.passRing = { p: q, t: 1.0 }; this.passStick = { ...Input.axis }; }
+  },
+  // t-019 AUTO: where the lob to q comes down - where his run takes him while it's in the air, plus LOB_AIM.step on along
+  // it (towards their goal when he stands), so he takes it in stride (Luca: "closer to fifa"). k = how long LOB was held
+  // (0 a tap .. 1 the full LOB_AIM.holdT): a little higher and further on. Its height is the t-008 lob's for that spot
+  // (lobAimApex: over a man in the way, a short clear lane driven), so the tap is the quick, flat one.
+  lobAutoSpot(p, q, k) {
+    const C = LOB_AIM, sp = len(q.vx, q.vy), run = sp > 1.5 ? { x: q.vx / sp, y: q.vy / sp } : { x: q.team.side, y: 0 }, on = C.step + C.holdStep * k;
+    let s = { x: q.x, y: q.y }, apex = 0;
+    for (let i = 0; i < 2; i++) {                                                 // (the flight time depends on the spot: twice is close enough)
+      apex = clamp(this.lobAimApex(p, s.x, s.y) * (1 + C.holdApex * k), 2, LOB2.apexMax);
+      const T = 2 * Math.sqrt(2 * apex / G), go = sp > 1.5 ? sp * T * 0.9 : 0;
+      s = this.lobAimClamp(p, q.x + run.x * (go + on), q.y + run.y * (go + on));
+    }
+    return { x: s.x, y: s.y, apex };
+  },
+  // the release: to the man lobAutoPick chose, or into space along the arrow (LOB_AIM.spaceMin-spaceMax by the hold)
+  autoLob(p, A, dir, k) {
+    const q = A.mate && !A.mate.sentOff ? A.mate : null; let s;
+    if (q) s = this.lobAutoSpot(p, q, k);
+    else { const C = LOB_AIM, l = len(dir.x, dir.y) || 1, d = C.spaceMin + (C.spaceMax - C.spaceMin) * k, c = this.lobAimClamp(p, p.x + dir.x / l * d, p.y + dir.y / l * d);
+      s = { x: c.x, y: c.y, apex: this.lobAimApex(p, c.x, c.y) }; }
+    this.aimLob(p, { x: s.x, y: s.y, q, auto: true }, s.apex);
   },
   // the arc drawn while you aim: the same solve the release will use, flown with ballStep (cached by the metre and 0.5 m of
   // height, ~6 ms a miss headless: it's asked every frame and the ring moves; the path is stretched to end on the ring,
@@ -454,7 +502,8 @@ hc2Mix(Match, {
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
   predict() {
     const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
-    for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
+    const ARC = paceK().arcade;                                                  // (t-020: ARCADE - the path comes back off the boards, so the AI reads the rebound)
+    for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (ARC) boardBounce(c); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
   },
   // t-005: where the landing ring sits - the ball's predicted first bounce while it flies, then the spot it came down
@@ -560,21 +609,23 @@ hc2Mix(Match, {
     return { ...lobSolve(Math.max(4, d - (driven ? 0.5 : pow != null ? 1 : 2)), apex, spin, quick), spin };   // (quick: t-005's charge arc)
   },
   ballPhysics(dt) {
-    const b = this.ball, gp = gpOn();
-    if (gp) this.netStep(dt);                                                   // t-013: the mesh rings on after the ball has gone
+    const b = this.ball, gp = gpOn(), net = netOn();                            // t-025: the net (NET_FX, every match) apart from t-013's woodwork (GOAL_PHYS, Lab)
+    if (net) this.netStep(dt);                                                  // t-013: the mesh rings on after the ball has gone
     if (b.owner && b.owner.hands) return;
-    if (gp && b.gpIn) { b.vx = b.gpIn.vx; b.vz = b.gpIn.vz; b.gpIn = null; }   // (t-013: the net takes the pace off now, not the goal line - netRipple)
-    const owned = !!b.owner, sub = 3, h = dt / sub;
+    if (net && b.gpIn) { b.vx = b.gpIn.vx; b.vz = b.gpIn.vz; b.gpIn = null; }   // (t-013: the net takes the pace off now, not the goal line - netRipple)
+    const owned = !!b.owner, sub = 3, h = dt / sub, ARC = paceK().arcade;
+    if (ARC) this.spArcadeWatch();                                              // t-020: ARCADE's SP for aerials won, rebound volleys (specials.js)
     for (let i = 0; i < sub; i++) {
       const ox = b.x, oy = b.y, oz = b.z;
       ballStep(b, h, owned);
-      if (gp) { if (!owned) this.gpWood(b, ox, oy, oz); this.gpNet(b, h, oz); }   // t-013 GOAL PHYSICS (core.js GP)
-      else if (!owned) this.posts(b, ox);
+      if (!owned) { if (gp) this.gpWood(b, ox, oy, oz); else this.posts(b, ox); }   // t-013's round posts / bar (GOAL_PHYS) or v0.12.0's posts
+      if (net) this.gpNet(b, h, oz);                                            // t-013's net with give (+ t-023's NET_FX): every match since t-025
+      if (ARC && !owned && !b.inNet && !this.dead) { const hit = boardBounce(b); if (hit) this.arcadeRebound(b, hit); }   // t-020: ARCADE's boards
       if (this.dead) {                                                          // out of play: the boards stop it
         if (b.x < -4 || b.x > PITCH_L + 4) { b.x = clamp(b.x, -4, PITCH_L + 4); b.vx *= -0.25; }
         if (b.y < -3 || b.y > PITCH_W + 3) { b.y = clamp(b.y, -3, PITCH_W + 3); b.vy *= -0.25; }
       }
-      if (b.inNet && !gp) { const right = b.netRight ?? (b.netRight = b.x > 52.5); const lo = right ? PITCH_L + 0.2 : -1.4, hi = right ? PITCH_L + 1.4 : -0.2;
+      if (b.inNet && !net) { const right = b.netRight ?? (b.netRight = b.x > 52.5); const lo = right ? PITCH_L + 0.2 : -1.4, hi = right ? PITCH_L + 1.4 : -0.2;
         if (b.x < lo || b.x > hi) { b.x = clamp(b.x, lo, hi); b.vx *= -0.12; b.vy *= 0.7; b.vz *= 0.5; }       // back net: it gives and drops
         if (b.y < GOAL_Y0 + 0.2 || b.y > GOAL_Y1 - 0.2) { b.y = clamp(b.y, GOAL_Y0 + 0.2, GOAL_Y1 - 0.2); b.vy *= -0.2; }
         if (b.z > 2.2) { b.z = 2.2; b.vz = -Math.abs(b.vz) * 0.2; } b.vy *= 0.97; }
@@ -589,6 +640,37 @@ hc2Mix(Match, {
       }
       if (b.y > GOAL_Y0 && b.y < GOAL_Y1 && Math.abs(b.z - BAR_Z) < 0.15) { b.vz = -Math.abs(b.vz) * 0.6; b.vx *= -0.4; b.x = ox; this.say('', 'OFF THE BAR!', 0.9); this.flagReplay('OFF THE BAR!'); SFX.post(); SFX.ooh(); }
     }
+  },
+  // t-020 ARCADE REBOUNDS: what a hit on the boards means for play. It's a new loose ball (no pass target, no landing ring,
+  // no keeper's plan, a special is spent), and if it pops up past head height it becomes a high ball "aimed" at the
+  // nearest man of the side that touched it last (ARCADE.reb): the lob code then has him time his run under the drop,
+  // their nearest man contest it, and the drop is a duel / the AERIAL BATTLE / a header / a volley / an aerial special.
+  arcadeRebound(b, hit) {
+    const N = this.arcN = this.arcN || { reb: 0, air: 0, rebShots: 0, sp: 0 }; N.reb++;
+    Object.assign(b, { target: null, ring: null, lob: false, aimLob: false, tried: null, crossBy: null, save: null, saveable: null, special: 0, pierce: 0, chip: false, tap: false, duelTry: false });
+    const sp = Math.hypot(b.vx, b.vy); if (sp > 6) SFX.pass();                  // (the thud off the board)
+    const apex = b.z + Math.max(0, b.vz) ** 2 / (2 * G);
+    b.reb = { t: this.time.now, hit, apex, how: b.how, q: null };               // (specials.js spArcadeWatch: a header / volley straight off it)
+    if (apex < ARCADE.reb.headZ || !b.last) return;
+    const P = this.predict(), D = P.find((pt, i) => i > 0 && pt.z <= 2.0 && pt.z < P[i - 1].z) || P.land || P[P.length - 1];   // where it comes back down to head height
+    if (!D) return;
+    const q = b.last.players.filter(p => !p.keeper && !p.sentOff && p.stun <= 0 && len(p.x - D.x, p.y - D.y) < ARCADE.reb.run)
+      .sort((u, v) => len(u.x - D.x, u.y - D.y) - len(v.x - D.x, v.y - D.y))[0];
+    if (!q) return;
+    N.air++; b.reb.q = q;
+    Object.assign(b, { target: q, lob: true, airT: 0, ring: { by: b.lastP, chip: false, n: b.bounced || 0, at: null } });   // (the landing ring shows you where it drops)
+  },
+  // t-020: on ARCADE nothing goes out (matchflow.js rules): a ball found past a line - dribbled over it, or knocked there
+  // in a scramble - is released and knocked back in off the board, at least 2.5 m/s into the pitch
+  arcadeOut() {
+    const b = this.ball; if (b.owner && !b.owner.hands) { b.last = b.owner.team; b.lastP = b.owner; b.owner = null; }
+    if (b.owner) return;
+    const ix = b.x < 0 ? 1 : b.x > PITCH_L ? -1 : 0, iy = b.y < 0 ? 1 : b.y > PITCH_W ? -1 : 0;
+    if (iy && b.vy * iy < 0) b.vy = -b.vy; if (ix && b.vx * ix < 0) b.vx = -b.vx;
+    if (iy) { b.y = iy > 0 ? 0.3 : PITCH_W - 0.3; b.vy = iy * Math.max(2.5, Math.abs(b.vy) * ARCADE.boards.e); }
+    if (ix) { b.x = ix > 0 ? 0.3 : PITCH_L - 0.3; b.vx = ix * Math.max(2.5, Math.abs(b.vx) * ARCADE.boards.e); }
+    b.skid = true; b.rollV = 0.8 * Math.hypot(b.vx, b.vy);
+    this.arcadeRebound(b, iy ? 'T' : 'B');
   },
 
   // ======================================================================= t-013 GOAL PHYSICS (behind GOAL_PHYS, core.js)
@@ -649,7 +731,10 @@ hc2Mix(Match, {
   gpNet(b, h, oz) {
     if (b.owner) { b.gpHold = 0; b.gpSpin = null; return; }
     const gx = b.x < PITCH_L / 2 ? 0 : PITCH_L, s = gx ? 1 : -1, u = (b.x - gx) * s, D = GP.netD, r = GP.ballR;   // u: metres behind the goal line
-    if (u <= 0 || u > D + GP.netMax + 0.3) { b.gpAbove = b.gpOut = false; return; }
+    const F = b.inNet ? b.nfx : null;                                           // t-023 NET_FX: this goal's stretch, the roll, the rip
+    if (F && F.rip) { this.nfxFly(b, gx, s, u); return; }                       // through the torn mesh: only the boards stop it now
+    if (F && b.nfxRoll) { this.nfxRollStep(b, h, gx, s); return; }              // rolling round the pocket the bulge made
+    if (u <= 0 || u > D + GP.netMax * (F ? F.S : 1) + 0.3) { b.gpAbove = b.gpOut = false; return; }
     const side = gx ? 'R' : 'L', zr = BAR_Z - (BAR_Z - GP.netBZ) * clamp(u / D, 0, 1), ay = Math.abs(b.y - 34);
     if (b.gpHold > 0) { b.gpHold -= h; const k = Math.exp(-GP.holdDamp * h); b.vx *= k; b.vy *= k; b.vz = b.vz * k + G * h * 0.75; }   // held a beat
     if (b.inNet) {
@@ -669,11 +754,14 @@ hc2Mix(Match, {
   // one plane of mesh: p = how far the ball has pushed past where the mesh hangs, (nx, ny, nz) = the way the mesh pushes back
   gpPlane(b, h, side, key, p, nx, ny, nz) {
     if (p <= 0) return;
-    if (p > GP.netMax) {                                                        // fully stretched: it goes no further
-      const c = p - GP.netMax, vn = b.vx * nx + b.vy * ny + b.vz * nz; p = GP.netMax;
+    const X = b.inNet ? b.nfx : null, S = X ? X.S : 1, pMax = GP.netMax * S;    // t-023 NET_FX: S times the stretch (core.js NFX)
+    if (X && X.lv >= 3 && !X.tore && p > NFX.tearD) { this.nfxTear(b, side, key, p, nx, ny, nz); return; }   // LV3: it rips through
+    if (p > pMax) {                                                             // fully stretched: it goes no further
+      const c = p - pMax, vn = b.vx * nx + b.vy * ny + b.vz * nz; p = pMax;
       b.x += nx * c; b.y += ny * c; b.z += nz * c; if (vn < 0) { b.vx -= vn * nx; b.vy -= vn * ny; b.vz -= vn * nz; }
     }
-    const vin = -(b.vx * nx + b.vy * ny + b.vz * nz), F = Math.max(0, GP.netK * p + GP.netC * vin);   // a net only pushes, never pulls
+    if (X) X.peak = Math.max(X.peak, p);
+    const vin = -(b.vx * nx + b.vy * ny + b.vz * nz), F = Math.max(0, GP.netK / (S * S) * p + GP.netC / S * vin);   // a net only pushes, never pulls (same damping ratio at any S)
     b.vx += nx * F * h; b.vy += ny * F * h; b.vz += nz * F * h;
     const vn = b.vx * nx + b.vy * ny + b.vz * nz, k = Math.exp(-GP.netFric * h);   // the mesh grips what slides along it
     b.vx = nx * vn + (b.vx - nx * vn) * k; b.vy = ny * vn + (b.vy - ny * vn) * k; if (b.z > 0) b.vz = nz * vn + (b.vz - nz * vn) * k;
@@ -686,7 +774,9 @@ hc2Mix(Match, {
       if (vin > 3) { const S = this.gpStats || (this.gpStats = { wood: 0, back: 0, pops: 0, net: 0 }); S.net++; }
       if (/Out|top/.test(key) && vin > 2) { SFX.net(); this.say('', key === 'top' ? 'ON TOP OF THE NET!' : 'SIDE NETTING!', 0.8); }
     } else {
-      if (!q.held && vin <= 0 && q.vin0 > 6) { q.held = true; if (!(b.gpHold > 0)) b.gpHold = GP.netHold * clamp(q.vin0 / 25, 0.3, 1); }   // the deepest point: caught
+      if (!q.held && vin <= 0 && q.vin0 > 6) { q.held = true;                  // the deepest point: caught
+        if (X && !X.rolled && nz === 0) this.nfxRollStart(b, q, p, nx, ny);     // (t-023: it rolls round the pocket instead - not in the roof, it would fall out)
+        else if (!(b.gpHold > 0)) b.gpHold = GP.netHold * clamp(q.vin0 / 25, 0.3, 1); }
       q.dv = q.touch > 0 ? (p - q.d) / h : q.dv; q.d = p; q.touch = 1; q.peak = Math.max(q.peak, p); q.hx += (hx - q.hx) * 0.3; q.hy += (hy - q.hy) * 0.3; q.hz += (hz - q.hz) * 0.3; }
   },
   // once a frame: the mesh where the ball has left it rings on (a damped spring) and settles; the bulges fade out.
@@ -695,6 +785,8 @@ hc2Mix(Match, {
     this.gpT = (this.gpT || 0) + dt;
     const W = this.gpWatch;
     if (W && this.gpT - W.t > 1.2) { const b = this.ball; this.gpWatch = null; if (!this.dead && !b.inNet && Math.abs(b.x - W.gx) > 3) this.gpStats.back++; }
+    if (this.ball.nfx && !this.ball.inNet) { this.ball.nfx = null; this.ball.nfxRoll = null; }   // t-023: the restart (the ball is out of the net) -
+    if (this.netRip && !this.ball.inNet) this.netRip = null;                    // the torn net is whole again (world.js netWarp)
     const st = this.netS; if (!st) return;
     const w = 2 * Math.PI * GP.netHz, z = GP.netZeta;
     for (const L of [st.L, st.R]) for (let i = L.length - 1; i >= 0; i--) {
@@ -703,6 +795,13 @@ hc2Mix(Match, {
       for (let j = 0, hh = dt / 2; j < 2; j++) { q.dv += (-w * w * q.d - 2 * z * w * q.dv) * hh; q.d += q.dv * hh; }
       if (Math.abs(q.d) < 0.004 && Math.abs(q.dv) < 0.05 && q.age > GP.ripTau * 3) L.splice(i, 1);
     }
+  },
+  // t-025: the kick-off after a goal - the net hangs still and whole again at once (the camera is on the centre spot,
+  // so nobody sees it snap back). Called from matchflow.js kickoff: during its freeze the ball physics (and netStep,
+  // which would mend it) don't run, so the hole would otherwise stay open for the kick-off freeze too.
+  netReset() {
+    const b = this.ball; b.nfx = null; b.nfxRoll = null; b.gpHold = 0; b.gpIn = null;
+    this.netRip = null; if (this.netS) this.netS = { L: [], R: [] };            // (empty, not null: world.js netDraw then puts the plain art back)
   },
   // the keeper got to it but couldn't hold it (Luca: "when he blocks a lot of shots but can't grab it, but it breaks his
   // guard, a lot should go more up dramatically. So then if there is an attacker, he could capitalize ... make sure it
@@ -776,6 +875,7 @@ hc2Mix(Match, {
     const sp = len(b.vx, b.vy);
     if (b.owner) {                                                               // a loose touch can be nicked
       const o = b.owner; if (o.hands) return;
+      if (this.gkSmotherTake(o)) return;                                         // t-017: a keeper diving at his feet (keeper.js)
       const od = len(o.x - b.x, o.y - b.y); if (od < 0.85) return;
       for (const p of o.team.opp.players) {
         if (p.cool > 0 || p.stun > 0 || p.state === 'slide') continue;
@@ -936,7 +1036,7 @@ hc2Mix(Match, {
     if (b.shotBy && b.shotBy.team !== p.team && p.keeper) this.missedChance(b.shotBy.team, 'held'); else b.shotBy = null;
     const back = p.keeper && b.last === p.team && b.lastP && b.lastP !== p && b.how && b.how.kind === 'pass';   // v0.9.1 (IFAB Law 12): a team-mate's pass / throw-in back to him - feet only
     const box = p.keeper && !back && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
-    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null; b.camUp = false;   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
+    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null; b.camUp = false; b.duelTry = false;   // (arcade-2: a new loose ball can be a duel again)   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
     if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }          // (t-002 prototype; t-011 the curving pass)
     if (prev) { prev.cool = 0.4; }
     if (box) {
@@ -949,9 +1049,72 @@ hc2Mix(Match, {
     const pop = Math.min(0.18, 0.04 + incoming * 0.008);
     b.vx = p.vx + b.vx * pop; b.vy = p.vy + b.vy * pop; b.vz = 0; b.z = 0; p.touchT = 0.2;
   },
+  // ======================================================================= t-023 NET_FX (core.js NFX; in every match since t-025)
+  // THE BALL KEEPS ITS ENERGY (Luca: "the ball should roll with energy for a second or two before it drops"): at its
+  // deepest point the ball isn't stopped dead (t-013's hold) - the netting takes it round the pocket the bulge made: a
+  // swirl that starts the way the ball was going along the mesh, shrinks and slows as the energy goes, slides down the
+  // bulge, and the mesh gives the depth back bit by bit. The bulge follows the ball round (its point on the mesh moves
+  // with it). Then it drops as before. Kinematic on purpose: a spring alone can't hold a ball in a pocket.
+  nfxRollStart(b, q, p, nx, ny) {
+    const X = b.nfx, t2 = { x: 0, y: 0, z: 1 }, t1 = { x: -ny, y: nx, z: 0 };   // along the mesh: t1 across, t2 up
+    const v1 = b.vx * t1.x + b.vy * t1.y, v2 = b.vz;
+    const th = Math.hypot(v1, v2) > 0.3 ? Math.atan2(-v1, v2) : (b.y - 34) * t1.y + (b.x - PITCH_L / 2) * t1.x > 0 ? Math.PI / 2 : -Math.PI / 2;   // (no sideways pace: round towards the middle)
+    const R0 = NFX.rollR, dur = Math.min(2.2, NFX.rollT[0] + (NFX.rollT[1] - NFX.rollT[0]) * X.str + NFX.rollLv * X.lv);
+    b.nfxRoll = { q, n: { x: nx, y: ny }, t1, t: 0, dur, th, p0: p, R0,
+      c: { x: b.x - (t1.x * Math.cos(th) + t2.x * Math.sin(th)) * R0, y: b.y - (t1.y * Math.cos(th)) * R0, z: b.z - Math.sin(th) * R0 } };   // the swirl's centre: the ball starts on its rim
+    b.nfxRoll.at = { x: b.x, y: b.y, z: b.z };                                  // (t-025: where the roll last put it - nfxRollStep)
+    X.rolled = true; b.gpHold = 0;
+    if (X.peak > NFX.bigD && X.lv < 3) this.ramiNet && this.ramiNet('stretch');   // Rami: a big stretch
+  },
+  nfxRollStep(b, h, gx, s) {
+    const R = b.nfxRoll, X = b.nfx, q = R.q; R.t += h;
+    const f = Math.max(0, 1 - R.t / R.dur), r = GP.ballR;
+    R.th += 2 * Math.PI * NFX.rollHz * (0.35 + 0.65 * f) * h;                   // it slows...
+    const a = R.R0 * f * f, p = R.p0 * (NFX.keep + (1 - NFX.keep) * f);        // ...the swirl shrinks, the mesh gives the depth back
+    R.c.z = Math.max(r + 0.05, R.c.z - NFX.sag * h);                            // and it slides down the bulge
+    const nx = R.n.x, ny = R.n.y;
+    // the centre stays at the depth the mesh holds it: on the plane through the hit point, p deep (the back: x; a side: y)
+    const hx = q.hx, hy = q.hy;
+    let x = R.c.x + R.t1.x * a * Math.cos(R.th), y = R.c.y + R.t1.y * a * Math.cos(R.th), z = R.c.z + a * Math.sin(R.th);
+    if (nx) x = hx + nx * (r - p); else y = hy + ny * (r - p);
+    const u = (x - gx) * s, zr = BAR_Z - (BAR_Z - GP.netBZ) * clamp(u / GP.netD, 0, 1);
+    z = clamp(z, 0.06, zr - r);                                                 // (inside the goal: under the roof, between the side nets / off the line)
+    if (nx) y = clamp(y, GOAL_Y0 + r, GOAL_Y1 - r); else x = gx + s * clamp((x - gx) * s, 0.25, GP.netD - r);
+    // t-025 (in matches Bug Watch caught BALL_TOO_FAST in the net: 170-380 km/h): the speed is measured from where the roll
+    // put the ball last step, not from where ballStep has just moved it on to (that fed the last speed back in, so it
+    // swung up and down and never settled), and the ball moves at most NFX.rollVmax towards its spot on the swirl: a
+    // shot angled into a side net starts its roll past where the swirl may go (inside the posts, off the line) and was
+    // snapped up to 40 cm in one step - now it glides there
+    const A = R.at; let vx = (x - A.x) / h, vy = (y - A.y) / h, vz = (z - A.z) / h; const sp = Math.hypot(vx, vy, vz);
+    if (sp > NFX.rollVmax) { const k = NFX.rollVmax / sp; vx *= k; vy *= k; vz *= k; }
+    b.x = A.x = A.x + vx * h; b.y = A.y = A.y + vy * h; b.z = A.z = A.z + vz * h; b.vx = vx; b.vy = vy; b.vz = vz; b.gpHold = 0;
+    q.d = p; q.touch = 1; q.peak = Math.max(q.peak, p); q.hx = b.x - nx * (r - p); q.hy = b.y - ny * (r - p); q.hz = b.z;   // the bulge goes round with it
+    if (R.t >= R.dur) { X.roll = R.dur; b.nfxRoll = null; b.vx *= 0.3; b.vy *= 0.3; b.vz = Math.min(0, b.vz * 0.3); }   // the energy is gone: it drops
+  },
+  // LV3 RIPS THROUGH (Luca: "make lv3 shots rip through the goal"): past NFX.tearD the mesh splits where the ball is, the
+  // ball flies on (at least keepV of its pace) behind the goal and the hole stays open until the restart (world.js
+  // netWarp draws it; ball.js netStep mends it)
+  nfxTear(b, side, key, p, nx, ny, nz) {
+    const X = b.nfx; X.tore = X.rip = true; X.ripKey = key; X.peak = Math.max(X.peak, p);
+    const vn = -(b.vx * nx + b.vy * ny + b.vz * nz), want = Math.max(vn, NFX.keepV * X.v);
+    b.vx += -nx * (want - vn); b.vy += -ny * (want - vn); b.vz += -nz * (want - vn);
+    const hx = b.x - nx * (GP.ballR - p), hy = b.y - ny * (GP.ballR - p), hz = b.z - nz * (GP.ballR - p);
+    this.netRip = { side, key, hx, hy, hz, d: p, sx: -nx * PX_X * scaleAt(hy), sy: -ny * PX_Y + nz * PX_H, t: this.gpT || 0 };
+    SFX.net(); SFX.boom(1); SFX.ooh(); this.say(b.inNet ? 'GOAL!!' : '', 'THROUGH THE NET!', 2.4);   // (t-025: in a match the GOAL!! headline stays up)
+    if (this.ramiNet) this.ramiNet('rip');
+  },
+  // through the hole: it flies on until the boards behind the goal (NFX.board m back) stop it, then drops on the grass
+  nfxFly(b, gx, s, u) {
+    const r = GP.ballR;
+    if (u > NFX.board - r && b.vx * s > 0) { b.x = gx + s * (NFX.board - r); b.vx *= -0.22; b.vy *= 0.6; b.vz *= 0.5; SFX.post(); }
+    if (b.nfx.ripKey === 'back' && u < GP.netD + 0.2 && b.vx * s < 0) { b.x = gx + s * (GP.netD + 0.2); b.vx *= -0.3; }   // (off the boards it doesn't come back in through the net)
+  },
   // the net gives: a quick ripple outwards that settles (the net images shift a few pixels and spring back)
   netRipple(side, speed) {
-    if (gpOn()) { const b = this.ball; b.gpIn = { vx: b.vx, vz: b.vz }; return; }   // t-013: the spring net (gpNet) takes the pace off and draws the give
+    if (netOn()) { const b = this.ball; b.gpIn = { vx: b.vx, vz: b.vz };      // t-013: the spring net (gpNet) takes the pace off and draws the give
+      if (nfxOn()) { const lv = Math.min(3, b.special || 0), str = clamp((speed - NFX.v0) / (NFX.v1 - NFX.v0), 0, 1);   // t-023: how hard, and which special level (it is
+        b.nfx = this.nfxLast = { lv, v: speed, str, S: NFX.base + NFX.byV * str + NFX.lv[lv], peak: 0, roll: 0, rolled: false, tore: false, rip: false, side, t: this.gpT || 0 }; }   // an ordinary ball once it's in - matchflow rules)
+      if (!netPlain()) return; }                                                // (t-025: touch screens keep v0.12.0's ripple of the images below: core.js netPlain)
     const n = this.nets && this.nets[side]; if (!n) return;
     const amp = clamp(Math.round(speed / 6), 2, 5) * (side === 'L' ? -1 : 1);
     this.tweens.killTweensOf(n.imgs); for (const im of n.imgs) im.x = n.x;

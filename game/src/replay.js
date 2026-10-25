@@ -11,7 +11,19 @@
 // has one), so Claude can read them back and fix what's real. This browser keeps the last 8 either way.
 const BW_CHECKS = {
   MANUAL:      { t: 'YOU MARKED THIS', sev: 'mark', why: 'you pressed N while watching (watch mode)' },
-  CRASH:       { t: 'GAME ERROR', sev: 'bug', why: 'the code threw an error' },
+  CRASH:       { t: 'GAME ERROR', sev: 'bug', why: 'the code threw an error (or a promise failed with nobody catching it)' },
+  // t-021 (Luca 25 Oct 06:44: "it should flag mechanics issues, actual game bugs, when game code breaks and clear errors
+  // occurs"): the errors that never reached Bug Watch before, and new checks for broken mechanics
+  CONSOLE_ERR: { t: 'ERROR IN THE LOG', sev: 'bug', why: 'the code (or Phaser) reported an error with console.error' },
+  FROZE:       { t: 'GAME FROZE', sev: 'bug', why: 'the page was open and visible, but the game stopped drawing frames (an error killed the loop, or it hung)' },
+  CLOCK_FROZEN: { t: 'CLOCK STOPPED', sev: 'bug', why: 'live play, but the match clock has not moved for 4 s' },
+  BALL_TOO_FAST: { t: 'BALL FLEW OFF', sev: 'bug', why: 'the ball went faster than 45 m/s without a special (the physics blew up)' },
+  BALL_UNDER:  { t: 'BALL UNDER THE GRASS', sev: 'bug', why: 'the ball is below the ground' },
+  THROUGH_KEEPER: { t: 'THROUGH THE KEEPER', sev: 'bug', why: 'a shot passed through the keeper\'s body (within 0.3 m, under 1.5 m up) with no touch and no guard break' },
+  IN_THE_NET:  { t: 'PLAYER IN THE NET', sev: 'bug', why: 'a player has stood inside the goal (behind the line, between the posts) for 1.5 s of live play' },
+  GOAL_TWICE:  { t: 'GOAL COUNTED TWICE?', sev: 'bug', why: 'the score went up by 2 within 3 s' },
+  TEAM_FROZEN: { t: 'TEAM FROZEN', sev: 'bug', why: 'all of one team\'s outfield players stood still for 3 s of live play' },
+  CONTROL_DEAD: { t: 'CONTROLS NOT ANSWERING', sev: 'bug', why: 'you held a direction for 1 s, your man was free to move (not busy, not stunned) and he did not move' },
   NAN:         { t: 'BROKEN NUMBERS', sev: 'bug', why: 'a position or a speed stopped being a number' },
   BALL_GONE:   { t: 'BALL LEFT THE STADIUM', sev: 'bug', why: 'the ball is far outside the pitch' },
   OUT_LIVE:    { t: 'OUT, BUT PLAY GOES ON', sev: 'bug', why: 'the ball has been over a line for a second and nobody stopped play' },
@@ -32,13 +44,23 @@ const BW_CHECKS = {
   KEEPER_WANDER:{ t: 'KEEPER MILES FROM GOAL', sev: 'odd', why: 'a keeper is more than 40 m from his goal during play' },
   FOUL_FAR:    { t: 'FOUL FROM A DISTANCE', sev: 'odd', why: 'a foul was given with the two players far apart' },
   STACKED:     { t: 'PLAYERS INSIDE EACH OTHER', sev: 'odd', why: 'two players stand on the same spot for 2 s' },
-  JITTER:      { t: 'FLICKERING', sev: 'odd', why: 'a player keeps flipping the way he faces' },
-  ANIM_FLICKER: { t: 'ANIMATION FLICKER', sev: 'odd', why: 'animations flash up for a frame or two and switch again (idle / walk / run...)' },
+  // t-021: 'look' = cosmetic. Counted (the soak prints the numbers), but no clip, no database doc, no badge, not in the
+  // lists: the art is still beta, and ~230 flicker clips a soak buried the real bugs.
+  JITTER:      { t: 'FLICKERING', sev: 'look', why: 'a player keeps flipping the way he faces' },
+  ANIM_FLICKER: { t: 'ANIMATION FLICKER', sev: 'look', why: 'animations flash up for a frame or two and switch again (idle / walk / run...)' },
   BALL_ON_PLAYER: { t: 'BALL STUCK ON A PLAYER', sev: 'odd', why: 'the ball sits at a player\'s feet but he never takes it' },
   PASS_LOOP:   { t: 'BACK AND FORTH', sev: 'odd', why: 'two players pass to each other again and again' },
-  STUTTER:     { t: 'STUTTER', sev: 'perf', why: 'the game skipped frames several times in a few seconds' },
+  STUTTER:     { t: 'STUTTER', sev: 'look', why: 'the game skipped frames several times in a few seconds' },
   FLAG:        { t: 'YOU FLAGGED THIS', sev: 'flag', why: 'you pressed F (INSTA FLAG) and said what looks wrong' },
 };
+// t-021: the review screens lead with real bugs - errors first (with their stack), then broken mechanics, your flags and
+// marks, then the 'looks odd' AI checks. A clip from before t-021 is judged by its code's kind today (old flicker
+// clips were 'odd' / 'perf' then and are hidden now).
+const BW_ERR = new Set(['CRASH', 'CONSOLE_ERR', 'FROZE']), BW_RANK = { bug: 1, flag: 2, mark: 3, odd: 4, perf: 5, look: 6 };
+const bwSev = x => (BW_CHECKS[x.code] ? BW_CHECKS[x.code].sev : x.sev);
+const bwLook = x => bwSev(x) === 'look';
+const bwRank = x => (BW_ERR.has(x.code) ? 0 : BW_RANK[bwSev(x)] ?? 5);
+const bwOrder = (a, b) => (a.review ? 1 : 0) - (b.review ? 1 : 0) || bwRank(a) - bwRank(b) || (a.old ? 1 : 0) - (b.old ? 1 : 0) || String(b.at || '').localeCompare(String(a.at || ''));
 // t-006 INSTA FLAG (Luca, 24 Oct 05:57: "a button where you can insta flag an issue in the game, auto clips last 5
 // seconds or whatever you think is best ... type the problem ... then instantly start working on fixing the issue").
 // F / pad BACK / the HUD's FLAG button: the game stops, you write (or dictate) a note, SEND keeps the last 8 s as a
@@ -82,6 +104,7 @@ function bwPack(frames, mark) {
     if (f.b[6]) e.push('t', 1);
     if (f.fl) e.push('fl', [f.fl[0], f.fl[1], f.fl[2], Math.round(f.fl[3] * 100)]);
     if (f.sh) e.push('sh', Math.round(f.sh * 1e4));
+    if (f.nt) e.push('n', f.nt.map(rk));                                          // t-025: the net (its bulges, an LV3's hole)
     if (f.x && f.x.length) e.push('x', [].concat(...f.x.map(q => [N(q[0]), N(q[1]), r(q[2]), r(q[3]), r10(q[4]), rk(q[5]), rk(q[6]), rk(q[7]), Math.round(q[8] * 100), q[9] ? 1 : 0, rk(q[10]), rk(q[11]), q[12], q[13] ? 1 : 0])));
     if (e.length) ex[out.length - 1] = e;
   });
@@ -101,6 +124,7 @@ function bwUnpack(s) {
       else if (key === 't') f.b[6] = 1;
       else if (key === 'fl') f.fl = [v[0], v[1], v[2], v[3] / 100];
       else if (key === 'sh') f.sh = v / 1e4;
+      else if (key === 'n') f.nt = v.map(q => q / 1000);
       else if (key === 'x') { f.x = []; for (let q = 0; q < v.length; q += 14) f.x.push([N[v[q]], N[v[q + 1]], v[q + 2], v[q + 3], v[q + 4] / 10, v[q + 5] / 1000, v[q + 6] / 1000, v[q + 7] / 1000, v[q + 8] / 100, !!v[q + 9], v[q + 10] / 1000, v[q + 11] / 1000, v[q + 12], !!v[q + 13]]); }
     }
     return f;
@@ -110,7 +134,7 @@ function bwUnpack(s) {
 
 class BugWatch {
   constructor(m) { this.m = m; this.list = []; this.cap = null; this.sent = 0; this.reset(); this.loadOld(); }
-  reset() { if (this.cap) this.finish(); this.k = {}; this.seen = {}; this.trace = []; this.traceT = 0; this.pos = null; this.bpos = null; this.wasLive = false; this.inNet = false; this.hitch = []; this.faces = []; this.owners = []; this.lastOwner = null; this.wasFoul = false; this.now = 0; this.stats = {}; this.perCode = {}; }
+  reset() { if (this.cap) this.finish(); this.k = {}; this.seen = {}; this.trace = []; this.traceT = 0; this.pos = null; this.bpos = null; this.wasLive = false; this.inNet = false; this.hitch = []; this.faces = []; this.owners = []; this.lastOwner = null; this.wasFoul = false; this.now = 0; this.stats = {}; this.perCode = {}; this.score0 = null; this.goalT = []; this.clk0 = null; this.bz0 = 0; this.cd = null; this.errs = {}; }
   watching() { const m = this.m; return BW_ON && !!m.home && !!(window.HC2_STARTED || m.demo || window.__labWatch) && !(window.__lab && !window.__labWatch); }
   live() {
     const m = this.m;
@@ -140,6 +164,26 @@ class BugWatch {
     if (![b.x, b.y, b.z, b.vx, b.vy, b.vz].every(F)) this.flag('NAN', `ball at ${[b.x, b.y, b.z].join(', ')} moving ${[b.vx, b.vy, b.vz].join(', ')}`);
     for (const p of A) if (!p.sentOff && ![p.x, p.y, p.vx, p.vy].every(F)) { this.flag('NAN', `${this.who(p)} at ${p.x}, ${p.y} moving ${p.vx}, ${p.vy} (${p.state})`, { p }); break; }
     if (!b.inNet && !this.m.dead && (b.x < -25 || b.x > PITCH_L + 25 || b.y < -25 || b.y > PITCH_W + 25 || b.z > 50)) this.flag('BALL_GONE', `ball at ${bwF1(b.x)}, ${bwF1(b.y)}, ${bwF1(b.z)} m up`);
+    // t-021 mechanics checks that hold at any moment. (Like every check here they only READ the game: no dice, nothing
+    // written back - the soak plays the same match with or without them.)
+    const bs = Math.hypot(b.vx, b.vy, b.vz);
+    if (!b.owner && !b.special && bs > 45) this.flag('BALL_TOO_FAST', `the ball at ${bwF1(bs)} m/s (${Math.round(bs * 3.6)} km/h) with no special, at ${bwF1(b.x)}, ${bwF1(b.y)}, ${bwF2(b.z)} m up`, { p: b.lastP && b.lastP.team ? b.lastP : null });
+    if (!b.inNet && b.z < -0.05) this.flag('BALL_UNDER', `the ball ${bwF2(-b.z)} m under the grass at ${bwF1(b.x)}, ${bwF1(b.y)} (moving ${bwF1(b.vz)} m/s up)`);
+    { const sc = m.home.score + m.away.score;                                  // GOAL_TWICE: two goals within 3 s (or a jump of 2)
+      if (this.score0 != null && sc > this.score0) { for (let k = this.score0; k < sc; k++) this.goalT.push(this.now); this.goalT = this.goalT.filter(t => this.now - t < 3);
+        if (this.goalT.length >= 2) { this.flag('GOAL_TWICE', `the score went up by ${this.goalT.length} in ${bwF1(this.now - this.goalT[0])} s (now ${m.home.name} ${m.home.score}-${m.away.score} ${m.away.name})`); this.goalT = []; } }
+      this.score0 = sc; }
+    // THROUGH_KEEPER: between two live frames the ball's path crossed a keeper's body, heading for his goal, and nothing
+    // touched it (no catch, no parry, no deflection: the ball's last team isn't his) and no guard break (that stuns him)
+    if (this.bpos && this.wasLive && !this.inNet && !b.owner) {
+      const px = this.bpos[0], py = this.bpos[1], sx = b.x - px, sy = b.y - py, L2 = sx * sx + sy * sy, v = Math.hypot(b.vx, b.vy);
+      if (L2 > 1e-6 && v > 10) for (const t of [m.home, m.away]) {
+        const k = t.players[0]; if (!k || !k.keeper || k.sentOff || k.hide || b.last === t || k.stun > 0 || k.cool > 0 || (t.ownGoalX - px) * sx <= 0) continue;
+        const u = ((k.x - px) * sx + (k.y - py) * sy) / L2; if (!(u > 0 && u <= 1)) continue;        // (his spot is level with this frame's stretch)
+        const d = Math.hypot(px + sx * u - k.x, py + sy * u - k.y), z = this.bz0 + (b.z - this.bz0) * u;
+        if (d < 0.3 && z < 1.5) this.flag('THROUGH_KEEPER', `the ball (${Math.round(v * 3.6)} km/h, ${bwF2(z)} m up) went ${bwF2(d)} m from the middle of ${this.who(k)} - no touch, no guard break (${k.state}${b.special ? `, a LV${b.special} special` : ''})`, { p: k });
+      }
+    }
     if (b.inNet && !this.inNet && !(b.y > GOAL_Y0 - 0.35 && b.y < GOAL_Y1 + 0.35 && b.z < BAR_Z + 0.35))
       this.flag('GOAL_WRONG', `in the net at y ${bwF2(b.y)} (posts at ${bwF2(GOAL_Y0)} and ${bwF2(GOAL_Y1)}), ${bwF2(b.z)} m up (bar ${BAR_Z} m)`);
     this.inNet = !!b.inNet;
@@ -185,11 +229,34 @@ class BugWatch {
       for (let i = 0; i < A.length && !stack; i++) { const p = A[i]; if (p.sentOff || p.hide) continue;
         for (let j = i + 1; j < A.length; j++) { const q = A[j]; if (!q.sentOff && !q.hide && Math.abs(p.x - q.x) < 0.35 && Math.abs(p.y - q.y) < 0.3) { stack = [p, q]; break; } } }
       if (this.hold('stack', !!stack, dt, 2)) this.flag('STACKED', `${this.who(stack[0])} and ${this.who(stack[1])} on the same spot for 2 s (${stack[0].state} / ${stack[1].state})`, { p: stack[0] });
+      // t-021 CLOCK_FROZEN (the Lab pins its clock on purpose: only its BW1 case watches it there)
+      if (this.hold('clock', !(window.__lab && !window.__labClock) && m.clock === this.clk0, dt, 4)) this.flag('CLOCK_FROZEN', `live play, but the clock has stood at ${Math.floor(m.clock / 60)}:${String(Math.floor(m.clock % 60)).padStart(2, '0')} for 4 s (half ${m.half})`);
+      A.forEach((p, i) => {                                                   // t-021 IN_THE_NET: stood inside a goal
+        const inGoal = !p.sentOff && !p.hide && (p.x < -0.3 || p.x > PITCH_L + 0.3) && p.y > GOAL_Y0 && p.y < GOAL_Y1;
+        if (this.hold('net' + i, inGoal, dt, 1.5)) this.flag('IN_THE_NET', `${this.who(p)} has stood in the goal at ${bwF1(p.x)}, ${bwF1(p.y)} for 1.5 s of live play (${p.state})`, { p }); });
+      for (const t of [m.home, m.away]) {                                     // t-021 TEAM_FROZEN (not your team in your match: you might stand still)
+        if (!m.demo && t === m.home) continue;
+        const O = t.players.filter(p => !p.keeper && !p.sentOff && !p.hide), still = O.length >= 3 && O.every(p => (p.speed || 0) < 0.1);
+        if (this.hold('tf' + t.side, still, dt, 3)) this.flag('TEAM_FROZEN', `all ${O.length} of ${t.name}'s outfield players stood still for 3 s (${[...new Set(O.map(p => p.state))].join(' / ')})`, { p: O[0] });
+      }
+      { const h = m.human, ax = typeof Input !== 'undefined' ? Input.axis : null;   // t-021 CONTROL_DEAD (your matches only)
+        const free = h && h.team && !m.demo && !h.sentOff && !h.hands && !h.busy() && !(h.stun > 0) && !m.aerial && !m.flagUI
+          && h.x > -2.5 && h.x < PITCH_L + 2.5 && h.y > -2.5 && h.y < PITCH_W + 2.5;   // (pushing into the edge of the world isn't dead controls)
+        if (free && ax && Math.hypot(ax.x, ax.y) > 0.5) {
+          const c = this.cd;
+          if (!c || c.p !== h) this.cd = { p: h, x: h.x, y: h.y, t: 0 };
+          else if ((c.t += dt) >= 1) { const d = Math.hypot(h.x - c.x, h.y - c.y);
+            if (d < 0.3) this.flag('CONTROL_DEAD', `you held the stick ${bwF1(ax.x)}, ${bwF1(ax.y)} for 1 s and ${this.who(h)} moved ${bwF2(d)} m (${h.state}, ${bwF1(h.speed || 0)} m/s)`, { p: h });
+            this.cd = null; }
+        } else this.cd = null; }
       A.forEach((p, i) => { if (p.sentOff || p === m.human) return; const F = this.faces[i] || (this.faces[i] = { f: p.face, ts: [] });
         if (p.face !== F.f) { F.f = p.face; F.ts.push(this.now); while (F.ts.length && this.now - F.ts[0] > 1) F.ts.shift();
           if (F.ts.length >= 8 && (p.speed || 0) < 3) { F.ts = []; this.flag('JITTER', `${this.who(p)} turned 8 times in a second (${p.state}, ${bwF1(p.speed || 0)} m/s)`, { p }); } }
         const an = p.anim || '';                                                  // a BLIP: an animation on screen for under 0.1 s
-        if (an !== F.a) { if (F.a && this.now - (F.at || 0) < 0.1) { (F.bl = F.bl || []).push(this.now); while (F.bl.length && this.now - F.bl[0] > 1) F.bl.shift();
+        // (QA 25 Oct: '' is not an animation. setState() and a rig / replay clear p.anim to '' so the next draw() replays the
+        // move; the sprite still shows the old picture until then. Counting '' as one made a false blip at every state change
+        // - "run-W → " in the clips - so the code waits for the next real animation instead.)
+        if (an && an !== F.a) { if (F.a && this.now - (F.at || 0) < 0.1) { (F.bl = F.bl || []).push(this.now); while (F.bl.length && this.now - F.bl[0] > 1) F.bl.shift();
             if (F.bl.length >= 3) { F.bl = []; this.flag('ANIM_FLICKER', `${this.who(p)}: 3 animations flashed up for under 0.1 s within a second (${(F.a.split(':')[1] || F.a)} → ${(an.split(':')[1] || an)}, ${bwF1(p.speed || 0)} m/s)`, { p }); } }
           F.a = an; F.at = this.now; } });
       const nb = !o && b.z < 0.3 && len(b.vx, b.vy) < 0.6 ? this.nearest(b) : null;
@@ -201,14 +268,20 @@ class BugWatch {
         if (bd > Math.max(3.5, 60 * dt)) this.flag('TELEPORT', `the ball moved ${bwF1(bd)} m in one frame (${bwF1(this.bpos[0])}, ${bwF1(this.bpos[1])} → ${bwF1(b.x)}, ${bwF1(b.y)})`, { p: b.owner });
       }
     } else for (const key of Object.keys(this.k)) if (!key.startsWith('fs-') && !/^(st|off|spr)\d/.test(key)) delete this.k[key];   // (a man stuck in a move stays stuck through a throw-in)
-    this.pos = A.map(p => [p.x, p.y]); this.bpos = [b.x, b.y]; this.wasLive = live;
+    this.pos = A.map(p => [p.x, p.y]); this.bpos = [b.x, b.y]; this.bz0 = b.z; this.clk0 = m.clock; this.wasLive = live;
   }
   frame(ms) {                                              // long frames on YOUR screen (not in the test browsers)
     if (!this.watching() || navigator.webdriver || window.HC2_TEST_FAST || document.hidden || !this.live() || ms < 120) return;
     const t = this.m.time.now; this.hitch = this.hitch.filter(x => t - x < 10000); this.hitch.push(t);
     if (this.hitch.length >= 4) { this.flag('STUTTER', `${this.hitch.length} long frames in 10 s (the last one ${Math.round(ms)} ms)`); this.hitch = []; }
   }
-  crash(msg, stack) { try { if (!this.m.home) return; delete this.seen.CRASH; this.flag('CRASH', msg, { stack, now: true }); } catch (e) {} }
+  // every error gets a clip with its stack, now (the loop may be dead after it: nothing comes after). t-021: the same
+  // message again in this match is only counted - one error thrown every frame used to fill all 30 clips with copies.
+  crash(msg, stack, code = 'CRASH') {
+    try { if (!this.m.home) return; const key = code + ' ' + msg;
+      if (this.errs[key]) { this.stats[code] = (this.stats[code] || 0) + 1; return; }
+      this.errs[key] = 1; delete this.seen[code]; this.flag(code, msg, { stack, now: true }); } catch (e) {}
+  }
   traceTick(dt, live) {                                    // 10 numbers a tenth of a second, the last 6 s
     this.traceT += dt; if (this.traceT < 0.1) return; this.traceT = 0;
     const m = this.m, b = m.ball, r1 = v => Math.round(v * 10) / 10;
@@ -225,6 +298,7 @@ class BugWatch {
   flag(code, msg, o = {}) {
     const m = this.m, now = m.time ? m.time.now : Date.now();
     this.stats[code] = (this.stats[code] || 0) + 1;                              // (every trip counts, clip or not: how often it happens)
+    if (BW_CHECKS[code].sev === 'look') return;                                 // t-021: cosmetic - counted only (no clip, no doc, no badge)
     if (this.seen[code] != null && now - this.seen[code] < BW_GAP) return;
     this.seen[code] = now;
     if (this.list.filter(x => !x.old).length >= BW_MAX) return;
@@ -259,9 +333,9 @@ class BugWatch {
     }
     return d;
   }
-  loadOld() {                                              // clips from earlier visits that nobody marked yet
+  loadOld() {                                              // clips from earlier visits that nobody marked yet (t-021: not the old flicker ones)
     try { const L = JSON.parse(localStorage.getItem('hc2-bw-clips') || '[]');
-      for (const d of L) if (d && d.id && !d.review) this.list.push(Object.assign({}, d, { old: true, isNew: false, frames: null, packed: d.clip, state: d.state, trace: d.trace })); } catch (e) {}
+      for (const d of L) if (d && d.id && !d.review && !bwLook(d)) this.list.push(Object.assign({}, d, { old: true, isNew: false, frames: null, packed: d.clip, state: d.state, trace: d.trace })); } catch (e) {}
   }
   framesOf(inc) {                                          // footage of a clip (unpacked on demand for the stored ones)
     if (inc.frames && inc.frames.length) return { frames: inc.frames, mark: inc.mark };
@@ -269,6 +343,7 @@ class BugWatch {
     try { const u = bwUnpack(s); inc.frames = u.frames; inc.mark = u.mark; return u; } catch (e) { return null; }
   }
   async store(inc) {
+    if (window.__bwNoStore) { inc.saved = 'test'; return inc.saved; }         // t-021: the Lab's BW cases trip checks on purpose - keep them out of the clips
     const d = this.doc(inc);
     try {
       const L = JSON.parse(localStorage.getItem('hc2-bw-clips') || '[]').filter(x => x && x.id !== inc.id);
@@ -314,7 +389,37 @@ class BugWatch {
   }
   review(inc, verdict, note) { inc.review = { verdict, note: note || '', at: new Date().toISOString() }; inc.isNew = false; this.store(inc); }
 }
-addEventListener('error', e => { const m = window.__hc2; if (m && m.bw) m.bw.crash(`${e.message} (${String(e.filename || '').split('/').pop()}:${e.lineno})`, e.error && e.error.stack); });
+addEventListener('error', e => { const m = window.__hc2; if (m && m.bw) { const msg = `${e.message} (${String(e.filename || '').split('/').pop()}:${e.lineno})`; m.bw.lastErr = msg; m.bw.crash(msg, e.error && e.error.stack); } });
+// t-021 (Luca 25 Oct: "when game code breaks and clear errors occurs"): the errors that never reached Bug Watch.
+// A promise that fails with nobody catching it (index.html / test.html only showed it on screen) is a CRASH too.
+addEventListener('unhandledrejection', e => { const m = window.__hc2, r = e.reason;
+  if (m && m.bw) { const msg = `promise failed: ${(r && r.message) || String(r)}`; m.bw.lastErr = msg; m.bw.crash(msg, r && r.stack); } });
+// console.error (ours or Phaser's: a file that failed to load, a WebGL error...) - passed on as before, and kept as a
+// clip at most once every 5 s (the same message again in a match is only counted). The guard stops a loop if keeping
+// the clip itself logged an error.
+(() => {
+  const real = console.error.bind(console); let last = 0, inside = false;
+  console.error = (...a) => {
+    real(...a);
+    const m = window.__hc2; if (inside || !m || !m.bw || !m.home) return;
+    const now = Date.now(); if (now - last < 5000) { m.bw.stats.CONSOLE_ERR = (m.bw.stats.CONSOLE_ERR || 0) + 1; return; }
+    last = now; inside = true;
+    try { const er = a.find(x => x instanceof Error), msg = a.map(x => (x instanceof Error ? x.message : typeof x === 'string' ? x : (() => { try { return JSON.stringify(x); } catch (e) { return String(x); } })())).join(' ').slice(0, 300);
+      m.bw.crash(msg || '(empty console.error)', (er && er.stack) || String(new Error().stack || '').split('\n').slice(2).join('\n'), 'CONSOLE_ERR'); } finally { inside = false; }
+  };
+})();
+// The WATCHDOG: a game that froze without throwing (or whose loop died after an error: Phaser asks for the next frame
+// only after the last one ran cleanly). Once a second: page visible, the loop meant to be running, Bug Watch watching -
+// and Phaser's frame count hasn't moved for 3 s → FROZE, with the footage up to the freeze. Real browsers only: the test
+// tools step time by hand (window.__bwDog lets tools/bwtest.js check it). A match clock that stops while frames run is
+// CLOCK_FROZEN, in the checks above.
+setInterval(() => {
+  const D = window.__bwDogS = window.__bwDogS || { f: -1, n: 0, fired: false }, m = window.__hc2, L = m && m.game && m.game.loop;
+  const tools = navigator.webdriver || window.HC2_TEST_FAST || window.__lab;
+  if (!L || !m.bw || (tools && !window.__bwDog) || document.visibilityState !== 'visible' || !L.running || !m.bw.watching()) { D.f = -1; D.n = 0; return; }
+  if (L.frame !== D.f) { D.f = L.frame; D.n = 0; D.fired = false; return; }
+  if (++D.n >= 3 && !D.fired) { D.fired = true; m.bw.crash(`no frame drawn for 3 s with the page open${m.bw.lastErr ? ` - the last error: ${m.bw.lastErr}` : ' - no error thrown'}`, '', 'FROZE'); }
+}, 1000);
 
 // ---------------------------------------------------------------- Match methods: replay
 hc2Mix(Match, {
@@ -336,6 +441,7 @@ hc2Mix(Match, {
       p: this.all.map(q => { const r = q.spr; return [r.x, r.y, r.frame.name, r.visible, r.depth, r.originX, r.originY, r.flipX, r.rotation, r.scaleX, r.scaleY]; }),   // (v0.8.9: + turn / squash for the rough rigs)
       r: this.ref ? (r => [r.x, r.y, r.frame.name, r.visible, r.depth, r.flipX])(this.ref.spr) : null,
       x: this.recFx(),                                                            // t-006: every effect on the pitch this frame
+      nt: this.recNet(),                                                          // t-025: the net moving / torn (null while it hangs still)
       fl: cf && cf.isRunning && cf.alpha > 0.01 ? [cf.red, cf.green, cf.blue, cf.alpha] : null,   // the camera's flash + shake (a special, a guard break, a power shot)
       sh: cs && cs.isRunning ? cs.intensity.x : 0 });
     if (this.rec.length > REC_MAX) this.rec.shift();
@@ -357,6 +463,28 @@ hc2Mix(Match, {
     for (let i = 0; i < L.length; i++) { const o = L[i]; if (!this.isFxSprite(o)) continue;
       out.push([o.texture.key, o.frame.name, o.x, o.y, o.depth, o.scaleX, o.scaleY, o.rotation, o.alpha, o.flipX, o.originX, o.originY, o.tintTopLeft, o.isTinted && o.tintFill]); }
     return out.length ? out : null;
+  },
+  // t-025 (Luca's living net in every replay - "the impact of the goal is felt"): the net is recorded with each frame -
+  // every bulge on it (where it was hit, how deep it is, how old its ripple is) and an LV3's hole - and redrawn from
+  // that in the replay, the same way the sprites are. Recording it beats re-running the net from the ball: the replay
+  // shows exactly what was played, a pause-menu replay can't disturb the live net, and a stored Bug Watch / INSTA FLAG
+  // clip carries it too (bwPack 'n'). Nine numbers a bulge, only on the frames the net moves.
+  recNet() {
+    const S = this.netS, T = this.netRip; if (!S || (!S.L.length && !S.R.length && !T)) return null;
+    const o = [], R = v => Math.round(v * 1000) / 1000;
+    for (const [k, L] of [[0, S.L], [1, S.R]]) for (const q of L) o.push(k, R(q.hx), R(q.hy), R(q.hz), R(q.d), R(q.sx), R(q.sy), R(q.age), R(q.peak));
+    if (T) o.push(T.side === 'L' ? 2 : 3, R(T.hx), R(T.hy), R(T.hz), R(T.d), R(T.sx), R(T.sy), R((this.gpT || 0) - T.t), 0);   // (kind 2 / 3: the hole, with its age)
+    return o;
+  },
+  netReplay(nt) {                                                                  // a recorded frame's net, drawn by world.js netDraw (the live one is put back)
+    if (!this.nets || !netOn()) return;
+    const live = this.netS, liveRip = this.netRip, S = { L: [], R: [] }; let T = null;
+    for (let i = 0; nt && i + 8 < nt.length; i += 9) {
+      const q = { hx: nt[i + 1], hy: nt[i + 2], hz: nt[i + 3], d: nt[i + 4], sx: nt[i + 5], sy: nt[i + 6], age: nt[i + 7], peak: nt[i + 8] };
+      if (nt[i] < 2) S[nt[i] ? 'R' : 'L'].push(q); else T = Object.assign(q, { side: nt[i] === 2 ? 'L' : 'R', t: (this.gpT || 0) - q.age });
+    }
+    this.netS = S; this.netRip = T;
+    try { this.netDraw(); } finally { this.netS = live || { L: [], R: [] }; this.netRip = liveRip; }   // (never null after: netDraw has to put the plain art back once the replay ends)
   },
   drawFx(f) {                                                                      // a recorded frame's effects, from a pool of images (returns how many)
     const P = this.rpFx || (this.rpFx = []), X = (f && f.x) || [];
@@ -471,6 +599,7 @@ hc2Mix(Match, {
     this.ballSh.setPosition(f.s[0], f.s[1]).setAlpha(f.s[2]).setDepth(f.s[3]).setScale(f.s[4]);
     if (f.r && this.ref) { const sp = this.ref.spr; sp.anims.stop(); sp.setPosition(f.r[0], f.r[1]).setFrame(f.r[2]).setVisible(f.r[3]).setDepth(f.r[4]).setFlipX(f.r[5]); this.ref.anim = ''; }
     r.fxNow = this.drawFx(f); r.fxMax = Math.max(r.fxMax, r.fxNow);              // t-006: the effects of that frame (slow-mo too: they're per frame)
+    this.netReplay(f.nt);                                                          // t-025: and the net as it was (bulging, rolling, torn)
     // TV zoom: in on the ball during the slow motion, back out after
     const zb = this.baseZoom(), zt = !r.noZoom && r.t > r.slowA - 0.1 && r.t < r.slowB + 0.15 ? zb * 1.5 : zb;   // camera-pov: 1.5x the picked distance
     r.z += (zt - r.z) * Math.min(1, dt * 5);
@@ -605,7 +734,7 @@ hc2Mix(Match, {
     if (U && U.from === 'pause' && this.paused && this.pm) { this.drawPause(); return; }
     this.msg.setVisible(true); this.sub.setVisible(true);
   },
-  bwList() { const L = this.bw ? this.bw.list : []; return [...L.filter(x => !x.old), ...L.filter(x => x.old)].slice(0, 40); },
+  bwList() { const L = this.bw ? this.bw.list : []; return L.filter(x => !bwLook(x)).sort(bwOrder).slice(0, 40); },   // (t-021: real bugs first, errors on top; to check before marked)
   bwItems() {
     const U = this.bwUI, L = this.bwList();
     if (U.page === 'one') {
@@ -616,7 +745,7 @@ hc2Mix(Match, {
         { k: 'unsure', l: 'NOT SURE', key: '3', act: () => this.bwMark(x, 'unsure') },
         { k: 'back', l: '◀ BACK', key: 'ESC', act: () => { U.page = 'list'; U.i = Math.max(0, L.indexOf(x)); } }];
     }
-    return [...L.map((x, j) => ({ k: 'i' + j, x, l: `${x.old ? 'EARLIER · ' : ''}${x.min}' ${x.kind === 'flag' ? String(x.note || x.title).slice(0, 28).toUpperCase() : x.title}`, tag: x.review ? BW_VERDICT[x.review.verdict] : x.kind === 'flag' ? 'FLAG' : x.isNew ? 'NEW' : '',   // (t-006: your flags say FLAG)
+    return [...L.map((x, j) => ({ k: 'i' + j, x, l: `${x.old ? 'EARLIER · ' : ''}${x.min}' ${x.kind === 'flag' ? String(x.note || x.title).slice(0, 28).toUpperCase() : x.title}`, tag: x.review ? BW_VERDICT[x.review.verdict] : x.kind === 'flag' ? 'FLAG' : BW_ERR.has(x.code) ? 'ERROR' : x.isNew ? 'NEW' : '',   // (t-006: your flags say FLAG; t-021: errors say ERROR)
       act: () => { U.page = 'one'; U.sel = x; U.i = 0; x.isNew = false; } })),
       { k: 'close', l: '◀ BACK', key: 'ESC', act: () => this.bwClose() }];
   },
@@ -632,23 +761,25 @@ hc2Mix(Match, {
         #flow .bw input{font:9px "Press Start 2P",monospace;padding:8px;border:3px solid #0c0a0e;background:#f4f0e4;color:#0c0a0e;width:100%;box-sizing:border-box}
         #flow .bw .menu{width:100%} #flow .bw .menu button em{font-style:normal;font-size:8px;padding:2px 5px;background:#0c0a0e;color:#ffde1e}
         #flow .bw .menu button em.BUG{color:#ff2878} #flow .bw .menu button em.FINE{color:#4cff7a} #flow .bw .menu button em.NEW{color:#28c8e6} #flow .bw .menu button em.FLAG{color:#fff;background:#ff2878}
-        #flow .bw .menu{max-height:min(52vh,420px);overflow-y:auto;padding:2px 6px 6px 2px}`;
+        #flow .bw .menu{max-height:min(52vh,420px);overflow-y:auto;padding:2px 6px 6px 2px}
+        #flow .bw .stk{margin:0;max-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-all;font:8px/1.6 monospace;color:#ffde1e;background:#0c0a0e;padding:6px}
+        #flow .bw .menu button em.ERROR{color:#fff;background:#ff2878}`;
       document.head.appendChild(st);
     }
     const L = this.bwList(), todo = L.filter(x => !x.review).length;
     if (U.page === 'one') {
       const x = U.sel, rv = x.review, saved = x.saved === 'db' ? 'SAVED · CLAUDE CAN READ IT' : x.saved === 'local' ? 'KEPT IN THIS BROWSER' : x.ready ? 'SAVING…' : 'STILL RECORDING…';
       el.innerHTML = `<h2>BUG WATCH</h2><div class="bw"><div class="card">
-        <p><span class="sev ${x.sev}">${x.sev === 'bug' ? 'LOOKS LIKE A BUG' : x.sev === 'mark' ? 'YOUR MARK' : x.sev === 'flag' ? 'YOUR FLAG' : x.sev === 'perf' ? 'SPEED' : 'LOOKS ODD'}</span>${x.title}</p>
+        <p><span class="sev ${x.sev}">${BW_ERR.has(x.code) ? 'CODE ERROR' : x.sev === 'bug' ? 'LOOKS LIKE A BUG' : x.sev === 'mark' ? 'YOUR MARK' : x.sev === 'flag' ? 'YOUR FLAG' : x.sev === 'perf' ? 'SPEED' : 'LOOKS ODD'}</span>${x.title}</p>
         <p>${x.min}' · ${['1ST HALF', '2ND HALF', 'EXTRA TIME 1', 'EXTRA TIME 2'][(x.half || 1) - 1]} · ${x.home} ${x.score} ${x.away}${x.mode === 'demo' ? ' · THE DEMO' : x.mode === 'watch' ? ' · WATCH MODE' : ''}</p>
-        <p>WHAT TRIPPED: ${x.why}</p><p class="n">${String(x.msg).replace(/[<>&]/g, '')}</p>
+        <p>WHAT TRIPPED: ${x.why}</p><p class="n">${String(x.msg).replace(/[<>&]/g, '')}</p>${BW_ERR.has(x.code) && x.stack ? `<pre class="stk">${String(x.stack).slice(0, 700).replace(/[<>&]/g, '')}</pre>` : ''}
         <p>${rv ? `YOU SAID: ${BW_VERDICT[rv.verdict]}${rv.note ? ' · ' + rv.note.replace(/[<>&]/g, '') : ''} · ` : ''}${saved}</p>
         <input id="bwnote" maxlength="200" placeholder="NOTE (OPTIONAL) - WHAT LOOKS WRONG?" value="${rv && rv.note ? rv.note.replace(/["<>&]/g, '') : ''}">
       </div><div class="menu">${items.map((it, j) => `<button type="button" data-j="${j}" class="${j === U.i ? 'on' : ''}">${it.l}<kbd>${it.key || ''}</kbd></button>`).join('')}</div></div>
       <small>WATCH IT, THEN MARK IT · &#8593;&#8595; PICK · ENTER: OK · ESC: BACK</small>`;
       const inp = el.querySelector('#bwnote'); if (inp) inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') inp.blur(); });
     } else {
-      el.innerHTML = `<h2>BUG WATCH</h2><div class="bw"><div class="card"><p>THE GAME WATCHES ITS OWN FOOTAGE WHILE IT PLAYS. WHEN SOMETHING BREAKS A RULE (STUCK BALL, A GOAL NOT GIVEN, A PLAYER JUMPING...) IT KEEPS THE CLIP.</p>
+      el.innerHTML = `<h2>BUG WATCH</h2><div class="bw"><div class="card"><p>THE GAME WATCHES ITS OWN FOOTAGE WHILE IT PLAYS. WHEN SOMETHING BREAKS A RULE (AN ERROR, A GOAL NOT GIVEN, A BALL THROUGH THE KEEPER...) IT KEEPS THE CLIP. REAL BUGS COME FIRST; ANIMATION FLICKER IS ONLY COUNTED.</p>
         <p class="n">${L.length ? `${L.length} CLIP${L.length > 1 ? 'S' : ''} · ${todo} TO CHECK` : 'NOTHING CAUGHT YET - GOOD SIGN.'}${BW_ON ? '' : ' · BUG WATCH IS OFF (OPTIONS)'}</p></div>
         <div class="menu">${items.map((it, j) => `<button type="button" data-j="${j}" class="${j === U.i ? 'on' : ''}">${it.l}${it.tag ? `<em class="${it.tag.replace(' ', '')}">${it.tag}</em>` : it.key ? `<kbd>${it.key}</kbd>` : ''}</button>`).join('')}</div></div>
         <small>&#8593;&#8595; PICK · ENTER: OPEN · ESC: BACK</small>`;

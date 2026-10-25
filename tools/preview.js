@@ -7,6 +7,8 @@
 //
 //   TEST=CH1 OUT=docs/previews/pr3-chip.gif node tools/preview.js       a Test Lab test (bash tools/mklab.sh first)
 //   MATCH=1 SKIP=30 OUT=docs/previews/pr3-x.gif node tools/preview.js   a computer v computer match, from 30 s in
+//   TEST=NT1,NT2,NT3 OUT=... node tools/preview.js                       several Lab tests in a row in one GIF (t-023:
+//                                                                         SKIP / SECS / SETUP apply to each, in turn)
 //
 // Options: SECS=4 (length), SKIP=0 (seconds to skip before recording), FPS=12, WIDTH=480, ZOOM=1.6 (Lab camera),
 //   SEED=7 (the match's dice), VS=IS,IRO (the match's teams), SETUP='js run in the page just before recording'
@@ -33,15 +35,18 @@ const PORT = E.PORT || 8765, STEP = Math.max(1, Math.round(60 / FPS));
     }
     console.error('the pitch tiles did not finish loading; the GIF may have black gaps');
   };
+  const startTest = async id => {
+    const ok = await page.evaluate(([id, zoom]) => { const L = window.__lab;
+      const gi = L.groups.findIndex(x => x.tests.some(t => t.id.toLowerCase() === id.toLowerCase())); if (gi < 0) return false;
+      L.boxes = false; L.zoom = zoom; L.g = gi; L.i = L.groups[gi].tests.findIndex(t => t.id.toLowerCase() === id.toLowerCase()); L.api.start(false); L.run.marks = []; return true; },
+      [id, +(E.ZOOM || 1.6)]);
+    if (!ok) { console.error(`no Test Lab test called ${id}`); await br.close(); process.exit(1); }
+  };
+  const TESTS = E.TEST ? E.TEST.split(',').map(t => t.trim()).filter(Boolean) : [null];
   if (E.TEST) {
     await page.goto(`http://localhost:${PORT}/labtest.html`);
     await page.waitForFunction(() => window.__lab && window.__lab.active, null, { timeout: 120000 });
     await page.evaluate(() => { window.__hc2.game.loop.sleep(); window.__T = 5e6; }); await preload();
-    const ok = await page.evaluate(([id, zoom]) => { const L = window.__lab;
-      const gi = L.groups.findIndex(x => x.tests.some(t => t.id.toLowerCase() === id.toLowerCase())); if (gi < 0) return false;
-      L.boxes = false; L.zoom = zoom; L.g = gi; L.i = L.groups[gi].tests.findIndex(t => t.id.toLowerCase() === id.toLowerCase()); L.api.start(false); L.run.marks = []; return true; },
-      [E.TEST, +(E.ZOOM || 1.6)]);
-    if (!ok) { console.error(`no Test Lab test called ${E.TEST}`); await br.close(); process.exit(1); }
   } else {
     await page.goto(`http://localhost:${PORT}/test.html#flow`);
     await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
@@ -57,16 +62,19 @@ const PORT = E.PORT || 8765, STEP = Math.max(1, Math.round(60 / FPS));
   // step the game by hand: n frames of 1/60 s (the Lab's debug marks are cleared so they never show)
   const step = n => page.evaluate(n => { const m = window.__hc2, g = m.game; for (let k = 0; k < n; k++) { window.__T += 1000 / 60; g.step(window.__T, 1000 / 60);
     if (window.__lab && window.__lab.run) window.__lab.run.marks = []; } }, n);
-  if (SKIP > 0) await step(Math.round(SKIP * 60));
-  if (E.SETUP) await page.evaluate(E.SETUP);
-  await step(1);
-  const box = await page.evaluate(() => { const r = document.querySelector('#game canvas').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
   const dir = E.KEEP ? OUT.replace(/\.gif$/, '') + '-frames' : fs.mkdtempSync(path.join(os.tmpdir(), 'hc2prev-'));
   fs.mkdirSync(dir, { recursive: true });
-  const n = Math.max(2, Math.round(SECS * FPS));
-  for (let f = 0; f < n; f++) {
-    await page.screenshot({ path: path.join(dir, `${String(f).padStart(3, '0')}.png`), clip: box, timeout: 120000 });
-    await step(STEP);
+  const n = Math.max(2, Math.round(SECS * FPS)); let fno = 0;
+  for (const id of TESTS) {                                                     // (one test, a match, or several tests in a row)
+    if (id) await startTest(id);
+    if (SKIP > 0) await step(Math.round(SKIP * 60));
+    if (E.SETUP) await page.evaluate(E.SETUP);
+    await step(1);
+    const box = await page.evaluate(() => { const r = document.querySelector('#game canvas').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+    for (let f = 0; f < n; f++) {
+      await page.screenshot({ path: path.join(dir, `${String(fno++).padStart(4, '0')}.png`), clip: box, timeout: 120000 });
+      await step(STEP);
+    }
   }
   await br.close();
   fs.mkdirSync(path.dirname(path.resolve(OUT)), { recursive: true });

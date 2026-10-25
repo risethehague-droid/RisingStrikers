@@ -622,6 +622,72 @@
       gp8,
     ];
   }
+  // ---- t-023 THE NET COMES ALIVE (NET_FX - Luca: "make a preview of this before you implement"; in every match since
+  // t-025). Into an empty goal so nothing gets in the way: NT1 a soft shot, NT2 a power shot, NT3-5 a special at
+  // LV1 / LV2 / LV3 (the Lab presses SPECIAL with the bars in the bank, at a fixed spot so every run looks the same).
+  // Every line: how deep the net went, how long the ball rolled in it, ripped yes / no.
+  function ntTest(id, name, sub, o) {
+    return { id, group: 'NT', name, sub, kind: 'shot',
+      setup(r) {
+        const s = m.home.players[9], from = o.from, f = dirIndex(GX - from[0], o.y - from[1]), dv = dirVec(f);
+        cast([s]); put(s, from[0] - dv.x * 0.5, from[1] - dv.y * 0.42, f); ballAt(from[0], from[1], 0, s);
+        for (const mt of m.meters || []) mt.e = 0;
+        m.nfxLast = null; m.netRip = null; m.netSaid = null; m.say('', `${id} · ${name.replace(/^an? /, '').toUpperCase()}`, 1.1);   // (names the clip in the preview GIF)
+        Object.assign(r, { human: s, shooter: s, gk: null, o, marks: [{ x: GX, y: o.y, r: 0.3 }], cam: () => ({ x: GX + 2.5, y: 36 }) });   // (the camera stays on the goal: it's the net we're watching)
+        r.action = { at: 0.7, fire: () => {
+          if (!o.lv) { fireShot(r, { y: o.y, z: o.z }, o.speed, o.power); return; }
+          m.meters[0].e = o.lv; m.special(s); const k = m.pending; if (k) { k.ty = o.y; k.vz = o.vz; }   // (its corner and lift pinned: the same shot every run)
+        } };
+      },
+      check(r) {
+        const b = m.ball, X = m.nfxLast;
+        if (r.shotT == null) { if (!b.owner && r.fired && b.lastP === r.shooter && !m.pending) r.shotT = r.t; else return null; }
+        if (!b.inNet) { if (r.out) return { o: 'MISSED · ' + r.out.toLowerCase() }; return r.t - r.shotT > 4 ? { o: 'NO GOAL · the ball is still loose' } : null; }
+        if (r.goalT == null) r.goalT = r.t;
+        const still = b.z < 0.15 && len(b.vx, b.vy) < 0.8, since = r.t - r.goalT;
+        if (!X || since < 0.5 || (b.nfxRoll || (!still && since < 4.5))) return null;          // let the net play out: the roll, the drop, the flight behind
+        const how = X.lv ? `LV${X.lv} SPECIAL` : r.o.speed > 25 ? 'POWER SHOT' : 'SOFT SHOT', behind = (b.x - GX).toFixed(1);
+        return { o: `${how} ${kmh(X.v)} km/h · the net stretched ${Math.round(X.peak * 100)} cm (x${X.S.toFixed(1)}) · the ball rolled in it ${X.roll.toFixed(1)} s · ripped: ${X.rip ? `YES - it flew on, stopped ${behind} m behind the line` : 'no'}${m.netSaid ? ` · Rami: the ${m.netSaid} line` : ''}`, hold: 0.6 };
+      } };
+  }
+  function ntTests() {
+    return [
+      ntTest('NT1', 'a SOFT shot into the net', '54 km/h side-foot: a small bulge, a short roll, it drops', { from: [96, 31], y: 34.6, z: 0.9, speed: 15, power: 0.3 }),
+      ntTest('NT2', 'a POWER shot into the net', '112 km/h: a big bulge, the ball swirls in the netting ~1.5 s', { from: [88, 33], y: 35.2, z: 1.3, speed: 31, power: 0.95 }),
+      ntTest('NT3', 'an LV1 special into the net', 'the net stretches far back (x2), the ball rolls round in it', { from: [86, 32], y: 35.4, vz: 3.2, lv: 1 }),
+      ntTest('NT4', 'an LV2 special into the net', 'drastic: the net nearly reaches the boards, a long roll', { from: [86, 32], y: 35.4, vz: 2.8, lv: 2 }),
+      ntTest('NT5', 'an LV3 special RIPS THROUGH the net', 'the mesh tears, the ball flies on to the boards; whole again at the restart', { from: [86, 32], y: 35.4, vz: 1.4, lv: 3 }),
+      ntMatch(),
+    ];
+  }
+  // t-025 NT6 (the net in every match): a goal in the real match flow - as CS5, __labCut plays the celebration and the TV
+  // replay - from NT5's LV3 special, so the replay has to show the net stretching AND the hole. Then the real kick-off
+  // (the Lab's own does nothing): the net must be whole again. Says: the goal counted once, the replay's frames that carry
+  // the net / the hole (and that the replay drew it torn), the hole closed at the kick-off.
+  function ntMatch() {
+    return { id: 'NT6', group: 'NT', name: 'a MATCH goal and its REPLAY (LV3: the hole too)', sub: 'the real celebration + TV replay: the net moves in the replay and the hole is there; whole again at the kick-off', kind: 'cut',
+      setup(r) {
+        window.__labCut = true; cast(m.all.filter(p => !p.benched)); m.all.forEach(p => { put(p, p.home.x, p.home.y, p.team.side > 0 ? 0 : 4); });
+        const s = m.home.players[9], gk = m.away.players[0], from = [86, 32], f = dirIndex(GX - from[0], 35.4 - from[1]), dv = dirVec(f);
+        put(s, from[0] - dv.x * 0.5, from[1] - dv.y * 0.42, f); ballAt(from[0], from[1], 0, s); put(gk, LINE_X, 30.5, 4); gk.stun = 3;   // (the keeper beaten: it's the net we're watching)
+        for (const mt of m.meters || []) mt.e = 0;
+        m.nfxLast = null; m.netRip = null; m.netSaid = null; m.rec = []; m.recN = 0; m.lastReplayEnd = -1e9; m.lastReplay = null;
+        Object.assign(r, { human: s, shooter: s, fired: false, marks: [], rp: { n: 0, net: 0, torn: 0 } });
+        r.action = { at: 0.7, fire: () => { m.meters[0].e = 3; m.special(s); const k = m.pending; if (k) { k.ty = 35.4; k.vz = 1.4; } } };
+        if (!LAB.netReplay0) { LAB.netReplay0 = m.netReplay; m.netReplay = function (nt) {                // (the replay doesn't step the Lab: count what it draws here)
+          LAB.netReplay0.call(m, nt); const q = LAB.run; if (!q || !q.rp) return;
+          q.rp.n++; if (nt) q.rp.net++; if (Object.values(m.nets || {}).some(n => (n.meshes || []).some(o => o.torn && o.mesh.visible))) q.rp.torn++; }; }
+      },
+      check(r) {
+        const b = m.ball, X = m.nfxLast, goals = () => m.home.score + m.away.score;
+        if (r.g == null) { if (b.inNet) r.g = goals(); else return r.t > 6 ? { o: 'NO GOAL' + (r.out ? ' · ' + r.out.toLowerCase() : '') } : null; }
+        if (m.replay || m.goalQ || !m.lastReplay) return r.t > 60 ? { o: 'no goal replay after 60 s' } : null;
+        if (!r.ko) { r.ko = true; r.g2 = goals(); r.hole = !!m.netRip; LAB.kickoff0(m.away); return null; }   // the replay is over: the real kick-off
+        const F = m.lastReplay, nNet = F.filter(f => f.nt).length, nHole = F.filter(f => f.nt && f.nt.some((v, i) => i % 9 === 0 && v >= 2)).length;
+        const whole = !m.netRip && !Object.values(m.nets || {}).some(n => (n.meshes || []).some(o => o.torn));
+        return { o: `GOAL counted ${r.g2 === 1 ? 'once' : r.g2 + ' times'} · LV${X ? X.lv : '?'} ${X ? kmh(X.v) : '?'} km/h, stretched ${X ? Math.round(X.peak * 100) : '?'} cm, ripped: ${X && X.rip ? 'YES' : 'no'} · the replay: ${F.length} frames, the net moving in ${nNet}, the hole in ${nHole} (drawn torn in ${r.rp.torn} of ${r.rp.n} replay frames) · hole open until the kick-off: ${r.hole ? 'yes' : 'NO'}, whole after it: ${whole ? 'yes' : 'NO'}${m.netSaid ? ` · Rami: the ${m.netSaid} line` : ''}`, hold: 0.3 };
+      } };
+  }
   // ---- v0.9.0 (Luca: "use their Iron Wall-like special abilities to also block normal shots (K). Only goalkeepers")
   // their keeper, with bars, against your normal shot into the corner he can't reach (made to use it here)
   function normSave(id, lv) {
@@ -752,6 +818,128 @@
         ball: () => atFeet(H()[7]), evs: [{ at: 0.6, fire: () => { const p = H()[7]; m.kick(p, 101, 33, 0, 0, 0.12, { mode: 'lob', lobPow: 0.85 }); } }],
         end: (r, sum) => { const b = m.ball; if (b.owner === r.gk) return { o: 'GOT BACK + CAUGHT IT · ' + sum(), hold: 1 }; if (b.inNet) return { o: 'LOBBED · ' + sum(), hold: 1.2 };
           if (r.t > 4 && !b.owner && b.z < 0.2 && len(b.vx, b.vy) < 1) return { o: 'ball loose · ' + sum() }; return null; }, secs: 7 }),
+    ];
+  }
+  // ======================================================================= t-017 KEEPER 1v1 + TRACKING (Luca 25 Oct 02:58, urgent:
+  // "very broken gk logic ... it does not track naturally anymore, many time you could just walk around it and score").
+  // Their keeper (right-hand goal) with the real AI against one striker who tries to walk round him: straight at him,
+  // then past his side, then a tap into the empty net. Each line says who won: GOAL (he was walked round), or he won it
+  // (blocked / smothered / took it off his feet), plus how he moved: how close he got, how long he stood still while the
+  // striker was within 4 m, and the modes he went through.
+  const kpRound = o => () => {                                                   // the striker: in, round him, finish
+    const st = { phase: 'in', t: 0 };
+    return (p, dt) => {
+      const b = m.ball, gk = m.away.players[0]; st.t += dt;
+      if (st.phase === 'shot') { p.steer(0, 0, dt); return; }
+      if (b.owner !== p) {                                                       // a heavy touch / a knock: go and get it back
+        if (!b.owner && !b.inNet && !p.busy()) { const pt = m.intercept(p, 6.2); p.moveTo(pt.x, pt.y, 6.2, dt); } else p.steer(0, 0, dt); return; }
+      if (p.busy()) { p.steer(0, 0, dt); return; }
+      const d = len(gk.x - p.x, gk.y - p.y);
+      let tx = gk.x, ty = gk.y, v = o.v;
+      if (st.phase === 'in' && d < o.cut) { st.phase = o.feint ? 'feint' : 'round'; st.side = o.side || (p.y >= gk.y ? 1 : -1); st.t = 0; }
+      if (st.phase === 'feint') { tx = gk.x; ty = gk.y - st.side * 3.2; if (st.t > 0.35) { st.phase = 'round'; st.t = 0; } }
+      if (st.phase === 'round') { tx = gk.x + 0.6; ty = gk.y + st.side * 3.4; v = Math.max(o.v, 4.2); if (p.x > gk.x - 0.3) st.phase = 'finish'; }
+      if (st.phase === 'finish') {                                               // past him: walk it in, tap it into the far side
+        tx = GX + 1; ty = gk.y > 34 ? 31.2 : 36.8;
+        if (GX - p.x < 7.5 || len(gk.x - p.x, gk.y - p.y) > 2.2 && GX - p.x < 11) { st.phase = 'shot'; m.kick(p, GX + 1.5, ty, 14, 0.3, 0.12, { shot: true, power: 0.3 }); return; }
+      }
+      const dx = tx - p.x, dy = ty - p.y, dl = len(dx, dy) || 1; p.wantDir = { x: dx / dl, y: dy / dl }; m.carrySteer(p, dx / dl, dy / dl, v, dt);
+    };
+  };
+  function kpTest(id, name, sub, o) {
+    return gkTest(id, name, sub, {
+      gk: o.gk, secs: o.secs || 9,
+      cast: () => [[m.home.players[9], o.from[0], o.from[1], 0, o.bot || kpRound(o)]],
+      ball: r => { atFeet(m.home.players[9]); r.kp = { minD: 99, stillT: 0, maxOff: 0, offN: 0, offS: 0 }; },
+      end: (r, sum) => {
+        const gk = r.gk, b = m.ball, s = m.home.players[9], K = r.kp, dS = len(gk.x - s.x, gk.y - s.y);
+        K.minD = Math.min(K.minD, len(gk.x - b.x, gk.y - b.y));
+        K.out = Math.max(K.out || 0, GX - gk.x);                                 // t-027: how far off his line he came,
+        if (K.eng == null && /^(CLOSE|BLOCK|SMOTHER)$/.test(gk.gkMode || '')) K.eng = len(GX - s.x, 34 - s.y);   // where the striker was when he started coming,
+        if (K.met == null && len(gk.x - b.x, gk.y - b.y) < 2.5) K.met = GX - b.x;  // and where they met (m from his line)
+        if (dS < 4 && gk.speed < 0.3 && gk.state !== 'dive') K.stillT += STEP;
+        if (o.track && b.owner === s) { const g = m.gkBisector(b.x, b.y, GX, -1, 3), ux = g.x - b.x, uy = g.y - b.y, ul = len(ux, uy) || 1; const off = Math.abs(((gk.x - b.x) * uy - (gk.y - b.y) * ux) / ul);   // (how far he is off the line that halves the angle, wherever he stands on it)
+          K.maxOff = Math.max(K.maxOff, off); K.offS += off; K.offN++; }
+        const tail = () => `${o.track ? `off the angle: avg ${(K.offS / Math.max(1, K.offN)).toFixed(2)} m, max ${K.maxOff.toFixed(2)} m · ` : ''}${K.eng != null ? `came for him at ${K.eng.toFixed(0)} m · ` : ''}${K.met != null ? `met him ${K.met.toFixed(1)} m out · ` : ''}furthest out ${(K.out || 0).toFixed(1)} m · closest to the ball ${K.minD.toFixed(1)} m · stood still near him ${K.stillT.toFixed(1)} s · ${sum()}`;
+        if (b.owner === gk) return { o: 'KEEPER WON IT · ' + tail(), hold: 1 };
+        if (!b.owner && b.lastP === gk && r.t > 0.3) return { o: 'KEEPER GOT TO IT · ' + tail(), hold: 1 };
+        if (b.inNet) return { o: 'GOAL (walked round him) · ' + tail(), hold: 1.4 };
+        if (o.track && r.t > (o.secs || 9) - 0.05) return { o: 'TRACKED · ' + tail() };
+        if (r.out) return { o: 'OUT · ' + tail() };
+        if (r.t > (o.secs || 9) - 0.05) return { o: 'no result · ' + tail() };
+        return null;
+      },
+    });
+  }
+  function kpTests() {
+    const across = () => () => { let dir = 1; return (p, dt) => { const b = m.ball; if (b.owner !== p) { p.steer(0, 0, dt); return; }
+      if (p.y > 47) dir = -1; if (p.y < 21) dir = 1; const ty = p.y + dir * 5; const dx = 88 - p.x, dy = ty - p.y, dl = len(dx, dy) || 1; p.wantDir = { x: dx / dl, y: dy / dl }; m.carrySteer(p, dx / dl, dy / dl, 3.4, dt); }; };
+    return [
+      kpTest('KP1', 'walk at him, round his side', 'the striker dribbles at 3 m/s from 22 m and goes round him at 2.5 m: he must not just stand there', { from: [83, 34], v: 3.0, cut: 2.5, side: 1 }),
+      kpTest('KP2', 'run at him, round him early', 'at 5.5 m/s, cutting round him from 3.5 m away', { from: [78, 35], v: 5.5, cut: 3.5, side: -1 }),
+      kpTest('KP3', 'slow walk, round him late', 'at 2 m/s, straight at him, cutting round at 1.8 m', { from: [86, 33], v: 2.0, cut: 1.8, side: 1 }),
+      kpTest('KP4', 'from the angle, round the near side', 'coming in from the right of the box (y 46) at 3.5 m/s, going round him on the near-post side', { from: [86, 47], v: 3.5, cut: 2.8, side: 1 }),
+      kpTest('KP5', 'feint one way, go the other', 'shows him the left at 3 m, then goes round his right', { from: [82, 34], v: 3.6, cut: 3.0, side: 1, feint: true }),
+      kpTest('KP7', 'a breakaway from 30 m at a sprint', 't-027: through on goal from the halfway side of the D at 6 m/s, round him at 3.5 m: he should come out and meet him near the edge of his box', { from: [75, 34], v: 6.0, cut: 3.5, side: 1, secs: 10 }),
+      kpTest('KP8', 'a jog from 28 m, round him wide and early', 't-027: at 4.6 m/s, swinging round him from 5.5 m away: the run a player makes to beat a keeper who stays deep', { from: [77, 30], v: 4.6, cut: 5.5, side: -1, secs: 10 }),
+      kpTest('KP6', 'dribbling across the edge of the box', 'the striker walks the ball side to side along the D (17 m): he must stay on the angle (the line that halves it), smoothly', { from: [88, 22], bot: across(), track: true, secs: 9 }),
+    ];
+  }
+  // ======================================================================= t-016 KEEPER FACING + BLOCKED PATHS (Luca's Bug Watch marks,
+  // 24 Oct: "if ball is close enough, the keeper should not give his back to the ball" and "If player path is blocked they
+  // should find alternative paths to the ball or to be useful"). KF1-3: their keeper with the real AI; the line says the
+  // biggest angle between the way he faces and the ball while it was within 6 m (loose or at an attacker's feet).
+  // KF4-5: the real team AI; a lob drops ahead of our #6 with a man holding his spot in the straight line to it.
+  const faceDev = (p, x, y) => { const f = dirVec(p.face), dx = x - p.x, dy = y - p.y, d = len(dx, dy) || 1; return Math.acos(clamp((f.x * dx + f.y * dy) / d, -1, 1)) * 180 / Math.PI; };
+  function kfKeeper(id, name, sub, o) {
+    const t = gkTest(id, name, sub, Object.assign({ secs: 6 }, o, { end: (r, sum) => {
+      const gk = r.gk, b = m.ball, d = len(b.x - gk.x, b.y - gk.y), live = !b.owner || b.owner.team !== gk.team;
+      if (live && !gk.busy() && d < 6 && d > 0.6 && b.owner !== gk)   // (0.6 m: at his feet a facing angle means nothing)
+        { const a = faceDev(gk, b.x, b.y); r.kfMax = Math.max(r.kfMax || 0, a); r.kfNear = (r.kfNear || 0) + STEP; if (a > 100) r.kfBack = (r.kfBack || 0) + STEP; }
+      r.kfTop = Math.max(r.kfTop || 0, gk.speed); if (d >= 6 && gk.speed > 3) r.kfFarAway = Math.max(r.kfFarAway || 0, faceDev(gk, b.x, b.y));
+      const line = () => o.far ? `ball far: top ${r.kfTop.toFixed(1)} m/s, faced up to ${Math.round(r.kfFarAway || 0)}° off the ball as he ran · ${sum()}`
+        : `faced the ball within ${Math.round(r.kfMax || 0)}° (${(r.kfNear || 0).toFixed(1)} s with it 0.6-6 m away; back to it ${(r.kfBack || 0).toFixed(1)} s) · ${sum()}`;
+      if (b.owner === gk) return { o: 'GOT IT · ' + line(), hold: 1 };
+      if (b.inNet) return { o: 'GOAL · ' + line(), hold: 1.2 };
+      if (r.t > (o.secs || 6)) return { o: line() };
+      return null; } }));
+    t.group = 'KF'; return t;
+  }
+  function kfPath(id, name, sub, mate) {
+    return { id, group: 'KF', name, sub, kind: 'path', realAi: true, demo: true,
+      setup(r) {
+        const H = m.home.players, A = m.away.players, man = H[6], from = H[9], blk = mate ? H[5] : A[6];
+        cast([man, from, blk]);
+        put(man, 48, 34, 0); put(from, 74, 34, 4); atFeet(from); put(blk, 49.8, 34, mate ? 0 : 4);
+        r.bots.set(from, sit); r.bots.set(blk, runTo(49.8, 34, RUN));            // he holds his spot: the straight line is shut
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+        LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true;
+        Object.assign(r, { human: man, shooter: from, man, blk, marks: [{ x: 56, y: 34, r: 0.5 }], still: 0, off: 0, px: man.x, py: man.y });
+        r.action = { at: 0.4, fire: () => m.kick(from, 56, 34, 0, 0, 0.12, { mode: 'lob', target: man, loft: true }) };
+      },
+      check(r) {
+        const b = m.ball, p = r.man, mv = len(p.x - r.px, p.y - r.py) / STEP; r.px = p.x; r.py = p.y;
+        if (!r.left) { if (r.fired && !b.owner) r.left = true; else return null; }   // (from the lob on)
+        if (r.fired && !b.owner && b.target === p && len(b.x - p.x, b.y - p.y) > 1.5 && mv < 0.5 && !p.busy()) r.still += STEP;   // (a target in front of him, and he's not moving)
+        if (p.x > 48.6 && p.x < 51.4) r.off = Math.max(r.off, Math.abs(p.y - 34));
+        const line = got => `${got} · stood still ${r.still.toFixed(1)} s · stepped ${r.off.toFixed(1)} m to the side of the ${mate ? 'team-mate' : 'opponent'}`;
+        if (b.owner === p || b.lastP === p) return { o: line(`#${p.num} GOT TO IT`), hold: 1 };
+        if (b.owner && b.owner !== p) return { o: line(`#${b.owner.num} (${b.owner.team === p.team ? 'his side' : 'theirs'}) got it`), hold: 1 };
+        if (r.t > 6) return { o: line('NEVER GOT THERE') };
+        return null; } };
+  }
+  function kfTests() {
+    const H = () => m.home.players, A = () => m.away.players;
+    return [
+      kfKeeper('KF1', 'a loose ball 4 m from him, he is 12 m out', 'their man is first to it, so he backs off to his spot - facing the ball the whole time, never his back to it', { gk: [93, 34],
+        cast: () => [[H()[9], 88.6, 37.6, 0, () => chaseBall(103, 34, 3.4)]], ball: () => ballAt(90, 37, 0, null) }),   // (their man is first to it: he backs off)
+      kfKeeper('KF2', 'an attacker dribbles at him from 6 m', 'he faces the ball as he backs off / sets / blocks', { gk: [96, 34],
+        cast: () => [[H()[9], 90, 35, 0, () => dribbleTo(103, 34, 3.6)]], ball: () => atFeet(H()[9]), secs: 4 }),
+      kfKeeper('KF3', 'ball far away (30 m), he is 17 m out', 'as before: he turns and runs back to his spot (facing where he runs is fine here)', { gk: [88, 34], far: true,
+        cast: () => [[H()[7], 58, 34, 0, () => dribbleTo(66, 34, 2.0)], [A()[3], 75, 34, 4, sit]], ball: () => atFeet(H()[7]), secs: 5 }),
+      kfPath('KF4', 'a team-mate stands in his straight line to the ball', 'a lob drops ahead of #6; #5 holds his spot right in the way: #6 steps round him (no standing still)', true),
+      kfPath('KF5', 'an opponent stands in his straight line to the ball', 'the same with one of theirs in the way', false),
     ];
   }
   // ======================================================================= t-007 KEEPER SAVES (Luca 24 Oct 05:57: "the gk ai needs major
@@ -954,10 +1142,14 @@
   const lbMark = (man, side) => (d, dt) => { const b = m.ball;                    // a defender on him: goal side, a beat after he moves (as the game's marker)
     if (b.lob && !b.owner && (b.airT || 0) > LOB2.markDelay) d.moveTo(man.x + side * 0.6, man.y + 0.3, d.top(true, false), dt); else d.steer(0, 0, dt); };
   const lbWho = p => `${p.team === m.home ? 'your' : 'their'} #${p.num}`;
+  // (t-019 LV6: a team-mate on a run - he keeps going until it's played, then the game's own receiving run)
+  const lvRun = (vx, vy) => (q, dt) => { const b = m.ball; if (m.lobAimMate(q, dt) || m.lobRun(q, dt)) return;
+    if (b.owner && b.owner.team === q.team && b.owner !== q) q.steer(vx, vy, dt); else lbBot(q, dt); };
   function lbTest(id, name, sub, o) {
-    return { id, group: 'LB', name, sub, kind: 'lb', you: true, lvl: o.lvl,
+    return { id, group: o.group || 'LB', name, sub, kind: 'lb', you: true, lvl: o.lvl,
       setup(r) {
         Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+        LOB_AIM_MODE = o.lobAim || 'ring'; LOB_AIM.camOld = !!o.camOld; LOB_AIM.ringOld = !!o.ringOld;   // t-019: LB is the ring's group (its -A tests: AUTO); LV names its own
         const H = m.home.players, A = m.away.players, list = [];
         const K = o.cpu ? A[6] : H[6]; list.push(K);
         const mates = (o.mates || []).map(([i, x, y]) => { const q = (o.cpu ? A : H)[i]; list.push(q); return [q, x, y]; });
@@ -965,7 +1157,7 @@
         const gk = o.gk ? (o.cpu ? H[0] : A[0]) : null; if (gk) list.push(gk);
         cast(list);
         put(K, o.from[0], o.from[1], o.cpu ? 4 : 0); atFeet(K);
-        for (const [q, x, y] of mates) { put(q, x, y, o.cpu ? 4 : 0); r.bots.set(q, lbBot); }
+        for (const [q, x, y] of mates) { put(q, x, y, o.cpu ? 4 : 0); r.bots.set(q, o.run ? lvRun(o.run[0], o.run[1]) : lbBot); }
         for (const [q, x, y] of opps) { put(q, x, y, o.cpu ? 0 : 4); }
         if (o.mark) { const [di, mi] = o.mark; r.bots.set(opps[di][0], lbMark(mates[mi][0], o.cpu ? -1 : 1)); }
         if (gk) { put(gk, o.cpu ? PITCH_L - LINE_X : LINE_X, 34, o.cpu ? 0 : 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); }
@@ -985,7 +1177,7 @@
       if (r.ph == null && r.t >= 0.5) { r.ph = 'hold'; T.btn.lob = true; r.pressT = r.t; }
       else if (r.ph === 'hold') {
         const A = m.lobAim, ht = r.t - r.pressT;
-        if (o.tap) { if (ht >= 0.08) { T.btn.lob = false; r.ph = 'gone'; r.tapT = ht; } }
+        if (o.tap) { if (o.drag) { T.x = o.drag[0]; T.y = o.drag[1]; } if (ht >= 0.08) { T.btn.lob = false; r.ph = 'gone'; r.tapT = ht; } }   // (t-019 LV3: a tap with the arrow held)
         else if (A) {
           const d = len(A.x - K.x, A.y - K.y); r.ring0 = r.ring0 || { x: A.x, y: A.y, q: A.q };
           if (A.q) { r.mag = A.q; r.magFrom = r.magFrom || { x: A.q.x, y: A.q.y }; }
@@ -1000,12 +1192,20 @@
     if (AB) { if (!r.bat) r.bat = { at: { x: AB.D.x, y: AB.D.y }, steps: 0 }; const me = AB.att.p.team === m.home ? AB.att.p : AB.def.p; r.human = me;
       r.bat.steps++; T.btn.shoot = !!o.mash && AB.phase === 'mash' && r.bat.steps % (o.mash * 2) < o.mash; }
     else if (r.bat && !r.bat.over) { r.bat.over = true; T.btn.shoot = false; r.bL = m.aerialLast; }
+    // ---- t-019 LV5: the camera, every frame from the press: its biggest move in one frame, and the biggest change in that
+    // move from one frame to the next (a jolt: the lead jumping at the kick, the ride up, the snap back from the aim)
+    if (o.kind === 'cam' && r.ph && m.camX != null) { const c = { x: m.camX, y: m.camY };
+      if (r.cam0) { const v = { x: c.x - r.cam0.x, y: c.y - r.cam0.y }, s = len(v.x, v.y); r.camMax = Math.max(r.camMax || 0, s);
+        if (r.camV) r.camJolt = Math.max(r.camJolt || 0, len(v.x - r.camV.x, v.y - r.camV.y)); r.camV = v; }
+      r.cam0 = c; }
     // ---- the kick and its flight
     if (r.kickT == null) { if (!b.owner && !m.pending && b.lastP === K && (r.ph === 'gone' || o.cpu)) { r.kickT = r.t; r.n0 = b.bounced || 0; r.start = { x: b.x, y: b.y }; r.aimed = m.lobAimLast && m.lobAimLast.by === K ? m.lobAimLast : null; r.tgt = b.target; r.lob = !!b.lob; }
       else return r.t > 7 ? done({ o: 'NO KICK' }) : null; }
     const ft = r.t - r.kickT; if (!r.land) r.maxZ = Math.max(r.maxZ, b.z);
     if (!r.land && !r.touch && (b.bounced || 0) > r.n0) r.land = { x: b.x, y: b.y, t: ft };
-    if (!r.touch && b.lastP && b.lastP !== K) r.touch = { p: b.lastP, how: b.how ? b.how.kind : 'touch', z: b.z, own: b.owner === b.lastP, at: { x: b.x, y: b.y } };
+    if (!r.touch && b.lastP && b.lastP !== K) r.touch = { p: b.lastP, how: b.how ? b.how.kind : 'touch', z: b.z, own: b.owner === b.lastP, at: { x: b.x, y: b.y }, v: len(b.lastP.vx, b.lastP.vy), t: ft };
+    if (!r.drop && r.tgt && !r.touch && b.vz < 0 && b.z < 2.6) r.drop = { d: len(r.tgt.x - b.x, r.tgt.y - b.y), x: b.x, y: b.y };   // (t-019: how far he was from it as it came down through head height)
+    if (o.kind === 'pick' || o.kind === 'space' || o.kind === 'stride' || o.kind === 'cam') { const e = lvCheck(r, ft, done); if (e !== undefined) return e; }
     const shot = r.touch && (r.touch.how === 'header' || r.touch.how === 'volley' || r.touch.how === 'shot' || r.ev('AERIAL SPECIAL'));
     const end = (head) => { if (b.inNet) return done({ o: head + 'GOAL', hold: 1.4 }); if (r.gk && b.owner === r.gk) return done({ o: head + 'keeper has it' });
       if (r.ev('PARRIED') || r.ev('SAVED')) return done({ o: head + 'SAVED', hold: 1 }); if (r.out) return done({ o: head + 'OUT · ' + r.out.toLowerCase() });
@@ -1018,7 +1218,7 @@
       return done({ o: L ? `ring ${f1(d)} m out (held ${f2(r.holdT)} s) · peak ${f2(r.maxZ)} m (${why}) · ${f2(r.land.t)} s in the air · lands ${f2(err)} m from the ring (${err <= 1 ? 'ok' : 'OFF'})` : 'NOT AN AIMED LOB', hold: 0.6 });
     }
     if (o.kind === 'tap') {
-      const head = `TAP (${f2(r.tapT || 0)} s): ${r.aimed ? 'an AIMED lob (OFF: a tap should be the instant lob)' : 'the instant lob'} to ${r.tgt ? lbWho(r.tgt) : 'nobody'} · peak ${f2(r.maxZ)} m · `;
+      const head = `TAP (${f2(r.tapT || 0)} s): ${o.lobAim === 'auto' ? (r.aimed && r.aimed.auto ? 'AUTO: the quick lob' : 'OFF: not the AUTO lob') : r.aimed ? 'an AIMED lob (OFF: a tap should be the instant lob)' : 'the instant lob'} to ${r.tgt ? lbWho(r.tgt) : 'nobody'} · peak ${f2(r.maxZ)} m · `;
       if (b.owner === r.rcv) return done({ o: head + `he CONTROLLED it (${r.touch && r.touch.how === 'header' ? 'header' : r.touch && r.touch.z > 0.9 ? 'chest' : 'feet'})` });
       if (b.owner && b.owner.team !== K.team) return done({ o: head + 'they won it' });
       return ft > 6 ? done({ o: head + 'NOT CONTROLLED' }) : null;
@@ -1058,6 +1258,82 @@
         { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 0.5, gk: true }),
       lbTest('LB8', 'AERIAL BATTLE the other way: their lob, your defender', 'the computer lobs to its striker, your defender is on him: PRESS! (the Lab mashes every other step)',
         { kind: 'battle', battle: true, cpu: true, mash: 2, from: [45, 30], mates: [[9, 17, 35]], opps: [[3, 20.2, 34.6]], gk: true, lvl: 'normal' }),
+      // t-019: the same in AUTO (the arrow held at the man: no ring to walk)
+      lbTest('LB4-A', 'AUTO · a quick TAP of LOB to a team-mate', 'the quick AUTO lob to the man ahead, landing a step ahead of him', { kind: 'tap', tap: true, from: [30, 34], mates: [[9, 52, 34]], lobAim: 'auto' }),
+      lbTest('LB6-A', 'AUTO · AERIAL BATTLE: you win it', 'arrow at your striker, hold, let go: it drops on him and his marker - MASH!',
+        { kind: 'battle', battle: true, mash: 1, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0.94, -0.35, 0.35], holdT: 0.4, gk: true, lobAim: 'auto' }),
+      lbTest('LB7-A', 'AUTO · AERIAL BATTLE: you lose it (no mash)', 'the same, no presses: their man wins and clears it',
+        { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0.94, -0.35, 0.35], holdT: 0.4, gk: true, lobAim: 'auto' }),
+    ];
+  }
+  // ======================================================================= t-019 LOB AIM: TWO VERSIONS (Luca 25 Oct 06:56: "make 2
+  // versions - 1 [...] a lob target is determined by the direction of where the arrow is pointing [...] second version is
+  // still the circle on the ground but no arc [...] make it so the camera doesnt follow - try make it smooth"). LV1-LV3
+  // AUTO's pick (the right man, the free man, into space by the hold), LV4 the RING's movement against t-008's, LV5 the
+  // camera through a 40 m lob before / after in both versions, LV6 the receiver taking it in stride in both.
+  function lvCheck(r, ft, done) {
+    const b = m.ball, o = r.o, f1 = v => v.toFixed(1), f2 = v => v.toFixed(2), H = m.home.players;
+    if (r.kickT == null) return undefined;
+    const came = r.touch || (r.land && ft > r.land.t + 0.4);
+    if (o.kind === 'pick') {
+      if (!came && ft < 6) return null;
+      const want = H[o.want], got = r.tgt, P = r.touch ? r.touch.at : r.land;
+      return done({ o: `arrow at ${lbWho(want)}: went to ${got ? lbWho(got) : 'nobody'} (${got === want ? 'ok' : 'OFF'}) · ${r.aimed ? `aimed ${f1(len(r.aimed.x - r.start.x, r.aimed.y - r.start.y))} m, peak ${f2(r.maxZ)} m` : 'NOT AN AUTO LOB'} · he was ${r.drop ? f2(r.drop.d) : '?'} m from it as it came down to head height${r.touch ? ` · ${lbWho(r.touch.p)}: ${r.touch.how === 'header' ? 'HEADER' : r.touch.how === 'volley' ? 'VOLLEY' : r.touch.own ? (r.touch.z > 0.9 ? 'CHEST' : 'FEET') : r.touch.how.toUpperCase()} at ${f1(r.touch.z)} m` : P ? ' · nobody met it' : ''}`, hold: 0.6 });
+    }
+    if (o.kind === 'space') {
+      if (!r.land && ft < 6) return null;
+      const L = r.aimed, d = r.land ? len(r.land.x - r.start.x, r.land.y - r.start.y) : 0, k = clamp(((r.tapT ?? r.holdT ?? 0) - LOB2.tapT) / LOB_AIM.holdT, 0, 1), want = LOB_AIM.spaceMin + (LOB_AIM.spaceMax - LOB_AIM.spaceMin) * k;
+      return done({ o: `nobody in the cone · held ${f2(r.tapT ?? r.holdT ?? 0)} s → into space ${f1(d)} m along the arrow (want ~${f1(want)} m: ${Math.abs(d - want) < 2.5 ? 'ok' : 'OFF'}) · peak ${f2(r.maxZ)} m${L && L.q ? ` · for ${lbWho(L.q)} to chase` : ''}`, hold: 0.6 });
+    }
+    if (o.kind === 'stride') {
+      if (!r.touch && ft < 6) return null;
+      const T = r.touch; if (!T) return done({ o: `${r.tgt ? lbWho(r.tgt) : 'nobody'} never got to it · he was ${r.drop ? f2(r.drop.d) : '?'} m from it at head height` });
+      const how = T.how === 'header' ? 'HEADER' : T.how === 'volley' ? 'VOLLEY' : T.own ? (T.z > 0.9 ? 'CHEST' : 'FEET') : T.how.toUpperCase();
+      return done({ o: `to ${r.tgt ? lbWho(r.tgt) : 'nobody'} · ${lbWho(T.p)} met it at ${f1(T.z)} m: ${how}, moving at ${f1(T.v)} m/s (${T.v > 1.5 ? 'in stride' : 'standing still'}) · ${f2(r.drop ? r.drop.d : 0)} m from it at head height`, hold: 0.8 });
+    }
+    if (o.kind === 'cam') {
+      if (!(came && (r.touch ? ft > 1.2 + (r.touch.t ?? 0) : ft > r.land.t + 1.2)) && ft < 6) return null;
+      return done({ o: `${LOB_AIM.camOld ? 'BEFORE (the old camera' + (LOB_AIM.ringOld ? ' + t-008 ring' : '') + ')' : 'AFTER'} · ${f1(len(r.aimed ? r.aimed.x - r.start.x : 0, r.aimed ? r.aimed.y - r.start.y : 0))} m lob · camera's biggest move in one frame ${f1(r.camMax || 0)} px · biggest jolt (change in that move, frame to frame) ${f1(r.camJolt || 0)} px`, hold: 0.4 });
+    }
+    return undefined;
+  }
+  // LV4: the RING walked 10 m left then 5 m up by the stick; let go 0.15 s after it gets there (a human's reaction):
+  // how far past it ends (overshoot), its top speed and the biggest change in its speed in one frame (the jumpiness)
+  function lvWalk(r) {
+    const T = Input.touch, A = m.lobAim, f2 = v => v.toFixed(2);
+    const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); return res; };
+    if (r.ph == null) { if (r.t >= 0.5) { r.ph = 'hold'; T.btn.lob = true; r.legs = [{ ax: [-1, 0], d: 10 }, { ax: [0, -1], d: 5 }]; r.leg = 0; r.top = 0; r.jerk = 0; } return null; }
+    if (!A) return done({ o: 'NO RING' });
+    const pos = { x: A.x, y: A.y }; if (r.prev) { const v = { x: (pos.x - r.prev.x) * 60, y: (pos.y - r.prev.y) * 60 }; r.top = Math.max(r.top, len(v.x, v.y)); if (r.pv) r.jerk = Math.max(r.jerk, len(v.x - r.pv.x, v.y - r.pv.y)); r.pv = v; } r.prev = pos;
+    const L = r.legs[r.leg]; if (!L.from) L.from = { ...pos };
+    const along = (pos.x - L.from.x) * L.ax[0] + (pos.y - L.from.y) * L.ax[1];
+    if (L.at == null) { if (along >= L.d) L.at = r.t; T.x = L.ax[0]; T.y = L.ax[1]; }
+    else if (r.t < L.at + 0.15) { T.x = L.ax[0]; T.y = L.ax[1]; }
+    else { T.x = T.y = 0; if (r.t > L.at + 0.75) { L.over = along - L.d; r.leg++; if (r.leg >= r.legs.length) {
+      const [a, c] = r.legs; return done({ o: `${LOB_AIM.ringOld ? 't-008 ring' : 'RING now'} · overshoot ${f2(a.over)} m (10 m left), ${f2(c.over)} m (5 m up) · top speed ${r.top.toFixed(1)} m/s · biggest change of speed in one frame ${r.jerk.toFixed(1)} m/s` }); } } }
+    return r.t > 9 ? done({ o: 'NOT FINISHED' }) : null;
+  }
+  function lvTests() {
+    const A = (id, name, sub, o) => lbTest(id, name, sub, Object.assign({ group: 'LV', lobAim: 'auto' }, o));
+    const n = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
+    const three = [[9, 70, 34], [7, 62, 14], [10, 62, 54]];
+    return [
+      A('LV1', 'AUTO · arrow at the top one of three', 'three team-mates 0° and ±42° from you: point at one, hold, let go - he gets it', { kind: 'pick', from: [40, 34], mates: three, want: 7, drag: [...n(22, -20), 0.39], holdT: 0.4 }),
+      A('LV1-S', 'AUTO · arrow straight at the middle one', 'the same three: the one ahead', { kind: 'pick', from: [40, 34], mates: three, want: 9, drag: [1, 0, 0.39], holdT: 0.4 }),
+      A('LV1-B', 'AUTO · arrow at the bottom one', 'the same three: the bottom one', { kind: 'pick', from: [40, 34], mates: three, want: 10, drag: [...n(22, 20), 0.39], holdT: 0.4 }),
+      A('LV2', 'AUTO · two in the cone, the nearer one marked', 'a defender on the nearer man: the free one further on gets it', { kind: 'pick', from: [40, 34], mates: [[9, 60, 34], [10, 72, 37]], opps: [[3, 61, 34.6]], want: 10, drag: [1, 0, 0.39], holdT: 0.4 }),
+      A('LV2-F', 'AUTO · two in the cone, both free', 'nobody marked: the nearer one', { kind: 'pick', from: [40, 34], mates: [[9, 60, 34], [10, 72, 37]], want: 9, drag: [1, 0, 0.39], holdT: 0.4 }),
+      A('LV3-T', 'AUTO · nobody in the cone, a tap', 'into space along the arrow: the short one', { kind: 'space', tap: true, from: [40, 16], mates: [[9, 70, 34]], drag: [0, 1, 0.08] }),
+      A('LV3', 'AUTO · nobody in the cone, held half way', 'into space: further', { kind: 'space', from: [40, 16], mates: [[9, 70, 34]], drag: [0, 1, 0.52], holdT: 0.53 }),
+      A('LV3-F', 'AUTO · nobody in the cone, held all the way', 'into space: the longest', { kind: 'space', from: [40, 16], mates: [[9, 70, 34]], drag: [0, 1, 1.0], holdT: 1.0 }),
+      Object.assign(lbTest('LV4', 'RING · walk it 10 m left, then 5 m up', 'how steady: let go 0.15 s after it gets there - how far past?', { group: 'LV', from: [50, 34], lobAim: 'ring' }), { check: lvWalk }),
+      Object.assign(lbTest('LV4-T8', 'RING · the same with t-008\'s ring (before)', 'the old speed, ease and magnet, for comparison', { group: 'LV', from: [50, 34], lobAim: 'ring', ringOld: true }), { check: lvWalk }),
+      A('LV5-A0', 'AUTO · camera through a 40 m lob: BEFORE', 'the old camera: it rode up with the lob', { kind: 'cam', from: [30, 34], mates: [[9, 70, 34]], drag: [1, 0, 0.39], holdT: 0.4, camOld: true }),
+      A('LV5-A', 'AUTO · camera through a 40 m lob: AFTER', 'no ride up, the lead eases', { kind: 'cam', from: [30, 34], mates: [[9, 70, 34]], drag: [1, 0, 0.39], holdT: 0.4 }),
+      A('LV5-R0', 'RING · camera through a 40 m lob: BEFORE', 't-008: the aim framing snaps back, then it rides up', { kind: 'cam', from: [30, 34], aimD: 40, ax: [1, 0], lobAim: 'ring', camOld: true, ringOld: true }),
+      A('LV5-R', 'RING · camera through a 40 m lob: AFTER', 'the aim framing hands over, no ride up', { kind: 'cam', from: [30, 34], aimD: 40, ax: [1, 0], lobAim: 'ring' }),
+      A('LV6', 'AUTO · to a man on the run', 'he\'s running in behind: it lands ahead of him, he takes it in stride', { kind: 'stride', from: [55, 40], mates: [[9, 66, 30]], run: [4.5, 0], drag: [...n(14, -10), 0.29], holdT: 0.3, gk: true }),
+      A('LV6-R', 'RING · the ring on a man on the run', 'the ring settles on him (light magnet), he takes it in stride', { kind: 'stride', from: [55, 40], mates: [[9, 66, 30]], run: [4.5, 0], holdT: 0.6, gk: true, lobAim: 'ring' }),
     ];
   }
   // ======================================================================= t-011 CURVING SPECIAL PASS (Luca 24 Oct 05:57: "add a special lvl 1
@@ -1189,6 +1465,227 @@
       wgTest('WG2', 'YOUR winger crosses, your team-mates make the runs', 'you (scripted) go down the line and tap LOB at the near post: who is in the box, who attacks it?', { you: true }),
     ];
   }
+  // ======================================================================= t-020 ARCADE GETS INTENSE (Luca 25 Oct: "more rebounds that
+  // lead into aerials, more energy sp, make the game feel incredibly intense"). Every AR test plays ARCADE (pace: 'arcade').
+  // AR1-2 a loose ball driven at a line: what comes back (speed, height, where); AR3 the real team AI attacking a rebound
+  // in the air; AR4 the SP meter's fill per minute, CLASSIC v ARCADE; AR5 a goal -> the kick-off, ARCADE v CLASSIC.
+  function arBall(x, y, z, vx, vy, vz, by) {                                     // a loose ball on its way, last touched by `by`
+    ballAt(x, y, z); Object.assign(m.ball, { vx, vy, vz, skid: true, rollV: 0.8 * len(vx, vy), last: by.team, lastP: by, reb: null, lob: false, ring: null, how: { kind: 'pass', x, y } });
+  }
+  function arLine(id, name, sub, o) {
+    return { id, group: 'AR', name, sub, kind: 'phys', pace: o.pace || 'arcade',
+      setup(r) {
+        const k = m.home.players[6], gk = m.away.players[0]; cast(o.noGk ? [k] : [k, gk]); put(k, o.from[0] - 3, o.from[1], 0); put(gk, LINE_X, 34, 4);
+        arBall(o.from[0], o.from[1], o.z || 0, o.v[0], o.v[1], o.v[2] || 0, k);
+        Object.assign(r, { human: k, gk, marks: [], o, maxZ: 0, prev: null });
+      },
+      check(r) {
+        const b = m.ball, f1 = v => v.toFixed(1);
+        if (!r.hit) {
+          if (b.inNet) return { o: 'GOAL · the goal mouth is open (no board there)', hold: 1 };
+          if (r.out) return { o: `OUT · ${r.out.toLowerCase()}${o.pace === 'classic' ? ' (CLASSIC: the ball goes out)' : ' (ARCADE too since t-026: no touchline boards)'}` };
+          if (b.reb && b.reb.t != null) { const p = r.prev || { vx: b.vx, vy: b.vy, vz: b.vz }, into = b.reb.hit === 'T' ? Math.abs(p.vy) : Math.abs(p.vx);
+            r.hit = { side: b.reb.hit, t: r.t, x: b.x, y: b.y, vin: len(p.vx, p.vy), into, vout: len(b.vx, b.vy), vz: b.vz, apex: b.reb.apex, aimed: b.reb.q }; r.maxZ = b.z; }
+          r.prev = { vx: b.vx, vy: b.vy, vz: b.vz };
+          return r.t > 4 ? { o: 'it never reached the line' } : null;
+        }
+        r.maxZ = Math.max(r.maxZ, b.z);
+        const H = r.hit, dt = r.t - H.t;
+        if (dt < 1.5 && !(b.owner)) return null;
+        const into = H.side === 'T' ? Math.min(b.y, PITCH_W - b.y) : Math.min(b.x, PITCH_L - b.x);
+        return { o: `${H.side === 'T' ? 'TOUCHLINE' : 'BYLINE'} BOARD · in at ${kmh(H.vin)} km/h (${kmh(H.into)} into it) → back at ${kmh(H.vout)} km/h, `
+          + `popped ${f1(r.maxZ)} m up (${f1(H.vz)} m/s) · ${f1(into)} m back into the pitch 1.5 s later${H.aimed ? ` · a high ball: aimed at #${H.aimed.num}, landing ring on` : ''}`, hold: 0.8 };
+      } };
+  }
+  // AR3: the REAL team AI on both sides (as WG): a loose ball runs at a line near their box, pops up off the board, and
+  // the men there go for it in the air. The line says who met it, how (header / volley / duel / AERIAL BATTLE / chest)
+  // and at what height.
+  function arAir(id, name, sub, o) {
+    return { id, group: 'AR', name, sub, kind: 'wing', realAi: true, demo: true, pace: 'arcade',
+      setup(r) {
+        const H = m.home.players, A = m.away.players, k = H[7];
+        const men = [k, H[9], H[10], H[8], A[0], A[2], A[3], A[4], A[7]]; cast(men);
+        put(k, o.from[0] - 2, o.from[1], 0); for (const [p, x, y] of [[H[9], ...o.h9], [H[10], ...o.h10], [H[8], ...o.h8], [A[3], ...o.a3], [A[4], ...o.a4], [A[2], ...o.a2], [A[7], ...o.a7]]) put(p, x, y, 4);
+        put(A[0], LINE_X, 34, 4); Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null, rebFor: null, rebMan: null });
+        if (o.sp) m.meters[0].e = o.sp;
+        LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true; m.aerialAt = -1e9; m.duelAt = -1e9;
+        arBall(o.from[0], o.from[1], 0.1, o.v[0], o.v[1], o.v[2] || 0.5, k);
+        Object.assign(r, { human: H[9], gk: A[0], k, marks: [], o });
+      },
+      check(r) {
+        const b = m.ball, Hm = m.home, who = p => `${p.team === Hm ? 'our' : 'their'} #${p.num}`;
+        if (!r.hit) {
+          if (b.reb && b.reb.t != null) { r.hit = { t: r.t, side: b.reb.hit, apex: b.reb.apex, q: b.reb.q, men: [] }; r.how0 = b.how; }
+          else return r.out ? { o: `OUT · ${r.out.toLowerCase()}` } : r.t > 4 ? { o: 'it never reached the line' } : null;
+        }
+        const H = r.hit;
+        for (const t of [Hm, Hm.opp]) if (t.rebFor === b.reb && t.rebMan && !H.men.includes(t.rebMan)) H.men.push(t.rebMan);   // (each side's man for it, picked by the AI)
+        if (!r.met) {
+          if (m.aerial && !r.battle) r.battle = m.aerial.kind === 'ground' ? 'MASH DUEL' : 'AERIAL BATTLE';
+          if (m.pending && m.pending.info.special && m.pending.p !== b.lastP) r.met = { p: m.pending.p, how: 'AERIAL SPECIAL', z: b.z };
+          else if (b.how !== r.how0 && b.lastP) { const k = b.how.kind; r.met = { p: b.lastP, how: k === 'header' ? 'HEADER' : k === 'dheader' ? 'DIVING HEADER' : k === 'volley' ? 'VOLLEY' : k === 'bicycle' ? 'OVERHEAD' : k.toUpperCase(), z: b.z }; }
+          else if (b.owner && b.owner !== r.k) r.met = { p: b.owner, how: b.owner.keeper ? 'keeper takes it' : b.z > 0.6 ? 'CHEST / THIGH, his ball' : 'controlled', z: b.z };
+          if (r.met) r.metT = r.t;
+        }
+        const head = `${H.side === 'T' ? 'TOUCHLINE' : 'BYLINE'} REBOUND up to ${H.apex.toFixed(1)} m${H.q ? ` (aimed at ${who(H.q)})` : ''} · going for it: ${[H.q, ...H.men].filter(Boolean).map(who).join(', ') || 'nobody'} · `;
+        const met = r.met ? `${r.battle ? r.battle + ' → ' : ''}${who(r.met.p)} ${r.met.how} at ${r.met.z.toFixed(1)} m after ${(r.metT - H.t).toFixed(1)} s` : '';
+        if (b.inNet) return { o: head + met + ' → GOAL', hold: 1.4 };
+        if (r.ev('SAVED') || r.ev('PARRIED')) return { o: head + met + ' → SAVED', hold: 1 };
+        if (r.met && r.t - r.metT > 1.2) return { o: head + met + (b.owner ? ` → ${who(b.owner)} has it` : ' → loose'), hold: 0.6 };
+        if (r.t - H.t > 5) return { o: head + (met || 'nobody got to it in the air') };
+        return null;
+      } };
+  }
+  // AR4: the meter's own add(), one minute of play each way (the Lab normally keeps the meters still: the gate is lifted
+  // for this one calculation), then the ARCADE extras for the big moments
+  function arSp() {
+    return { id: 'AR4', group: 'AR', name: 'SP meter: fill per minute, CLASSIC → ARCADE', sub: 'the meter\'s own fill over 60 s of play each way, then the ARCADE extras for an aerial won / a rebound volley / a special save', kind: 'phys', pace: 'arcade',
+      setup(r) { cast([m.home.players[9]]); Object.assign(r, { human: m.home.players[9], marks: [] }); ballAt(52.5, 34); },
+      check(r) {
+        if (r.t < 0.2) return null;
+        const mt = m.meters[0], L = window.__lab, PM = PACE_MODE, D = m.demo, out = {};
+        try {
+          window.__lab = null; m.demo = true;
+          for (const pace of ['classic', 'arcade']) { PACE_MODE = pace; mt.e = 0; for (let i = 0; i < 3600; i++) mt.add(SP_GAIN.regen * STEP, 'regen'); out[pace] = mt.e; }
+          PACE_MODE = 'arcade'; for (const k of ['aerial', 'rebound', 'save']) { mt.e = 0; m.spBonus(m.home, k); out[k] = mt.e; }
+        } finally { window.__lab = L; PACE_MODE = PM; m.demo = D; mt.e = 0; }
+        const f2 = v => v.toFixed(2), every = v => Math.round(60 / v);
+        return { o: `CLASSIC ${f2(out.classic)} bars a minute (a bar every ${every(out.classic)} s) → ARCADE ${f2(out.arcade)} (every ${every(out.arcade)} s, x${(out.arcade / out.classic).toFixed(2)}) · ARCADE extras: aerial battle won +${f2(out.aerial)}, header / volley off a rebound +${f2(out.rebound)}, special save +${f2(out.save)}`, hold: 1 };
+      } };
+  }
+  // AR5: a goal with the real celebration + replay (as CS5), timed from the ball crossing the line to the kick-off being
+  // taken (the replay counted in full, nobody skips it; then the kick-off freeze)
+  function arGoal(id, pace) {
+    return { id, group: 'AR', name: `a goal → the kick-off · ${pace.toUpperCase()}`, sub: 'celebration, the goal replay (watched in full), the kick-off freeze: how long until play is on again', kind: 'cut', pace,
+      setup(r) {
+        window.__labCut = true; cast(m.all.filter(p => !p.benched)); m.all.forEach(p => { put(p, p.home.x, p.home.y, p.team.side > 0 ? 0 : 4); });
+        const s = m.home.players[9], gk = m.away.players[0]; put(s, 93.5, 34, 0); atFeet(s); put(gk, LINE_X, 30.5, 4); gk.stun = 1.5;
+        Object.assign(r, { human: s, fired: false, marks: [] });
+        r.action = { at: 0.4, fire: () => m.kick(s, GX + 2, 36.2, 24, 0.35, 0.12, { shot: true, power: 0.6 }) };
+        m.rec = []; m.recN = 0; m.lastReplayEnd = -1e9; m.lastReplay = null;
+        if (!LAB.afterGoal0) { LAB.afterGoal0 = m.afterGoal; m.afterGoal = function (c) { const q = LAB.run; if (q) q.koAt = m.time.now; return LAB.afterGoal0.call(m, c); }; }   // (the Lab's kickoff does nothing: this is when the game would take it)
+      },
+      check(r) {
+        const b = m.ball;
+        if (r.goalAt == null) { if (b.inNet) { r.goalAt = m.time.now; r.replayAt = null; } return r.t > 4 ? { o: 'NO GOAL' } : null; }
+        if (r.replayAt == null && m.replay) r.replayAt = m.time.now;
+        if (r.koAt == null) return (m.time.now - r.goalAt) > 30000 ? { o: 'no kick-off after 30 s' } : null;
+        const P = PACE[r.sc.pace], s = v => (v / 1000).toFixed(1), tot = (r.koAt - r.goalAt) / 1000 + P.koFreeze;
+        return { o: `${r.sc.pace.toUpperCase()} · play on again ${tot.toFixed(1)} s after the goal: celebration ${s(P.goalWaitMs)} s, replay ${s(r.koAt - r.goalAt - P.goalWaitMs)} s (skippable ${P.skipAfter < 0 ? 'at once' : `after ${P.skipAfter} s`}), kick-off freeze ${P.koFreeze} s`, hold: 0.3 };
+      } };
+  }
+  function arTests() {
+    return [
+      arLine('AR1', 'a hard drive at the TOUCHLINE', 'a loose ball at 72 km/h, 60° into the line: a throw-in, on ARCADE too since t-026 (Luca 25 Oct: no touchline boards)', { from: [56, 61], v: [10, 17.3] }),
+      arLine('AR1-S', 'a firm pass rolling at the touchline', 'a ground pass at 36 km/h, square on: a throw-in (t-026: no touchline boards)', { from: [40, 63], v: [2, 10] }),
+      arLine('AR1-C', 'the same drive, CLASSIC', 'CLASSIC is untouched: the ball goes out for a throw-in', { from: [56, 61], v: [10, 17.3], pace: 'classic' }),
+      arLine('AR2', 'at the BYLINE beside the goal', 'a ball at 65 km/h runs past the post (outside the goal mouth): back off the board in front of goal (CLASSIC: goal kick / corner)', { from: [95, 22], v: [17, 3.5] }),
+      arLine('AR2-G', 'into the goal mouth: still a goal', 'the board stops at the posts: a shot inside them goes in', { from: [88, 33], v: [24, 0.3], z: 0.3, noGk: true }),
+      arAir('AR3', 'a rebound attacked in the air (touchline, by their box)', 'the real team AI: a ball driven at the touchline beside their box - since t-026 a throw-in (AR3-B / AR3-SP have the byline rebounds)',
+        { from: [88, 61], v: [11, 19, 1.2], h9: [93, 57], h10: [90, 45], h8: [86, 52], a3: [97, 52], a4: [95, 59], a2: [99, 40], a7: [89, 55] }),
+      arAir('AR3-B', 'a rebound off the BYLINE beside the goal', 'driven past the post: it comes back off the board into the six-yard area', { from: [93, 21], v: [18, 3, 0.8], h9: [99, 32], h10: [96, 38], h8: [97, 27], a3: [102, 33], a4: [98, 36], a2: [101, 30], a7: [93, 34] }),
+      arAir('AR3-SP', 'the AR3-B rebound with 2 bars banked', 'near goal the man who wins it may spend them on an aerial special', Object.assign({ sp: 2 }, { from: [93, 21], v: [18, 3, 0.8], h9: [99, 32], h10: [96, 38], h8: [97, 27], a3: [102, 33], a4: [98, 36], a2: [101, 30], a7: [93, 34] })),
+      arSp(),
+      arGoal('AR5', 'arcade'), arGoal('AR5-C', 'classic'),
+    ];
+  }
+  // ======================================================================= t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule MANDATORY
+  // just make it smooth"). You attack the right-hand goal; their back line stands on x = 85 unless a test says otherwise.
+  // OF1-OF5 and OF7: Lab bots (the passer plays it at 0.6 s, the receiver runs onto it). OF6: the real team AI on both sides.
+  // Each line says who was in an offside position as it was played, and what the assistant did.
+  const ofWho = p => `#${p.num}`;
+  function ofTest(id, name, sub, o) {
+    return { id, group: 'OF', name, sub, kind: 'offside',
+      setup(r) {
+        const H = m.home.players, A = m.away.players, pa = H[o.passer || 6], st = H[9], mate = H[7], gk = A[0], d1 = A[2], d2 = A[3];
+        cast([pa, st, gk, d1, d2, ...(o.mate ? [mate] : [])]);
+        put(pa, ...o.from, 0); put(st, ...o.st, 0); if (o.mate) put(mate, ...o.mate, 0);
+        put(d1, o.line ?? 85, o.d1y ?? 30, 4); put(d2, o.line ?? 85, o.d2y ?? 40, 4); put(gk, LINE_X, 34, 4);
+        Object.assign(gk, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        const to = o.to === 'mate' ? mate : st; faceTo(pa, to.x, to.y); atFeet(pa);
+        if (o.set) { m.setPiece = { kind: o.set, team: m.home, taker: pa, t: 5, kicked: true }; m.ball.last = m.home; }
+        Object.assign(r, { human: pa, passer: pa, gk, st, to, marks: [{ x: o.line ?? 85, y: 34, r: 0.4 }], o });
+        r.bots.set(st, receive); if (o.mate) r.bots.set(mate, receive);
+        r.action = { at: 0.6, fire: () => { const b = m.ball, dx = to.x - pa.x, dy = to.y - pa.y, d = len(dx, dy) || 1;
+          if (o.set === 'THROW-IN') m.kick(pa, to.x, to.y, 0, 0, 0.18, { mode: 'lob', target: to });
+          else m.doPass(pa, { x: dx / d, y: dy / d }, o.mode || 'through', to); } };
+      },
+      check(r) {
+        const b = m.ball, L = m.offLast;
+        if (!r.kicked) { if (r.fired && !m.pending && !b.owner && b.lastP === r.passer) { r.kicked = true; const S = m.offSide;
+            r.snap = S ? [...S.men.keys()].map(q => `${ofWho(q)} ${(m.aiFrame(m.home, S.men.get(q).x) - S.line).toFixed(1)} m past`).join(', ') : 'nobody'; }
+          else return r.t > 4 ? { o: 'NO PASS' } : null; }
+        if (L) return { o: `OFFSIDE! called on ${ofWho(L.p)} (${L.past.toFixed(1)} m past the line as it was played) · free kick ${L.team.opp.name} at ${L.x.toFixed(1)}, ${L.y.toFixed(1)}${r.out === 'FREE KICK' ? '' : ' (no free kick?)'}`, hold: 1.4 };
+        const tail = ` · offside as it was played: ${r.snap}`;
+        if (b.owner && b.owner.team === m.home && b.owner !== r.passer) return { o: `PLAY ON · ${ofWho(b.owner)} has it${tail}`, hold: 0.6 };
+        if (b.owner && b.owner.team !== m.home) return { o: `PLAY ON · their ${b.owner.keeper ? 'keeper' : 'defender'} has it${tail}` };
+        if (r.out) return { o: `OUT · ${r.out.toLowerCase()}${tail}` };
+        return r.t > 7 ? { o: `NOTHING · ball loose${tail}` } : null;
+      } };
+  }
+  // OF6: the real team AI. Your striker (#9) starts 3 m past their line; he should step back onside, wait on the shoulder of
+  // the last defender and go when the pass is played. Every pass the line logs where both strikers stood against the line
+  function ofRunTest(id) {
+    return { id, group: 'OF', name: 'the computer\'s striker times his run', sub: 'the real team AI: your #9 starts 3 m off - back onside, on the last man\'s shoulder, then he goes as it is played', kind: 'offside', realAi: true, demo: true,
+      setup(r) {
+        const H = m.home.players, A = m.away.players;
+        cast([H[6], H[9], H[10], H[5], H[7], A[0], A[1], A[2], A[3], A[4], A[6], A[7]]);
+        put(H[6], 64, 34, 0); atFeet(H[6]); put(H[9], 88, 31, 0); put(H[10], 80, 41, 0); put(H[5], 60, 18, 0); put(H[7], 61, 50, 0);
+        put(A[0], LINE_X, 34, 4); put(A[1], 85, 14, 4); put(A[2], 85, 28, 4); put(A[3], 85, 40, 4); put(A[4], 85, 54, 4); put(A[6], 75, 30, 4); put(A[7], 75, 42, 4);
+        Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+        m.ball.crossBy = null; LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true;
+        Object.assign(r, { human: H[6], shooter: H[6], gk: A[0], marks: [], st: [H[9], H[10]], passes: [], lastK: H[6] });
+        r.start = (m.aiFrame(m.home, H[9].x) - m.offLine(m.home)).toFixed(1);
+      },
+      check(r) {
+        const b = m.ball, H = m.home, L = m.offLast, line = m.offLine(H);
+        if (b.owner) r.lastK = b.owner.team === H ? b.owner : null;
+        else if (r.lastK && !m.pending && b.lastP === r.lastK) {                   // the man who had it has just played it: a pass (or a shot)
+          r.passes.push(`${ofWho(r.lastK)}${b.target ? '→' + ofWho(b.target) : ''} [${r.st.map(q => `${ofWho(q)} ${(m.aiFrame(H, q.x) - line).toFixed(1)}`).join(' ')}]`); r.lastK = null; }
+        const log = ` · #9 started ${r.start} m past · passes [m past the line, - = onside]: ${r.passes.join(' · ') || 'none'}`;
+        if (L) return { o: `OFFSIDE called on ${ofWho(L.p)} (${L.past.toFixed(1)} m past)${log}`, hold: 1.2 };
+        if (b.inNet) return { o: `GOAL${log}`, hold: 1.4 };
+        if (b.owner && r.st.includes(b.owner) && r.passes.length) return { o: `ONSIDE · ${ofWho(b.owner)} got it${log}`, hold: 0.8 };
+        if (b.owner && b.owner.team !== H) return { o: `NO OFFSIDE · their ${b.owner.keeper ? 'keeper' : 'defender'} has it${log}` };
+        if (r.out) return { o: `NO OFFSIDE · out (${r.out.toLowerCase()})${log}` };
+        return r.t > 9 ? { o: `NO OFFSIDE in 9 s${log}` } : null;
+      } };
+  }
+  // OF7: your pass preview (the ring + marker under the man a pass would find) goes red while he is offside: #9 stands
+  // 3 m off, then walks back onside at 1.6 s - it turns blue
+  function ofHintTest(id) {
+    return { id, group: 'OF', name: 'your pass-aim marker on an offside man', sub: 'red while #9 is offside, back to blue once he steps onside (nothing is played)', kind: 'offside',
+      setup(r) {
+        const H = m.home.players, A = m.away.players, pa = H[6], st = H[9];
+        cast([pa, st, A[0], A[2], A[3]]);
+        put(pa, 70, 34, 0); atFeet(pa); put(st, 88, 34.5, 0); put(A[2], 85, 30, 4); put(A[3], 85, 40, 4); put(A[0], LINE_X, 34, 4);
+        Object.assign(r, { human: pa, passer: pa, st, marks: [{ x: 85, y: 34, r: 0.4 }], fired: true });
+        r.bots.set(pa, (p, dt) => { p.steer(0, 0, dt); if (m.ball.owner === p) m.passAim = m.passTarget(p, { x: 1, y: 0 }, 'ground', m.passAim); });
+        r.bots.set(st, (p, dt) => { if (r.t < 1.6) p.steer(0, 0, dt); else if (p.moveTo(83.5, 34.5, JOG, dt) < 0.2) p.steer(0, 0, dt); });
+      },
+      check(r) {
+        const pa = m.passAim, red = !!(pa && offsideOn() && m.offPos(pa));
+        if (r.t > 0.4 && r.t < 1.5 && pa === r.st) r.red = r.red ?? red;
+        if (r.t > 3.4) { r.blue = !red;
+          return { o: `HINT · ${r.red ? 'RED' : 'not red (!)'} while #9 was 3 m off · ${r.blue ? 'BLUE' : 'still red (!)'} once he stepped onside${pa === r.st ? '' : ' (the preview left him)'}` }; }
+        return null;
+      } };
+  }
+  function ofTests() {
+    return [
+      ofTest('OF1', 'a through ball to a man a step offside', 'called: OFFSIDE!, his marker, a free kick to them where he played it', { from: [68, 34], st: [87, 36] }),
+      ofTest('OF2', 'level with the last defender', 'level is onside: play on', { from: [68, 34], st: [85, 36] }),
+      ofTest('OF3', 'from his own half, past their high line', 'in his own half as it was played: never offside, play on', { from: [38, 34], st: [51.5, 36], line: 50 }),
+      ofTest('OF4', 'offside, but the ball goes to someone else', 'he stands there and stays out of it: not penalised, play on', { from: [68, 34], st: [88, 36], mate: [78, 20], to: 'mate', mode: 'ground' }),
+      ofTest('OF5', 'from a throw-in', 'no offside from a throw-in (nor a corner or a goal kick): play on', { passer: 4, from: [80, 67.6], st: [91, 50], d1y: 46, d2y: 56, set: 'THROW-IN' }),
+      ofRunTest('OF6'),
+      ofHintTest('OF7'),
+    ];
+  }
   // the SAVE! prompt: the computer shoots a special at YOUR keeper - press SPECIAL while SAVE! is up
   function pwSaveYou(id) {
     return { id, group: 'PW', name: 'YOUR KEEPER: special save', sub: 'press SPECIAL when SAVE! flashes', kind: 'pw', you: true,
@@ -1270,6 +1767,66 @@
         if (r.t - r.shotT > 5) return { o: head + (r.popup ? 'nothing happened' : 'no popup') };
         return null;
       } };
+  }
+  // ======================================================================= t-022 CHARGED HEADERS AND VOLLEYS (HV). The Lab plays YOU through
+  // the touch buttons (the game's own input): a team-mate crosses to you, SHOOT goes down o.press s before the ball gets
+  // to you (by the game's predicted path) and is let go o.rel s before it (o.rel null: still held at the contact = late;
+  // o.tap: let go after 0.06 s = today's header). The line: held / let go, the charge (the hold's power -> what the
+  // timing kept), the speed off the head / boot, on target as it left him, then what came of it. HV5 is the computer's
+  // striker (its dice by level, AIR_CHARGE.cpu*), HV6 a charged header straight at their keeper.
+  function hvContactIn(p, vol) {                                                // s until the ball reaches him at header (or volley) height
+    const P = m.path; if (!P) return null;
+    for (const q of P) { const d = len(q.x - p.x, q.y - p.y); if (vol ? q.z > 0.25 && q.z < 1.0 && d < 1.6 : q.z > 1.1 && q.z < 2.7 && d < 1.2) return q.t; }
+    return null;
+  }
+  function hvOnTarget(gx) {                                                     // where the struck ball crosses the goal line (no keeper)
+    const b = m.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: true, rollV: b.rollV }, h = 1 / 120;
+    for (let t = 0; t < 3; t += h) { ballStep(c, h, false); if ((c.x - gx) * Math.sign(b.vx || 1) >= 0) return c.z >= BAR_Z ? `OVER (${c.z.toFixed(1)} m)` : c.y > GOAL_Y0 && c.y < GOAL_Y1 ? 'ON TARGET' : `WIDE (${Math.abs(c.y - 34).toFixed(1)} m off centre)`; }
+    return 'SHORT';
+  }
+  const hvRate = l => Math.round(100 * Math.min(1, AIR_CHARGE.sweet / (AIR_CHARGE.cpuJit * Math.max(diffK(l).shotErr, AIR_CHARGE.cpuFloor))));
+  function hvTest(id, name, sub, o) {
+    return { id, group: 'HV', name, sub, kind: 'hv', you: !o.cpu, lvl: o.lvl,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+        const S = o.cpu ? m.away.players : m.home.players, you = S[9], c = S[7], gk = (o.cpu ? m.home : m.away).players[0];
+        const X = x => o.cpu ? PITCH_L - x : x, Y = y => o.cpu ? 68 - y : y;    // (the computer attacks the other goal)
+        cast([you, c, gk]); put(you, X(92), Y(31), o.cpu ? 4 : 0); put(c, X(o.from[0]), Y(o.from[1])); faceTo(c, X(92), Y(31)); atFeet(c);
+        put(gk, X(LINE_X), Y(o.gkY || 33), o.cpu ? 0 : 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+        for (const mt of m.meters || []) mt.e = 0; m.acLast = null; m.airCh = null;
+        Object.assign(r, { human: o.cpu ? gk : you, striker: you, shooter: you, gk, gx: o.cpu ? 0 : PITCH_L, marks: [{ x: X(92), y: Y(31), r: 0.5 }] });
+        r.action = { at: 0.6, fire: () => { const b = m.ball, a = aimAir(b.x, b.y, X(92), Y(31), o.z, o.T); m.kick(c, X(92), Y(31), a.speed, a.vz, 0.13, {}); } };
+      },
+      check(r) {
+        const b = m.ball, T = Input.touch, you = r.striker, f2 = v => v.toFixed(2), pc = v => Math.round(v * 100) + '%';
+        const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); return res; };
+        if (!o.cpu && r.fired && !r.hit) {                                        // ---- you: SHOOT down, held, let go
+          const tc = b.owner || m.pending ? null : hvContactIn(you, o.vol);
+          if (r.downT == null) { if (tc != null && tc <= o.press) { T.btn.shoot = true; r.downT = r.t; } }
+          else if (r.upT == null && (o.tap ? r.t - r.downT >= 0.06 : o.rel != null && tc != null && tc <= o.rel)) { T.btn.shoot = false; r.upT = r.t; if (o.stick) { T.x = o.stick[0]; T.y = o.stick[1]; } }
+        }
+        const L = m.acLast;
+        if (!r.hit) { if (L && L.by === you) { r.hit = { ...L, at: r.t }; T.btn.shoot = false; } else return r.t > 7 ? done({ o: 'NO HEADER / VOLLEY' + (b.lastP && b.lastP !== r.shooter ? ` · ${b.lastP.team === m.home ? 'your' : 'their'} #${b.lastP.num} got it` : '') }) : null; }
+        if (!r.go) { if (m.pending || b.owner || b.lastP !== you) return null; r.go = { v: Math.round(len(b.vx, b.vy, b.vz) * 3.6), tgt: hvOnTarget(r.gx), t: r.t }; r.shotT = r.t; }
+        const H = r.hit, who = o.cpu ? `${LVL_NAME[r.sc.lvl] || 'BASE'} (timed right ~${hvRate(r.sc.lvl || 'normal')}% of its charged ones; E ${hvRate('easy')} · N ${hvRate('normal')} · H ${hvRate('hard')} · R ${hvRate('rise')}): ` : '';
+        const hold = o.cpu ? '' : `held ${f2((r.upT ?? H.at) - r.downT)} s, ${r.upT != null ? `let go ${f2(H.at - r.upT)} s before the contact` : 'still held at the contact (late)'} · `;
+        const ch = H.tap ? 'TAP: today\'s ' + H.kind : `CHARGED ${H.kind}: ${pc(H.raw)} power → ${pc(H.pw)} kept, timing ${H.sweet ? 'RIGHT (sweet)' : (H.late ? 'LATE' : 'off by ' + f2(H.off) + ' s') + ' q ' + f2(H.q)}`;
+        const head = `${who}${hold}${ch} · ${r.go.v} km/h · ${r.go.tgt} · `;
+        const res = gkxOut(r); if (res) return done({ ...res, o: head + res.o.replace(/^NO SAVE · /, '') });
+        return r.t - r.go.t > 4 ? done({ o: head + (b.owner ? `${b.owner.team === you.team ? 'your side' : 'their side'} has it` : 'loose') }) : null;
+      } };
+  }
+  function hvTests() {
+    const hdr = { from: [99, 6], z: 1.8, T: 1.35 };
+    return [
+      hvTest('HV1', 'a header released in the sweet window', 'hold SHOOT as the cross comes, let go just before it reaches you: full power, on target', { ...hdr, press: 0.75, rel: 0.05 }),
+      hvTest('HV2', 'a header released EARLY', 'let go 0.45 s before it arrives: weaker and wider', { ...hdr, press: 0.9, rel: 0.45 }),
+      hvTest('HV3', 'a charged volley (low driven cross)', 'hold as it comes in at knee height, let go just before: a power volley', { from: [100, 14], z: 0.6, T: 0.75, vol: true, press: 0.75, rel: 0.05 }),
+      hvTest('HV4', 'a TAP header', 'SHOOT tapped (0.06 s) as the cross comes: today\'s header (~45-54 km/h)', { ...hdr, press: 0.5, tap: true }),
+      hvTest('HV5', 'the computer\'s header by level (NORMAL)', 'their striker meets a cross: it charges about 3 in 10, its timing a dice by level', { ...hdr, cpu: true, lvl: 'normal' }),
+      hvTest('HV6', 'a charged header straight at their keeper', 'timed right, aimed at him: does the pace beat his hold (held / parried)?', { ...hdr, press: 0.75, rel: 0.05, gkY: 33.1, stick: [0, -0.4] }),
+      hvTest('HV7', 'a header held through the contact (LATE)', 'still holding SHOOT as it reaches you: struck late - weaker and wilder', { ...hdr, press: 0.75, rel: null }),
+    ];
   }
   function ksOut(r) {
     const b = m.ball, gk = r.gk, g = gk.rig;
@@ -1362,7 +1919,7 @@
 
   // ---- BUG WATCH clips (the game's watchdog + Claude's overnight runs): watch each one here, rate it, ask Claude
   function clipTest(d, j) {
-    return { id: `BW${j + 1}`, group: 'BW', name: `${d.min}' ${d.title}`, sub: `${d.home} v ${d.away} · ${d.msg}`, kind: 'clip', doc: d,
+    return { id: `CL${j + 1}`, group: 'CL', name: `${d.min}' ${d.title}`,   // (t-021: group CL - BW is now the checks' own tests) sub: `${d.home} v ${d.away} · ${d.msg}`, kind: 'clip', doc: d,
       setup(r) { cast([]); Object.assign(r, { fired: true, marks: [], human: m.home.players[9], snaps: [] }); playClip(r, d); },
       check() { return null; } };
   }
@@ -1407,11 +1964,13 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     } catch (e) { out.textContent = e && e.code === 'not_granted' ? 'Not allowed on this page (you said no to Claude). That\'s fine - rate it yourself.' : `Couldn't ask Claude (${(e && e.code) || 'error'}).`; }
   }
   async function loadClips() {
-    const G = LAB.groups.find(g => g.id === 'BW'); if (!G || !LAB.db) return;
+    const G = LAB.groups.find(g => g.id === 'CL'); if (!G || !LAB.db) return;
     try {
       const snap = await LAB.db.collection('bugwatch').get(), docs = [];
-      for (const s of snap.docs) { const v = s.data(); if (v && v.clip && v.code) docs.push(Object.assign({ _id: s.id }, v)); }
-      docs.sort((a, b) => (a.review ? 1 : 0) - (b.review ? 1 : 0) || (a.order ?? 999) - (b.order ?? 999) || String(a.at).localeCompare(String(b.at)));
+      // t-021: old flicker / jitter / stutter clips stay hidden (those checks are counted only now), and real bugs lead:
+      // errors first, then broken mechanics, then flags, marks and the 'looks odd' ones (to rate before rated)
+      for (const s of snap.docs) { const v = s.data(); if (v && v.clip && v.code && !bwLook(v)) docs.push(Object.assign({ _id: s.id }, v)); }
+      docs.sort((a, b) => (a.review ? 1 : 0) - (b.review ? 1 : 0) || bwRank(a) - bwRank(b) || (a.order ?? 999) - (b.order ?? 999) || String(b.at).localeCompare(String(a.at)));
       G.tests = docs.length ? docs.map(clipTest) : G.tests;
       G.blurb = docs.length ? `${docs.length} clips the bug watch kept (${docs.filter(d => !d.review).length} not rated yet). 1 = the game was right · 2 = it's a bug · ASK CLAUDE for a second opinion.` : G.blurb;
       if (LAB.active) render();
@@ -1421,6 +1980,64 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     const r = LAB.run, d = r && r.sc.doc; if (!d || !LAB.db || !d._id) return;
     const review = { verdict: verdict === 'right' ? 'fine' : 'bug', note: $('note').value.trim(), reasons: [...(reasons || [])].map(x => REASONS[x]), claude: r.claudeSays || '', at: new Date().toISOString(), lab: true };
     try { await LAB.db.collection('bugwatch').doc(d._id).update({ review }); d.review = review; } catch (e) {}
+  }
+
+  // ======================================================================= t-021 BUG WATCH CHECKS (Luca 25 Oct 06:44: "it should flag
+  // mechanics issues, actual game bugs, when game code breaks"). One case per new check: the Lab breaks the game on
+  // purpose (LAB.undo puts it back at the next test) and the check must trip; BW9 is normal play with the real AI on
+  // both sides, where none of them may. Bug Watch watches only here (window.__labWatch) and keeps nothing (__bwNoStore).
+  const BW_NEW = ['CLOCK_FROZEN', 'BALL_TOO_FAST', 'BALL_UNDER', 'THROUGH_KEEPER', 'IN_THE_NET', 'GOAL_TWICE', 'TEAM_FROZEN', 'CONTROL_DEAD'];
+  const undo = f => { (LAB.undo = LAB.undo || []).push(f); };
+  const swap = (o, k, v) => { const own = Object.prototype.hasOwnProperty.call(o, k), was = o[k]; o[k] = v; undo(() => { if (own) o[k] = was; else delete o[k]; }); };
+  function bwTest(id, code, name, sub, setup, inject, T = 7, extra = {}) {
+    return Object.assign({ id, group: 'BW', name, sub, kind: 'bw', you: code === 'CONTROL_DEAD',
+      setup(r) {
+        window.__labWatch = true; window.__bwNoStore = true; window.__labClock = code === 'CLOCK_FROZEN';
+        m.bw.reset(); m.bw.list = m.bw.list.filter(x => x.mode !== 'lab'); r.fired = true;
+        const H = m.home.players, A = m.away.players; setup(r, H, A);
+      },
+      check(r) {
+        if (inject) inject(r, m.ball);
+        const S = m.bw.stats, hit = (code ? [code] : BW_NEW).filter(c => S[c]);
+        if (code) {
+          if (hit.length) { const x = m.bw.list.filter(q => q.code === code && q.mode === 'lab').pop(); return { o: `TRIPPED ${code} after ${r.t.toFixed(1)} s · ${x ? x.msg : ''}`, hold: 0.6 }; }
+          return r.t > T ? { o: `NOT TRIPPED: ${code} stayed quiet for ${T} s` } : null;
+        }
+        if (hit.length) return { o: `TRIPPED IN NORMAL PLAY: ${hit.map(c => `${c} ${S[c]}`).join(', ')}` };
+        return r.t > T ? { o: `NONE OF THE ${BW_NEW.length} NEW CHECKS TRIPPED in ${T} s of normal play` } : null;
+      } }, extra);
+  }
+  function bwTests() {
+    return [
+      bwTest('BW1', 'CLOCK_FROZEN', 'a frozen match clock', 'live play, the Lab holds the clock: after 4 s it trips', (r, H, A) => {
+        cast([H[9], A[5]]); put(H[9], 50, 34, 0); put(A[5], 58, 30, 4); atFeet(H[9]); r.human = H[9]; }),
+      bwTest('BW2', 'BALL_TOO_FAST', 'the physics blows up: a 55 m/s ball', 'a loose ball suddenly at 55 m/s, no special', (r, H) => {
+        cast([H[9]]); put(H[9], 40, 20, 0); ballAt(45, 34, 0.3); r.human = H[9]; },
+        (r, b) => { if (r.t > 0.3 && !r.inj) { r.inj = 1; b.vx = 54; b.vy = 8; b.vz = 3; b.special = 0; } }),
+      bwTest('BW3', 'BALL_UNDER', 'the ball under the grass', 'the ball dropped 0.4 m into the ground', (r, H) => {
+        cast([H[9]]); put(H[9], 40, 20, 0); ballAt(50, 34, 0); r.human = H[9]; },
+        (r, b) => { if (r.t > 0.3 && !r.inj) { r.inj = 1; b.z = -0.4; } }),
+      bwTest('BW4', 'THROUGH_KEEPER', 'a shot straight through the keeper', 'their keeper square on his line; the Lab switches off every touch (the ball\'s pick-ups) so it goes through him', (r, H, A) => {
+        cast([H[9], A[0]]); put(A[0], LINE_X, 34, 4); Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); put(H[9], 86, 30, 0);
+        ballAt(92, 34, 0.6); Object.assign(m.ball, { vx: 26, vy: 0, vz: 1.2, last: m.home, lastP: H[9] });
+        swap(m, 'pickups', function () {}); r.human = H[9]; }),
+      bwTest('BW5', 'IN_THE_NET', 'a man standing in the net', 'one of yours parked inside their goal, play going on', (r, H, A) => {
+        cast([H[9], A[5]]); put(H[9], 106.2, 34.5, 4); put(A[5], 60, 30, 4); ballAt(55, 40, 0); r.human = H[9]; }),
+      bwTest('BW6', 'GOAL_TWICE', 'one goal counted twice', 'the score goes up, then up again a second later', (r, H) => {
+        cast([H[9]]); put(H[9], 50, 34, 0); atFeet(H[9]); r.human = H[9]; },
+        (r) => { if (r.t > 0.5 && !r.g1) { r.g1 = 1; m.home.score++; } if (r.t > 1.5 && !r.g2) { r.g2 = 1; m.home.score++; } }),
+      bwTest('BW7', 'TEAM_FROZEN', 'their whole team frozen', 'six of theirs stand still while you have the ball', (r, H, A) => {
+        cast([H[9], A[0], A[1], A[2], A[3], A[4], A[6], A[7]]); put(H[9], 50, 34, 0); atFeet(H[9]); [A[1], A[2], A[3], A[4], A[6], A[7]].forEach((p, k) => put(p, 62 + (k % 3) * 8, 18 + k * 6, 4));
+        put(A[0], LINE_X, 34, 4); r.human = H[9]; }),
+      bwTest('BW8', 'CONTROL_DEAD', 'your man won\'t move', 'you hold RIGHT, the Lab freezes his legs (his step does nothing)', (r, H) => {
+        cast([H[9]]); put(H[9], 50, 34, 0); ballAt(70, 50, 0); r.human = H[9]; Input.touch.x = 1; swap(H[9], 'step', function () {}); }),
+      bwTest('BW9', null, 'normal play: none of the new checks trip', 'the real AI on both sides, 11 v 11, for 10 s', (r, H, A) => {
+        cast(m.all.filter(p => !p.benched)); m.all.forEach(p => { put(p, p.home.x, p.home.y, p.team.side > 0 ? 0 : 4); });
+        Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); Object.assign(H[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+        put(H[9], 52, 34, 0); atFeet(H[9]); LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true; r.human = H[9]; }, null, 10, { realAi: true, demo: true }),
+    ];
   }
 
   // ======================================================================= t-010 TAP KICK (Luca 24 Oct 05:57: "give me a test lab of the
@@ -1470,6 +2087,96 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (!b.owner && len(b.vx, b.vy) < 0.2 && b.z < 0.05) return done({ o: head + `it DIED after ${f1(len(b.x - r.start.x, b.y - r.start.y))} m, ${f1(Math.abs(GX - b.x))} m out from the goal line`, hold: 1 });
     if (b.owner === gk) return done({ o: head + `it died before him: the keeper took it at his feet (${f1(len(b.x - r.start.x, b.y - r.start.y))} m from the kick)`, hold: 1 });
     return r.t - r.kickT > 4 ? done({ o: head + 'ball loose' }) : null;
+  }
+  // t-018 TACKLE REWORK (Luca 25 Oct 06:56: "you can spam it too easy, it should have more draw back if you miss so
+  // slower reset time ... making the slide actually slide more, but not too far either and gets up after"). The Lab
+  // presses the real buttons (Input.touch) and times what the player can do. TT1 a slide that misses, TT2 one that wins
+  // it, TT3 SHOOT mashed 10 times in 5 s, TT4 a standing challenge made to miss + PASS mashed after it, TT5 the computer
+  // defending against you for 20 s. A foul in TT3 / TT5 is counted and play goes on (no free kick in the Lab).
+  const ttFree = p => !p.busy() && p.stun <= 0;                                  // he's up and can play again (a tackle: p.cool too)
+  const ttFoul = (r, back) => { if (!m.foulScene && !r.out) return false; r.fouls = (r.fouls || 0) + 1;
+    m.foulScene = null; m.setPiece = null; m.pending = null; r.out = null; for (const p of m.all) if (p.state === 'fall') { p.state = 'idle'; p.stun = 0; } if (back) atFeet(back); return true; };
+  const ttShuttle = (a, b, v) => { let to = b; return (p, dt) => { if (m.ball.owner !== p || p.busy()) { p.steer(0, 0, dt); return; }
+    if (len(to[0] - p.x, to[1] - p.y) < 0.8) to = to === b ? a : b; const dx = to[0] - p.x, dy = to[1] - p.y, d = len(dx, dy) || 1;
+    p.wantDir = { x: dx / d, y: dy / d }; m.carrySteer(p, dx / d, dy / d, v, dt); }; };
+  function ttTest(id, name, sub, o) {
+    return { id, group: 'TT', name, sub, kind: 'tt', you: true, o, maxT: o.maxT,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+        const you = m.home.players[4], d = m.away.players[9], d2 = o.cpu ? m.away.players[5] : null; cast([you, d, ...(d2 ? [d2] : [])]);
+        Object.assign(r, { human: you, drib: d, o, presses: 0, slides: 0, ignored: 0, fouls: 0, wins: 0, cools: [] });
+        if (o.cpu) {                                                             // TT5: you on the ball, two computer defenders press you
+          put(you, 76, 34, 0); atFeet(you); put(d, 90, 34, 4); put(d2, 82, 22, 6); r.wp = [[86, 27], [86, 41], [72, 41], [72, 27]]; r.wi = 0;
+          const press = (p, dt) => { const c = m.ball.owner; if (c && c.team !== p.team) m.aiPress(p, m.away, c, dt); else p.steer(0, 0, dt); };
+          r.bots.set(d, press); r.bots.set(d2, press); r.cam = () => ({ x: you.x, y: you.y }); r.fired = true; return;
+        }
+        put(you, o.me[0], o.me[1]); put(d, o.from[0], o.from[1]); faceTo(d, o.to[0], o.to[1]); faceTo(you, d.x, d.y); atFeet(d);
+        r.bots.set(d, o.shuttle ? ttShuttle(o.from, o.to, o.v) : dribbleTo(o.to[0], o.to[1], o.v));
+        r.cam = o.kind === 'miss' ? () => ({ x: you.x, y: you.y }) : () => ({ x: (you.x + d.x) / 2, y: (you.y + d.y) / 2 }); r.fired = true;   // (TT1: on him, the slide and the get-up)
+      },
+      check: ttCheck };
+  }
+  function ttCheck(r) {
+    const b = m.ball, o = r.o, p = r.human, T = Input.touch, f1 = v => v.toFixed(1), f2 = v => v.toFixed(2);
+    const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); if (r.rand0) { LAB.rand = r.rand0; r.rand0 = null; } return res; };
+    if (r.rand0) { LAB.rand = r.rand0; r.rand0 = null; }                         // (TT4: the forced miss lasts one step)
+    const btn = o.btn || 'shoot', was = T.btn[btn]; T.btn[btn] = false;          // a press is one step down
+    if (p.state === 'slide' && r.prevState !== 'slide') { r.slides++; if (r.t0 == null) { r.t0 = r.t; r.x0 = p.x; r.y0 = p.y; } }
+    else if (was && btn === 'shoot') r.ignored++;                                // pressed last step and no slide came of it
+    const chal = p.cool > (r.prevCool ?? 0) + 0.05 && p.state !== 'slide'; if (chal) r.cools.push(r.t);   // a challenge went in
+    r.prevState = p.state; r.prevCool = p.cool;
+    const press = () => { T.btn[btn] = true; r.presses++; r.pressT = r.t; };
+    if (o.kind === 'miss' || o.kind === 'win') {
+      if (r.pressT == null) { if (o.kind === 'miss' ? r.t >= 0.3 : len(b.x - p.x, b.y - p.y) < o.at) { press(); if (o.stick) { T.x = o.stick[0]; T.y = o.stick[1]; } } return r.t > 5 ? done({ o: 'NO PRESS' }) : null; }
+      if (r.t - r.pressT > 0.05) { T.x = T.y = 0; }
+      if (r.t0 == null) return r.t - r.pressT > 0.5 ? done({ o: 'NO SLIDE' }) : null;
+      if (p.slideWon && r.winT == null) r.winT = r.t;
+      if (p.state === 'getup' && r.upT == null) { r.upT = r.t; r.xUp = p.x; r.yUp = p.y; }
+      if (r.actT == null && r.upT != null && ttFree(p)) r.actT = r.t;
+      if (r.tackT == null && r.actT != null && p.cool <= 0) r.tackT = r.t;
+      if (r.actT == null || r.tackT == null) return r.t > 8 ? done({ o: 'STILL DOWN after 8 s' }) : null;
+      const slid = len(r.xUp - r.x0, r.yUp - r.y0), ground = r.upT - r.t0, up = r.actT - r.upT;
+      if (o.kind === 'miss') return done({ o: `${r.winT != null ? 'IT WON THE BALL (meant to miss) · ' : 'MISSED · '}slid ${f1(slid)} m in ${f2(ground)} s, get-up ${f2(up)} s → can act again ${f2(r.actT - r.t0)} s after the press, slide / challenge again after ${f2(r.tackT - r.t0)} s`, hold: 0.6 });
+      if (r.winT == null) return done({ o: `MISSED (meant to win) · slid ${f1(slid)} m, can act again ${f2(r.actT - r.t0)} s after the press` });
+      const mine = b.owner === p ? 'the ball is YOURS (block tackle)' : b.owner ? `${b.owner.team === p.team ? 'you' : 'he'} picked it up` : `knocked loose (${f1(len(b.vx, b.vy))} m/s)`;
+      return done({ o: `WON IT ${f2(r.winT - r.t0)} s into the slide · up and free ${f2(r.actT - r.winT)} s after the contact (${f2(r.actT - r.t0)} s after the press) · ${mine}`, hold: 0.6 });
+    }
+    if (o.kind === 'mash') {                                                      // TT3: 10 presses, one every 0.5 s; the ball goes back to him
+      ttFoul(r, r.drib);
+      if (b.owner !== r.drib && r.t - (r.pressT ?? 0) > 0.1) { if (p.slideWon || p.state === 'getup') r.wins += b.owner === p ? 1 : 0; atFeet(r.drib); }
+      if (r.presses < 10 && r.t >= 0.2 + r.presses * 0.5) { press(); T.x = 0; T.y = r.presses % 2 ? -1 : 1; }   // (the stick up / down in turn: every slide misses and he stays by him)
+      else if (r.t - r.pressT > 0.05) T.x = T.y = 0;
+      if (r.t < 5.6) return null;
+      return done({ o: `SHOOT pressed ${r.presses} times in 5 s → ${r.slides} slides${r.wins ? ` (${r.wins} won it)` : ''}, ${r.ignored} presses did nothing (on the grass / getting up / cooling down)${r.fouls ? ` · ${r.fouls} foul${r.fouls > 1 ? 's' : ''}` : ''}`, hold: 0.6 });
+    }
+    if (o.kind === 'chal') {                                                      // TT4: the challenge made to miss, then PASS mashed every 0.1 s
+      if (r.pressT == null) { if (len(b.x - p.x, b.y - p.y) < 1.3) { press(); r.rand0 = LAB.rand; LAB.rand = () => 0.999; } return r.t > 5 ? done({ o: 'NO PRESS' }) : null; }
+      if (r.c1 == null) { if (r.cools.length) { r.c1 = r.cools[0]; r.stun0 = p.stun; r.won1 = b.owner === p; } return null; }
+      if (r.stunT == null && p.stun <= 0) r.stunT = r.t;
+      if (r.cools.length < 2) { if (Math.round((r.t - r.c1) / STEP) % 6 === 0) press(); return r.t - r.c1 > 4 ? done({ o: `no second challenge in 4 s` }) : null; }
+      const c2 = r.cools[1], res2 = b.owner === p ? 'WON IT' : len(b.x - p.x, b.y - p.y) > 1.6 ? 'lunged at nothing (he was gone)' : 'missed';
+      return done({ o: `${r.won1 ? 'WON (meant to miss)' : 'MISSED'} · off balance ${f2((r.stunT ?? r.t) - r.c1)} s · PASS mashed: ${r.presses - 2} presses did nothing · next challenge ${f2(c2 - r.c1)} s after the first → ${res2}`, hold: 0.6 });
+    }
+    // TT5: you dribble round a square; count the computer's slides and challenges in 20 s
+    const D = [r.drib, m.away.players[5]];
+    for (const q of D) { if (q.state === 'slide' && q._ttS !== 'slide') r.slides++; q._ttS = q.state; if (q.cool > (q._ttC ?? 0) + 0.05 && q.state !== 'slide') r.chal = (r.chal || 0) + 1; q._ttC = q.cool; }
+    if (ttFoul(r, null)) r.backT = r.t + 0.6;
+    if (b.owner && b.owner.team !== p.team && r.backT == null) { r.wins++; r.backT = r.t + 0.6; }   // it won it: back to you shortly
+    if (!b.owner && r.backT == null) r.looseT = (r.looseT || 0) + STEP; else r.looseT = 0;
+    if ((r.backT != null && r.t >= r.backT) || r.looseT > 1) { r.backT = null; r.looseT = 0; if (!p.busy()) { p.stun = 0; atFeet(p); } else r.backT = r.t + 0.2; }
+    const w = r.wp[r.wi]; if (len(w[0] - p.x, w[1] - p.y) < 1.5) r.wi = (r.wi + 1) % r.wp.length;
+    const w2 = r.wp[r.wi], dx = w2[0] - p.x, dy = w2[1] - p.y, dl = len(dx, dy) || 1; T.x = dx / dl; T.y = dy / dl;
+    if (r.t < 20) return null;
+    return done({ o: `the computer in 20 s: ${r.slides} slides, ${r.chal || 0} standing challenges · won the ball ${r.wins} times · ${r.fouls} foul${r.fouls === 1 ? '' : 's'}`, hold: 0.4 });
+  }
+  function ttTests() {
+    return [
+      ttTest('TT1', 'a slide that misses', 'SHOOT with the stick pushed away from him: he slides along the grass, gets up, and only then can he play again', { kind: 'miss', me: [50, 34], from: [58, 40], to: [72, 40], v: 3, stick: [0, -1] }),
+      ttTest('TT2', 'a slide that wins the ball', 'he runs straight at you; SHOOT at 3.2 m, stick idle: the slide wins it - how soon is he up and away?', { kind: 'win', me: [50, 34], from: [60, 34], to: [30, 34], v: 4.6, at: 3.2 }),
+      ttTest('TT3', 'SHOOT mashed 10 times in 5 s', 'a dribbler shuttles just in front of you; the Lab presses SHOOT every 0.5 s with the stick up / down in turn (slides that miss): how many slides come out?', { kind: 'mash', me: [50, 34], from: [53, 34], to: [57, 34], v: 2.5 }),
+      ttTest('TT4', 'a standing challenge that misses', 'he walks past 1.2 m away; PASS as he comes (the Lab makes it miss), then PASS mashed every 0.1 s: the stumble and the reset', { kind: 'chal', btn: 'pass', me: [50, 34], from: [57, 32.8], to: [40, 32.8], v: 2.5 }),
+      ttTest('TT5', 'the computer tackling you (20 s)', 'you dribble round a square at running pace; two computer defenders press you with the match AI: how often do they slide?', { cpu: true, maxT: 21 }),
+    ];
   }
   function tkTests() {
     return [
@@ -1582,11 +2289,17 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
+    add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
+    add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
+    add('LV', 't-019 · LOB AIM: AUTO / RING', 'Two versions to compare (Pause > Options > LOB AIM). AUTO: LOB goes to the team-mate your arrow points at (the nearest free one in a ~38° cone), landing a step ahead on his run; hold = a little longer, tap = the quick one, nobody there = into space. RING: the ring without the arc, slower and steadier. Both: the camera no longer rides up with a lob.', lvTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
+    add('KF', 't-016 · KEEPER FACING + BLOCKED PATHS', 'Luca\'s Bug Watch marks: a keeper never shows his back to a ball within 6 m (KF1-3: the biggest angle between his facing and the ball), and a man with someone in his straight line steps round him instead of standing still (KF4-5).', kfTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
+    add('TT', 't-018 · TACKLE REWORK', 'The slide really slides (~3.6 m) and he gets up after: a miss costs ~1.4 s, a won one is up in 0.3 s. A missed standing challenge leaves him off balance 0.6 s and he can\'t go again for 1 s. No presses kept from the grass. The computer plays by the same rules.', ttTests());
     add('TK', 't-010 · TAP KICK', 'SHOOT tapped (let go within 0.15 s) = a snappy, low stab along your arrow that dies on the grass: a close-range finish. Held = the power shot as before. In the keeper\'s reach he holds most; out of it, it goes in. (On in the Test Lab only.)', tkTests());
+    add('KP', 't-017 · KEEPER 1v1 + TRACKING', 'Their keeper against a striker who tries to walk round him (straight at him, past his side, a tap into the empty net) and one walking the ball across the edge of the box. GOAL = he was walked round; he should block, smother or take it off his feet, and stay on the angle smoothly.', kpTests());
     add('GK', 'v0.9.1 · KEEPER AI', 'Their keeper with the real AI in 11 situations: walking up with the ball far away, the angle, 1v1s, sweeping, back passes, lobs. The yellow diamond is where he wants to be; the label says what he is doing.', gkTests());
     add('SM', 'v0.8.9 · SPECIAL MOVES (ROUGH RIGS)', 'Placeholders made from our PixelLab frames + effects until the real ones come from PixelLab: 3 aerial specials, 3 keeper special saves with their cut scene. v0.9.0: the keeper saves stop normal shots too (SM8-11).', [
       smAir('SM1', 1), smAir('SM2', 2), smAir('SM3', 3),
@@ -1594,6 +2307,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       normSave('SM8', 1), normSave('SM9', 2), normSaveYou('SM10', true), normSaveYou('SM11', false),
     ]);
     add('GP', 't-013 · GOAL PHYSICS', 'The goal comes alive (GOAL_PHYS: on in the Lab, off in matches): a net with give - it bulges, slows the ball, holds it a beat, drops it - round posts and bar with real rebounds (glancing carries on, square comes back), and a parry or a broken guard that loops the ball UP for a man following in.', gpTests(smSave));
+    add('NT', 't-023 / t-025 · THE LIVING NET', 'NET_FX - in every match since t-025: the PixelLab net on a mesh that stretches and wobbles, harder = deeper (a special: drastic, more each level), the ball rolls round in the netting for a second or two before it drops, an LV3 rips through it. Rami has a line for the rip and for a big stretch. NT6: a match goal with its celebration and TV replay - the net (and an LV3\'s hole) in the replay.', ntTests());
     add('AS', 't-014 · AERIAL SPECIALS BY THE ARC', 'Two per level, picked by how the ball arrives: LV1 AIR BLAZE (chest-high drop) / TIDE CUTTER (low driven cross), LV2 SKY THUNDER (over his head) / CYCLONE HEEL (behind the shoulder), LV3 PHOENIX (very high) / METEOR DRIVE (sky-high loop). The Lab presses SPECIAL as it reaches you.', [
       asTest('AS1', 'LV1 · a chest-high drop → AIR BLAZE', 'comet volley', { lv: 1, from: [99, 6], z: 1.3, T: 1.35 }),
       asTest('AS2', 'LV1 · a low driven cross → TIDE CUTTER', 'knee-slide side volley (the low popup window)', { lv: 1, from: [100, 14], z: 0.6, T: 0.75 }),
@@ -1602,10 +2316,12 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       asTest('AS5', 'LV3 · a very high ball → PHOENIX', 'the leap and dive', { lv: 3, from: [99, 6], z: 1.8, T: 1.5 }),
       asTest('AS6', 'LV3 · a sky-high loop → METEOR DRIVE', 'somersault axe kick', { lv: 3, from: [96, 8], z: 1.8, T: 2.4 }),
     ]);
+    add('HV', 't-022 · CHARGED HEADERS + VOLLEYS', 'Hold SHOOT as the ball comes in, let go as it reaches you: the hold is the power (like a ground shot), the timing keeps it - just before the contact = full power and on target, early or late = weaker and wilder, too much = over the bar. A tap is today\'s header / volley. A well-timed one: a white flash, a few sparks, a tiny hit-stop.', hvTests());
     add('KS', 't-014 · KEEPER SPECIAL SAVES BY THE SHOT', 'Their keeper has a special save ready; the shot picks the move: a lob → kleap, straight → kblock, wide → kdivecatch, too strong to hold → ktip (a corner). Who wins stays as before.', ksTests());
     add('CS', 'CUT SCENES', 'Every cut scene in full (the Lab normally skips them). R plays it again. Rate how it looks; ENTER moves the menus on.', buildCuts());
-    add('BW', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai). 1 = the game was right · 2 = it\'s a bug.', [{ id: 'BW0', group: 'BW', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,
-      setup(r) { cast([]); r.fired = true; }, check() { return { o: 'NOTHING TO WATCH YET' }; } }]);
+    add('BW', 't-021 · BUG WATCH CHECKS', 'Each new Bug Watch check tripped on purpose (the Lab breaks the game for it: a frozen clock, a ball shot through a keeper who can\'t touch it, a man who won\'t move...). BW9: normal play, where none of them may trip. Nothing here is saved as a clip.', bwTests());
+    add('CL', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai), real bugs first. 1 = the game was right · 2 = it\'s a bug.', [{ id: 'CL0', group: 'CL', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,
+      setup(r) { cast([]); r.fired = true; r.human = m.home.players[9]; }, check() { return { o: 'NOTHING TO WATCH YET' }; } }]);   // (t-021: a human to draw the cursor on - with none the Lab threw in drawCursor, on main too)
     return G;
   }
 
@@ -1630,7 +2346,14 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; }           // (t-012: a WG test plays the computer on both sides)
     TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
+    if (LAB.lobAim0 == null) LAB.lobAim0 = LOB_AIM_MODE;                        // t-019: LB / LV set LOB AIM per test; every other test plays the picked one
+    LOB_AIM_MODE = LAB.lobAim0; LOB_AIM.camOld = LOB_AIM.ringOld = false; Object.assign(m, { lobCamBlend: null, camLead: undefined, camLeadOn: false });
+    window.__labPace = sc.pace || null;                                         // t-020: the AR tests play ARCADE (core.js paceK); every other test CLASSIC
     if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null; Object.assign(m, { aerial: null, lobAim: null, slowMo: 0 }); Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+    if (LAB.undo) { for (const f of LAB.undo) f(); LAB.undo = null; }            // t-021: the BW cases break the game on purpose - put it back
+    window.__labWatch = window.__bwNoStore = window.__labClock = false;         // (Bug Watch watches only in the BW cases)
+    window.HC2_NO_OFFSIDE = !(sc.group === 'OF' || sc.realAi);                 // t-024: offside in the OF group and the real-AI tests (the rest are half-team moments)
+    Object.assign(m, { offSide: null, offFlag: null, offLast: null, offGK: null, passAim: null });
     sc.setup(r);
     m.human = r.human; m.camX = m.camY = undefined;
     render();
@@ -1681,6 +2404,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   function hook() {
     const sim = m.sim.bind(m), control = m.controlHuman.bind(m), restart = m.restart.bind(m), kickoff = m.kickoff.bind(m),
       say = m.say.bind(m), plan = m.planSave.bind(m), rnd = m.render.bind(m);
+    LAB.kickoff0 = kickoff;                                                    // (t-025 NT6: the real kick-off, once, after its goal replay)
     m.sim = function (dt) {
       const r = LAB.run; if (!r || r.frozen) return;
       LAB.acc += dt * LAB.slow;
@@ -1834,7 +2558,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     $('r1').textContent = clip ? 'game was right' : 'looks right'; $('r2').textContent = clip ? "it's a bug" : 'looks wrong';
     $('rate-h').textContent = clip ? 'RATE THIS CLIP' : 'RATE THIS TEST';
     if (clip && sc.doc) { const d = sc.doc, esc = t => String(t || '').replace(/[<>&]/g, '');
-      $('bw-why').innerHTML = `<b>${esc(d.sev === 'bug' ? 'LOOKS LIKE A BUG' : d.sev === 'perf' ? 'SPEED' : 'LOOKS ODD')}</b> ${esc(d.why)}<br><span>${esc(d.home)} ${esc(d.score)} ${esc(d.away)} · ${esc(d.mode)} · ${esc(d.weather || 'clear')} · ${esc(d.game)}</span>${d.claude ? `<br><i>CLAUDE${d.status === 'fixed' ? ' (FIXED IN v0.8.7)' : ''}: ${esc(d.claude)}</i>` : ''}${d.review ? `<br><em>RATED: ${esc(d.review.verdict)}${d.review.note ? ' · ' + esc(d.review.note) : ''}</em>` : ''}`; }
+      $('bw-why').innerHTML = `<b>${esc(BW_ERR.has(d.code) ? 'CODE ERROR' : d.sev === 'bug' ? 'LOOKS LIKE A BUG' : d.sev === 'flag' ? 'YOUR FLAG' : d.sev === 'perf' ? 'SPEED' : 'LOOKS ODD')}</b> ${esc(d.why)}<br>${BW_ERR.has(d.code) && d.stack ? `<code style="display:block;white-space:pre-wrap;word-break:break-all;max-height:9em;overflow:auto">${esc(String(d.stack).slice(0, 900))}</code>` : ''}<span>${esc(d.home)} ${esc(d.score)} ${esc(d.away)} · ${esc(d.mode)} · ${esc(d.weather || 'clear')} · ${esc(d.game)}</span>${d.claude ? `<br><i>CLAUDE${d.status === 'fixed' ? ' (FIXED IN v0.8.7)' : ''}: ${esc(d.claude)}</i>` : ''}${d.review ? `<br><em>RATED: ${esc(d.review.verdict)}${d.review.note ? ' · ' + esc(d.review.note) : ''}</em>` : ''}`; }
   }
   function readouts() {
     const r = LAB.run; if (!r) return;
