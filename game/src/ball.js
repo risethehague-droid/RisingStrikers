@@ -917,16 +917,16 @@ hc2Mix(Match, {
       const reach = box ? 1.3 : (b.target === p && b.last === p.team ? 1.25 : 0.8), zmax = box ? 2.6 : 0.9;   // v0.7: the man you passed to reaches for it
       if (p.keeper && p.spSave && ((b.special && b.spTeam && p.team !== b.spTeam) || (!b.special && b.saveable && b.saveable !== p.team))) {   // v0.8.6 SPECIAL SAVE v SPECIAL SHOT, on his line (v0.9.0: or v a normal shot)
         if (!((pbx - p.x) * (b.x - p.x) <= 0 || Math.abs(b.x - p.x) < 0.3)) continue;
-        if (Math.abs(b.y - 34) > CLASH.reach || b.z > 3.2) { p.spSave = 0; continue; }   // off target: nothing to save
+        if (!this.gkSpOnTarget(p, b)) { p.spSave = 0; continue; }   // off target: nothing to save (flag-mvo4pchr-368: judged at the goal line, so a keeper off his line still meets an angled shot)
         const K = SAVE_POWER[p.spSave - 1], ok = this.clash(p);
         if (ok === 'clash') return;                                                // t-028: a special v his special save - the ball is held on his gloves, power decides after (specials.js clashTick / clashEnd)
         if (!ok) { this.guardBreak(p); if (this.gpPop(p, 'break', len(b.vx, b.vy))) return; continue; }   // (t-013: or it loops up off him)
         if (ok === 'hand') {                                                     // t-007: too strong to stop, but he gets a hand to it: over or wide
-          p.y = clamp(b.y - Math.sign(b.y - p.y || 1) * 0.5, 29.6, 38.4); p.vx = p.vy = 0;
+          p.y = this.gkMeetY(b.y, b.y - Math.sign(b.y - p.y || 1) * 0.5, 29.6, 38.4); p.vx = p.vy = 0;
           this.gkDeflect(p, b.z > 1.3 || Math.random() < 0.5 ? 'tip' : 'wide'); b.special = 0; b.spP = 0;
           this.gkSaveAnim(p); this.gkCount(p.team, 'parried'); this.flagReplay('A HAND TO IT!', p); this.shotSaved(p); return;
         }
-        p.y = clamp(b.y, 30.6, 37.4); p.vx = p.vy = 0;
+        p.y = this.gkMeetY(b.y, b.y, 30.6, 37.4); p.vx = p.vy = 0;
         if ((b.spP || 0) < K * 0.8) { b.special = 0; best = p; bd = 0; viaChest = false; this.gkCount(p.team, 'held'); break; }   // held
         // fisted away. t-007 (Luca: "from special saves that dont fully save a ball maybe if the ball is too strong it goes
         // over to give a corner"): a special he only just matched goes over the bar or round the post 60% of the time
