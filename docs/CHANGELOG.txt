@@ -1,3 +1,23 @@
+HC2 WEB GAME - v0.12.2 (25 Oct) - THE LIVING NET IN EVERY MATCH + ARCADE THROW-INS (PRs #34, #31, #33, Luca's OK)
+- THE LIVING NET (#34, t-025, from the t-023 preview Luca OK'd): in every match, ARCADE too - the PixelLab net on a mesh
+  that stretches by the strike (a soft shot 32 cm ... an LV2 special 2 m), the ball rolls in it 1-2 s, an LV3 special
+  rips through (the hole stays open until the kick-off), Rami's net lines; recorded into every replay (goal replay,
+  highlights, last 10 s, INSTA FLAG). Only the net part of t-013's goal physics: posts, bar and parries as before.
+  Fixed the preview's in-net ball speed bug (Bug Watch BALL_TOO_FAST). Touch screens keep the plain net. Test Lab NT6.
+- ARCADE (#31, t-026, Luca 14:42 "scrap the board for throws"): no touchline boards - throw-ins again; the byline
+  boards stay (no goal kicks / corners, rebounds in front of goal).
+- House rules (#33, t-030, Luca 14:59): CLAUDE.md "Think like football" - every task checks real football and the
+  reference games and builds the whole flow.
+- Checked: smoke, Test Lab NT (NT1-NT6) and AR errors []; #34's 12-match soak 0 page errors, no real bugs; #31's
+  arcade soak 3.7 goals, 0 errors.
+
+HC2 WEB GAME - v0.12.1 (25 Oct) - INSTA FLAG FIX (PR #32, Luca's OK 15:14)
+- Luca's flag (v0.12.0, IS 3-0 IRO, 62:22, HARD): "the final lvl 3 aerial shot was completely blocked that cannot happen".
+  In an aerial special's wind-up the ball hangs at the striker's boot; a defender's standing tackle took it off him
+  there 17 times in 20. Now that tackle lunges at nothing (t-018's miss cost). Pierce, power and knockback unchanged;
+  off the woodwork a special is an ordinary ball (already the code).
+- Checked: smoke, Test Lab PW (PW11 LV3 aerial: goal) and AS errors [].
+
 HC2 WEB GAME - v0.12.0 (25 Oct) - LUCA'S 06:56 / 07:04 / 07:14 LIST: 8 PRs (#23-#30, Luca's OK 13:42)
 - TACKLE (#23, t-018): the slide really slides (3.6 m, was 2.3) and he gets up after (PixelLab batch 19 slide2 /
   slideup; N / S use the diagonals); a missed slide costs 1.4 s before he can act, 1.5 s before the next tackle; SHOOT

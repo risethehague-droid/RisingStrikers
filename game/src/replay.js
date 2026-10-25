@@ -104,6 +104,7 @@ function bwPack(frames, mark) {
     if (f.b[6]) e.push('t', 1);
     if (f.fl) e.push('fl', [f.fl[0], f.fl[1], f.fl[2], Math.round(f.fl[3] * 100)]);
     if (f.sh) e.push('sh', Math.round(f.sh * 1e4));
+    if (f.nt) e.push('n', f.nt.map(rk));                                          // t-025: the net (its bulges, an LV3's hole)
     if (f.x && f.x.length) e.push('x', [].concat(...f.x.map(q => [N(q[0]), N(q[1]), r(q[2]), r(q[3]), r10(q[4]), rk(q[5]), rk(q[6]), rk(q[7]), Math.round(q[8] * 100), q[9] ? 1 : 0, rk(q[10]), rk(q[11]), q[12], q[13] ? 1 : 0])));
     if (e.length) ex[out.length - 1] = e;
   });
@@ -123,6 +124,7 @@ function bwUnpack(s) {
       else if (key === 't') f.b[6] = 1;
       else if (key === 'fl') f.fl = [v[0], v[1], v[2], v[3] / 100];
       else if (key === 'sh') f.sh = v / 1e4;
+      else if (key === 'n') f.nt = v.map(q => q / 1000);
       else if (key === 'x') { f.x = []; for (let q = 0; q < v.length; q += 14) f.x.push([N[v[q]], N[v[q + 1]], v[q + 2], v[q + 3], v[q + 4] / 10, v[q + 5] / 1000, v[q + 6] / 1000, v[q + 7] / 1000, v[q + 8] / 100, !!v[q + 9], v[q + 10] / 1000, v[q + 11] / 1000, v[q + 12], !!v[q + 13]]); }
     }
     return f;
@@ -439,6 +441,7 @@ hc2Mix(Match, {
       p: this.all.map(q => { const r = q.spr; return [r.x, r.y, r.frame.name, r.visible, r.depth, r.originX, r.originY, r.flipX, r.rotation, r.scaleX, r.scaleY]; }),   // (v0.8.9: + turn / squash for the rough rigs)
       r: this.ref ? (r => [r.x, r.y, r.frame.name, r.visible, r.depth, r.flipX])(this.ref.spr) : null,
       x: this.recFx(),                                                            // t-006: every effect on the pitch this frame
+      nt: this.recNet(),                                                          // t-025: the net moving / torn (null while it hangs still)
       fl: cf && cf.isRunning && cf.alpha > 0.01 ? [cf.red, cf.green, cf.blue, cf.alpha] : null,   // the camera's flash + shake (a special, a guard break, a power shot)
       sh: cs && cs.isRunning ? cs.intensity.x : 0 });
     if (this.rec.length > REC_MAX) this.rec.shift();
@@ -460,6 +463,28 @@ hc2Mix(Match, {
     for (let i = 0; i < L.length; i++) { const o = L[i]; if (!this.isFxSprite(o)) continue;
       out.push([o.texture.key, o.frame.name, o.x, o.y, o.depth, o.scaleX, o.scaleY, o.rotation, o.alpha, o.flipX, o.originX, o.originY, o.tintTopLeft, o.isTinted && o.tintFill]); }
     return out.length ? out : null;
+  },
+  // t-025 (Luca's living net in every replay - "the impact of the goal is felt"): the net is recorded with each frame -
+  // every bulge on it (where it was hit, how deep it is, how old its ripple is) and an LV3's hole - and redrawn from
+  // that in the replay, the same way the sprites are. Recording it beats re-running the net from the ball: the replay
+  // shows exactly what was played, a pause-menu replay can't disturb the live net, and a stored Bug Watch / INSTA FLAG
+  // clip carries it too (bwPack 'n'). Nine numbers a bulge, only on the frames the net moves.
+  recNet() {
+    const S = this.netS, T = this.netRip; if (!S || (!S.L.length && !S.R.length && !T)) return null;
+    const o = [], R = v => Math.round(v * 1000) / 1000;
+    for (const [k, L] of [[0, S.L], [1, S.R]]) for (const q of L) o.push(k, R(q.hx), R(q.hy), R(q.hz), R(q.d), R(q.sx), R(q.sy), R(q.age), R(q.peak));
+    if (T) o.push(T.side === 'L' ? 2 : 3, R(T.hx), R(T.hy), R(T.hz), R(T.d), R(T.sx), R(T.sy), R((this.gpT || 0) - T.t), 0);   // (kind 2 / 3: the hole, with its age)
+    return o;
+  },
+  netReplay(nt) {                                                                  // a recorded frame's net, drawn by world.js netDraw (the live one is put back)
+    if (!this.nets || !netOn()) return;
+    const live = this.netS, liveRip = this.netRip, S = { L: [], R: [] }; let T = null;
+    for (let i = 0; nt && i + 8 < nt.length; i += 9) {
+      const q = { hx: nt[i + 1], hy: nt[i + 2], hz: nt[i + 3], d: nt[i + 4], sx: nt[i + 5], sy: nt[i + 6], age: nt[i + 7], peak: nt[i + 8] };
+      if (nt[i] < 2) S[nt[i] ? 'R' : 'L'].push(q); else T = Object.assign(q, { side: nt[i] === 2 ? 'L' : 'R', t: (this.gpT || 0) - q.age });
+    }
+    this.netS = S; this.netRip = T;
+    try { this.netDraw(); } finally { this.netS = live || { L: [], R: [] }; this.netRip = liveRip; }   // (never null after: netDraw has to put the plain art back once the replay ends)
   },
   drawFx(f) {                                                                      // a recorded frame's effects, from a pool of images (returns how many)
     const P = this.rpFx || (this.rpFx = []), X = (f && f.x) || [];
@@ -574,6 +599,7 @@ hc2Mix(Match, {
     this.ballSh.setPosition(f.s[0], f.s[1]).setAlpha(f.s[2]).setDepth(f.s[3]).setScale(f.s[4]);
     if (f.r && this.ref) { const sp = this.ref.spr; sp.anims.stop(); sp.setPosition(f.r[0], f.r[1]).setFrame(f.r[2]).setVisible(f.r[3]).setDepth(f.r[4]).setFlipX(f.r[5]); this.ref.anim = ''; }
     r.fxNow = this.drawFx(f); r.fxMax = Math.max(r.fxMax, r.fxNow);              // t-006: the effects of that frame (slow-mo too: they're per frame)
+    this.netReplay(f.nt);                                                          // t-025: and the net as it was (bulging, rolling, torn)
     // TV zoom: in on the ball during the slow motion, back out after
     const zb = this.baseZoom(), zt = !r.noZoom && r.t > r.slowA - 0.1 && r.t < r.slowB + 0.15 ? zb * 1.5 : zb;   // camera-pov: 1.5x the picked distance
     r.z += (zt - r.z) * Math.min(1, dt * 5);

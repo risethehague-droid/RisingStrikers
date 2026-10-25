@@ -21,6 +21,18 @@ These rules apply to every session on this repo, on either account. If you're on
 - Always say **where** the work happens: [cloud], [your laptop], [PixelLab], [Aseprite], [claude.ai], [GitHub].
 - Work in the most logical order. Don't ask questions you can settle from the repo or the board.
 
+## Think like football (every task, every session)
+
+Luca, 25 Oct 14:59: "be a bit smarter and reference real football / video games for what to do when I ask a task ...
+make sure you think if something else is needed to match how football usually runs." (His example: offside got
+called, but nobody reorganised before the free kick.)
+- Before building, check how **real football** does it (the Laws of the Game, what players and referees actually do
+  around the moment) and how the **reference games** do it (FIFA / EA FC, PES / eFootball, Sensible Soccer; for
+  specials Inazuma Eleven, Captain Tsubasa, Mario Strikers). Say which ones you used in the brief or the PR.
+- Build the whole flow around a rule, not only the rule: what happens before, during and after it on the pitch
+  (players moving into shape, the restart, the pacing, the camera, Rami).
+- Briefs carry a short "How real football and other games do it" section.
+
 ## Art
 
 - **All art comes from PixelLab or Aseprite.** Make it there, bring it here, wire it up with code. Never draw sprites, tiles or backgrounds in code or with other image tools.

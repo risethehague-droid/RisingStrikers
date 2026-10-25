@@ -1,4 +1,6 @@
-// HELP OUT HAGUE CUP II - web game v0.12.0 (Luca OK'd PRs #23-#30, 25 Oct 13:42 - his 06:56 / 07:04 / 07:14 list: the TACKLE reworked (a longer slide, a get-up, a miss costs ~1.4 s: no spamming); the LOB two ways (AUTO: to the team-mate your arrow points at, a smooth camera - the default; RING: the landing ring, no arc, the camera doesn't follow - Options > LOB AIM); CHARGED HEADERS + VOLLEYS (hold SHOOT, let go at the contact: a power strike, subtle flash + sparks; PixelLab batch 20's power header, whipped and front volleys, flat-out diving header, struck on their contact frames); OFFSIDE in every match (instant OFFSIDE! call, quick free kick, red pass marker on an offside man, runs on the shoulder); ARCADE gets intense (boards instead of throw-ins / corners, rebounds up for aerials, more SP, quick restarts; with the co-designer's arcade-2 mash duels); BUG WATCH clips real bugs, not animation flicker; the NET preview in the Test Lab (NT); the keeper's starfish redone (batch 18b))
+// HELP OUT HAGUE CUP II - web game v0.12.2 (Luca OK'd PRs #34, #31, #33, 25 Oct ~15:30: THE LIVING NET in every match - it stretches by shot strength and special level, the ball rolls in it, an LV3 special rips through, shown in every replay; ARCADE throw-ins again (no touchline boards; the byline boards stay); the house rule 'Think like football')
+// v0.12.1 (Luca OK'd PR #32, 25 Oct 15:14 - his INSTA FLAG: a defender's standing tackle stole the ball off a striker in his aerial special's wind-up, so a LV3 aerial was "completely blocked"; now that tackle lunges at nothing)
+// v0.12.0 (Luca OK'd PRs #23-#30, 25 Oct 13:42 - his 06:56 / 07:04 / 07:14 list: the TACKLE reworked (a longer slide, a get-up, a miss costs ~1.4 s: no spamming); the LOB two ways (AUTO: to the team-mate your arrow points at, a smooth camera - the default; RING: the landing ring, no arc, the camera doesn't follow - Options > LOB AIM); CHARGED HEADERS + VOLLEYS (hold SHOOT, let go at the contact: a power strike, subtle flash + sparks; PixelLab batch 20's power header, whipped and front volleys, flat-out diving header, struck on their contact frames); OFFSIDE in every match (instant OFFSIDE! call, quick free kick, red pass marker on an offside man, runs on the shoulder); ARCADE gets intense (boards instead of throw-ins / corners, rebounds up for aerials, more SP, quick restarts; with the co-designer's arcade-2 mash duels); BUG WATCH clips real bugs, not animation flicker; the NET preview in the Test Lab (NT); the keeper's starfish redone (batch 18b))
 // v0.11.1 (Luca OK'd PR #22 + #20 + #21, 25 Oct: THE KEEPER REBUILT after his 02:58 report "you could just walk around it and score" - he tracks the ball a beat ahead, closes you down and steps up in a 1v1, dives at your feet (SMOTHERED! / BLOCKED!), a starfish block for close shots, faces the ball while he side-steps and backpedals, gets up after a dive; PixelLab batch 18 keeper moves; normal saves use the batch 16 dives; blocked players step round (PR #20); Bug Watch no longer counts the blank animation as a flicker (PR #21))
 // v0.11.0 (Luca OK'd PRs #9-#19, 24 Oct 18:35 - his whole 05:57 list: INSTA FLAG (F) + a replay player with every effect; a clear 'you' arrow + direction pointer; the KEEPER AI reads x / y / z, holds weak shots, tips and parries out for CORNERS; the computer plays DOWN THE WINGS with crosses, runs and aerial specials; the LOB remade - hold to aim a landing ring, release to kick - with timed runs and the MASH! AERIAL BATTLE; PixelLab batch 16 + 16b in play: keeper special saves picked by the shot (leap / iron block / flying catch / fingertips), aerial specials picked by the ball's arc (AIR BLAZE / TIDE CUTTER, SKY THUNDER / CYCLONE HEEL, PHOENIX / METEOR DRIVE); Test Lab only for now: GOAL PHYSICS (net with give, post rebounds), the TAP KICK and the CURVING SPECIAL PASSES (batch 17))
 // v0.10.4 (Luca 24 Oct 06:21, "of immediate importance": the GOAL KICK is a clean cut - a TV wipe, then the keeper at the edge of his six-yard box with the ball in his hands and both teams in a goal-kick shape (his centre-backs split, full-backs wide, the other side outside his box); he plays it out of his hands like after a catch (you: PASS throws, LOB punts). Luca 06:24: no replays while the ball is live - big saves / near misses / aerial specials go to HIGHLIGHTS in CLASSIC too, as in ARCADE; the goal replay after a goal stays)
@@ -120,7 +122,11 @@ const ARCADE = {
   // height; at 0.5, 3 rebounds in 10 went up for a header, at 0.65 about half, and ~4 goals a match). popMin: slower than
   // this it just rolls back. The pop leans on the angle (a square hit pops most), never on dice, so the AI's predicted
   // path (ball.js predict) is the path the ball really takes.
-  boards: { e: 0.75, tang: 0.88, pop: 0.65, popMax: 10, popMin: 2.5, popZ: 1.0 },
+  boards: { e: 0.75, tang: 0.88, pop: 0.65, popMax: 10, popMin: 2.5, popZ: 1.0,
+    // t-026 (Luca 25 Oct 14:42, after playing v0.12.0: "scrap the board for throws, that's bad"): the touchline boards are
+    // off - a ball over a touchline is a throw-in again, on ARCADE too. The byline boards (no goal kicks / corners, the
+    // rebounds in front of goal that go up for headers) stay. true = the v0.12.0 touchline boards back.
+    touch: false },
   // 2 AERIALS: a rebound that will go up past headZ becomes a loose high ball "aimed" at the nearest man of the side that
   // touched it last (the way a lob is), so the game's own lob machinery takes over: he times his run under the drop,
   // their nearest man contests it, the drop is a duel / the AERIAL BATTLE, headers, volleys, the aerial specials.
@@ -338,10 +344,19 @@ const GP = {
 // the impact of the goal is felt on stronger shots and especially special shots, the ball should roll with energy for a
 // second or two before it drops, make the net stretch more in general but drastically for special shots, increasingly
 // for each level, make lv3 shots rip through the goal ... and a rami reaction about it (make a preview of this before
-// you implement)"). A PREVIEW on top of t-013's spring net: null = ON in the Test Lab, OFF in matches (until Luca's
-// OK); true / false forces it. It needs GOAL_PHYS (the spring net it stretches).
+// you implement)"). Built on t-013's spring net.
+// t-025 (Luca OK'd the preview, 25 Oct 13:42 - "OK = you like it; then it gets built into matches"): THE NET IS IN EVERY
+// MATCH now. Its own switch, split off GOAL_PHYS: NET_FX brings t-013's net with give (ball.js gpNet / gpPlane, the
+// in-net code, world.js netDraw) plus all of t-023 on top; GOAL_PHYS keeps the rest of t-013 - the round posts / bar
+// (gpWood) and the parry / guard-break pop-ups (gpPop) - Lab only, because Luca hasn't OK'd those for matches.
+// NET_FX: null = ON everywhere; false forces it off (tools/soak.js NET_FX=0 plays v0.12.0's net).
 let NET_FX = null;
-const nfxOn = () => gpOn() && (NET_FX ?? !!window.__lab);
+const nfxOn = () => NET_FX ?? true;
+const netOn = () => nfxOn() || gpOn();                             // the spring net: with NET_FX, or with all of t-013 (GOAL_PHYS)
+// touch screens (the phone version is paused - "don't break it, don't extend it"): the net catches the ball the same,
+// but it is drawn as in v0.12.0 (the images ripple whole). Their art is half size (io.js LITE), which the mesh / the
+// cells can't be cut from, and in SAFE MODE's canvas the cells cost ~4x the frame time of the plain net (tools/netperf.js)
+const netPlain = () => (typeof LITE !== 'undefined' && LITE) || !!window.HC2_TOUCH;
 // every number in one place (ball.js gpNet / nfxRollStep / nfxTear, world.js netMesh / netWarp)
 const NFX = {
   // the stretch: a goal's net spring is softened by S^2 (and its reach grown by S), so the ball sinks S times deeper than
@@ -351,8 +366,9 @@ const NFX = {
   base: 1.2, byV: 0.55, v0: 14, v1: 32, lv: [0, 0.6, 1.1, 1.6], board: 5.6,
   // the ball keeps its energy: at its deepest point the netting takes it round the pocket the bulge made (a swirl rollR m
   // across at rollHz turns a second, shrinking as it slows) for rollT s (soft .. hard, + rollLv per level), sliding down
-  // the bulge (sag m/s), the mesh giving it back slowly (keep: the share of the depth left at the end); then it drops
-  rollT: [0.9, 1.7], rollLv: 0.15, rollR: 0.42, rollHz: 1.5, sag: 0.35, keep: 0.35,
+  // the bulge (sag m/s), the mesh giving it back slowly (keep: the share of the depth left at the end); then it drops.
+  // t-025: it never moves faster than rollVmax m/s on the swirl (the swirl itself goes ~4 m/s)
+  rollT: [0.9, 1.7], rollLv: 0.15, rollR: 0.42, rollHz: 1.5, sag: 0.35, keep: 0.35, rollVmax: 8,
   // LV3 rips through: once it has pushed the mesh tearD m back the mesh splits (holeR m across the hole, opening in
   // holeT s), the ball flies on at keepV of its pace at least, hits the boards and drops; the hole stays open until the
   // restart. Rami: a big-stretch line past bigD m
@@ -393,7 +409,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.12.0';
+const GAME_VER = 'v0.12.2';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)
