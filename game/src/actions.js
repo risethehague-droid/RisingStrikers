@@ -603,6 +603,11 @@ hc2Mix(Match, {
     if (MAN.kits[p.kit].anims[`tackle-${DIRS[p.face]}`]) p.setState('tackle', 0.3);      // the lunge (PixelLab batch 5)
     const db = len(b.x - p.x, b.y - p.y);
     if (db > 1.6) { p.stun = TACKLE.chMissStun; p.cool = TACKLE.chMissCool; return; }   // lunged at nothing: too far (t-018: it costs as much as a miss)
+    // INSTA FLAG 25 Oct (Luca: "the final lvl 3 aerial shot was completely blocked that cannot happen"): during an aerial
+    // special's wind-up the ball hangs up at his boot (b.owner = the striker, this.pending) and a defender's standing
+    // tackle took it off him there 17 times in 20, before the strike: a special that never got to blow through anyone.
+    // A ball in the air at his boot is out of a standing tackle's reach: he lunges at nothing
+    { const k = this.pending; if (k && k.p === carrier && k.info.special && b.z > 0.6) { p.stun = TACKLE.chMissStun; p.cool = TACKLE.chMissCool; return; } }
     const cv = carrier.speed > 0.6 ? { x: carrier.vx / carrier.speed, y: carrier.vy / carrier.speed } : dirVec(carrier.face);
     const rx = p.x - carrier.x, ry = p.y - carrier.y, rl = len(rx, ry) || 1, front = (cv.x * rx + cv.y * ry) / rl;
     const human = p === this.human && !this.demo, vsHuman = carrier === this.human && !this.demo;
