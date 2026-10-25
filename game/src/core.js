@@ -113,8 +113,12 @@ PACE.arcade.arcade = true;
 // you aim / the computer takes it (matchflow.js spSetup: the players jog into the shape, the taker places the ball).
 // Seconds; v = the jog into the shape (m/s), walk = the taker's last steps, aiAfter = the computer's breath once it is set
 // (it was aiTake from the teleport), gk = the goal kick's jog-in after its wipe. Your own set piece skips once it is mostly in.
-PACE.classic.setup = { throw: 1.5, offside: 2.5, fk: 2.5, fkNear: 4, corner: 4, gk: 1.0, v: 3.8, walk: 1.9, aiAfter: 0.5 };
-PACE.arcade.setup = { throw: 0.8, offside: 1.5, fk: 1.5, fkNear: 2.5, corner: 2.5, gk: 0.6, v: 4.8, walk: 2.4, aiAfter: 0.15 };
+// t-032 (Luca 25 Oct 17:53: "a black out cut that smoothly transitions to corner kick"): a corner's cut is a fade to
+// black instead of the TV wipe - boOut = the eased fade out, boHold = fully black (the men are placed half-way through),
+// boIn = the fade back in on the taker at the flag. Well under a second, as FIFA / PES do it; ARCADE about half
+// (Sensible Soccer barely cuts at all). boSkip: how much faster the fade runs once you press to skip.
+PACE.classic.setup = { throw: 1.5, offside: 2.5, fk: 2.5, fkNear: 4, corner: 4, gk: 1.0, v: 3.8, walk: 1.9, aiAfter: 0.5, boOut: 0.35, boHold: 0.15, boIn: 0.35, boSkip: 3 };
+PACE.arcade.setup = { throw: 0.8, offside: 1.5, fk: 1.5, fkNear: 2.5, corner: 2.5, gk: 0.6, v: 4.8, walk: 2.4, aiAfter: 0.15, boOut: 0.18, boHold: 0.08, boIn: 0.18, boSkip: 3 };
 PACE.arcade.cutK = 0.65;            // the special-save cut scene 1.5 s -> ~1 s: the bang without the wait (design E)
 const ARCADE = {
   // 1 REBOUNDS: invisible boards along the touchlines and the bylines (not the goal mouth under the bar), so the ball never

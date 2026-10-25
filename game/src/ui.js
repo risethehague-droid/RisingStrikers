@@ -111,6 +111,22 @@ hc2Mix(Match, {
 
   say(big, small, sec) { this.msg.setText(big || ''); this.sub.setText(small || ''); this.msgT = sec || 1.5; },
 
+  // t-032 BLACKOUT (Luca 25 Oct 17:53, on t-029's corner: "add a black out cut that smoothly transitions to corner
+  // kick"). TV football cuts away after the ball goes out and comes back on the taker at the flag; FIFA / PES fade to
+  // the set-piece camera. A plain full-screen ink rectangle (not art) whose alpha the corner's setup sets every frame
+  // (matchflow.js spSetupTick): a = 0 hides it. It sits under Rami's box (9.7e6) and the HUD / score bug (1e7), so they
+  // stay on top through the cut, and over everything on the pitch. Screen-fixed and 3x the view, so any zoom is covered.
+  blackout(a) {
+    if (!this.boG || !this.boG.scene) {
+      if (!(a > 0)) return;
+      this.boG = this.add.rectangle(VIEW_W / 2, VIEW_H / 2, VIEW_W * 3, VIEW_H * 3, 0x0c0a0e).setScrollFactor(0).setDepth(9.6e6);
+    }
+    this.boG.setAlpha(clamp(a || 0, 0, 1)).setVisible(a > 0.001);
+  },
+  // (the last line against a hang on black: whatever ends the corner's setup early - full time, a kick-off, a restart
+  // over it - the rectangle goes with it; called every frame from drawFeedback)
+  boGuard() { if (this.boG && this.boG.visible && !(this.setPiece && this.setPiece.su && this.setPiece.su.bo)) this.boG.setVisible(false); },
+
   // ---------- RAMI ON THE MIC (see class RamiBox)
   buildRami() { this.rami = RamiBox.make(this); },
   ramiSay(key, v, prio) { if (this.rami) this.rami.say(key, v, prio); },
@@ -494,7 +510,7 @@ hc2Mix(Match, {
   // If you want pixel-art versions, they get made in Aseprite and swapped in.
   drawFeedback() {
     const g = this.power, hp = this.human, b = this.ball, INK = 0x0c0a0e;
-    g.clear(); this.ring.clear();
+    g.clear(); this.ring.clear(); this.boGuard();
     // v0.8 keeper guard (stand-in look until the final art): a small bar over a keeper who has been rattled by power shots
     if (!this.replay) for (const t of [this.home, this.away]) {
       const gk = t.players[0], gv = gk.guard ?? 1; if (gv > 0.995 || gk.sentOff) continue;
