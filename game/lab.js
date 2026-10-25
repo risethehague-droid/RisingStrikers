@@ -1675,6 +1675,67 @@
         return null;
       } };
   }
+  // ======================================================================= t-029 SET-PIECE SETUP (Luca 25 Oct 14:59: "they resume without
+  // people reorganizing ... the corners transition too quick, fix the pacing for set pieces"). Both full teams, the game's
+  // own restart (realRestart: the Lab normally stops at the call) and the real team AI after the kick. Each line: the setup
+  // time, how far the men jogged, who was moved under the wipe and whether anyone jumped in view without one (must be 0),
+  // when the ball was placed and when control came back (your aim / the computer's kick). You attack the right-hand goal.
+  function rsTest(id, name, sub, o) {
+    return { id, group: 'RS', name, sub, kind: 'rs', realAi: true, demo: !o.you, realRestart: true, maxT: 16, pace: o.pace,
+      setup(r) {
+        cast(m.all.slice());
+        const att = o.att ?? 22;                                                   // (a moment of play: both teams shifted towards one end)
+        for (const p of m.all) { put(p, clamp(p.home.x + att, 2, PITCH_L - 2), p.home.y, p.team === m.home ? 0 : 4); }
+        Object.assign(m.away.players[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); Object.assign(m.home.players[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+        LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = !o.you; m.ball.crossBy = null;
+        Object.assign(r, { human: m.home.players[9], gk: m.away.players[0], marks: [], o, pos: null, path: new Map(), jumps: { wipe: 0, view: 0, off: 0 }, t0: null });
+        o.go(r);
+        r.t0 = 0;
+      },
+      check(r) {
+        const b = m.ball, sp = m.setPiece, cam = m.cameras.main, V = cam.worldView;
+        const inView = (x, y) => V.contains(wx(x, y), wy(y) - 40);
+        const covering = !!(m.wipeG && m.wipeG.visible && m.tweens.isTweening(m.wipeG));
+        if (r.pos) m.all.forEach((p, i) => { if (p.sentOff) return; const q = r.pos[i], d = len(p.x - q[0], p.y - q[1]);
+          if (d > 0.6) { if (covering) r.jumps.wipe++; else if (inView(q[0], q[1]) || inView(p.x, p.y)) { r.jumps.view++; r.jumpWho = `#${p.num} ${d.toFixed(1)} m`; } else r.jumps.off++; }
+          else if (!r.kickT) r.path.set(p, (r.path.get(p) || 0) + d); });
+        r.pos = m.all.map(p => [p.x, p.y]);
+        if (sp && sp.setup && r.readyT == null) { r.readyT = r.t; r.st = sp.setup; r.kind = sp.kind; }
+        if (sp && sp.setup && o.you && r.readyT != null && r.t - r.readyT > 0.4 && !r.pressed) { r.pressed = true; Input.downs.add(o.press || 'KeyC'); }   // (the Lab takes your corner: a cross)
+        if (o.skipAt != null && !r.skipped && r.t >= o.skipAt) { r.skipped = true; Input.downs.add('KeyZ'); }   // RS7: PASS pressed during the setup
+        const gkS = m.gkSetup && r.gkT == null && m.gkSetup.t0 >= (r.gk0 ?? 0) ? m.gkSetup : null; if (gkS && o.gk) { r.gkT = r.t; r.readyT = r.t + gkS.T; r.kind = 'GOAL KICK'; }
+        if (r.readyT != null && r.kickT == null && ((sp && sp.kicked) || (o.gk && r.gkT != null && b.owner !== m.away.players[0] && r.t > r.gkT))) r.kickT = r.t;
+        if (r.kickT == null) return r.t > 15 ? { o: `NOT TAKEN · ${sp ? (sp.su ? `still setting up (shape ${Math.round((sp.su.frac || 0) * 100)}%)` : 'aiming') : 'no set piece'}` } : null;
+        if (r.t < r.kickT + 0.8) return null;
+        const ds = [...r.path.values()].filter(d => d > 0.5), avg = ds.length ? ds.reduce((a, c) => a + c, 0) / ds.length : 0, mx = ds.length ? Math.max(...ds) : 0;
+        const st = r.st || {}, f1 = v => (v ?? 0).toFixed(1), t0 = o.gk ? r.gkT : r.readyT - st.t;   // (times from the restart: the call's own dead-ball wait comes before it)
+        return { o: `${r.kind}${o.pace ? ' · ' + o.pace.toUpperCase() : ''} · setup ${f1(r.readyT - t0)} s${st.skip ? ' (SKIPPED by a press)' : ''} · jogged in: ${ds.length} men, avg ${avg.toFixed(1)} m, max ${mx.toFixed(1)} m · ${st.wiped || o.gk ? `wipe: ${r.jumps.wipe} moved under it` : 'no wipe'} · jumped in view without a wipe: ${r.jumps.view}${r.jumpWho ? ' (' + r.jumpWho + ')' : ''} · ball placed ${o.gk ? 'in his hands' : f1(st.placed) + ' s in'} · shape in ${Math.round((st.frac ?? 1) * 100)}% · control back ${f1(r.readyT - t0)} s, kicked ${f1(r.kickT - t0)} s after the restart`, hold: 0.4 };
+      } };
+  }
+  function rsTests() {
+    const H = () => m.home.players, A = () => m.away.players;
+    return [
+      rsTest('RS1', 'OFFSIDE: their free kick after your #9 is flagged', 'the flag + whistle, your side trots back onside, theirs pushes up, a defender (or the keeper, if he can get there) places it and plays it',
+        { att: 24, go(r) { const st = H()[9]; put(st, 89, 36, 0); atFeet(st); m.offCall(st, { team: m.home, men: new Map([[st, { x: st.x, y: st.y }]]), line: m.offLine(m.home), by: H()[6] }); } }),
+      rsTest('RS2', 'CORNER (yours): the setup, then the cross', 'the TV cut to the taker, he walks to the flag and places it, bodies drift into the box, markers goal-side, the keeper sets - then the Lab crosses (LOB)',
+        { you: true, att: 26, go(r) { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A()[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; } }),
+      rsTest('RS3', 'FREE KICK near goal (theirs): the wall', '23 m out: your wall forms on 9.15 m, their men on your last line with a marker each, then the computer takes it',
+        { att: -22, go(r) { put(A()[9], 23.6, 37.4, 4); ballAt(23, 37, 0); m.restart('FREE KICK', m.away, 23, 37); } }),
+      rsTest('RS4', 'FREE KICK far out (theirs)', 'in midfield: everyone 9.15 m off, both sides in shape, the nearest man places it',
+        { att: 0, go(r) { put(A()[7], 48.6, 24.5, 4); ballAt(48, 24, 0); m.restart('FREE KICK', m.away, 48, 24); } }),
+      rsTest('RS5', 'THROW-IN (theirs)', 'the ball goes out; the taker walks to the line and picks it up, a short and a long option show, markers on them, 2 m off',
+        { att: 4, go(r) { put(A()[8], 46, 63, 4); put(H()[4], 41, 62, 0); ballAt(44, 68.4, 0.1); Object.assign(m.ball, { last: m.home, lastP: H()[7], vy: 1.5 }); m.dead = { kind: 'THROW-IN', team: m.away, x: 44, y: PITCH_W - 0.2, t: 0.6 }; } }),
+      rsTest('RS6', 'GOAL KICK (theirs): v0.10.4 + the jog-in', 'over their goal line off your #9: the wipe, the keeper with it in his hands, both teams land a step short and jog into the goal-kick shape',
+        { att: 24, gk: true, go(r) { r.gk0 = m.time.now; ballAt(106.0, 25, 0.3); Object.assign(m.ball, { last: m.home, lastP: H()[9], vx: 3 }); m.dead = { kind: 'GOAL KICK', team: m.away, x: PITCH_L - 5.5, y: 34, t: 0.8 }; } }),
+      rsTest('RS7', 'RS2 skipped by a press', 'your corner again; the Lab presses PASS 1.2 s in: aiming as soon as the shape is mostly in',
+        { you: true, att: 26, skipAt: 1.2, go(r) { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A()[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; } }),
+      rsTest('RS1-A', 'RS1 on ARCADE', 'the same offside free kick, ARCADE\'s quicker setup', { pace: 'arcade', att: 24, go(r) { const st = H()[9]; put(st, 89, 36, 0); atFeet(st); m.offCall(st, { team: m.home, men: new Map([[st, { x: st.x, y: st.y }]]), line: m.offLine(m.home), by: H()[6] }); } }),
+      rsTest('RS2-A', 'RS2 on ARCADE', 'your corner with ARCADE\'s quicker setup (ARCADE plays off the boards today: corners come with PR #31\'s rule change or a Lab call)',
+        { pace: 'arcade', you: true, att: 26, go(r) { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A()[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; } }),
+    ];
+  }
   function ofTests() {
     return [
       ofTest('OF1', 'a through ball to a man a step offside', 'called: OFFSIDE!, his marker, a free kick to them where he played it', { from: [68, 34], st: [87, 36] }),
@@ -2327,6 +2388,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
     add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
+    add('RS', 't-029 · SET-PIECE SETUP', 'Every restart gets a short setup, as on TV: the whistle / flag and a caption, the players JOG into the restart\'s shape (anyone too far is moved under a quick TV wipe, never in plain sight), the taker walks up and places the ball, then you aim / the computer takes it. One time per kind, CLASSIC and ARCADE (quicker); your own set piece: PASS / SHOOT / LOB skips to aiming once the shape is mostly in.', rsTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
     add('LV', 't-019 · LOB AIM: AUTO / RING', 'Two versions to compare (Pause > Options > LOB AIM). AUTO: LOB goes to the team-mate your arrow points at (the nearest free one in a ~38° cone), landing a step ahead on his run; hold = a little longer, tap = the quick one, nobody there = into space. RING: the ring without the arc, slower and steadier. Both: the camera no longer rides up with a lob.', lvTests());
@@ -2469,8 +2531,9 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
         const bot = r.bots.get(p); if (bot) bot(p, dt); else p.steer(0, 0, dt);
       }
     };
-    m.restart = function (kind, team, x, y, note) {
+    m.restart = function (kind, team, x, y, note, ...rest) {
       const r = LAB.run; if (r && !r.out) { r.out = kind; r.outNote = note || ''; }
+      if (r && r.sc.realRestart) return restart(kind, team, x, y, note, ...rest);   // t-029 RS: the game's own restart, setup and all
       const b = m.ball; b.vx = b.vy = b.vz = 0; if (b.owner && !b.owner.hands) b.owner = null;
       if ((kind === 'CORNER' || kind === 'GOAL KICK') && (b.x < 0 || b.x > PITCH_L)) m.dead = { kind, team, x, y, t: 1e9 };   // (t-007: the ball stays dead behind the goal - not a "goal" as it drops under the bar)
     };
