@@ -458,3 +458,8 @@ const GAME_VER = 'v0.12.4';
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)
 function hc2Mix(C, methods) { for (const [k, d] of Object.entries(Object.getOwnPropertyDescriptors(methods))) { d.enumerable = false; Object.defineProperty(C.prototype, k, d); } }
+
+// TRY-IT build only (candidate/try-it, never main): the Test Lab's PLAY buttons reopen the page as a match with
+// #play-gp / #play-tap / #play-curve / #play-all, so Luca can feel a Lab-only switch in a real match before he decides.
+(function () { const h = (location.hash || '').toLowerCase(); if (!/^#play/.test(h) || window.__lab) return; const all = h.includes('all');
+  if (all || h.includes('gp')) GOAL_PHYS = true; if (all || h.includes('tap')) TAP_KICK = true; if (all || h.includes('curve')) CURVE_PASS = true; })();

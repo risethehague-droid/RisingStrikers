@@ -2992,6 +2992,28 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     });
   }
 
+
+  // TRY-IT build (Luca, 25 Oct 20:42: "add all gameplay cards on test lab with respective buttons to try new things, then
+  // i'll try it, give my thoughts and then ok when it's ready"): one entry per gameplay card waiting for his OK, a button
+  // per test that shows it, and PLAY buttons that reopen this page as a match (#play-...: core.js turns the matching
+  // Lab-only switches on). This panel lives only on the candidate/try-it branch, never in main.
+  const TRY = [
+    { card: 't-034 - PR #46', t: 'Aerial battles: only in the box, header v header / volley v volley, MASH SPACE', w: 'win = a shot at goal + the defender floored; lose = cleared', tests: ['AB1', 'AB2', 'AB3', 'AB4', 'AB5', 'AB6'] },
+    { card: 't-032 - PR #43', t: 'Corner blackout cut', w: 'ball out > fade to black > fades in on the corner being set up', tests: ['RS2', 'RS8', 'RS7'] },
+    { card: 't-033 - PR #44', t: 'Keeper dives sideways (no more handstand)', w: 'ball still locked in his gloves', tests: ['GH1', 'GH7', 'GH8'] },
+    { card: 'qa-flag-4 - PR #45', t: 'Special save meets an angled special', w: 'out on the angle he still meets an LV3 (your flag) - try it in a match', tests: ['KC1', 'KC5'] },
+    { card: 'q-goal-phys', t: 'GOAL PHYSICS in matches?', w: 'posts + bar rebounds, parries that loop up', tests: ['GP1', 'GP4'], play: 'play-gp' },
+    { card: 'q-tap-kick', t: 'TAP KICK in matches?', w: 'tap SHOOT = a quick low placed kick', tests: ['TK1', 'TK3'], play: 'play-tap' },
+    { card: 'q-curve-pass', t: 'CURVING SPECIAL PASSES in matches?', w: 'hold SPECIAL + PASS / THROUGH / LOB', tests: ['CP1', 'CP3'], play: 'play-curve' }];
+  function tryUI() {
+    const L = $('try-list'); if (!L) return;
+    L.innerHTML = `<div class="tr-c"><b>PLAY A MATCH with all of it</b><i>every PR above in, the 3 switches off (as the game would be)</i><div class="fp-row"><button type="button" class="play" data-play="play">PLAY A MATCH</button><button type="button" class="play" data-play="play-all">+ ALL 3 SWITCHES ON</button></div></div>` +
+      TRY.map(c => `<div class="tr-c"><b>${c.t}</b><i>${c.card} - ${c.w}</i><div class="fp-row">${c.tests.map(id => `<button type="button" data-try="${id}">${id}</button>`).join('')}${c.play ? `<button type="button" class="play" data-play="${c.play}">PLAY A MATCH WITH IT</button>` : ''}</div></div>`).join('');
+    for (const b of L.querySelectorAll('[data-try]')) b.addEventListener('click', () => { const id = b.dataset.try.toLowerCase();
+      for (let g = 0; g < LAB.groups.length; g++) { const i = LAB.groups[g].tests.findIndex(t => t.id.toLowerCase() === id); if (i >= 0) { LAB.g = g; LAB.i = i; menu(false); start(false); break; } }
+      b.blur(); });
+    for (const b of L.querySelectorAll('[data-play]')) b.addEventListener('click', () => { location.hash = b.dataset.play; location.reload(); });
+  }
   // ---------- boot
   function boot() {
     m = window.__hc2;
@@ -3003,7 +3025,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       try { const at = JSON.parse(localStorage.getItem('hc2-lab-at2') || 'null'); if (at && LAB.groups[at[0]] && LAB.groups[at[0]].tests[at[1]]) { LAB.g = at[0]; LAB.i = at[1]; } } catch (e) {}
       fromHash();                                                                  // a test named in the link wins over where you left off
       addEventListener('hashchange', () => { if (fromHash()) { menu(false); start(false); } });
-      $('loading').hidden = true; keys(); fpUI(); start(false);
+      $('loading').hidden = true; keys(); fpUI(); tryUI(); start(false);
       $('bw-ask').addEventListener('click', e => { askClaude(); e.currentTarget.blur(); });
       $('bw-again').addEventListener('click', e => { start(false); e.currentTarget.blur(); });
       loadClips();

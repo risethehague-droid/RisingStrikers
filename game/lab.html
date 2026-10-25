@@ -85,6 +85,15 @@ body.free #live{font-size:17px}
 .fp-h b{font:10px var(--f-label);color:var(--yellow);letter-spacing:.06em;white-space:nowrap}
 .fp-lab{font:8px/1.5 var(--f-label);color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
 .fp-row{display:flex;flex-wrap:wrap;gap:5px}
+#try{border-color:var(--yellow)}
+#try summary{cursor:pointer;font:400 20px/1.1 var(--f-read);color:var(--yellow);list-style:none}
+#try .tr-c{margin-top:8px;padding-top:6px;border-top:1px solid #3a3542}
+#try .tr-c b{display:block;font:400 17px/1.15 var(--f-read);color:var(--paper)}
+#try .tr-c i{display:block;font:400 14px/1.2 var(--f-read);color:#b9b2c4;font-style:normal;margin:2px 0 4px}
+#try .fp-row button{font:400 16px/1 var(--f-read);color:var(--paper);background:#1d1a22;border:2px solid #3a3542;padding:3px 6px;cursor:pointer}
+#try .fp-row button:hover{border-color:var(--paper)}
+#try .fp-row button.play{background:var(--yellow);color:var(--ink);border-color:var(--ink)}
+
 /* v0.8.8 (Luca: "clean the overlay a bit"): sections with a hairline between, buttons in an even grid */
 .fp-sec{display:grid;gap:6px;padding-top:8px;border-top:2px solid #26222d}
 .fp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:5px}
@@ -158,6 +167,9 @@ body.free #live{font-size:17px}
 <div id="loading">LOADING THE LAB…</div>
 
 <aside id="panel" aria-label="Test Lab">
+<section class="card" id="try" aria-label="Try the new stuff">
+  <details open data-k="try"><summary>&#9654; TRY THE NEW STUFF (waiting for your OK)</summary><div id="try-list"></div></details>
+</section>
 <section class="card" id="test" aria-live="polite">
   <div class="row"><span id="grp">KEEPER · SHOTS</span><span id="count">1 / 30</span></div>
   <h1 id="name">penalty spot (11 m) → low, TOP post</h1>
