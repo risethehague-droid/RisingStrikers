@@ -43,6 +43,31 @@ ball, goal frame, flags (sorted by feet) → near boards → HUD. Players walkin
 wall and the pitch-side boards. `art/stadiums/README-environment.txt` has the full story and
 `art/stadiums/aseprite/` the editable Aseprite files (pitch, far side, goals, flag, ball).
 
+## The tile grid (what the builder makes)
+The game never loads the 6429 x 3750 painting whole. `world_build.py` cuts it into **1024 px tiles**:
+- `game/assets/world/w_<tx>_<ty>_<n>.webp`: column `tx` 0-6, row `ty` 0-3 (row 0 = the 900 px far band plus the top
+  of the pitch), `n` = the animation frame. A tile whose pixels never change has only `_0`; a tile with crowd in it
+  gets one file per **distinct** crowd frame (identical frames are shared), up to 8 (4 idle + 4 cheer).
+- `nb_<tx>_3.webp`: the near-board overlay pieces, drawn over the players (bottom row only).
+- `manifest.json` keys `tile`, `farH`, `worldW`, `worldH`, `tiles`, `over` say which file goes where. Kits, props and
+  the HUD in the manifest are never touched by the stadium build.
+- `tools/lo_build.py game` then makes the phone (lite) copies in `game/assets-lo/`.
+Keep animated areas (crowds, the booth, flags) inside as few tiles as you can: each animated tile costs up to 8 files.
+
+## How real football and other games do it
+- **Real grounds** (Het Kleine Loo, where the Cup is played, is the model): a main stand you watch from, a lower far
+  stand or terrace, low end stands or just fences and trees behind the goals, pitch-side boards on three sides, a
+  tunnel near halfway, dugouts. A small ground reads as small: 1-3 rows of stand, gaps, floodlight poles, buildings
+  behind.
+- **FIFA / EA FC, PES / eFootball:** stadiums are built for the broadcast camera - the far stand is the "postcard",
+  the near side is barely seen; crowds are cards that animate in a few loops (idle, cheer on goals, home colours
+  massed behind each goal). Weather and time of day change the sky and lighting, not the layout.
+- **Sensible Soccer / old 16-bit games:** the crowd is a repeating pattern band, boards are bright flat colour blocks;
+  readable at a glance beats detail. That is our level: big shapes, a clear far stand, crowd in team colours.
+- What a new stadium should check, like a real matchday: the tunnel walk-out, both goals and their nets, a corner on
+  each side (the flag and the near boards), the crowd cheering on a goal at each end, and the commentary booth
+  (Rami) in view at kick-off.
+
 ## How a new stadium gets made
 1. **[PixelLab]** make the pieces: stand sections, crowd sprites, boards, buildings, trees, textures.
    - The API has map and tile tools (top-down tilesets, isometric tiles, map objects, pro tiles).
@@ -53,7 +78,8 @@ wall and the pitch-side boards. `art/stadiums/README-environment.txt` has the fu
    - `python3 tools/stadium/world_build.py <your layers folder> game/assets`, then `python3 tools/lo_build.py game`
    - The builder cuts 1024 px tiles, keeps one file per distinct crowd frame and updates the manifest.
    - Run on the OG layers it reproduces today's tiles byte for byte.
-4. Play a match and the Test Lab on your preview page; check the tunnel walk-out, goals at both ends, and a corner on each side.
+4. Play a match and the Test Lab on your preview page (`/sync` republishes it); check the tunnel walk-out, goals at both
+   ends with their nets, a corner on each side, a goal cheer at each end and the booth at kick-off.
 
 ## Code
 The stadium is drawn in code by `game/src/world.js` (the `Stadium` class: tiles, crowd frames, goals, flags, sky and
