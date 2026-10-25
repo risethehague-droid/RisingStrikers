@@ -987,6 +987,83 @@
         if (b.owner && b.owner !== r.gk) return { o: `${(r.kind || 'no save').toUpperCase()} · #${b.owner.num} (${b.owner.team === r.gk.team ? 'his side' : 'theirs'}) got it` };
         return r.t - r.shotT > 6 ? { o: (r.kind || 'no save').toUpperCase() + ' · nothing' } : null; } };
   }
+  // ======================================================================= t-031 KEEPER HANDS (Luca 25 Oct 15:41: "new physics for the
+  // hands and animation to be able to dive with the hands to grab the ball, also be able to hold it in his hands while he
+  // moves - keep it simple and smooth tho"). Each line says the moves he played, how far the drawn ball ever was from his
+  // gloves' point on the frame shown (px; the first 0.1 s is the soft-hands ease, given apart) and the biggest jump of the
+  // ball against his body from one frame to the next (a snap shows here). The catch is made to happen (u = 0).
+  function ghTrack(r) {
+    const gk = r.gk, b = m.ball, S = m.ballSpr;
+    if (b.owner === gk && gk.hands) {
+      if (r.heldT == null) { r.heldT = r.t; r.contact = gk.spr.frame && gk.spr.frame.name; }
+      const nm = gk.carrying ? '(ball in the frame)' : (gk.spr.frame && gk.spr.frame.name || '').replace(/-\d+$/, '');
+      if (!r.moves.includes(nm.replace(/-(E|W|N|S|NE|NW|SE|SW)$/, ''))) r.moves.push(nm.replace(/-(E|W|N|S|NE|NW|SE|SW)$/, ''));
+      if (!gk.carrying && S.visible) {
+        const G = gk.handPoint(); if (G) { const gap = len(S.x - G.x, S.y - G.y); if (gk.handEasing) r.easeMax = Math.max(r.easeMax || 0, gap); else r.gapMax = Math.max(r.gapMax || 0, gap); }
+      }
+      if (S.visible || gk.carrying) { const rel = gk.carrying ? null : { x: S.x - gk.spr.x, y: S.y - gk.spr.y };
+        if (rel && r.prevRel) r.jumpMax = Math.max(r.jumpMax || 0, len(rel.x - r.prevRel.x, rel.y - r.prevRel.y));
+        r.prevRel = rel; }
+      else r.unseen = (r.unseen || 0) + 1;
+    }
+  }
+  // (measured as he's drawn: the frame his sprite shows and where the ball is drawn, after render - the sprite's frame
+  // moves on before the step, so a check in the step would compare this frame's gloves with the last frame's ball)
+  function ghHook(r) { const R0 = m.render; m.render = function (dt) { R0.call(m, dt); if (LAB.run === r && !r.result) ghTrack(r); }; (LAB.undo = LAB.undo || []).push(() => { m.render = R0; }); }
+  const ghLine = r => `${r.moves.join(' → ')} · from ${r.contact || '-'} · ball to gloves max ${(r.gapMax || 0).toFixed(1)} px (${(r.easeMax || 0).toFixed(1)} px easing in) · biggest step ${(r.jumpMax || 0).toFixed(1)} px/frame (ball against his body)${r.unseen ? ` · NOT DRAWN ${r.unseen} frames` : ''}`;
+  function ghShot(id, name, sub, o) {
+    return { id, group: 'GH', name, sub, kind: 'shot', o,
+      setup(r) { shotSetup(r, o.spot, false); if (o.gkY != null) r.gk.y = o.gkY;
+        Object.assign(r.gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+        const ty = o.tgt.y == null ? r.gk.y : r.gk.y + o.tgt.y; r.marks = [{ x: GX, y: ty, r: 0.3 }]; r.moves = [];
+        if (o.mates) { const A = m.away.players; for (const [i, x, y] of o.mates) { const q = A[i]; q.sentOff = false; q.cool = 0; q.stun = 0; put(q, x, y, 4); } }
+        r.action = { at: 0.6, fire: () => fireShot(r, { ...o.tgt, y: ty }, o.speed, o.power || 0.5) }; ghHook(r); },
+      check(r) { const b = m.ball, gk = r.gk;
+        if (r.shotT == null) { if (!b.owner && b.lastP === r.shooter && r.fired) r.shotT = r.t; else return null; }
+        if (b.save && b.save.gk === gk && r.u0 == null) { r.u0 = b.save.u; b.save.u = o.u ?? 0; }   // (the dice: held here; GH6 not)
+        return o.end(r); } };
+  }
+  function ghTests() {
+    const up = r => r.heldT != null && r.gk.state === 'idle' && r.t - r.heldT > 0.3;     // on his feet again, holding it
+    const heldEnd = r => { if (up(r) && (r.upT = r.upT ?? r.t) && r.t - r.upT > 0.4) return { o: `HELD · ${ghLine(r)} · up ${(r.upT - r.heldT).toFixed(2)} s after the catch`, hold: 0.8 };
+      if (m.ball.inNet) return { o: 'GOAL · ' + ghLine(r), hold: 1 }; if (r.heldT == null && r.t - r.shotT > 3) return { o: 'NOT HELD · ' + ghLine(r) }; return r.t - r.shotT > 6 ? { o: 'not up yet · ' + ghLine(r) } : null; };
+    return [
+      ghShot('GH1', 'a dive catch, low to his left', 'a low shot 2.4 m to his left: he dives, grabs it on the contact frame, lands and gets up with it at his chest', { spot: { n: '14 m', x: 91, y: 35 }, tgt: { y: 2.4, low: true }, speed: 19, end: heldEnd }),
+      ghShot('GH2', 'a high leap and grab', 'a ball dropping just under the bar, straight at him: he goes up and snatches it, lands holding it', { spot: { n: '16 m', x: 89, y: 34 }, tgt: { y: 0.3, z: 2.15 }, speed: 20, end: heldEnd }),
+      { id: 'GH3', group: 'GH', name: 'a smother he gathers', sub: 'a heavy touch in a 1v1: he goes down at the striker\'s feet, gathers it, gets up holding it (the gather made to happen)', kind: 'gk',
+        setup(r) { const s = m.home.players[9], gk = m.away.players[0]; cast([s, gk]); put(gk, LINE_X - 4, 34, 4); put(s, 90, 35, 0); atFeet(s);
+          Object.assign(gk, { guard: 1, gkS: null, gkMode: '', rushT: 0, smAt: 0 }); Object.assign(r, { gk, human: s, shooter: s, moves: [], fired: true });
+          r.bots.set(s, (p, dt) => { const b = m.ball; if (b.owner === p && p.x > 93.5 && !r.knock) { r.knock = true; b.owner = null; b.vx = 7.5; b.vy = -0.4; p.cool = 0.4; } if (b.owner === p) dribbleTo(104, 34, 5)(p, dt); else if (!b.owner) p.moveTo(b.x, b.y, 4.6, dt); else p.steer(0, 0, dt); });
+          r.cam = () => ({ x: gk.x - 3, y: gk.y }); ghHook(r); },
+        check(r) { const gk = r.gk; if (gk.state === 'dive' && gk.saveKind === 'smother' && !r.forced) { r.forced = true; gk.smU = 0; }
+          r.shotT = r.shotT ?? 0; const e = heldEnd(r); return e || (r.t > 7 ? { o: 'nothing · ' + ghLine(r) } : null); } },
+      ghShot('GH4', 'the computer\'s keeper walks it out', 'a soft shot from 17 m, nobody near him: he holds it, walks it a few steps towards the edge of his box on his outlet\'s side, then plays it', { spot: SPOTS[1], tgt: { y: 0.3, low: true }, speed: 17, mates: [[2, 84, 18], [3, 86, 50], [6, 72, 30]],
+        end: r => { const gk = r.gk, b = m.ball;
+          if (r.heldT != null && r.from == null && !gk.busy()) { r.from = { x: gk.x, y: gk.y, t: r.t }; }
+          if (r.from && gk.gkMode === 'WALK OUT') { r.walkT = (r.walkT || 0) + STEP; r.maxH = Math.max(r.maxH || 0, GX - gk.x); }
+          if (r.heldT != null && !gk.hands && !r.rel) r.rel = { x: gk.x, y: gk.y, t: r.t, how: gk.kickAnim };
+          if (r.rel && r.t - r.rel.t > 0.6) { const d = r.from ? len(r.rel.x - r.from.x, r.rel.y - r.from.y) : 0;
+            return { o: `HELD · walked it out ${d.toFixed(1)} m in ${(r.walkT || 0).toFixed(1)} s (to ${(GX - r.rel.x).toFixed(1)} m off his line) · released ${(r.rel.t - r.heldT).toFixed(1)} s after the catch: ${(r.rel.how || '?').toUpperCase()} · ${r.moves.join(' → ')}` }; }
+          if (r.heldT == null && r.t - r.shotT > 3) return { o: 'NOT HELD' };
+          return r.t - r.shotT > 11 ? { o: `still holding it after ${(r.t - r.heldT).toFixed(1)} s` } : null; } }),
+      { id: 'GH5', group: 'GH', name: 'you carry it to the edge of your box', sub: 'your keeper, the ball in his hands, the stick pushed upfield the whole time: he carries it, stops at the edge of the box and lets it go at 6 s', kind: 'move', you: true,
+        setup(r) { const gk = m.home.players[0], d = m.away.players[9]; cast([gk, d]); put(gk, 4, 30, 0); put(d, 60, 34, 4);
+          ballAt(gk.x + 0.25, gk.y, 1.1, gk); gk.hands = true; gk.hold = 0; gk.handFrom = null; Object.assign(r, { gk, human: gk, moves: [] });
+          r.cam = () => ({ x: gk.x + 4, y: gk.y }); ghHook(r); },
+        check(r) { const gk = r.gk, b = m.ball, T = Input.touch; T.x = 1; T.y = 0.15;
+          if (gk.hands) r.maxH = Math.max(r.maxH || 0, gk.x);
+          if (!gk.hands && !r.rel) { r.rel = { t: r.t, x: gk.x, how: gk.kickAnim }; }
+          if (r.rel && r.t - r.rel.t > 0.6) { T.x = T.y = 0; return { o: `carried it ${(r.maxH - 4).toFixed(1)} m, furthest ${r.maxH.toFixed(1)} m off his line (box 16.5) · let go at ${r.rel.t.toFixed(1)} s: ${(r.rel.how || '?').toUpperCase()} · ${r.moves.join(' → ')} · biggest step ${(r.jumpMax || 0).toFixed(1)} px/frame` }; }
+          return r.t > 9 ? (T.x = T.y = 0, { o: `still holding it at ${r.t.toFixed(1)} s` }) : null; } },
+      ghShot('GH6', 'a parry', 'a hard low shot to his side he can\'t hold (made so): the ball leaves his gloves on the contact - no catch, no hold', { spot: SPOTS[1], tgt: { y: -2.3, low: true }, speed: 24, power: 0.8, u: 0.999,
+        end: r => { const gk = r.gk, b = m.ball;
+          if (!r.touchAt) { const e = ['PARRIED', 'ROUND THE POST', 'TIPPED OVER'].find(x => r.ev(x)); if (e) { r.touchAt = { t: r.t, e, fr: gk.spr.frame && gk.spr.frame.name, G: gk.handPoint(), S: { x: m.ballSpr.x, y: m.ballSpr.y } }; } }
+          if (r.heldT != null) return { o: 'HELD (should not be) · ' + ghLine(r) };
+          if (r.touchAt && r.t - r.touchAt.t > 0.25) { const A = r.touchAt, g = A.G ? len(A.S.x - A.G.x, A.S.y - A.G.y) : null;
+            return { o: `${A.e} on ${A.fr} · the ball ${g != null ? g.toFixed(0) + ' px from his gloves' : '-'} at the touch, ${len(b.x - gk.x, b.y - gk.y).toFixed(1)} m away 0.25 s later at ${kmh(len(b.vx, b.vy))} km/h` }; }
+          if (b.inNet) return { o: 'GOAL' }; return r.t - r.shotT > 3 ? { o: 'no touch' } : null; } }),
+    ];
+  }
   function gkxTests() {
     const H = () => m.home.players, A = () => m.away.players;
     const sp8 = Object.assign(pwTest('GKX8', 'a LV2 special against his LV1 save', 'stronger than his save: a hand to it, over or wide → corner (made to happen here)', { lv: 2, from: [86, 31], block: [], save: 1 }), { group: 'GKX', force: 'hand' });
@@ -2394,6 +2471,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('LV', 't-019 · LOB AIM: AUTO / RING', 'Two versions to compare (Pause > Options > LOB AIM). AUTO: LOB goes to the team-mate your arrow points at (the nearest free one in a ~38° cone), landing a step ahead on his run; hold = a little longer, tap = the quick one, nobody there = into space. RING: the ring without the arc, slower and steadier. Both: the camera no longer rides up with a lob.', lvTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
     add('KF', 't-016 · KEEPER FACING + BLOCKED PATHS', 'Luca\'s Bug Watch marks: a keeper never shows his back to a ball within 6 m (KF1-3: the biggest angle between his facing and the ball), and a man with someone in his straight line steps round him instead of standing still (KF4-5).', kfTests());
+    add('GH', 't-031 · KEEPER HANDS', 'The dive grabs it: from the contact frame the ball is drawn in his gloves through the dive, the landing and the get-up (no snap); a parry leaves them on contact. With it in his hands he carries it: you inside your box (6 s), the computer\'s keeper walks it out a few steps after a calm catch. kcarry / kcarryrun (PixelLab batch 21) when they\'re in the kits, the hold pose with a walk bob until then.', ghTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
     add('TT', 't-018 · TACKLE REWORK', 'The slide really slides (~3.6 m) and he gets up after: a miss costs ~1.4 s, a won one is up in 0.3 s. A missed standing challenge leaves him off balance 0.6 s and he can\'t go again for 1 s. No presses kept from the grass. The computer plays by the same rules.', ttTests());
     add('TK', 't-010 · TAP KICK', 'SHOOT tapped (let go within 0.15 s) = a snappy, low stab along your arrow that dies on the grass: a close-range finish. Held = the power shot as before. In the keeper\'s reach he holds most; out of it, it goes in. (On in the Test Lab only.)', tkTests());

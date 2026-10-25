@@ -32,6 +32,8 @@ function airPick(K, kind, d, h) {
 }
 // batch 20: the frame where his forehead / boot meets the ball (manifest 'contact', written by tools/kit_build.py), for
 // the direction that will actually play (his own, else -S, as play() falls back); undefined for moves without one
+// t-031: which frame of its move a sprite is showing (frame names end in -<n>), or null
+function frameNo(spr) { const m = /-(\d+)$/.exec((spr.frame && spr.frame.name) || ''); return m ? +m[1] : null; }
 function airContact(K, a, d) { const c = K.contact; return c ? c[`${a}-${K.anims[`${a}-${d}`] ? d : 'S'}`] : undefined; }
 class Player {
   constructor(m, team, i, kit) {
@@ -78,6 +80,7 @@ class Player {
     if (this.keeper && this.state === 'dive' && this.leap > 0 && !(MAN.kits[this.kit].origins || {})[this.diveAnim]) { const age = (this.diveLen || 0.85) - this.stateT, f = this.diveFly || 0.3;
       lift = this.leap * (age < f ? Math.sin(Math.PI / 2 * age / f) : Math.max(0, 1 - (age - f) / 0.3)); }
     this.spr.setPosition(Math.round(X), Math.round(Y - lift * PX_H)).setDepth(Y);
+    this.bob = 0;                                                                // (t-031: carryPlay sets it while he walks with the ball)
     if (this.keeper && this.spSave && !this.sentOff && (this.m.ball.special || this.m.ball.saveable)) this.m.auraFx(this);   // v0.8.9 his special save is ready: he burns in its colour
     if (this.rig && !this.sentOff) { const P = this.m.rigAt(this, this.rig.n, this.rig.t, this.rig.d, this.rig); if (P) { this.rigShow(P); return; } this.rig = null; }
     if (this._rigged || this.spr.rotation || this.spr.scaleX !== 1 || this.spr.scaleY !== 1) { this._rigged = false; this.spr.setRotation(0).setScale(1); this._ox = this._oy = null; this.anim = ''; }   // (after a rig / a replay)
@@ -98,7 +101,9 @@ class Player {
       if (!this.play(`${ka}-${kd}`, kickRate(ka), true) && !this.play(`kick-${d}`, 18, true)) this.play(`throw-${d}`, 18, true) || this.play(`idle-${d}`, 5);
     }
     else if (this.state === 'catch') { if (!(this.claimHigh && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); }
-    else if (this.state === 'dive') { this.play(this.diveAnim, /^ksmother/.test(this.diveAnim || '') ? 20 : /^kcollapse/.test(this.diveAnim || '') ? 12 : 16, true); }   // (t-017: the smother's hands land on frame 6 at ~0.3 s; the 4-frame collapse a little slower)
+    else if (this.state === 'dive') { this.play(this.diveAnim, /^ksmother/.test(this.diveAnim || '') ? 20 : /^kcollapse/.test(this.diveAnim || '') ? 12 : 16, true);   // (t-017: the smother's hands land on frame 6 at ~0.3 s; the 4-frame collapse a little slower)
+      if (this.hands && !this.handJump) { this.handJump = true; const c = GK_HAND_HIT[(this.diveAnim || '').replace(/-\w+$/, '')], i = frameNo(this.spr);   // t-031: caught before his gloves were out: on to the frame where they meet it
+        if (c != null && i != null && i < c && MAN.kits[this.kit].anims[this.diveAnim].length > c) this.spr.play({ key: this.anim, startFrame: c }); } }
     else if (this.state === 'slide') { if (!this.tacklePlay('slide', d, TACKLE.slideT)) { this.play(`run-${d}`, 13); this.spr.anims.timeScale = 0.01; } }
     else if (this.state === 'applaud') { if (!this.play(`applaud-${d}`, 9) && !this.play('applaud-S', 9)) this.play(`idle-${d}`, 5); }   // full time (loops)
     else if (this.state === 'trophy') {                                         // v0.7.4 cup ceremony: PixelLab trophy lift, then he keeps it up there
@@ -119,7 +124,9 @@ class Player {
       if (ap && this.state === 'header') this._from = airContact(K, nm, d) || 0;   // batch 20: the ball leaves his head the moment the header starts, so the move opens on the frame that meets it (the snap shows with the thump, flash and hit-stop; the take-off frames before it are skipped)
       if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
     else if (this.waitingThrowIn()) { if (!this.play(`throwinhold-${this.y < 34 ? 'S' : 'N'}`, 1, true)) this.play(`idle-${d}`, 5); }   // ball held over his head
-    else if (this.keeper && this.hands && this.speed < 0.5) { if (!(this.claimHigh && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); }   // holds it as he caught it
+    else if (this.keeper && this.hands && this.speed < 0.5) { if (this.handDive) this._from = Math.max(0, (K.anims[`catch-${d}`] || [0]).length - 1);   // t-031: up from a diving catch: straight into the hold (not catching it again)
+      if (!(this.claimHigh && !this.handDive && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); this._from = 0; }   // holds it as he caught it
+    else if (this.keeper && this.hands && this.m.ball.owner === this && !this.busy()) this.carryPlay(K, d);   // t-031: on the move with it in his hands
     else if (this.keeper && this.speed < 0.5 && ((this.m.ball.save && this.m.ball.save.gk === this) || this.gkSet) && K.anims[`kset-${d}`]) this.play(`kset-${d}`, 10);   // set for the shot (v0.9.1: or ready for one)
     else if ((this.touchAnimT || 0) > 0 && K.anims[`touch-${d}`]) this.play(`touch-${d}`, 18, true);      // first touch on the run
     else if (this.jockeyOn && K.anims[`jockey-${d}`]) { this.play(`jockey-${d}`, 10); this.spr.anims.timeScale = clamp(this.speed / 2.6, 0.35, 1.8); }   // v0.8.2 PixelLab jockey
@@ -171,12 +178,61 @@ class Player {
     // some PixelLab moves show the ball in his hands / on his chest (catch, throw, chest trap): the game hides its own ball then
     K._carry = K._carry || new Set(K.carry || []);
     this.carrying = K._carry.has(this.anim.slice(this.kit.length + 1));
+    if (this.bob) this.spr.y -= this.bob;                                         // (t-031: the carry's walk bob)
+    this.handBall();
+  }
+  // t-031 KEEPER HANDS: with the ball in his hands he walks / jogs with it - PixelLab batch 21's kcarry (walk) and
+  // kcarryrun (jog) by name; a kit without them yet: the catch's hold pose (its last frame, the ball at his chest) with
+  // a gentle bob in step with his walk, so it already reads as carrying it (FIFA / PES: a dedicated carry run)
+  carryPlay(K, d) {
+    const run = this.speed > WALK_V * 1.15, n = run && K.anims[`kcarryrun-${d}`] ? 'kcarryrun' : K.anims[`kcarry-${d}`] ? 'kcarry' : null;
+    if (n) { this.play(`${n}-${d}`, n === 'kcarry' ? 8 : 11); this.spr.anims.timeScale = clamp(this.speed / (n === 'kcarry' ? 1.5 : 3.2), 0.5, 1.8); return; }
+    const L = K.anims[`catch-${d}`];
+    if (L && L.length) { if (this.anim !== `${this.kit}:catch-${d}`) this._from = L.length - 1; this.play(`catch-${d}`, 16, true); this._from = 0; }
+    else this.play(`idle-${d}`, 5);
+    this.bobPh = (this.bobPh || 0) + this.speed * (1 / 60) * Math.PI / 0.55;       // (a step every ~0.55 m)
+    this.bob = Math.round(Math.abs(Math.sin(this.bobPh)) * (run ? 3 : 2));
+  }
+  // t-031: the ball he holds goes where his gloves are on this frame (keeper.js GK_HANDS; the hold point otherwise), from
+  // the first frame they're on it through the dive, the landing and the get-up. Just caught: it eases in from where it
+  // was over 0.1 s (soft hands), no snap. A move that draws the ball itself (catch, claim, throw: K.carry) needs none
+  handBall() {
+    if (!this.keeper) return;
+    if (!this.hands || this.m.ball.owner !== this) { this.handDive = false; this.bob = 0; this.handLast = null; return; }
+    if (this.state === 'dive' || this.state === 'getup') this.handDive = true;
+    else if (this.state !== 'idle' && this.state !== 'run') this.handDive = false;
+    if (this.carrying || this.spr.visible === false) { this.handLast = null; return; }
+    const G = this.handPoint(); if (!G) return;
+    // a new move whose frames put his hands somewhere else (the dive's landing frame -> the get-up, drawn from another
+    // origin): the ball goes across over 0.12 s from where it was, so it never jumps
+    const rel = { x: G.x - this.spr.x, y: G.y - this.spr.y }, mv = G.move;
+    if (this.handLast && mv !== this.handMv && len(rel.x - this.handLast.x, rel.y - this.handLast.y) > 10 && !(this.handEase > 0))
+      { this.handFrom = { x: this.spr.x + this.handLast.dx, y: this.spr.y + this.handLast.dy }; this.handEase = this.handEase0 = 0.12; this.handOff = null; }
+    if (this.handEase > 0 && this.handFrom) {
+      if (!this.handOff) this.handOff = { x: this.handFrom.x - G.x, y: this.handFrom.y - G.y };
+      const k = this.handEase / (this.handEase0 || 0.1); G.x += this.handOff.x * k; G.y += this.handOff.y * k;
+    }
+    this.handEasing = this.handEase > 0;                                         // (the Test Lab's GH lines tell the ease apart)
+    this.handMv = mv; this.handLast = { x: rel.x, y: rel.y, dx: G.x - this.spr.x, dy: G.y - this.spr.y };
+    this.m.gkHandBall(this, G.x, G.y, G.behind);
+  }
+  handPoint() {
+    const s = this.spr, f = s.frame; if (!f) return null;
+    const mm = /^(.*)-(\d+)$/.exec(f.name || ''), T = mm && GK_HANDS[mm[1]];
+    let pt = T && T[+mm[2]], behind = false;
+    if (!pt) {                                                                   // anything else (a carry move, idle): at his chest, by the way he faces
+      const d = DIRS[this.face], H = GK_HOLD[d]; if (!H) return null;
+      pt = [f.realWidth * s.originX + H[0] - 64, f.realHeight * s.originY + H[1] - 143]; behind = /N/.test(d);
+    }
+    const lx = (pt[0] - f.realWidth * s.originX) * s.scaleX, ly = (pt[1] - f.realHeight * s.originY) * s.scaleY, c = Math.cos(s.rotation), sn = Math.sin(s.rotation);
+    return { x: s.x + lx * c - ly * sn, y: s.y + lx * sn + ly * c, behind, move: mm ? mm[1] : '' };
   }
   rigShow(P) {                                                                   // v0.8.9 one frame of a rough rig
     const s = this.spr; s.setVisible(!this.hide); s.anims.stop(); s.setFrame(P.fr); this.anim = 'rig:' + this.rig.n;
     if (this._ox !== P.ox || this._oy !== P.oy) { s.setOrigin(P.ox, P.oy); this._ox = P.ox; this._oy = P.oy; }   // (t-014: batch 16 frames hang from the manifest's origin)
     s.setPosition(Math.round(P.x), Math.round(P.y)).setRotation(P.rot).setScale(P.sx, P.sy).setDepth(wy(this.y));
     this._rigged = true; this.carrying = false; this.m.rigFx(this, P);
+    this.handBall();                                                             // t-031: a special save he holds: the ball in his gloves too
   }
   waitingThrowIn() { const sp = this.m.setPiece; return !!(sp && sp.kind === 'THROW-IN' && sp.taker === this && !sp.kicked && !this.busy()); }
   // top speed right now: sprint needs energy; a tired player can't sprint and runs a little slower
@@ -231,6 +287,7 @@ class Player {
     if (this.sentOff) { this.vx = this.vy = 0; this.speed = 0; this.rig = null; return; }
     if (this.rig) { this.rig.t += dt; const R = RIGS[this.rig.n]; if (!R || this.rig.t >= R.dur) this.rig = null; }   // v0.8.9 rough rig clock (stops in hit-stops + cut scenes)
     if (this.keeper && (this.spSave || this.rig) && this.m.gkSpecialRoll) this.m.gkSpecialRoll(this);   // t-014: his special-save move starts so its contact frame meets the ball (specials.js)
+    if (this.handEase > 0) this.handEase = Math.max(0, this.handEase - dt);       // t-031: the catch's ease into his gloves
     this.cool = Math.max(0, this.cool - dt); this.stun = Math.max(0, this.stun - dt); if (this.touchAnimT > 0) this.touchAnimT -= dt;
     if (this.burst > 0) this.burst -= dt;
     if (this.keeper) { this.guardT = (this.guardT || 0) + dt; if (this.guardT > 2.5) this.guard = Math.min(1, (this.guard ?? 1) + GUARD_REGEN * dt); }   // v0.8 keeper guard refills
@@ -241,7 +298,7 @@ class Player {
           if (won) this.cool = Math.min(this.cool, TACKLE.upWon);                 // t-018: won it - free once he's up (a miss keeps its cool-down)
           const b = this.m.ball; if (this.slideKeep && !b.owner && len(b.x - this.x, b.y - this.y) < 1.8 && b.z < 0.5) { this.cool = 0; this.m.gain(this, 0); }   // v0.8.2 the block tackle: yours
           this.slideKeep = false; }
-        else if (this.keeper && this.state === 'dive' && !this.hands && /^(diveLow|dive|diveHigh|smother)$/.test(this.saveKind || '') && MAN.kits[this.kit].anims['kgetup-E']) {   // t-017: off the grass, not a pop-up
+        else if (this.keeper && this.state === 'dive' && /^(diveLow|dive|diveHigh|smother)$/.test(this.saveKind || '') && MAN.kits[this.kit].anims['kgetup-E']) {   // t-017: off the grass, not a pop-up (t-031: with the ball too - held at his chest as he gets up; it used to pop him up into the hold)
           this.getupAnim = `kgetup-${this.team.side > 0 ? 'E' : 'W'}`; this.setState('getup', 0.44); }   // (8 frames at 18 a second)
         else { this.state = 'idle'; this.getupAnim = null; this.slideUp = false; }
       }

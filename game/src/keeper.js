@@ -60,6 +60,47 @@ const GK_1V1 = {
   gap0: 1.2, gapK: 0.22, gapMin: 1.6, gapMax: 5.5,   // while closing a breakaway, he waits gap0 + gapK x (ball to goal) in front of the ball [1.4 + 0.3x, 1.9-7]
                                                      // (anyone else: t-017's gap, unchanged)
 };
+// t-031 KEEPER HANDS (Luca 25 Oct 15:41: "new physics for the hands and animation to be able to dive with the hands to
+// grab the ball, also be able to hold it in his hands while he moves - keep it simple and smooth tho"). The ball used to
+// sit 0.6 m to his side on a diving catch and snap into the hold pose as he stood up; now it is drawn IN his gloves.
+// GK_HANDS: where the ball sits on each frame of his catching moves - between his gloves (x, y in the frame's own
+// window, E and W). Measured off the PixelLab frames by tools/gk_hands.py (the white gloves; every keeper kit shares
+// the poses, so one table). kgetup: his hands push off the grass there, so those are his CHEST (measured by eye on the
+// frames, ending on the catch hold's ball), and so is kleap's landing frame (one glove on the grass): real keepers bring it into the chest as they land and get up holding it.
+const GK_HANDS = {
+  'kdivecatchDown-E': [[74,83],[74,91],[73,147],[66,149],[67,149],[63,146],[57,145],[58,142],[59,145],[51,133],[62,110],[76,91]],
+  'kdivecatchDown-W': [[53,83],[53,91],[54,147],[61,149],[60,149],[64,146],[70,145],[69,142],[68,145],[76,133],[65,110],[51,91]],
+  'kdivecatchUp-E': [[54,77],[55,69],[55,14],[63,11],[62,11],[66,14],[71,15],[71,19],[70,15],[77,28],[66,51],[52,69]],
+  'kdivecatchUp-W': [[73,77],[72,69],[72,14],[64,11],[65,11],[61,14],[56,15],[56,19],[57,15],[50,28],[61,51],[75,69]],
+  'kleap-E': [[118,108],[114,109],[113,109],[120,98],[118,69],[131,36],[130,23],[130,22],[134,57],[135,70],[141,91],[140,128]],
+  'kleap-W': [[137,108],[141,109],[142,109],[135,98],[137,69],[124,36],[125,23],[125,22],[121,57],[120,70],[114,91],[115,128]],
+  'ksmother-E': [[135,111],[122,113],[111,111],[179,101],[194,104],[165,106],[197,159],[193,160]],
+  'ksmother-W': [[120,111],[133,113],[144,111],[76,101],[61,104],[90,106],[58,159],[62,160]],
+  'kcollapseDown-E': [[44,139],[46,137],[46,134],[45,133]],
+  'kcollapseDown-W': [[83,139],[81,137],[81,134],[82,133]],
+  'kcollapseUp-E': [[84,22],[82,23],[83,26],[83,28]],
+  'kcollapseUp-W': [[43,22],[45,23],[44,26],[44,28]],
+  'kgetup-E': [[110,124],[100,134],[104,139],[115,130],[130,120],[136,118],[136,102],[134,81]],
+  'kgetup-W': [[145,124],[155,134],[151,139],[140,130],[125,120],[119,118],[119,102],[121,81]],
+};
+// the frame where his gloves meet the ball (RIGS' hit keys; the smother's hands are out from frame 4, the collapse's from
+// the start): a catch made before the move gets there jumps it to that frame, so the gloves are out when they take it
+const GK_HAND_HIT = { kdivecatchDown: 3, kdivecatchUp: 3, kleap: 7, ksmother: 4, kcollapseDown: 0, kcollapseUp: 0 };
+// the hold: where the ball sits at his chest on the catch move's last frame (128 x 160 frame, by the way he faces), for
+// the carry moves (kcarry / kcarryrun, PixelLab batch 21) until they bring their own. Facing away (N, NE, NW) his body
+// hides it: tools/gk_hands.py finds no gloves there, so it's the E / W point, drawn just behind him
+const GK_HOLD = { E: [70, 57], NE: [70, 58], N: [64, 58], NW: [57, 58], W: [57, 57], SW: [54, 62], S: [63, 58], SE: [73, 62] };
+// t-031 the computer's keeper WALKS IT OUT after a calm catch (real keepers take a few steps towards the edge of the box
+// on the side they'll play it to, ~2-4 s, inside the Laws' 6 s; FIFA / PES keepers run it out the same way). Under
+// pressure he lets it go quickly, as before.
+const GK_WALKOUT = {
+  calm: 11,           // no opponent within this (m) when he has it: he walks it out
+  press: 7.5,         // ...until one comes within this: then he plays it at once
+  steps: [4, 8],      // how far he walks it (m), towards the edge of his box on his outlet's side
+  edge: 15,           // never further out than this (m from his line; the box is 16.5)
+  v: 1.9,             // walking pace (m/s): the kcarry walk / the hold pose with a bob
+  time: [2.0, 3.4],   // walking at most this long (s), then a breath and the throw / roll / punt
+};
 function gkMoveAnim(k, kind, down) {
   const A = MAN.kits[k.kit].anims, sides = [k.team.side > 0 ? 'E' : 'W', DIRS[k.face], 'S'];
   for (const n0 of GK_MOVES[kind] || ['DIVE']) {
@@ -219,8 +260,10 @@ hc2Mix(Match, {
           else { const o = this.keeperOutlet(k); this.doPass(k, o.dir, o.mode === 'lob' && o.dir ? 'lob' : 'ground'); } }
         return;
       }
-      k.hold = (k.hold || 0) + dt; k.steer(0, 0, dt);
-      if (k.hold > 1.1) { k.hold = 0; const o = this.keeperOutlet(k); this.doPass(k, o.dir, o.mode); }
+      k.hold = (k.hold || 0) + dt;
+      if (this.gkWalkOut(k, dt)) return;                                         // t-031: a calm catch: he walks it out first
+      k.steer(0, 0, dt);
+      if (k.hold > 1.1 && !(k.walk && k.speed > 0.6)) { k.hold = 0; k.walk = null; const o = this.keeperOutlet(k); this.doPass(k, o.dir, o.mode); }   // (after a walk: once he's stopped)
       return;
     }
     const sv = !b.owner && b.save && b.save.gk === k && len(b.vx, b.vy) > 3.5 && b.vx * -side > 0 ? b.save : null;   // (v0.9.1: a shot that's died or been knocked away isn't one any more - he goes for the loose ball)
@@ -299,6 +342,24 @@ hc2Mix(Match, {
     if (T.v <= 0 || (!urgent && D < (T.track ? 0.12 : k.speed > 0.4 ? 0.2 : 0.45))) { k.steer(0, 0, dt); }   // (a dead band: no shuffling on the spot)
     else k.moveTo(k.gkS.x, k.gkS.y, T.v, dt);
     k.gkSet = !!T.set && k.speed < 0.7;
+  },
+  // t-031: the computer's keeper with the ball in his hands walks it out (GK_WALKOUT) when nobody's near: decided once he's
+  // on his feet after the catch (k.walk: undefined = not yet, null = no walk), a few steps towards the edge of his box on
+  // his outlet's side. Returns true while it has the frame; false = keeperPlan plays it as before (at once if pressed)
+  gkWalkOut(k, dt) {
+    const W = GK_WALKOUT, side = k.team.side, gx = k.team.ownGoalX, H = x => (x - gx) * side;
+    if (k.busy()) { k.steer(0, 0, dt); return k.walk === undefined || !!(k.walk && !k.walk.done); }   // (getting up / the catch: he plays it once he's up)
+    const opp = k.team.opp.players.filter(o => !o.sentOff), near = Math.min(99, ...opp.map(o => len(o.x - k.x, o.y - k.y)));
+    if (k.walk === undefined) {
+      if (near < W.calm || this.offGK === k || this.setPiece) { k.walk = null; return false; }   // (pressed, or a goal kick: as before)
+      const o = this.keeperOutlet(k), hx = clamp(H(k.x) + rnd(W.steps[0], W.steps[1]), 2, W.edge);
+      k.walk = { x: gx + side * hx, y: clamp(k.y + (o.dir.y || 0) * rnd(2, 5), 34 - 13, 34 + 13), T: rnd(W.time[0], W.time[1]), t: 0, from: { x: k.x, y: k.y } };
+    }
+    const w = k.walk; if (!w || w.done) return false;
+    w.t += dt;
+    if (near < W.press || w.t > w.T || len(w.x - k.x, w.y - k.y) < 0.4) { w.done = true; k.hold = Math.max(k.hold, 0.8); return false; }   // (a breath, then he plays it)
+    k.gkMode = 'WALK OUT'; k.gkTgt = { x: w.x, y: w.y };
+    k.moveTo(w.x, w.y, W.v, dt); return true;
   },
   // the keeper's plan: { mode, x, y, v (top speed for getting there), set (in his ready stance) }
   gkPlan(k, dt) {
