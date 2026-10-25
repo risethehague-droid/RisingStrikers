@@ -622,6 +622,43 @@
       gp8,
     ];
   }
+  // ---- t-023 THE NET COMES ALIVE (NET_FX: on in the Lab, off in matches - Luca: "make a preview of this before you
+  // implement"). Into an empty goal so nothing gets in the way: NT1 a soft shot, NT2 a power shot, NT3-5 a special at
+  // LV1 / LV2 / LV3 (the Lab presses SPECIAL with the bars in the bank, at a fixed spot so every run looks the same).
+  // Every line: how deep the net went, how long the ball rolled in it, ripped yes / no.
+  function ntTest(id, name, sub, o) {
+    return { id, group: 'NT', name, sub, kind: 'shot',
+      setup(r) {
+        const s = m.home.players[9], from = o.from, f = dirIndex(GX - from[0], o.y - from[1]), dv = dirVec(f);
+        cast([s]); put(s, from[0] - dv.x * 0.5, from[1] - dv.y * 0.42, f); ballAt(from[0], from[1], 0, s);
+        for (const mt of m.meters || []) mt.e = 0;
+        m.nfxLast = null; m.netRip = null; m.netSaid = null; m.say('', `${id} · ${name.replace(/^an? /, '').toUpperCase()}`, 1.1);   // (names the clip in the preview GIF)
+        Object.assign(r, { human: s, shooter: s, gk: null, o, marks: [{ x: GX, y: o.y, r: 0.3 }], cam: () => ({ x: GX + 2.5, y: 36 }) });   // (the camera stays on the goal: it's the net we're watching)
+        r.action = { at: 0.7, fire: () => {
+          if (!o.lv) { fireShot(r, { y: o.y, z: o.z }, o.speed, o.power); return; }
+          m.meters[0].e = o.lv; m.special(s); const k = m.pending; if (k) { k.ty = o.y; k.vz = o.vz; }   // (its corner and lift pinned: the same shot every run)
+        } };
+      },
+      check(r) {
+        const b = m.ball, X = m.nfxLast;
+        if (r.shotT == null) { if (!b.owner && r.fired && b.lastP === r.shooter && !m.pending) r.shotT = r.t; else return null; }
+        if (!b.inNet) { if (r.out) return { o: 'MISSED · ' + r.out.toLowerCase() }; return r.t - r.shotT > 4 ? { o: 'NO GOAL · the ball is still loose' } : null; }
+        if (r.goalT == null) r.goalT = r.t;
+        const still = b.z < 0.15 && len(b.vx, b.vy) < 0.8, since = r.t - r.goalT;
+        if (!X || since < 0.5 || (b.nfxRoll || (!still && since < 4.5))) return null;          // let the net play out: the roll, the drop, the flight behind
+        const how = X.lv ? `LV${X.lv} SPECIAL` : r.o.speed > 25 ? 'POWER SHOT' : 'SOFT SHOT', behind = (b.x - GX).toFixed(1);
+        return { o: `${how} ${kmh(X.v)} km/h · the net stretched ${Math.round(X.peak * 100)} cm (x${X.S.toFixed(1)}) · the ball rolled in it ${X.roll.toFixed(1)} s · ripped: ${X.rip ? `YES - it flew on, stopped ${behind} m behind the line` : 'no'}${m.netSaid ? ` · Rami: the ${m.netSaid} line` : ''}`, hold: 0.6 };
+      } };
+  }
+  function ntTests() {
+    return [
+      ntTest('NT1', 'a SOFT shot into the net', '54 km/h side-foot: a small bulge, a short roll, it drops', { from: [96, 31], y: 34.6, z: 0.9, speed: 15, power: 0.3 }),
+      ntTest('NT2', 'a POWER shot into the net', '112 km/h: a big bulge, the ball swirls in the netting ~1.5 s', { from: [88, 33], y: 35.2, z: 1.3, speed: 31, power: 0.95 }),
+      ntTest('NT3', 'an LV1 special into the net', 'the net stretches far back (x2), the ball rolls round in it', { from: [86, 32], y: 35.4, vz: 3.2, lv: 1 }),
+      ntTest('NT4', 'an LV2 special into the net', 'drastic: the net nearly reaches the boards, a long roll', { from: [86, 32], y: 35.4, vz: 2.8, lv: 2 }),
+      ntTest('NT5', 'an LV3 special RIPS THROUGH the net', 'the mesh tears, the ball flies on to the boards; whole again at the restart', { from: [86, 32], y: 35.4, vz: 1.4, lv: 3 }),
+    ];
+  }
   // ---- v0.9.0 (Luca: "use their Iron Wall-like special abilities to also block normal shots (K). Only goalkeepers")
   // their keeper, with bars, against your normal shot into the corner he can't reach (made to use it here)
   function normSave(id, lv) {
@@ -1713,6 +1750,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       normSave('SM8', 1), normSave('SM9', 2), normSaveYou('SM10', true), normSaveYou('SM11', false),
     ]);
     add('GP', 't-013 · GOAL PHYSICS', 'The goal comes alive (GOAL_PHYS: on in the Lab, off in matches): a net with give - it bulges, slows the ball, holds it a beat, drops it - round posts and bar with real rebounds (glancing carries on, square comes back), and a parry or a broken guard that loops the ball UP for a man following in.', gpTests(smSave));
+    add('NT', 't-023 · THE NET COMES ALIVE (PREVIEW)', 'NET_FX - on in the Lab, off in matches until Luca says: the PixelLab net on a mesh that stretches and wobbles, harder = deeper (a special: drastic, more each level), the ball rolls round in the netting for a second or two before it drops, an LV3 rips through it. Rami has a line for the rip and for a big stretch.', ntTests());
     add('AS', 't-014 · AERIAL SPECIALS BY THE ARC', 'Two per level, picked by how the ball arrives: LV1 AIR BLAZE (chest-high drop) / TIDE CUTTER (low driven cross), LV2 SKY THUNDER (over his head) / CYCLONE HEEL (behind the shoulder), LV3 PHOENIX (very high) / METEOR DRIVE (sky-high loop). The Lab presses SPECIAL as it reaches you.', [
       asTest('AS1', 'LV1 · a chest-high drop → AIR BLAZE', 'comet volley', { lv: 1, from: [99, 6], z: 1.3, T: 1.35 }),
       asTest('AS2', 'LV1 · a low driven cross → TIDE CUTTER', 'knee-slide side volley (the low popup window)', { lv: 1, from: [100, 14], z: 0.6, T: 0.75 }),

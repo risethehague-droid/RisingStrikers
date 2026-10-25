@@ -649,7 +649,10 @@ hc2Mix(Match, {
   gpNet(b, h, oz) {
     if (b.owner) { b.gpHold = 0; b.gpSpin = null; return; }
     const gx = b.x < PITCH_L / 2 ? 0 : PITCH_L, s = gx ? 1 : -1, u = (b.x - gx) * s, D = GP.netD, r = GP.ballR;   // u: metres behind the goal line
-    if (u <= 0 || u > D + GP.netMax + 0.3) { b.gpAbove = b.gpOut = false; return; }
+    const F = b.inNet ? b.nfx : null;                                           // t-023 NET_FX: this goal's stretch, the roll, the rip
+    if (F && F.rip) { this.nfxFly(b, gx, s, u); return; }                       // through the torn mesh: only the boards stop it now
+    if (F && b.nfxRoll) { this.nfxRollStep(b, h, gx, s); return; }              // rolling round the pocket the bulge made
+    if (u <= 0 || u > D + GP.netMax * (F ? F.S : 1) + 0.3) { b.gpAbove = b.gpOut = false; return; }
     const side = gx ? 'R' : 'L', zr = BAR_Z - (BAR_Z - GP.netBZ) * clamp(u / D, 0, 1), ay = Math.abs(b.y - 34);
     if (b.gpHold > 0) { b.gpHold -= h; const k = Math.exp(-GP.holdDamp * h); b.vx *= k; b.vy *= k; b.vz = b.vz * k + G * h * 0.75; }   // held a beat
     if (b.inNet) {
@@ -669,11 +672,14 @@ hc2Mix(Match, {
   // one plane of mesh: p = how far the ball has pushed past where the mesh hangs, (nx, ny, nz) = the way the mesh pushes back
   gpPlane(b, h, side, key, p, nx, ny, nz) {
     if (p <= 0) return;
-    if (p > GP.netMax) {                                                        // fully stretched: it goes no further
-      const c = p - GP.netMax, vn = b.vx * nx + b.vy * ny + b.vz * nz; p = GP.netMax;
+    const X = b.inNet ? b.nfx : null, S = X ? X.S : 1, pMax = GP.netMax * S;    // t-023 NET_FX: S times the stretch (core.js NFX)
+    if (X && X.lv >= 3 && !X.tore && p > NFX.tearD) { this.nfxTear(b, side, key, p, nx, ny, nz); return; }   // LV3: it rips through
+    if (p > pMax) {                                                             // fully stretched: it goes no further
+      const c = p - pMax, vn = b.vx * nx + b.vy * ny + b.vz * nz; p = pMax;
       b.x += nx * c; b.y += ny * c; b.z += nz * c; if (vn < 0) { b.vx -= vn * nx; b.vy -= vn * ny; b.vz -= vn * nz; }
     }
-    const vin = -(b.vx * nx + b.vy * ny + b.vz * nz), F = Math.max(0, GP.netK * p + GP.netC * vin);   // a net only pushes, never pulls
+    if (X) X.peak = Math.max(X.peak, p);
+    const vin = -(b.vx * nx + b.vy * ny + b.vz * nz), F = Math.max(0, GP.netK / (S * S) * p + GP.netC / S * vin);   // a net only pushes, never pulls (same damping ratio at any S)
     b.vx += nx * F * h; b.vy += ny * F * h; b.vz += nz * F * h;
     const vn = b.vx * nx + b.vy * ny + b.vz * nz, k = Math.exp(-GP.netFric * h);   // the mesh grips what slides along it
     b.vx = nx * vn + (b.vx - nx * vn) * k; b.vy = ny * vn + (b.vy - ny * vn) * k; if (b.z > 0) b.vz = nz * vn + (b.vz - nz * vn) * k;
@@ -686,7 +692,9 @@ hc2Mix(Match, {
       if (vin > 3) { const S = this.gpStats || (this.gpStats = { wood: 0, back: 0, pops: 0, net: 0 }); S.net++; }
       if (/Out|top/.test(key) && vin > 2) { SFX.net(); this.say('', key === 'top' ? 'ON TOP OF THE NET!' : 'SIDE NETTING!', 0.8); }
     } else {
-      if (!q.held && vin <= 0 && q.vin0 > 6) { q.held = true; if (!(b.gpHold > 0)) b.gpHold = GP.netHold * clamp(q.vin0 / 25, 0.3, 1); }   // the deepest point: caught
+      if (!q.held && vin <= 0 && q.vin0 > 6) { q.held = true;                  // the deepest point: caught
+        if (X && !X.rolled && nz === 0) this.nfxRollStart(b, q, p, nx, ny);     // (t-023: it rolls round the pocket instead - not in the roof, it would fall out)
+        else if (!(b.gpHold > 0)) b.gpHold = GP.netHold * clamp(q.vin0 / 25, 0.3, 1); }
       q.dv = q.touch > 0 ? (p - q.d) / h : q.dv; q.d = p; q.touch = 1; q.peak = Math.max(q.peak, p); q.hx += (hx - q.hx) * 0.3; q.hy += (hy - q.hy) * 0.3; q.hz += (hz - q.hz) * 0.3; }
   },
   // once a frame: the mesh where the ball has left it rings on (a damped spring) and settles; the bulges fade out.
@@ -695,6 +703,8 @@ hc2Mix(Match, {
     this.gpT = (this.gpT || 0) + dt;
     const W = this.gpWatch;
     if (W && this.gpT - W.t > 1.2) { const b = this.ball; this.gpWatch = null; if (!this.dead && !b.inNet && Math.abs(b.x - W.gx) > 3) this.gpStats.back++; }
+    if (this.ball.nfx && !this.ball.inNet) { this.ball.nfx = null; this.ball.nfxRoll = null; }   // t-023: the restart (the ball is out of the net) -
+    if (this.netRip && !this.ball.inNet) this.netRip = null;                    // the torn net is whole again (world.js netWarp)
     const st = this.netS; if (!st) return;
     const w = 2 * Math.PI * GP.netHz, z = GP.netZeta;
     for (const L of [st.L, st.R]) for (let i = L.length - 1; i >= 0; i--) {
@@ -950,9 +960,64 @@ hc2Mix(Match, {
     const pop = Math.min(0.18, 0.04 + incoming * 0.008);
     b.vx = p.vx + b.vx * pop; b.vy = p.vy + b.vy * pop; b.vz = 0; b.z = 0; p.touchT = 0.2;
   },
+  // ======================================================================= t-023 NET_FX (core.js NFX; a Test Lab preview)
+  // THE BALL KEEPS ITS ENERGY (Luca: "the ball should roll with energy for a second or two before it drops"): at its
+  // deepest point the ball isn't stopped dead (t-013's hold) - the netting takes it round the pocket the bulge made: a
+  // swirl that starts the way the ball was going along the mesh, shrinks and slows as the energy goes, slides down the
+  // bulge, and the mesh gives the depth back bit by bit. The bulge follows the ball round (its point on the mesh moves
+  // with it). Then it drops as before. Kinematic on purpose: a spring alone can't hold a ball in a pocket.
+  nfxRollStart(b, q, p, nx, ny) {
+    const X = b.nfx, t2 = { x: 0, y: 0, z: 1 }, t1 = { x: -ny, y: nx, z: 0 };   // along the mesh: t1 across, t2 up
+    const v1 = b.vx * t1.x + b.vy * t1.y, v2 = b.vz;
+    const th = Math.hypot(v1, v2) > 0.3 ? Math.atan2(-v1, v2) : (b.y - 34) * t1.y + (b.x - PITCH_L / 2) * t1.x > 0 ? Math.PI / 2 : -Math.PI / 2;   // (no sideways pace: round towards the middle)
+    const R0 = NFX.rollR, dur = Math.min(2.2, NFX.rollT[0] + (NFX.rollT[1] - NFX.rollT[0]) * X.str + NFX.rollLv * X.lv);
+    b.nfxRoll = { q, n: { x: nx, y: ny }, t1, t: 0, dur, th, p0: p, R0,
+      c: { x: b.x - (t1.x * Math.cos(th) + t2.x * Math.sin(th)) * R0, y: b.y - (t1.y * Math.cos(th)) * R0, z: b.z - Math.sin(th) * R0 } };   // the swirl's centre: the ball starts on its rim
+    X.rolled = true; b.gpHold = 0;
+    if (X.peak > NFX.bigD && X.lv < 3) this.ramiNet && this.ramiNet('stretch');   // Rami: a big stretch
+  },
+  nfxRollStep(b, h, gx, s) {
+    const R = b.nfxRoll, X = b.nfx, q = R.q; R.t += h;
+    const f = Math.max(0, 1 - R.t / R.dur), r = GP.ballR;
+    R.th += 2 * Math.PI * NFX.rollHz * (0.35 + 0.65 * f) * h;                   // it slows...
+    const a = R.R0 * f * f, p = R.p0 * (NFX.keep + (1 - NFX.keep) * f);        // ...the swirl shrinks, the mesh gives the depth back
+    R.c.z = Math.max(r + 0.05, R.c.z - NFX.sag * h);                            // and it slides down the bulge
+    const ox = b.x, oy = b.y, oz = b.z, nx = R.n.x, ny = R.n.y;
+    // the centre stays at the depth the mesh holds it: on the plane through the hit point, p deep (the back: x; a side: y)
+    const hx = q.hx, hy = q.hy;
+    let x = R.c.x + R.t1.x * a * Math.cos(R.th), y = R.c.y + R.t1.y * a * Math.cos(R.th), z = R.c.z + a * Math.sin(R.th);
+    if (nx) x = hx + nx * (r - p); else y = hy + ny * (r - p);
+    const u = (x - gx) * s, zr = BAR_Z - (BAR_Z - GP.netBZ) * clamp(u / GP.netD, 0, 1);
+    z = clamp(z, 0.06, zr - r);                                                 // (inside the goal: under the roof, between the side nets / off the line)
+    if (nx) y = clamp(y, GOAL_Y0 + r, GOAL_Y1 - r); else x = gx + s * clamp((x - gx) * s, 0.25, GP.netD - r);
+    b.x = x; b.y = y; b.z = z; b.vx = (x - ox) / h; b.vy = (y - oy) / h; b.vz = (z - oz) / h; b.gpHold = 0;
+    q.d = p; q.touch = 1; q.peak = Math.max(q.peak, p); q.hx = x - nx * (r - p); q.hy = y - ny * (r - p); q.hz = z;   // the bulge goes round with it
+    if (R.t >= R.dur) { X.roll = R.dur; b.nfxRoll = null; b.vx *= 0.3; b.vy *= 0.3; b.vz = Math.min(0, b.vz * 0.3); }   // the energy is gone: it drops
+  },
+  // LV3 RIPS THROUGH (Luca: "make lv3 shots rip through the goal"): past NFX.tearD the mesh splits where the ball is, the
+  // ball flies on (at least keepV of its pace) behind the goal and the hole stays open until the restart (world.js
+  // netWarp draws it; ball.js netStep mends it)
+  nfxTear(b, side, key, p, nx, ny, nz) {
+    const X = b.nfx; X.tore = X.rip = true; X.ripKey = key; X.peak = Math.max(X.peak, p);
+    const vn = -(b.vx * nx + b.vy * ny + b.vz * nz), want = Math.max(vn, NFX.keepV * X.v);
+    b.vx += -nx * (want - vn); b.vy += -ny * (want - vn); b.vz += -nz * (want - vn);
+    const hx = b.x - nx * (GP.ballR - p), hy = b.y - ny * (GP.ballR - p), hz = b.z - nz * (GP.ballR - p);
+    this.netRip = { side, key, hx, hy, hz, d: p, sx: -nx * PX_X * scaleAt(hy), sy: -ny * PX_Y + nz * PX_H, t: this.gpT || 0 };
+    SFX.net(); SFX.boom(1); SFX.ooh(); this.say('', 'THROUGH THE NET!', 1.2);
+    if (this.ramiNet) this.ramiNet('rip');
+  },
+  // through the hole: it flies on until the boards behind the goal (NFX.board m back) stop it, then drops on the grass
+  nfxFly(b, gx, s, u) {
+    const r = GP.ballR;
+    if (u > NFX.board - r && b.vx * s > 0) { b.x = gx + s * (NFX.board - r); b.vx *= -0.22; b.vy *= 0.6; b.vz *= 0.5; SFX.post(); }
+    if (b.nfx.ripKey === 'back' && u < GP.netD + 0.2 && b.vx * s < 0) { b.x = gx + s * (GP.netD + 0.2); b.vx *= -0.3; }   // (off the boards it doesn't come back in through the net)
+  },
   // the net gives: a quick ripple outwards that settles (the net images shift a few pixels and spring back)
   netRipple(side, speed) {
-    if (gpOn()) { const b = this.ball; b.gpIn = { vx: b.vx, vz: b.vz }; return; }   // t-013: the spring net (gpNet) takes the pace off and draws the give
+    if (gpOn()) { const b = this.ball; b.gpIn = { vx: b.vx, vz: b.vz };      // t-013: the spring net (gpNet) takes the pace off and draws the give
+      if (nfxOn()) { const lv = Math.min(3, b.special || 0), str = clamp((speed - NFX.v0) / (NFX.v1 - NFX.v0), 0, 1);   // t-023: how hard, and which special level (it is
+        b.nfx = this.nfxLast = { lv, v: speed, str, S: NFX.base + NFX.byV * str + NFX.lv[lv], peak: 0, roll: 0, rolled: false, tore: false, rip: false, side, t: this.gpT || 0 }; }   // an ordinary ball once it's in - matchflow rules)
+      return; }
     const n = this.nets && this.nets[side]; if (!n) return;
     const amp = clamp(Math.round(speed / 6), 2, 5) * (side === 'L' ? -1 : 1);
     this.tweens.killTweensOf(n.imgs); for (const im of n.imgs) im.x = n.x;
