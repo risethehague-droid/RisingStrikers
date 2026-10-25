@@ -622,8 +622,8 @@
       gp8,
     ];
   }
-  // ---- t-023 THE NET COMES ALIVE (NET_FX: on in the Lab, off in matches - Luca: "make a preview of this before you
-  // implement"). Into an empty goal so nothing gets in the way: NT1 a soft shot, NT2 a power shot, NT3-5 a special at
+  // ---- t-023 THE NET COMES ALIVE (NET_FX - Luca: "make a preview of this before you implement"; in every match since
+  // t-025). Into an empty goal so nothing gets in the way: NT1 a soft shot, NT2 a power shot, NT3-5 a special at
   // LV1 / LV2 / LV3 (the Lab presses SPECIAL with the bars in the bank, at a fixed spot so every run looks the same).
   // Every line: how deep the net went, how long the ball rolled in it, ripped yes / no.
   function ntTest(id, name, sub, o) {
@@ -657,7 +657,36 @@
       ntTest('NT3', 'an LV1 special into the net', 'the net stretches far back (x2), the ball rolls round in it', { from: [86, 32], y: 35.4, vz: 3.2, lv: 1 }),
       ntTest('NT4', 'an LV2 special into the net', 'drastic: the net nearly reaches the boards, a long roll', { from: [86, 32], y: 35.4, vz: 2.8, lv: 2 }),
       ntTest('NT5', 'an LV3 special RIPS THROUGH the net', 'the mesh tears, the ball flies on to the boards; whole again at the restart', { from: [86, 32], y: 35.4, vz: 1.4, lv: 3 }),
+      ntMatch(),
     ];
+  }
+  // t-025 NT6 (the net in every match): a goal in the real match flow - as CS5, __labCut plays the celebration and the TV
+  // replay - from NT5's LV3 special, so the replay has to show the net stretching AND the hole. Then the real kick-off
+  // (the Lab's own does nothing): the net must be whole again. Says: the goal counted once, the replay's frames that carry
+  // the net / the hole (and that the replay drew it torn), the hole closed at the kick-off.
+  function ntMatch() {
+    return { id: 'NT6', group: 'NT', name: 'a MATCH goal and its REPLAY (LV3: the hole too)', sub: 'the real celebration + TV replay: the net moves in the replay and the hole is there; whole again at the kick-off', kind: 'cut',
+      setup(r) {
+        window.__labCut = true; cast(m.all.filter(p => !p.benched)); m.all.forEach(p => { put(p, p.home.x, p.home.y, p.team.side > 0 ? 0 : 4); });
+        const s = m.home.players[9], gk = m.away.players[0], from = [86, 32], f = dirIndex(GX - from[0], 35.4 - from[1]), dv = dirVec(f);
+        put(s, from[0] - dv.x * 0.5, from[1] - dv.y * 0.42, f); ballAt(from[0], from[1], 0, s); put(gk, LINE_X, 30.5, 4); gk.stun = 3;   // (the keeper beaten: it's the net we're watching)
+        for (const mt of m.meters || []) mt.e = 0;
+        m.nfxLast = null; m.netRip = null; m.netSaid = null; m.rec = []; m.recN = 0; m.lastReplayEnd = -1e9; m.lastReplay = null;
+        Object.assign(r, { human: s, shooter: s, fired: false, marks: [], rp: { n: 0, net: 0, torn: 0 } });
+        r.action = { at: 0.7, fire: () => { m.meters[0].e = 3; m.special(s); const k = m.pending; if (k) { k.ty = 35.4; k.vz = 1.4; } } };
+        if (!LAB.netReplay0) { LAB.netReplay0 = m.netReplay; m.netReplay = function (nt) {                // (the replay doesn't step the Lab: count what it draws here)
+          LAB.netReplay0.call(m, nt); const q = LAB.run; if (!q || !q.rp) return;
+          q.rp.n++; if (nt) q.rp.net++; if (Object.values(m.nets || {}).some(n => (n.meshes || []).some(o => o.torn && o.mesh.visible))) q.rp.torn++; }; }
+      },
+      check(r) {
+        const b = m.ball, X = m.nfxLast, goals = () => m.home.score + m.away.score;
+        if (r.g == null) { if (b.inNet) r.g = goals(); else return r.t > 6 ? { o: 'NO GOAL' + (r.out ? ' · ' + r.out.toLowerCase() : '') } : null; }
+        if (m.replay || m.goalQ || !m.lastReplay) return r.t > 60 ? { o: 'no goal replay after 60 s' } : null;
+        if (!r.ko) { r.ko = true; r.g2 = goals(); r.hole = !!m.netRip; LAB.kickoff0(m.away); return null; }   // the replay is over: the real kick-off
+        const F = m.lastReplay, nNet = F.filter(f => f.nt).length, nHole = F.filter(f => f.nt && f.nt.some((v, i) => i % 9 === 0 && v >= 2)).length;
+        const whole = !m.netRip && !Object.values(m.nets || {}).some(n => (n.meshes || []).some(o => o.torn));
+        return { o: `GOAL counted ${r.g2 === 1 ? 'once' : r.g2 + ' times'} · LV${X ? X.lv : '?'} ${X ? kmh(X.v) : '?'} km/h, stretched ${X ? Math.round(X.peak * 100) : '?'} cm, ripped: ${X && X.rip ? 'YES' : 'no'} · the replay: ${F.length} frames, the net moving in ${nNet}, the hole in ${nHole} (drawn torn in ${r.rp.torn} of ${r.rp.n} replay frames) · hole open until the kick-off: ${r.hole ? 'yes' : 'NO'}, whole after it: ${whole ? 'yes' : 'NO'}${m.netSaid ? ` · Rami: the ${m.netSaid} line` : ''}`, hold: 0.3 };
+      } };
   }
   // ---- v0.9.0 (Luca: "use their Iron Wall-like special abilities to also block normal shots (K). Only goalkeepers")
   // their keeper, with bars, against your normal shot into the corner he can't reach (made to use it here)
@@ -2273,7 +2302,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       normSave('SM8', 1), normSave('SM9', 2), normSaveYou('SM10', true), normSaveYou('SM11', false),
     ]);
     add('GP', 't-013 · GOAL PHYSICS', 'The goal comes alive (GOAL_PHYS: on in the Lab, off in matches): a net with give - it bulges, slows the ball, holds it a beat, drops it - round posts and bar with real rebounds (glancing carries on, square comes back), and a parry or a broken guard that loops the ball UP for a man following in.', gpTests(smSave));
-    add('NT', 't-023 · THE NET COMES ALIVE (PREVIEW)', 'NET_FX - on in the Lab, off in matches until Luca says: the PixelLab net on a mesh that stretches and wobbles, harder = deeper (a special: drastic, more each level), the ball rolls round in the netting for a second or two before it drops, an LV3 rips through it. Rami has a line for the rip and for a big stretch.', ntTests());
+    add('NT', 't-023 / t-025 · THE LIVING NET', 'NET_FX - in every match since t-025: the PixelLab net on a mesh that stretches and wobbles, harder = deeper (a special: drastic, more each level), the ball rolls round in the netting for a second or two before it drops, an LV3 rips through it. Rami has a line for the rip and for a big stretch. NT6: a match goal with its celebration and TV replay - the net (and an LV3\'s hole) in the replay.', ntTests());
     add('AS', 't-014 · AERIAL SPECIALS BY THE ARC', 'Two per level, picked by how the ball arrives: LV1 AIR BLAZE (chest-high drop) / TIDE CUTTER (low driven cross), LV2 SKY THUNDER (over his head) / CYCLONE HEEL (behind the shoulder), LV3 PHOENIX (very high) / METEOR DRIVE (sky-high loop). The Lab presses SPECIAL as it reaches you.', [
       asTest('AS1', 'LV1 · a chest-high drop → AIR BLAZE', 'comet volley', { lv: 1, from: [99, 6], z: 1.3, T: 1.35 }),
       asTest('AS2', 'LV1 · a low driven cross → TIDE CUTTER', 'knee-slide side volley (the low popup window)', { lv: 1, from: [100, 14], z: 0.6, T: 0.75 }),
@@ -2370,6 +2399,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   function hook() {
     const sim = m.sim.bind(m), control = m.controlHuman.bind(m), restart = m.restart.bind(m), kickoff = m.kickoff.bind(m),
       say = m.say.bind(m), plan = m.planSave.bind(m), rnd = m.render.bind(m);
+    LAB.kickoff0 = kickoff;                                                    // (t-025 NT6: the real kick-off, once, after its goal replay)
     m.sim = function (dt) {
       const r = LAB.run; if (!r || r.frozen) return;
       LAB.acc += dt * LAB.slow;

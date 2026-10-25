@@ -12,7 +12,7 @@ const RAMI_ALT = {                                   // a few extra takes so the
   banter: [['WHAT A CROWD', 'AT KLEINE LOO!'], ['SIX TEAMS, ONE CUP,', 'ONE GOOD CAUSE!']],
 };
 // t-023 (Luca: "make lv3 shots rip through the goal ... and a rami reaction about it"): his lines for the net coming
-// alive (NET_FX, a Test Lab preview for now) - a ripped net, and a big stretch. [lines, expression]
+// alive (NET_FX; in every match since t-025) - a ripped net, and a big stretch. [lines, expression]
 const RAMI_NET = {
   rip: [[['HE HAS RIPPED', 'THE NET OPEN!!'], 'shock'], [['STRAIGHT THROUGH', 'THE NET! GET A NEEDLE!'], 'laugh']],
   stretch: [[['THE NET NEARLY', 'ENDED UP IN THE STANDS!'], 'goal'], [['LOOK AT THAT', 'NET STRETCH!'], 'shock']],
@@ -114,9 +114,12 @@ hc2Mix(Match, {
   // ---------- RAMI ON THE MIC (see class RamiBox)
   buildRami() { this.rami = RamiBox.make(this); },
   ramiSay(key, v, prio) { if (this.rami) this.rami.say(key, v, prio); },
-  // t-023 NET_FX: Rami on the net - 'rip' (an LV3 through it) or 'stretch' (a big one); the top priority, like a goal line
-  ramiNet(kind) { const A = RAMI_NET[kind]; if (!A) return; const [t, expr] = A[Math.floor(Math.random() * A.length)]; this.netSaid = kind;
-    this.ramiSay('goal_followup', { text: t.join('\n'), expr, lab: true }, 3); },
+  // t-023 NET_FX: Rami on the net - 'rip' (an LV3 through it) or 'stretch' (a big one); the top priority, like a goal line.
+  // t-025, in matches: it comes a beat after his goal call (same priority) and takes its place - one line, not two on top
+  // of each other; only a rip or a drastic stretch (ball.js nfxRollStart: NFX.bigD, the specials) gets one. The take
+  // alternates instead of rolling Math.random, so a net line doesn't shift the match's dice (soak: same matches as before)
+  ramiNet(kind) { const A = RAMI_NET[kind]; if (!A) return; this.netLineN = (this.netLineN || 0) + 1; const [t, expr] = A[this.netLineN % A.length]; this.netSaid = kind;
+    this.ramiSay('goal', { text: t.join('\n'), expr, lab: true }, 3); },   // ('goal': no alternative takes to roll for)
   ramiTick(dt) { if (this.rami) this.rami.tick(dt, this.replay ? (this.replay.ctl ? 92 : 52) : (this.help && this.help.visible ? 40 : 0)); },
   // ---- the overlay (team sheet / half time card): DOM, same look as the cup table
   flowEl(kind) {

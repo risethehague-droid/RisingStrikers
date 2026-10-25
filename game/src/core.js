@@ -333,10 +333,19 @@ const GP = {
 // the impact of the goal is felt on stronger shots and especially special shots, the ball should roll with energy for a
 // second or two before it drops, make the net stretch more in general but drastically for special shots, increasingly
 // for each level, make lv3 shots rip through the goal ... and a rami reaction about it (make a preview of this before
-// you implement)"). A PREVIEW on top of t-013's spring net: null = ON in the Test Lab, OFF in matches (until Luca's
-// OK); true / false forces it. It needs GOAL_PHYS (the spring net it stretches).
+// you implement)"). Built on t-013's spring net.
+// t-025 (Luca OK'd the preview, 25 Oct 13:42 - "OK = you like it; then it gets built into matches"): THE NET IS IN EVERY
+// MATCH now. Its own switch, split off GOAL_PHYS: NET_FX brings t-013's net with give (ball.js gpNet / gpPlane, the
+// in-net code, world.js netDraw) plus all of t-023 on top; GOAL_PHYS keeps the rest of t-013 - the round posts / bar
+// (gpWood) and the parry / guard-break pop-ups (gpPop) - Lab only, because Luca hasn't OK'd those for matches.
+// NET_FX: null = ON everywhere; false forces it off (tools/soak.js NET_FX=0 plays v0.12.0's net).
 let NET_FX = null;
-const nfxOn = () => gpOn() && (NET_FX ?? !!window.__lab);
+const nfxOn = () => NET_FX ?? true;
+const netOn = () => nfxOn() || gpOn();                             // the spring net: with NET_FX, or with all of t-013 (GOAL_PHYS)
+// touch screens (the phone version is paused - "don't break it, don't extend it"): the net catches the ball the same,
+// but it is drawn as in v0.12.0 (the images ripple whole). Their art is half size (io.js LITE), which the mesh / the
+// cells can't be cut from, and in SAFE MODE's canvas the cells cost ~4x the frame time of the plain net (tools/netperf.js)
+const netPlain = () => (typeof LITE !== 'undefined' && LITE) || !!window.HC2_TOUCH;
 // every number in one place (ball.js gpNet / nfxRollStep / nfxTear, world.js netMesh / netWarp)
 const NFX = {
   // the stretch: a goal's net spring is softened by S^2 (and its reach grown by S), so the ball sinks S times deeper than
@@ -346,8 +355,9 @@ const NFX = {
   base: 1.2, byV: 0.55, v0: 14, v1: 32, lv: [0, 0.6, 1.1, 1.6], board: 5.6,
   // the ball keeps its energy: at its deepest point the netting takes it round the pocket the bulge made (a swirl rollR m
   // across at rollHz turns a second, shrinking as it slows) for rollT s (soft .. hard, + rollLv per level), sliding down
-  // the bulge (sag m/s), the mesh giving it back slowly (keep: the share of the depth left at the end); then it drops
-  rollT: [0.9, 1.7], rollLv: 0.15, rollR: 0.42, rollHz: 1.5, sag: 0.35, keep: 0.35,
+  // the bulge (sag m/s), the mesh giving it back slowly (keep: the share of the depth left at the end); then it drops.
+  // t-025: it never moves faster than rollVmax m/s on the swirl (the swirl itself goes ~4 m/s)
+  rollT: [0.9, 1.7], rollLv: 0.15, rollR: 0.42, rollHz: 1.5, sag: 0.35, keep: 0.35, rollVmax: 8,
   // LV3 rips through: once it has pushed the mesh tearD m back the mesh splits (holeR m across the hole, opening in
   // holeT s), the ball flies on at keepV of its pace at least, hits the boards and drops; the hole stays open until the
   // restart. Rami: a big-stretch line past bigD m
