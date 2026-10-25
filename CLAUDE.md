@@ -13,7 +13,7 @@ These rules apply to every session on this repo, on either account. If you're on
   - Never push to `main`.
   - Never merge.
   - Never publish to the official pages (the game, the Test Lab).
-- **HC2 HQ is the exception** (Luca's OK, PR #<N>): the co-designer may publish HQ's page directly from his own
+- **HC2 HQ is the exception** (Luca's OK, PR #39): the co-designer may publish HQ's page directly from his own
   account (his main session, or worker-f when he asks it to). The rules:
   - **HQ's page only:** its layout, sections and menus. Never the game or the Test Lab, and never HQ's card data by
     hand (cards change through HQ's own buttons, the taskmaster and the 2-hourly check, as now).
