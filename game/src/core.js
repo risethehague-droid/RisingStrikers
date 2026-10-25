@@ -115,7 +115,11 @@ const ARCADE = {
   // height; at 0.5, 3 rebounds in 10 went up for a header, at 0.65 about half, and ~4 goals a match). popMin: slower than
   // this it just rolls back. The pop leans on the angle (a square hit pops most), never on dice, so the AI's predicted
   // path (ball.js predict) is the path the ball really takes.
-  boards: { e: 0.75, tang: 0.88, pop: 0.65, popMax: 10, popMin: 2.5, popZ: 1.0 },
+  boards: { e: 0.75, tang: 0.88, pop: 0.65, popMax: 10, popMin: 2.5, popZ: 1.0,
+    // t-026 (Luca 25 Oct 14:42, after playing v0.12.0: "scrap the board for throws, that's bad"): the touchline boards are
+    // off - a ball over a touchline is a throw-in again, on ARCADE too. The byline boards (no goal kicks / corners, the
+    // rebounds in front of goal that go up for headers) stay. true = the v0.12.0 touchline boards back.
+    touch: false },
   // 2 AERIALS: a rebound that will go up past headZ becomes a loose high ball "aimed" at the nearest man of the side that
   // touched it last (the way a lob is), so the game's own lob machinery takes over: he times his run under the drop,
   // their nearest man contests it, the drop is a duel / the AERIAL BATTLE, headers, volleys, the aerial specials.
