@@ -49,6 +49,7 @@ function gkMoveAnim(k, kind, down) {
 }
 
 // ---------------------------------------------------------------- Match methods: keeper
+
 hc2Mix(Match, {
   // a shot: the keeper reads it - a reaction delay and a small misread that grow with the pace - then really moves.
   // No dice: whether he saves it is decided when the ball meets (or misses) his body and gloves (pickups).
@@ -159,12 +160,17 @@ hc2Mix(Match, {
   //  - SWEEP: a ball played into the space behind his defence that he reaches first: he comes for it (feet outside the box).
   //  - 1v1 (RUSH): an attacker through on goal with nobody goal-side: he comes out on the ball line, then within ~3.5 m
   //    he stops and sets low to block; a heavy touch he can reach first, he smothers - FIFA session "defending the goal
-  //    or the space" (within ~3 m drop low and smother; a good touch = hold your position).
+  //    or the space" (within ~3 m drop low and smother; a good touch = hold your position). t-017: rebuilt - CLOSE / SET /
+  //    BLOCK / SMOTHER in gkPlan (he used to stand still from 3.2 m and get walked round).
   //  - SET: a shot is coming (an attacker on the ball within ~25 m): small steps, then still in his ready stance.
   //  - BACK: a lob / ball over his head while he's up: he runs back to his line.
   // He walks when nothing is on, jogs to get back into place, runs only when it's urgent. k.gkMode / k.gkTgt = what he is
   // doing (the Lab draws it).
-  keeperAI(k, dt) {
+  // t-016 (worker-f, PR #20) held a keeper under 2.9 m/s near a loose ball so player.js kept him watching it. t-017 does
+  // the facing in player.js at any speed instead (gkFace, set in keeperPlan): the cap also slowed him going across with
+  // a dribbler - the 1v1 mirroring needs his full speed. keeperPlan is t-016's name for the keeper's brain, kept.
+  keeperAI(k, dt) { this.keeperPlan(k, dt); },
+  keeperPlan(k, dt) {
     const b = this.ball, side = k.team.side, gx = k.team.ownGoalX, lineX = gx + side * 1.3;
     k.gkSet = false;
     if (k.state === 'getup') { k.steer(0, 0, dt); return; }                      // t-017: back on his feet first (player.js)

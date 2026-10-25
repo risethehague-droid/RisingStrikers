@@ -814,6 +814,63 @@
       kpTest('KP6', 'dribbling across the edge of the box', 'the striker walks the ball side to side along the D (17 m): he must stay on the angle (the line that halves it), smoothly', { from: [88, 22], bot: across(), track: true, secs: 9 }),
     ];
   }
+  // ======================================================================= t-016 KEEPER FACING + BLOCKED PATHS (Luca's Bug Watch marks,
+  // 24 Oct: "if ball is close enough, the keeper should not give his back to the ball" and "If player path is blocked they
+  // should find alternative paths to the ball or to be useful"). KF1-3: their keeper with the real AI; the line says the
+  // biggest angle between the way he faces and the ball while it was within 6 m (loose or at an attacker's feet).
+  // KF4-5: the real team AI; a lob drops ahead of our #6 with a man holding his spot in the straight line to it.
+  const faceDev = (p, x, y) => { const f = dirVec(p.face), dx = x - p.x, dy = y - p.y, d = len(dx, dy) || 1; return Math.acos(clamp((f.x * dx + f.y * dy) / d, -1, 1)) * 180 / Math.PI; };
+  function kfKeeper(id, name, sub, o) {
+    const t = gkTest(id, name, sub, Object.assign({ secs: 6 }, o, { end: (r, sum) => {
+      const gk = r.gk, b = m.ball, d = len(b.x - gk.x, b.y - gk.y), live = !b.owner || b.owner.team !== gk.team;
+      if (live && !gk.busy() && d < 6 && d > 0.6 && b.owner !== gk)   // (0.6 m: at his feet a facing angle means nothing)
+        { const a = faceDev(gk, b.x, b.y); r.kfMax = Math.max(r.kfMax || 0, a); r.kfNear = (r.kfNear || 0) + STEP; if (a > 100) r.kfBack = (r.kfBack || 0) + STEP; }
+      r.kfTop = Math.max(r.kfTop || 0, gk.speed); if (d >= 6 && gk.speed > 3) r.kfFarAway = Math.max(r.kfFarAway || 0, faceDev(gk, b.x, b.y));
+      const line = () => o.far ? `ball far: top ${r.kfTop.toFixed(1)} m/s, faced up to ${Math.round(r.kfFarAway || 0)}° off the ball as he ran · ${sum()}`
+        : `faced the ball within ${Math.round(r.kfMax || 0)}° (${(r.kfNear || 0).toFixed(1)} s with it 0.6-6 m away; back to it ${(r.kfBack || 0).toFixed(1)} s) · ${sum()}`;
+      if (b.owner === gk) return { o: 'GOT IT · ' + line(), hold: 1 };
+      if (b.inNet) return { o: 'GOAL · ' + line(), hold: 1.2 };
+      if (r.t > (o.secs || 6)) return { o: line() };
+      return null; } }));
+    t.group = 'KF'; return t;
+  }
+  function kfPath(id, name, sub, mate) {
+    return { id, group: 'KF', name, sub, kind: 'path', realAi: true, demo: true,
+      setup(r) {
+        const H = m.home.players, A = m.away.players, man = H[6], from = H[9], blk = mate ? H[5] : A[6];
+        cast([man, from, blk]);
+        put(man, 48, 34, 0); put(from, 74, 34, 4); atFeet(from); put(blk, 49.8, 34, mate ? 0 : 4);
+        r.bots.set(from, sit); r.bots.set(blk, runTo(49.8, 34, RUN));            // he holds his spot: the straight line is shut
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+        LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true;
+        Object.assign(r, { human: man, shooter: from, man, blk, marks: [{ x: 56, y: 34, r: 0.5 }], still: 0, off: 0, px: man.x, py: man.y });
+        r.action = { at: 0.4, fire: () => m.kick(from, 56, 34, 0, 0, 0.12, { mode: 'lob', target: man, loft: true }) };
+      },
+      check(r) {
+        const b = m.ball, p = r.man, mv = len(p.x - r.px, p.y - r.py) / STEP; r.px = p.x; r.py = p.y;
+        if (!r.left) { if (r.fired && !b.owner) r.left = true; else return null; }   // (from the lob on)
+        if (r.fired && !b.owner && b.target === p && len(b.x - p.x, b.y - p.y) > 1.5 && mv < 0.5 && !p.busy()) r.still += STEP;   // (a target in front of him, and he's not moving)
+        if (p.x > 48.6 && p.x < 51.4) r.off = Math.max(r.off, Math.abs(p.y - 34));
+        const line = got => `${got} · stood still ${r.still.toFixed(1)} s · stepped ${r.off.toFixed(1)} m to the side of the ${mate ? 'team-mate' : 'opponent'}`;
+        if (b.owner === p || b.lastP === p) return { o: line(`#${p.num} GOT TO IT`), hold: 1 };
+        if (b.owner && b.owner !== p) return { o: line(`#${b.owner.num} (${b.owner.team === p.team ? 'his side' : 'theirs'}) got it`), hold: 1 };
+        if (r.t > 6) return { o: line('NEVER GOT THERE') };
+        return null; } };
+  }
+  function kfTests() {
+    const H = () => m.home.players, A = () => m.away.players;
+    return [
+      kfKeeper('KF1', 'a loose ball 4 m from him, he is 12 m out', 'their man is first to it, so he backs off to his spot - facing the ball the whole time, never his back to it', { gk: [93, 34],
+        cast: () => [[H()[9], 88.6, 37.6, 0, () => chaseBall(103, 34, 3.4)]], ball: () => ballAt(90, 37, 0, null) }),   // (their man is first to it: he backs off)
+      kfKeeper('KF2', 'an attacker dribbles at him from 6 m', 'he faces the ball as he backs off / sets / blocks', { gk: [96, 34],
+        cast: () => [[H()[9], 90, 35, 0, () => dribbleTo(103, 34, 3.6)]], ball: () => atFeet(H()[9]), secs: 4 }),
+      kfKeeper('KF3', 'ball far away (30 m), he is 17 m out', 'as before: he turns and runs back to his spot (facing where he runs is fine here)', { gk: [88, 34], far: true,
+        cast: () => [[H()[7], 58, 34, 0, () => dribbleTo(66, 34, 2.0)], [A()[3], 75, 34, 4, sit]], ball: () => atFeet(H()[7]), secs: 5 }),
+      kfPath('KF4', 'a team-mate stands in his straight line to the ball', 'a lob drops ahead of #6; #5 holds his spot right in the way: #6 steps round him (no standing still)', true),
+      kfPath('KF5', 'an opponent stands in his straight line to the ball', 'the same with one of theirs in the way', false),
+    ];
+  }
   // ======================================================================= t-007 KEEPER SAVES (Luca 24 Oct 05:57: "the gk ai needs major
   // improvements should be able to jump and understand the x y z more, diving left right lower higher ... the gk should try
   // catch more if the kick is weaker ... there are virtually no corners happening"). Their keeper (right-hand goal) with
@@ -1645,6 +1702,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
+    add('KF', 't-016 · KEEPER FACING + BLOCKED PATHS', 'Luca\'s Bug Watch marks: a keeper never shows his back to a ball within 6 m (KF1-3: the biggest angle between his facing and the ball), and a man with someone in his straight line steps round him instead of standing still (KF4-5).', kfTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
     add('TK', 't-010 · TAP KICK', 'SHOOT tapped (let go within 0.15 s) = a snappy, low stab along your arrow that dies on the grass: a close-range finish. Held = the power shot as before. In the keeper\'s reach he holds most; out of it, it goes in. (On in the Test Lab only.)', tkTests());
     add('KP', 't-017 · KEEPER 1v1 + TRACKING', 'Their keeper against a striker who tries to walk round him (straight at him, past his side, a tap into the empty net) and one walking the ball across the edge of the box. GOAL = he was walked round; he should block, smother or take it off his feet, and stay on the angle smoothly.', kpTests());
