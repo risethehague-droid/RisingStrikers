@@ -105,8 +105,8 @@ hc2Mix(Match, {
     T += 0.06; const px = b.x + b.vx * T, py = b.y + b.vy * T;                  // (a touch past it: he throws himself through the ball, not at where it was)
     // he throws himself just through it: his body sweeps along its path (the ball rarely stays where he aimed - a touch,
     // a cut), and the batch 18 ksmother frames stretch his hands ~1.2 m further out in front (Test Lab KP: sliding only
-    // up to the ball, he won 19 of 30; through it, 28 of 30)
-    const dx = px - k.x, dy = py - k.y, d = len(dx, dy) || 1, v = clamp((d + 0.3) / 0.3, 2.5, 7.5);
+    // up to the ball, he won 19 of 30; 0.3 m through it 21; 0.6 m through it 28)
+    const dx = px - k.x, dy = py - k.y, d = len(dx, dy) || 1, v = clamp((d + 0.6) / 0.3, 3, 7.5);
     k.setState('dive', 0.95); k.diveLen = 0.95; k.diveFly = 0.32; k.diveZ = 0.2; k.leap = 0;
     k.diveDir = Math.sign(dy) || (k.y < 34 ? 1 : -1); k.saveKind = 'smother'; k.smDone = false; k.smU = Math.random(); k.smAt = this.time.now; k.smWant = 0;
     k.smDir = { x: dx / d, y: dy / d }; k.vx = dx / d * v; k.vy = dy / d * v;
