@@ -7,6 +7,7 @@
 //   MATCHES=30 node tools/soak.js                        more
 //   GOAL_PHYS=1 node tools/soak.js                       t-013: the goal physics forced ON in the matches (it's off in a match
 //                                                        until Luca's OK); the summary adds woodwork hits, rebounds back in play, pop-ups
+//   NET_FX=0 node tools/soak.js                          t-025: the living net OFF (v0.12.0's net: the before / after check)
 //   FROM=12 MATCHES=12 node tools/soak.js                the next 12 set-ups (a second sample)
 //   ONE='seed=8919 home=IS away=IRO lvl=hard ai=new weather=rain tod=night' node tools/soak.js    replay one match
 //   OUT=soak-out node tools/soak.js                      also write soak-out/soak-<time>.json and .md
@@ -88,6 +89,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       if (A) { W.aerialGoals++; if (W.lastAerial.kind === 'airSp') W.airSpGoals++; if (W.lastAerial.kind === 'head') W.headGoals++; } if (C) { W.crossGoals++; W['crossGoals' + W.lastCross.y]++; } W.goalLog.push(`${v.team.name} ${v.min}' ${v.how || '?'}${A ? ' AERIAL:' + W.lastAerial.kind : ''}${C ? ' from a cross ' + W.lastCross.y : ''} far ${Math.round(v.far || 0)}`); } }); }
     return GAME_VER; }, !!process.env.TAP);
   if (process.env.GOAL_PHYS) await page.evaluate(() => { GOAL_PHYS = true; });   // t-013
+  if (process.env.NET_FX) await page.evaluate(v => { NET_FX = v !== '0'; }, process.env.NET_FX);   // t-025: NET_FX=0 = v0.12.0's net (the living net is on in every match)
   // t-021: each check's kind on this version (bug / odd / look...), so the report can lead with the real bugs and put the
   // cosmetic 'look' ones (animation flicker, jitter, stutter: counted, never clipped) in one line
   const SEV = await page.evaluate(() => Object.fromEntries(Object.entries(BW_CHECKS).map(([k, v]) => [k, v.sev])));

@@ -58,6 +58,7 @@ hc2Mix(Match, {
     const on = [9, 10, 8, 7, 6, 5, 4, 3, 2, 1].map(i => team.players[i]).filter(p => !p.sentOff), k = on[0], k2 = on[1] || on[0];
     k.x = 52.5 - team.side * 0.5; k.y = 34; k2.x = 52.5 - team.side * 1.0; k2.y = 37;
     Object.assign(this.ball, { x: 52.5, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: k, last: team, inNet: false, netRight: undefined, target: null, skid: false });
+    this.netReset();                                                             // t-025: the net still and whole again (an LV3's hole closes now, not after the freeze)
     if (this.ref) { this.ref.x = 52.5 + 3; this.ref.y = 22; this.ref.vx = this.ref.vy = 0; this.ref.act('whistle', 0.9); }   // v0.7.1: the referee starts it
     if (team === this.home) this.human = k;
     this.setPiece = null; this.pending = null;
