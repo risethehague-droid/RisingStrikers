@@ -37,6 +37,25 @@ const GK_MOVES = {
 // gk logic"): on. Every dive, leap, tip, smother and close block uses the PixelLab batch 16 moves; a special save still
 // has its own banner, rig and effects on top.
 const GK_NEW_ON_NORMAL = true, GK_NEW = /^k(leap|tip|divecatch|block)/;
+// t-027 THE KEEPER'S RANGE (Luca 25 Oct 14:42, after playing v0.12.0: "gk needs to approach from further range to
+// close in on attackers who are coming close, right now it's easy to run around the goalie because they don't have
+// enough engagement range"). t-017's 1v1 started late and stayed deep: he began coming at 26 m, came no further than
+// 9 m off his line and only attacked the ball inside 13 m - so a striker had the whole box to take him on in. Now
+// he starts earlier, comes out to the edge of his box and attacks the ball while it's still ~18 m out; the dive at
+// the feet stays inside his box (hands). [the t-017 value in brackets]
+const GK_1V1 = {
+  engage: 32,        // a striker running at goal, no defender covering him: he starts closing from this far (m from goal) [26]
+  engageSlow: 20,    // ...one not running at goal (walking it across): from this far [14]
+  stayOut: 24,       // once out, he stays out while the striker is within this, even if he slows [18]
+  outMax: 14,        // how far off his line he comes while closing a breakaway (m along the angle; the box is 16.5) [9]
+  outSlow: 5.5,      // ...for a striker walking across the box or set to shoot: as t-017 (8 left him 6 m from a set shooter at
+                     // 14 m with no time for a hard low shot: Test Lab GKX3 went in)
+  blockGap: 9.5,     // nearer than this to the ball (m) on a breakaway, he attacks it: up to ~1.4 m in front of it [6.5]
+  blockFrom: 19,     // ...once the ball is within this of his goal (m) [13]
+  blockMax: 15.5,    // ...but never further out than this (m along the angle: inside his box)
+  gap0: 1.2, gapK: 0.22, gapMin: 1.6, gapMax: 5.5,   // while closing a breakaway, he waits gap0 + gapK x (ball to goal) in front of the ball [1.4 + 0.3x, 1.9-7]
+                                                     // (anyone else: t-017's gap, unchanged)
+};
 function gkMoveAnim(k, kind, down) {
   const A = MAN.kits[k.kit].anims, sides = [k.team.side > 0 ? 'E' : 'W', DIRS[k.face], 'S'];
   for (const n0 of GK_MOVES[kind] || ['DIVE']) {
@@ -324,27 +343,28 @@ hc2Mix(Match, {
       const cover = defs.some(p => H(p.x) < ch - 0.3 && len(p.x - carrier.x, p.y - carrier.y) < 9 && Math.abs((p.y - 34) - (carrier.y - 34) * H(p.x) / Math.max(ch, 1)) < 3.5);
       const toG = ((gx - carrier.x) * carrier.vx + (34 - carrier.y) * carrier.vy) / (cd || 1), coming = toG > 1.3 && toG > 0.65 * carrier.speed;   // running AT goal (not across the box)
       const engaged = !!k.oneDeep;                                                    // (once out, he doesn't turn back when the dribbler slows)
-      if (ch > 0.3 && Math.abs(carrier.y - 34) < 20 && (cd < 9 || (!cover && cd < (coming || engaged ? 26 : 14)))) {
+      if (ch > 0.3 && Math.abs(carrier.y - 34) < 20 && (cd < 9 || (!cover && cd < (coming || engaged ? GK_1V1.engage : GK_1V1.engageSlow)))) {   // (t-027: from further out)
         k.rushT = (k.rushT || 0) + dt;
         const bx = b.x + b.vx * 0.12, by = b.y + b.vy * 0.12, bdd = len(bx - gx, by - 34);
         const od = len(b.x - carrier.x, b.y - carrier.y), gapNow = len(b.x - k.x, b.y - k.y);
-        const deep = coming || (engaged && cd < 18); k.oneDeep = deep;
+        const deep = coming || (engaged && cd < GK_1V1.stayOut); k.oneDeep = deep;
         // when could his dive get his hands on it? (the ball's path a beat at a time against how far a dive reaches by then)
         let Tm = 9; for (let t = 0; t <= 0.45; t += 0.05) if (len(b.x + b.vx * t - k.x, b.y + b.vy * t - k.y) <= 0.9 + 7.0 * Math.max(0, t - 0.06)) { Tm = t; break; }
         const smOk = !k.smAt || this.time.now - k.smAt > 1400;                        // (not straight after a dive)
         // go down when it's almost on him, when a touch gets away from the striker inside his reach, or right on top of
         // him. A striker cutting across further out is mirrored (CLOSE / BLOCK below), not dived at - a dive that early
         // is a guess, and a quick cut beats it every time (Test Lab KP2)
-        const want = smOk && b.z < 0.6 && (Tm <= 0.18 || (od > 0.75 && Tm <= 0.35) || gapNow < 1.3);
+        const inBox = H(b.x) < 16.2 && Math.abs(b.y - 34) < 20;                       // t-027: further out he'd be diving with his hands outside his box - he blocks and waits instead
+        const want = smOk && inBox && b.z < 0.6 && (Tm <= 0.18 || (od > 0.75 && Tm <= 0.35) || gapNow < 1.3);
         k.smWant = want ? (k.smWant || 0) + dt : 0;
         if (want && k.smWant >= react * 0.5) return { mode: 'SMOTHER', x: b.x, y: b.y, v: kv, dive: true };   // (a weaker keeper reads it a beat later)
         const still = carrier.speed < 1.2 && od < 0.6;                               // he's stopped with it under control: don't charge in, be set
         let g, mode;
-        if (gapNow < 6.5 && bdd < 13 && deep && !still) {                                         // close: step up to ~1.4 m in front of the ball and make him commit (he used to back off to his line)
-          const u = this.gkBisector(bx, by, gx, side, Math.max(0.6, bdd - 1.4)); g = u; mode = 'BLOCK';
+        if (gapNow < GK_1V1.blockGap && bdd < GK_1V1.blockFrom && deep && !still) {                 // close: step up to ~1.4 m in front of the ball and make him commit (he used to back off to his line)
+          const u = this.gkBisector(bx, by, gx, side, clamp(bdd - 1.4, 0.6, GK_1V1.blockMax)); g = u; mode = 'BLOCK';   // (t-027: never past the edge of his box)
         } else {
-          const gap = clamp(1.4 + bdd * 0.3, 1.9, 7);                                // how far in front of the ball he wants to be
-          const depth = clamp(bdd - gap, 1.0, deep ? 9 : 5.5);                        // (out to ~the penalty spot for a breakaway; a striker walking across the box: ~5 m)
+          const gap = deep ? clamp(GK_1V1.gap0 + bdd * GK_1V1.gapK, GK_1V1.gapMin, GK_1V1.gapMax) : clamp(1.4 + bdd * 0.3, 1.9, 7);   // how far in front of the ball he wants to be (t-027: nearer only on a breakaway)
+          const depth = clamp(bdd - gap, 1.0, deep ? GK_1V1.outMax : GK_1V1.outSlow);         // (t-027: out towards the edge of the box for a breakaway; a striker walking across the box: ~8 m)
           g = this.gkBisector(bx, by, gx, side, depth); mode = gapNow < 4 ? 'BLOCK' : 'CLOSE';
         }
         const set = gapNow > 2.6 && gapNow < 10 && od < 0.75 && carrier.speed < 3.2 && (still || !deep);

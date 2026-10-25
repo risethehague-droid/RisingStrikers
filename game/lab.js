@@ -825,10 +825,13 @@
       end: (r, sum) => {
         const gk = r.gk, b = m.ball, s = m.home.players[9], K = r.kp, dS = len(gk.x - s.x, gk.y - s.y);
         K.minD = Math.min(K.minD, len(gk.x - b.x, gk.y - b.y));
+        K.out = Math.max(K.out || 0, GX - gk.x);                                 // t-027: how far off his line he came,
+        if (K.eng == null && /^(CLOSE|BLOCK|SMOTHER)$/.test(gk.gkMode || '')) K.eng = len(GX - s.x, 34 - s.y);   // where the striker was when he started coming,
+        if (K.met == null && len(gk.x - b.x, gk.y - b.y) < 2.5) K.met = GX - b.x;  // and where they met (m from his line)
         if (dS < 4 && gk.speed < 0.3 && gk.state !== 'dive') K.stillT += STEP;
         if (o.track && b.owner === s) { const g = m.gkBisector(b.x, b.y, GX, -1, 3), ux = g.x - b.x, uy = g.y - b.y, ul = len(ux, uy) || 1; const off = Math.abs(((gk.x - b.x) * uy - (gk.y - b.y) * ux) / ul);   // (how far he is off the line that halves the angle, wherever he stands on it)
           K.maxOff = Math.max(K.maxOff, off); K.offS += off; K.offN++; }
-        const tail = () => `${o.track ? `off the angle: avg ${(K.offS / Math.max(1, K.offN)).toFixed(2)} m, max ${K.maxOff.toFixed(2)} m · ` : ''}closest to the ball ${K.minD.toFixed(1)} m · stood still near him ${K.stillT.toFixed(1)} s · ${sum()}`;
+        const tail = () => `${o.track ? `off the angle: avg ${(K.offS / Math.max(1, K.offN)).toFixed(2)} m, max ${K.maxOff.toFixed(2)} m · ` : ''}${K.eng != null ? `came for him at ${K.eng.toFixed(0)} m · ` : ''}${K.met != null ? `met him ${K.met.toFixed(1)} m out · ` : ''}furthest out ${(K.out || 0).toFixed(1)} m · closest to the ball ${K.minD.toFixed(1)} m · stood still near him ${K.stillT.toFixed(1)} s · ${sum()}`;
         if (b.owner === gk) return { o: 'KEEPER WON IT · ' + tail(), hold: 1 };
         if (!b.owner && b.lastP === gk && r.t > 0.3) return { o: 'KEEPER GOT TO IT · ' + tail(), hold: 1 };
         if (b.inNet) return { o: 'GOAL (walked round him) · ' + tail(), hold: 1.4 };
@@ -848,6 +851,8 @@
       kpTest('KP3', 'slow walk, round him late', 'at 2 m/s, straight at him, cutting round at 1.8 m', { from: [86, 33], v: 2.0, cut: 1.8, side: 1 }),
       kpTest('KP4', 'from the angle, round the near side', 'coming in from the right of the box (y 46) at 3.5 m/s, going round him on the near-post side', { from: [86, 47], v: 3.5, cut: 2.8, side: 1 }),
       kpTest('KP5', 'feint one way, go the other', 'shows him the left at 3 m, then goes round his right', { from: [82, 34], v: 3.6, cut: 3.0, side: 1, feint: true }),
+      kpTest('KP7', 'a breakaway from 30 m at a sprint', 't-027: through on goal from the halfway side of the D at 6 m/s, round him at 3.5 m: he should come out and meet him near the edge of his box', { from: [75, 34], v: 6.0, cut: 3.5, side: 1, secs: 10 }),
+      kpTest('KP8', 'a jog from 28 m, round him wide and early', 't-027: at 4.6 m/s, swinging round him from 5.5 m away: the run a player makes to beat a keeper who stays deep', { from: [77, 30], v: 4.6, cut: 5.5, side: -1, secs: 10 }),
       kpTest('KP6', 'dribbling across the edge of the box', 'the striker walks the ball side to side along the D (17 m): he must stay on the angle (the line that halves it), smoothly', { from: [88, 22], bot: across(), track: true, secs: 9 }),
     ];
   }
