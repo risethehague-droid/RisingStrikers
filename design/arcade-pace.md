@@ -121,3 +121,67 @@ Keep **2 x 3 minutes** for now. With more happening per minute it will feel full
 4. **Replays:** one short goal replay, the rest only in HIGHLIGHTS. OK?
 5. **Fouls:** play advantage more, stop only for cards. OK?
 6. **Match length** for the event day: keep 2 x 3, or 2 x 2?
+
+---
+
+## 6. Part 2, built (branch `worker-f/arcade-2`, 25 Oct): measured
+
+All on ARCADE only, as dials in the `PACE` preset (`game/src/core.js`); CLASSIC plays exactly as before.
+- **Proof:** 6 seeded soak matches identical to the t-016 base.
+- **Base:** part 2 sits on t-016 (PR #20, the keeper facing fix): both touch `keeper.js`.
+
+**What's in**
+1. **Big moments, both ways:**
+   - the SP meter fills 1.75x
+   - both sides shoot from ~20% further
+   - power shots charge 25% quicker (0.6 s)
+   - shots +12% (`SHOT_K` 1.12, `KICK_MAX` 33)
+   - keepers answer a shot they'd lose with a special save far more often: from 70% of his reach, 0.85 x their level (CLASSIC 95%, 0.55); a special nearly always (95%)
+2. **MASH duels on the grass:** the AERIAL BATTLE's machinery (slow-mo, MASH!, sparks, the bar, the computer mashing by level), now also:
+   - on a *contested* standing tackle (win chance 28-72%; the better tackle is a head start)
+   - on a 50-50 loose ball two men reach together
+   - PASS or SHOOT mashes; the winner comes away with it at his feet, with a bang
+   - at most one every 9 s; the lob battle keeps its own clock
+3. **More than human:**
+   - a 0.8 s sprint dash (0.55)
+   - headers up to 3.1 m (2.7)
+   - a hot trail on every hard shot, longer on specials (code effects only)
+4. **The ball:**
+   - ground passes 20% firmer
+   - lobs 0.85 of the height (~8% less hang time). At 0.72 (~15%) defenders headed the lowered lobs away and the AERIAL BATTLE nearly vanished (0.4 a match)
+   - 0.88 of the grass grip
+5. **Flow:**
+   - no hit-stop on passes, 35% more on shots and specials
+   - ADVANTAGE: a foul without a card or a penalty plays on with a team-mate right there, otherwise a quick free kick, no foul scene
+6. **Not easier:**
+   - the computer's side closes you down up to 30% harder and goes in on you 35% more, both scaled by level
+   - it shields the ball better by level, and uses its own take-on dash more
+   - your dash protects you from tackles only its first 0.55 s, as on CLASSIC
+
+**`tools/pacestudy.js`, 8 computer v computer matches (same seeds), per match**
+
+| | CLASSIC | ARCADE part 1 | ARCADE part 2 |
+| --- | --- | --- | --- |
+| Shots | 11.9 | 13.0 | **14.5** |
+| Goals | 4.9 | 5.0 | **3.5** |
+| Special saves | 3.9 | 3.4 | **6.0** |
+| Special shots / aerial specials | 1.1 / 1.4 | 1.0 / 1.4 | **1.9** / 1.0 |
+| MASH duels (grass / air) | 0 / 1.0 | 0 / 2.0 | **5.8 / 1.1** |
+| Foul scenes | 7 s | 8 s | **5 s** |
+| Special cut-scenes | 6 s | 5 s | **9 s** |
+| Live play | 79% | 86% | **88%** |
+
+These 8 seeds score more than the co-designer's v0.11.0 sample (2.5 goals): match-to-match spread is wide. An earlier tuning step (before the harder pressing) gave 16.8 shots / 4.4 goals. The shooting keenness (`shotWant`, 0.85) is the dial if part 2 feels short of shots after a playtest.
+
+**Not easier: `tools/proxy093.js`** (a scripted you; the copy used here mashes the duels like a NORMAL human, since the original never mashes)
+
+| Easy / Normal / Hard / Rise | CLASSIC | ARCADE part 2 |
+| --- | --- | --- |
+| run: you reach their box (80 trials) | 38 / 39 / 24 / 10% | 31 / 31 / 26 / 19% |
+| def: you win it back (40-60 trials) | 85 / 58 / 53 / 50% | 72 / 62 / 63 / 50% |
+
+- These proxies swing 10-20 points between runs (CLASSIC Normal "run" read 20%, 30% and 39% on three runs).
+- Easy and Normal are as hard or harder, and Rise defending is level.
+- Still open:
+  - Rise "run" (19% vs 10%), about half of it from ADVANTAGE (Rise fouls most, and a foul now plays on)
+  - Hard "def" (63% vs 53%)
