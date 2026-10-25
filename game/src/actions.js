@@ -105,7 +105,7 @@ hc2Mix(Match, {
       else if (Input.pressed('shoot') && !b.owner && b.z < 0.3 && len(b.x - p.x, b.y - p.y) >= 2.0 && len(b.x - p.x, b.y - p.y) < 4.5 &&
         b.last !== team && !p.busy()) this.slideTackle(p, null);                 // a loose ball just out of reach: slide in for it
       else if (Input.pressed('shoot') && !b.owner && len(b.x - p.x, b.y - p.y) < 2.0 && b.z < 1) {   // first-time shot / volley
-        const volley = b.z > 0.35; b.owner = p; this.doShot(p, 0.6, ax.y); if (volley) p.kickAnim = 'volley';
+        const volley = b.z > 0.35; b.owner = p; this.doShot(p, 0.6, ax.y); if (volley) { this.airHitNote(p, p.team.goalX - p.x, 34 - p.y); this.volleyLook(p); }   // (batch 20: picked + timed like airVolley's)
       }
       else if (Input.pressed('shoot') && this.canBicycle(p, true)) this.bicycle(p);   // ball over head height in front of goal: overhead kick
       else if (Input.pressed('shoot') && !b.owner && b.z >= 0.4 && b.z < 1.3 && len(b.x - p.x, b.y - p.y) < 3.4 && !p.busy()) {
@@ -249,7 +249,7 @@ hc2Mix(Match, {
     }
     else { best = this.bestOption(p); tx = best ? best.q.x : p.x + s * 12; ty = best ? best.q.y : p.y; spd = clamp(len(tx - p.x, ty - p.y) * 0.9, 7, 14); vz = 2.5; }
     const dx = tx - b.x, dy = ty - b.y, l = len(dx, dy) || 1;
-    this.airHitNote(p, dx, dy);                                                  // (t-022: for the animation pick - before the ball turns)
+    this.airHitNote(p, dx, dy, ch);                                              // (t-022: for the animation pick - before the ball turns)
     Object.assign(b, { vx: dx / l * spd, vy: dy / l * spd, vz, skid: true, rollV: 0.72 * spd, last: p.team, lastP: p, save: null, target: best ? best.q : null, special: 0, power: ch ? ch.pw : 0, saveable: null });   // v0.8.8: a headed ball is an ordinary ball (a spent special kept its special flight)   // (t-022: a charged one is a shot by its pace for the keeper's guard, as a ground shot)
     p.face = dirIndex(dx, dy); p.setState('header', 0.5); p.cool = kind === 'down' ? 0 : 0.4; this.headBuf = 0;   // (a cushion: he takes it straight away)
     b.tried = null; b.lob = false; SFX.head(); b.how = { kind: 'header', x: b.x, y: b.y };
@@ -316,17 +316,24 @@ hc2Mix(Match, {
   // a volley at goal: doShot as before (a tap: the same call), charged = its power, the timing's spray on the kick waiting
   airVolley(p, power, aimY) {
     const ch = this.airChargeFor(p);
-    this.airHitNote(p, p.team.goalX - p.x, 34 - p.y);
-    this.doShot(p, ch ? ch.pw : power, aimY); p.kickAnim = 'volley';
+    this.airHitNote(p, p.team.goalX - p.x, 34 - p.y, ch);
+    this.doShot(p, ch ? ch.pw : power, aimY); this.volleyLook(p);
     const k = this.pending; if (!ch || !k || k.p !== p) { this.airChargeDone(p, 'volley', null, k && k.p === p ? k.speed : 0); return; }
     const A = AIR_CHARGE, w = 1 - ch.q;
     k.ty = clamp(k.ty + rnd(-1, 1) * w * A.err, 24, 44); k.vz += w * rnd(0, A.wild); k.info.airCh = ch;   // (ball.js impact: the sparks when it leaves the boot; not info.air - that is the aerial special's hang point)
     this.airChargeDone(p, 'volley', ch, k.speed);
   },
   // where the ball came from and how high, for the header / volley pick (player.js AIR_PICKS)
-  airHitNote(p, ox, oy) {
+  airHitNote(p, ox, oy, ch) {
     const b = this.ball, ix = -b.vx, iy = -b.vy, il = len(ix, iy), ol = len(ox, oy);
-    p.airHit = { z: b.z, side: il > 0.5 && ol > 0.1 ? Math.acos(clamp((ix * ox + iy * oy) / (il * ol), -1, 1)) * 180 / Math.PI : 0 };
+    p.airHit = { z: b.z, side: il > 0.5 && ol > 0.1 ? Math.acos(clamp((ix * ox + iy * oy) / (il * ol), -1, 1)) * 180 / Math.PI : 0, pw: ch ? ch.pw : 0 };
+  },
+  // batch 20: a volley's move is picked here (the same pick player.js makes from p.airHit and his facing), so the kick
+  // waiting in this.pending lets the ball go on that move's contact frame (manifest 'contact'), as KICK_HIT does for
+  // the ground kicks. Moves without a contact frame keep the wind-up doShot gave them.
+  volleyLook(p) {
+    p.kickAnim = 'volley'; const k = this.pending, K = MAN.kits[p.kit], d = DIRS[p.face], r = airPick(K, 'volley', d, p.airHit);
+    const c = r && airContact(K, r.a, d); if (k && k.p === p && c != null) k.t = (c + 0.6) / kickRate(r.a);
   },
   airChargeDone(p, kind, ch, spd) {
     this.acLast = ch ? { by: p, kind, ...ch, spd, t: this.time.now } : { by: p, kind, tap: true, spd, t: this.time.now };   // (the Lab's HV lines)
