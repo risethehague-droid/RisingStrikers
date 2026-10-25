@@ -292,6 +292,22 @@ const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the w
 // null = ON in the Test Lab, OFF in matches (until Luca's OK); true / false forces it (tools/soak.js GOAL_PHYS=1).
 let GOAL_PHYS = null;
 const gpOn = () => GOAL_PHYS ?? !!window.__lab;
+// t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule MANDATORY just make it smooth"): IFAB Law 11, simplified - the rule
+// is in matchflow.js (offKick / offWatch / offCall), the computer playing to it in teamai.js. ON by default and in every
+// match; Options can switch it OFF for testing (kept like the other options). The Test Lab plays it in the OF group and
+// in the tests that run the real team AI; its other set-ups are single moments with half a team, so it stays out of them.
+const OFFSIDE = {
+  LEVEL: 0.3,       // within 30 cm of the second-last defender = level = onside (the assistant gives the attacker that)
+  HOLD: 0.7,        // the computer's runners wait this far behind the line until the pass is played (on his shoulder)
+  SLIP: 4.0,        // ...give or take: how tight they play it varies by up to this much (a step too far now and then)
+  READ: 3.0,        // the passer's misread: a man up to this far past the line can still look onside to him
+                    // (SLIP / READ are the dial for how often the computer gets caught: 12-match soak 0.3 a match with these,
+                    // 0 with 1.6 / 0.6 - its forwards rarely reach their line in this game's shape, so the flag stays rare)
+  FLAG: 1.5,        // seconds the flagged man stays marked
+};
+let OFFSIDE_ON = (() => { try { return localStorage.getItem('hc2-offside') !== 'off'; } catch (e) { return true; } })();
+function setOffside(v) { OFFSIDE_ON = !!v; try { localStorage.setItem('hc2-offside', v ? 'on' : 'off'); } catch (e) {} }
+const offsideOn = () => OFFSIDE_ON && !window.HC2_NO_OFFSIDE;
 // every number in one place, to tune in the Lab (ball.js gpNet / gpWood / gpPop, world.js netDraw)
 const GP = {
   // the net (metres, per kg of ball): as deep as the art draws it - 2 m back at the grass, the back 2 m high, the roof

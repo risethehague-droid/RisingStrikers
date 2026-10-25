@@ -221,7 +221,10 @@ hc2Mix(Match, {
         } else if (team.inPoss && owner && owner.team === team && p.i >= 9) {     // with the ball: a forward offers a run in behind
           const runT = (team.runT = (team.runT ?? 0) - dt / 2);
           if (runT <= 0) { team.runT = 1.5; team.runner = team.players.filter(q => q.i >= 9 && !q.sentOff).sort((u, v) => len(u.x - owner.x, u.y - owner.y) - len(v.x - owner.x, v.y - owner.y))[0]; }
-          if (team.runner === p) { const ahead = this.aiFrame(team, owner.x) + 18; t = { x: this.aiWorld(team, Math.min(ahead, (team.offX ?? 99) - 0.6)), y: clamp(owner.y + (34 - owner.y) * 0.5, 6, 62) }; }
+          if (team.runner === p) { const ox = this.aiFrame(team, owner.x), ln = (team.offX ?? 99) - 0.6;
+            const sh = offsideOn() && ln - ox < 28 && ln > 0 ? (team.offX ?? 99) - (team.offHold ?? OFFSIDE.HOLD) : null;   // t-024: within reach of their line he plays on the last man's shoulder,
+            t = sh != null ? { x: this.aiWorld(team, sh), y: clamp(owner.y + (34 - owner.y) * 0.5, 6, 62), go: true, shoulder: true }   // as tight as he reads it (team.offHold, below), getting there at a run
+              : { x: this.aiWorld(team, Math.min(ox + 18, ln)), y: clamp(owner.y + (34 - owner.y) * 0.5, 6, 62) }; }
         }
         if (team.marks && team.marks.get(p) || p === team.cover || (p === team.support && team.supportPt) || (team.wing && team.wing.has(p))) fixed.push({ x: t.x, y: t.y, fixedT: true });
         tgt.set(p, t);
@@ -243,6 +246,15 @@ hc2Mix(Match, {
             if (d > 0.01 && d < AI.SEP) { const k = (AI.SEP - d) / 2 / d; ti.x -= dx * k; ti.y -= dy * k; tj.x += dx * k; tj.y += dy * k; } }
           for (const f of fixed) { const dx = ti.x - f.x, dy = ti.y - f.y, d = len(dx, dy); if (d > 0.01 && d < AI.SEP) { const k = (AI.SEP - d) / d; ti.x += dx * k; ti.y += dy * k; } }
         }
+      }
+      // t-024 OFFSIDE: while we have it, nobody goes past their second-last man - they wait on his shoulder and go as it's
+      // played (a team-mate's kick on its way: the wind-up; no owner: the runs and the receiver's run take over). Like real
+      // forwards they don't judge it to the centimetre: how tight they play it (team.offHold) changes every couple of
+      // seconds, now and then a step too far - with the passer's misread (passLook) that's the odd flag (OFFSIDE.SLIP / READ)
+      if (owner && owner.team === team && offsideOn() && !(this.pending && this.pending.p.team === team)) {
+        team.offT = (team.offT ?? 0) - dt; if (team.offT <= 0) { team.offT = rnd(1.5, 3); team.offHold = OFFSIDE.HOLD - rnd(0, OFFSIDE.SLIP); }
+        const lim = Math.max(this.offLine(team) - (team.offHold ?? OFFSIDE.HOLD), this.aiFrame(team, b.x) - OFFSIDE.HOLD, 0);
+        for (const [, t] of tgt) if (this.aiFrame(team, t.x) > lim) t.x = this.aiWorld(team, lim);
       }
       for (const p of team.players) {
         if (p === this.human && team === this.home && !this.demo) continue;
@@ -281,7 +293,7 @@ hc2Mix(Match, {
         const d = len(t.x - p.x, t.y - p.y), dead = Math.max(0.8, 0.06 * len(b.x - p.x, b.y - p.y));
         const settled = (p.settledAt ?? -1e9) > this.time.now - 60;                // v0.8.7: settled men only move again once the spot is well away
         if (d < (settled ? dead * 1.8 : dead)) { p.settledAt = this.time.now; p.steer(0, 0, dt); if (p.speed < 0.4) p.look(b.x - p.x, b.y - p.y); continue; }   // in position: stand and watch the ball (BUG WATCH: no more step-stop-step fidgeting at the edge)
-        const back = this.aiFrame(team, t.x) < this.aiFrame(team, p.x) - 4, hurry = back && d > 10, run = team.wing && team.wing.get(p);
+        const back = this.aiFrame(team, t.x) < this.aiFrame(team, p.x) - 4, hurry = back && d > 10, run = (team.wing && team.wing.get(p)) || (t.shoulder ? t : null);   // (t-024: the run to the last man's shoulder too)
         p.sprinting = (hurry && d > 18 && p.stamina > 0.5) || (!!run && run.go && d > 3 && p.stamina > 0.3);   // (t-012: a run into the box is made flat out)
         const cap = p.sprinting ? p.top(true, false) : hurry || run ? RUN : d > 14 ? RUN * 0.9 : JOG;
         p.moveTo(t.x, t.y, Math.min(cap, AI.ARRIVE * d + 0.4), dt);
@@ -439,8 +451,9 @@ hc2Mix(Match, {
   // score = he gets there in time + the defenders don't + his shot from there - the keeper's reach - bodies in a low lane
   crossLook(p) {
     const team = p.team, gk = team.opp.players[0], defs = team.opp.players.filter(o => !o.sentOff && !o.keeper); let best = null;
+    const offL = offsideOn() ? this.offLine(team) + rnd(0, OFFSIDE.READ) : null;   // t-024: never a cross at a man standing offside (as he reads it)
     for (const q of team.players) {
-      if (q === p || q.keeper || q.sentOff || q.stun > 0) continue;
+      if (q === p || q.keeper || q.sentOff || q.stun > 0 || (offL != null && this.offPos(q, offL))) continue;
       const w = team.wing && team.wing.get(q), name = w ? w.run : '', at0 = w && name !== 'overlap' ? w : { x: q.x + q.vx * 0.6, y: q.y + q.vy * 0.6 };
       const X = this.aiFrame(team, at0.x), off = Math.abs(at0.y - 34);
       if (X < 33 || X > 50 || off > 15) continue;                                  // in the box or at its edge
@@ -500,8 +513,9 @@ hc2Mix(Match, {
       for (const o of opp) { const t = ((o.x - p.x) * dx + (o.y - p.y) * dy) / (d * d); if (t < 0.02 || t > 1.0) continue;
         const lat = Math.abs((o.x - p.x) * dy - (o.y - p.y) * dx) / d, tb = 0.15 + t * (T - 0.15), to = 0.25 + Math.max(0, lat - 0.9) / 5.5;
         if (to < tb) r += clamp((tb - to) / 0.3, 0, 1); } return r; };
+    const offL = offsideOn() ? this.offLine(team) + rnd(0, OFFSIDE.READ) : null;   // t-024: only a man who is onside as it's played (as he reads it: a little out)
     for (const q of team.players) {
-      if (q === p || q.keeper || q.sentOff || q.stun > 0) continue;
+      if (q === p || q.keeper || q.sentOff || q.stun > 0 || (offL != null && this.offPos(q, offL))) continue;
       const d0 = len(q.x - p.x, q.y - p.y); if (d0 < 5 || d0 > 40) continue;
       const lt = d0 / 14 * 0.6, feet = { x: q.x + q.vx * lt, y: q.y + q.vy * lt }, opts = [];   // (doPass leads him a little)
       { const d = len(feet.x - p.x, feet.y - p.y), T = passTime(d) + 0.15; opts.push({ mode: 'ground', pt: feet, d, risk: lane(feet, d, T) + race(feet, T) * 0.5 }); }
@@ -542,8 +556,9 @@ hc2Mix(Match, {
   // the AI looks at every team-mate: forward progress + how open he is - opponents in the lane - distance
   bestOption(p) {
     const team = p.team; let best = null;
+    const offL = offsideOn() ? this.offLine(team) + rnd(0, OFFSIDE.READ) : null;   // t-024: not a man standing offside (as he reads it)
     for (const q of team.players) {
-      if (q === p || q.keeper) continue;
+      if (q === p || q.keeper || (offL != null && this.offPos(q, offL))) continue;
       const dx = q.x - p.x, dy = q.y - p.y, d = len(dx, dy); if (d < 5 || d > 45) continue;
       let open = 8, lane = 0;
       for (const o of team.opp.players) {
