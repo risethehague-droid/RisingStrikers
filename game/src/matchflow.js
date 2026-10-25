@@ -748,7 +748,7 @@ hc2Mix(Match, {
       }
       return;
     }
-    if ((b.y < 0 || b.y > PITCH_W) && paceK().arcade) return this.arcadeOut();   // t-020 ARCADE: no throw-ins either
+    if ((b.y < 0 || b.y > PITCH_W) && paceK().arcade && ARCADE.boards.touch) return this.arcadeOut();   // t-020 ARCADE: no throw-ins either (t-026: off - Luca wants the throw-ins back)
     if (b.y < 0 || b.y > PITCH_W) { const t = b.last === this.home ? this.away : this.home; this.dead = { kind: 'THROW-IN', team: t, x: clamp(b.x, 1, PITCH_L - 1), y: b.y < 0 ? 0.2 : PITCH_W - 0.2, t: 0.6 * paceK().deadT }; }
   },
 });

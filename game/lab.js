@@ -1449,7 +1449,7 @@
         const b = m.ball, f1 = v => v.toFixed(1);
         if (!r.hit) {
           if (b.inNet) return { o: 'GOAL · the goal mouth is open (no board there)', hold: 1 };
-          if (r.out) return { o: `OUT · ${r.out.toLowerCase()} (CLASSIC: the ball goes out)` };
+          if (r.out) return { o: `OUT · ${r.out.toLowerCase()}${o.pace === 'classic' ? ' (CLASSIC: the ball goes out)' : ' (ARCADE too since t-026: no touchline boards)'}` };
           if (b.reb && b.reb.t != null) { const p = r.prev || { vx: b.vx, vy: b.vy, vz: b.vz }, into = b.reb.hit === 'T' ? Math.abs(p.vy) : Math.abs(p.vx);
             r.hit = { side: b.reb.hit, t: r.t, x: b.x, y: b.y, vin: len(p.vx, p.vy), into, vout: len(b.vx, b.vy), vz: b.vz, apex: b.reb.apex, aimed: b.reb.q }; r.maxZ = b.z; }
           r.prev = { vx: b.vx, vy: b.vy, vz: b.vz };
@@ -1544,12 +1544,12 @@
   }
   function arTests() {
     return [
-      arLine('AR1', 'a hard drive at the TOUCHLINE', 'a loose ball at 72 km/h, 60° into the line: it comes back off the board and pops up (CLASSIC: a throw-in)', { from: [56, 61], v: [10, 17.3] }),
-      arLine('AR1-S', 'a firm pass rolling at the touchline', 'a ground pass at 36 km/h, square on: it pops a little and rolls back into play', { from: [40, 63], v: [2, 10] }),
+      arLine('AR1', 'a hard drive at the TOUCHLINE', 'a loose ball at 72 km/h, 60° into the line: a throw-in, on ARCADE too since t-026 (Luca 25 Oct: no touchline boards)', { from: [56, 61], v: [10, 17.3] }),
+      arLine('AR1-S', 'a firm pass rolling at the touchline', 'a ground pass at 36 km/h, square on: a throw-in (t-026: no touchline boards)', { from: [40, 63], v: [2, 10] }),
       arLine('AR1-C', 'the same drive, CLASSIC', 'CLASSIC is untouched: the ball goes out for a throw-in', { from: [56, 61], v: [10, 17.3], pace: 'classic' }),
       arLine('AR2', 'at the BYLINE beside the goal', 'a ball at 65 km/h runs past the post (outside the goal mouth): back off the board in front of goal (CLASSIC: goal kick / corner)', { from: [95, 22], v: [17, 3.5] }),
       arLine('AR2-G', 'into the goal mouth: still a goal', 'the board stops at the posts: a shot inside them goes in', { from: [88, 33], v: [24, 0.3], z: 0.3, noGk: true }),
-      arAir('AR3', 'a rebound attacked in the air (touchline, by their box)', 'the real team AI: a ball driven at the touchline beside their box pops up off the board; who goes for it and how they meet it',
+      arAir('AR3', 'a rebound attacked in the air (touchline, by their box)', 'the real team AI: a ball driven at the touchline beside their box - since t-026 a throw-in (AR3-B / AR3-SP have the byline rebounds)',
         { from: [88, 61], v: [11, 19, 1.2], h9: [93, 57], h10: [90, 45], h8: [86, 52], a3: [97, 52], a4: [95, 59], a2: [99, 40], a7: [89, 55] }),
       arAir('AR3-B', 'a rebound off the BYLINE beside the goal', 'driven past the post: it comes back off the board into the six-yard area', { from: [93, 21], v: [18, 3, 0.8], h9: [99, 32], h10: [96, 38], h8: [97, 27], a3: [102, 33], a4: [98, 36], a2: [101, 30], a7: [93, 34] }),
       arAir('AR3-SP', 'the AR3-B rebound with 2 bars banked', 'near goal the man who wins it may spend them on an aerial special', Object.assign({ sp: 2 }, { from: [93, 21], v: [18, 3, 0.8], h9: [99, 32], h10: [96, 38], h8: [97, 27], a3: [102, 33], a4: [98, 36], a2: [101, 30], a7: [93, 34] })),
@@ -2255,7 +2255,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
-    add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the touchlines and bylines instead of going out - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
+    add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
