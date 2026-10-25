@@ -131,6 +131,40 @@ const LOB2 = {
   markDelay: 0.35,     // the receiver's marker reads the drop this much later than the receiver (s)
   shootWin: 1.4,       // SHOOT pressed while a lob drops to you is kept this long (s, at most) for the header / volley
 };
+// t-019 LOB AIM: TWO VERSIONS (Luca 25 Oct 06:56: "the lob is still a big problem right now its too sensitive hard to
+// use and the camera is janky. make 2 versions - 1 make it so a lob target is determined by the direction of where the
+// arrow is pointing and is closest or something (closer to fifa) - second version is still the circle on the ground but
+// no arc [...] make it so the camera doesnt follow - try make it smooth"). Pause > Options and the start screen: LOB AIM
+// AUTO (the default) / RING, remembered per browser like PACE. The Lab tests set it per test (LB / LV).
+const LOB_AIM_OPTS = [['auto', 'AUTO'], ['ring', 'RING']];
+let LOB_AIM_MODE = (() => { try { const v = localStorage.getItem('hc2-lobaim'); return LOB_AIM_OPTS.some(o => o[0] === v) ? v : 'auto'; } catch (e) { return 'auto'; } })();
+function setLobAim(v) { if (!LOB_AIM_OPTS.some(o => o[0] === v)) return; LOB_AIM_MODE = v; try { localStorage.setItem('hc2-lobaim', v); } catch (e) {} }
+const LOB_AIM = {
+  // AUTO (FIFA-style): the lob goes to the team-mate who best fits your arrow; hold = a bit longer, tap = the quick one
+  cone: 38,            // degrees either side of the arrow (8 key directions are 45 apart: everyone is in some arrow's cone)
+  minD: 8, maxD: 45,   // team-mates this far from the kicker count (closer: a lob is the wrong ball; further: out of range)
+  angW: 0.6,           // a man at the cone's edge counts as this much further away (x his distance): the arrow matters
+  pressR: 5,           // an opponent this close to where it would drop marks him...
+  pressW: 5,           // ...costing (pressR - his distance) x this many metres: a man much further on but clearly freer wins
+  keep: 0.85,          // the pick shown stays unless another costs less than this x his (no flicker while held)
+  step: 1.2,           // it lands this far ahead of him on his run (towards their goal when he stands), so he takes it in stride
+  holdT: 0.7,          // holding this long (s) after the tap window = the longest version...
+  holdApex: 0.35,      // ...up to this much higher (x the lob's height for the distance)
+  holdStep: 3,         // ...and up to this many metres further on his run
+  spaceMin: 14, spaceMax: 38,   // nobody in the cone: into space along the arrow, a tap this far, the full hold this far
+  // RING: the t-008 ring without the arc, moving steadily (Luca: "too sensitive")
+  ringV: 10,           // the ring's top speed, m/s (t-008: 16)
+  ringUp: 0.16,        // seconds to get up to speed (a smooth ease, no jump)...
+  ringStop: 0.05,      // ...and to stop when the stick is let go (short, so it stops about where you let go)
+  magnetPull: 0.35,    // the light magnet: how far towards the team-mate it settles (t-008: 0.6)...
+  magnetEase: 0.18,    // ...eased in over about this long, so the ring glides onto him instead of snapping
+  ringOld: false,      // the t-008 ring's movement and magnet (the Lab's LV4 'before' only)
+  // the camera (both): an open-play lob no longer rides up; the follow's lead eases instead of jumping at the kick and
+  // the drop. camOld = the old camera (the Lab's LV5 'before' only)
+  camLead: 2.2,        // how fast the lead follows the ball's speed while a lob is on (1/s; the normal follow: instant)
+  camBlend: 0.9,       // RING: after the release the aim's framing hands over to the follow over this long (s)
+  camOld: false,
+};
 const AERIAL = {
   on: true,            // the Lab's switch
   gap: 2.3,            // a clear contest: attacker and defender both within this of the drop and of each other (m)

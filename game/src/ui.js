@@ -322,6 +322,7 @@ hc2Mix(Match, {
       { k: 'diff', l: `DIFFICULTY: ${(DIFF_OPTS.find(o => o[0] === DIFF_LEVEL) || DIFF_OPTS[1])[1]}${AI_MODE === 'classic' ? ' (NEEDS THE NEW AI)' : ''}`, act: () => setDiff(DIFF_OPTS[(DIFF_OPTS.findIndex(o => o[0] === DIFF_LEVEL) + 1) % DIFF_OPTS.length][0]) },   // v0.9.2
       { k: 'cam', l: `CAMERA: ${(CAM_OPTS.find(o => o[0] === CAM_VIEW) || CAM_OPTS[0])[1]}`, act: () => setCamView(CAM_OPTS[(CAM_OPTS.findIndex(o => o[0] === CAM_VIEW) + 1) % CAM_OPTS.length][0]) },   // camera-pov
       { k: 'pace', l: `PACE: ${(PACE_OPTS.find(o => o[0] === PACE_MODE) || PACE_OPTS[0])[1]}`, act: () => setPace(PACE_OPTS[(PACE_OPTS.findIndex(o => o[0] === PACE_MODE) + 1) % PACE_OPTS.length][0]) },   // t-004 ARCADE PACE
+      { k: 'lobaim', l: `LOB AIM: ${(LOB_AIM_OPTS.find(o => o[0] === LOB_AIM_MODE) || LOB_AIM_OPTS[0])[1]}`, act: () => { this.lobAim = null; setLobAim(LOB_AIM_OPTS[(LOB_AIM_OPTS.findIndex(o => o[0] === LOB_AIM_MODE) + 1) % LOB_AIM_OPTS.length][0]); } },   // t-019: AUTO (to the man you point at) / RING
       { k: 'bwon', l: `BUG WATCH: ${BW_ON ? 'ON' : 'OFF'}`, act: () => setBwOn(!BW_ON) },
       { k: 'ptr', l: `POINTER: ${PTR_ON ? 'ON' : 'OFF'}`, act: () => setPtrOn(!PTR_ON) },   // t-009: the direction chevron on the grass
       { k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 3; } }];
@@ -495,7 +496,7 @@ hc2Mix(Match, {
     if (!blink) g.fillStyle(low ? 0xff2878 : 0x28c8e6).fillRect(X - 16, Y + 5, Math.round(32 * st), 3);
     // v0.7.4 pass preview: a thin pulsing ring under the mate a pass would find right now (you see who before you press)
     const pa = this.passAim;
-    if (pa && b.owner === hp && this.charge < 0 && !this.lobAim && !this.setPiece && !(this.passRing && this.passRing.t > 0 && this.passRing.p)) {
+    if (pa && b.owner === hp && this.charge < 0 && !(this.lobAim && !this.lobAim.auto) && !this.setPiece && !(this.passRing && this.passRing.t > 0 && this.passRing.p)) {
       const k = 0.5 + 0.25 * Math.sin(this.time.now / 110), cx = Math.round(wx(pa.x, pa.y)), cy = Math.round(wy(pa.y)) - 2;
       this.ring.lineStyle(2, 0x28c8e6, k).strokeEllipse(cx, cy, 38, 14);
       this.ring.fillStyle(0x28c8e6, k).fillTriangle(cx - 7, cy - 172, cx + 7, cy - 172, cx, cy - 162);
@@ -581,10 +582,10 @@ hc2Mix(Match, {
     const A = this.lobAim, hp = this.human, b = this.ball, CY = 0x28c8e6;
     const ring = (x, y, a, w = 44, h = 17) => { const rx = Math.round(wx(x, y)), ry = Math.round(wy(y)) - 2;
       this.ring.lineStyle(5, INK, 0.8 * a).strokeEllipse(rx, ry, w, h).lineStyle(3, CY, a).strokeEllipse(rx, ry, w, h).fillStyle(CY, a).fillRect(rx - 1, ry - 1, 3, 3); return { rx, ry }; };
+    if (A && A.auto) return;                                                     // t-019 AUTO: no ring - the pass-aim marker shows who it goes to
     if (A && b.owner === hp) {
-      const k = 0.75 + 0.25 * Math.sin(this.time.now / 90), V = this.aimPreview(hp, A.x, A.y);
-      const arc = (w, col, a) => { g.lineStyle(w, col, a); g.beginPath(); V.pts.forEach((q, i) => { const x = wx(q.x, q.y), y = wy(q.y, q.z) - 6; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.strokePath(); };
-      if (A.t >= LOB2.tapT * 0.5) { arc(4, INK, 0.6); arc(2, CY, 0.9); }       // (not on a quick tap: no flash of an arc)
+      // t-019 RING (Luca: "still the circle on the ground but no arc, it makes it visually predictable"): the arc is gone
+      const k = 0.75 + 0.25 * Math.sin(this.time.now / 90);
       const R = ring(A.x, A.y, A.q ? 1 : k, A.q ? 50 : 44, A.q ? 19 : 17);
       if (A.q) { const q = A.q, qx = Math.round(wx(q.x, q.y)), qy = Math.round(wy(q.y)) - 2, bob = Math.round(3 * Math.sin(this.time.now / 140));
         g.fillStyle(INK, 0.9).fillTriangle(qx - 11, qy - 176 + bob, qx + 11, qy - 176 + bob, qx, qy - 157 + bob).fillStyle(CY, 1).fillTriangle(qx - 8, qy - 174 + bob, qx + 8, qy - 174 + bob, qx, qy - 160 + bob); }
@@ -592,7 +593,7 @@ hc2Mix(Match, {
       return;
     }
     const P = this.pending, L = this.lobAimLast;
-    if (P && P.info.aim && L && P.p === L.by) ring(L.x, L.y, 1);
+    if (P && P.info.aim && L && P.p === L.by && !L.auto) ring(L.x, L.y, 1);
   },
   // t-008 THE AERIAL BATTLE on screen: MASH! (PRESS! for the defending side), the key to hit, a tug-of-war bar in the two
   // teams' colours over the pair (live: who's winning), sparks and impacts off the ball from the fx atlas (aerialPop)
