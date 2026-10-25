@@ -50,6 +50,22 @@ function gkTurn(move) {                                                         
   const mm = /^(\w+)-(E|W)$/.exec(move || ''), sg = mm && GK_TURN[mm[1]];
   return sg ? -sg * (mm[2] === 'W' ? -1 : 1) * (90 - GK_LEAN) * Math.PI / 180 : 0;
 }
+// t-036: a point of the frame he's drawn with right now (x, y in that frame's own window) on the screen, through the
+// sprite's real origin, scale and turn and where it really stands - so after diveTurn has turned a dive flat and slid
+// the picture, it's the turned + slid point. Shared by what's pinned to his gloves: t-031's ball (handPoint) and the
+// special save's fist flash (specials.js rigEvent), which before read the unturned frame (rigPt off rigAt's P)
+function sprPt(s, pt) {
+  const f = s.frame, lx = (pt[0] - f.realWidth * s.originX) * s.scaleX, ly = (pt[1] - f.realHeight * s.originY) * s.scaleY, c = Math.cos(s.rotation), sn = Math.sin(s.rotation);
+  return { x: s.x + lx * c - ly * sn, y: s.y + lx * sn + ly * c };
+}
+// t-036: his gloves as drawn on this frame - the measured glove point (GK_HANDS) where the move has one, so the flash
+// sits on them as he flies and lands like the ball does (FIFA / PES pin an impact effect to the hand bone); a frame
+// without one (kblock, ktip): the rig's contact point (fist, an E-frame point, mirrored for W) on the drawn frame
+function rigGlovePt(s, fist, W) {
+  const f = s.frame; if (!f) return null;
+  const mm = /^(.*)-(\d+)$/.exec(f.name || ''), T = mm && GK_HANDS[mm[1]], h = T && T[+mm[2]];
+  return sprPt(s, h || [W ? f.realWidth - fist[0] : fist[0], fist[1]]);
+}
 class Player {
   constructor(m, team, i, kit) {
     this.m = m; this.team = team; this.i = i; this.kit = kit; this.keeper = i === 0;
@@ -241,8 +257,7 @@ class Player {
       const d = DIRS[this.face], H = GK_HOLD[d]; if (!H) return null;
       pt = [f.realWidth * s.originX + H[0] - 64, f.realHeight * s.originY + H[1] - 143]; behind = /N/.test(d);
     }
-    const lx = (pt[0] - f.realWidth * s.originX) * s.scaleX, ly = (pt[1] - f.realHeight * s.originY) * s.scaleY, c = Math.cos(s.rotation), sn = Math.sin(s.rotation);
-    const x = s.x + lx * c - ly * sn, y = s.y + lx * sn + ly * c, R = s.rotation ? Math.round : v => v;   // (t-033: a turned frame's gloves land between pixels: the ball goes on the nearest one, as it does for an upright frame)
+    const { x, y } = sprPt(s, pt), R = s.rotation ? Math.round : v => v;   // (t-033: a turned frame's gloves land between pixels: the ball goes on the nearest one, as it does for an upright frame)
     return { x: R(x), y: R(y), behind, move: mm ? mm[1] : '' };
   }
   // t-033: a dive frame the kit build turned a quarter is drawn as PixelLab drew it, near-flat (gkTurn). Turned about the

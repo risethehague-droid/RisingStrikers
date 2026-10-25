@@ -473,6 +473,15 @@ hc2Mix(Match, {
       this.tweens.add({ targets: im, alpha: 0, duration: 240, onComplete: () => im.destroy() });
     }
   },
+  // where a rig's boot / glove effect goes (the Test Lab's KC / KS lines measure the same point). t-036: a glove on his
+  // gloves as they're drawn this frame (player.js rigGlovePt) - rigAt's P is the frame before t-033's diveTurn turned it
+  // flat and slid it, so between the contact and the landing the flash sat up to ~90 px off his gloves (KS3), and a
+  // fixed contact-frame point drifted off them as the move went on (kleap's landing: 115 px). A boot: as before
+  rigFxPt(p, R, P, at) {
+    const hk = R.keys.find(q => q.hit) || R.keys[0];
+    if (at === 'fist' && hk.fist) { const q = rigGlovePt(p.spr, hk.fist, p.rig.d === 'W'); if (q) return q; }
+    return this.rigPt(P, hk[at] || [64, 60], p.rig.d);
+  },
   rigEvent(p, R, e, P) {
     if (e.shake) this.cameras.main.shake(e.shake[0], e.shake[1]);
     if (!e.fx) return;
@@ -480,7 +489,7 @@ hc2Mix(Match, {
     let x = s.x, y = s.y;
     if (e.at === 'feet') { x = wx(p.x, p.y); y = wy(p.y) - 4; }
     else if (e.at === 'body' && P.oy > 0.8) y -= 64 * s.scaleY;                   // (t-014: a batch 16 frame hangs from his feet: his body is ~64 px up)
-    else if (e.at === 'foot' || e.at === 'fist') { const q = this.rigPt(P, hk[e.at] || [64, 60], p.rig.d); x = q.x; y = q.y; }
+    else if (e.at === 'foot' || e.at === 'fist') { const q = this.rigFxPt(p, R, P, e.at); x = q.x; y = q.y; }
     x += (e.dx || 0) * (W ? -1 : 1);
     for (let i = 0; i < (e.n || 1); i++) this.rigPop(e.fx, x + (e.n > 1 ? rnd(-e.sp, e.sp) : 0), y + (e.n > 1 ? rnd(-e.sp, e.sp) : 0), wy(p.y) + 1, { ...e, flip: W, delay: i * 40 });
   },
