@@ -378,14 +378,36 @@ hc2Mix(Match, {
   },
   // the release: the kick to the ring, and the man who'll get there (the one the ring settled on, else the team-mate
   // who can reach the drop soonest - he starts his run now: teamai.js lobRun)
-  aimLob(p, A) {
-    const tx = A.x, ty = A.y, apex = this.lobAimApex(p, tx, ty), T = 2 * Math.sqrt(2 * apex / G) * 0.95;   // (time up and down: enough to pick the man)
+  aimLob(p, A, apex0) {
+    const tx = A.x, ty = A.y, apex = apex0 || this.lobAimApex(p, tx, ty), T = 2 * Math.sqrt(2 * apex / G) * 0.95;   // (time up and down: enough to pick the man) (t-019: AUTO brings its own height)
     let q = A.q && !A.q.sentOff ? A.q : null;
     if (!q) { let bt = 1e9; for (const m of p.team.players) { if (m === p || m.sentOff || m.keeper) continue;
       const t = len(m.x - tx, m.y - ty) / (m.top ? m.top(true, false) : RUN); if (t < bt && t < T + 0.6) { bt = t; q = m; } } }
     this.kick(p, tx, ty, 0, 0, 0.14, { mode: 'lob', target: q, loft: !p.keeper && !this.setPiece, aim: { apex, x: tx, y: ty } });
-    this.lobAimLast = { x: tx, y: ty, apex, q, by: p };
+    this.lobAimLast = { x: tx, y: ty, apex, q, by: p, auto: !!A.auto };
     if (q && p.team === this.home) { this.nextHuman = q; this.passRing = { p: q, t: 1.0 }; this.passStick = { ...Input.axis }; }
+  },
+  // t-019 AUTO: where the lob to q comes down - where his run takes him while it's in the air, plus LOB_AIM.step on along
+  // it (towards their goal when he stands), so he takes it in stride (Luca: "closer to fifa"). k = how long LOB was held
+  // (0 a tap .. 1 the full LOB_AIM.holdT): a little higher and further on. Its height is the t-008 lob's for that spot
+  // (lobAimApex: over a man in the way, a short clear lane driven), so the tap is the quick, flat one.
+  lobAutoSpot(p, q, k) {
+    const C = LOB_AIM, sp = len(q.vx, q.vy), run = sp > 1.5 ? { x: q.vx / sp, y: q.vy / sp } : { x: q.team.side, y: 0 }, on = C.step + C.holdStep * k;
+    let s = { x: q.x, y: q.y }, apex = 0;
+    for (let i = 0; i < 2; i++) {                                                 // (the flight time depends on the spot: twice is close enough)
+      apex = clamp(this.lobAimApex(p, s.x, s.y) * (1 + C.holdApex * k), 2, LOB2.apexMax);
+      const T = 2 * Math.sqrt(2 * apex / G), go = sp > 1.5 ? sp * T * 0.9 : 0;
+      s = this.lobAimClamp(p, q.x + run.x * (go + on), q.y + run.y * (go + on));
+    }
+    return { x: s.x, y: s.y, apex };
+  },
+  // the release: to the man lobAutoPick chose, or into space along the arrow (LOB_AIM.spaceMin-spaceMax by the hold)
+  autoLob(p, A, dir, k) {
+    const q = A.mate && !A.mate.sentOff ? A.mate : null; let s;
+    if (q) s = this.lobAutoSpot(p, q, k);
+    else { const C = LOB_AIM, l = len(dir.x, dir.y) || 1, d = C.spaceMin + (C.spaceMax - C.spaceMin) * k, c = this.lobAimClamp(p, p.x + dir.x / l * d, p.y + dir.y / l * d);
+      s = { x: c.x, y: c.y, apex: this.lobAimApex(p, c.x, c.y) }; }
+    this.aimLob(p, { x: s.x, y: s.y, q, auto: true }, s.apex);
   },
   // the arc drawn while you aim: the same solve the release will use, flown with ballStep (cached by the metre and 0.5 m of
   // height, ~6 ms a miss headless: it's asked every frame and the ring moves; the path is stretched to end on the ring,

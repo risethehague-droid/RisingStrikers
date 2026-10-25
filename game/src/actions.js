@@ -59,7 +59,7 @@ hc2Mix(Match, {
     p.sprinting = sprint;
     let spd = p.top(sprint, owns);
     if (owns && this.charge >= 0) spd *= 0.75;                                   // winding up a shot slows you down
-    if (owns && this.lobAim) spd *= LOB2.aimSlow;                                // t-008: aiming a lob he shields it (the stick walks the ring)
+    if (owns && this.lobAim && !this.lobAim.auto) spd *= LOB2.aimSlow;          // t-008: aiming a lob he shields it (the stick walks the ring; t-019: RING only - in AUTO the stick is your arrow)
     // pass coming to me: he runs onto it by himself while the stick is idle OR still held the way you passed it
     // (v0.6 sent him off in the pass direction - away from the ball). Point somewhere new and you take over.
     const ps = this.passStick, sameStick = ps && len(ps.x, ps.y) > 0.1 && moving && (ax.x * ps.x + ax.y * ps.y) / (len(ax.x, ax.y) * len(ps.x, ps.y)) > 0.7;
@@ -359,36 +359,83 @@ hc2Mix(Match, {
   lobPress(p, dir) {
     this.lobCharge = -1; this.lobAim = null;
     if (p.keeper || this.chipCan(p, dir)) { this.lobCharge = 0; return; }       // the chip in their box, the keeper's throw / punt: as they were
+    if (LOB_AIM_MODE === 'auto') { this.lobAim = { auto: true, t: 0, mate: null }; this.lobAutoPick(p, dir); this.passAim = this.lobAim.mate; return; }   // t-019 AUTO: no ring
     const s = this.lobAimStart(p, dir);
-    this.lobAim = { t: 0, rx: s.x, ry: s.y, x: s.x, y: s.y, q: null, k: 0 };
+    this.lobAim = { t: 0, rx: s.x, ry: s.y, x: s.x, y: s.y, q: null, k: 0, vx: 0, vy: 0 };
     this.lobAimMagnet(p);
   },
   lobAimTick(p, ax, dir, dt) {
     const A = this.lobAim; A.t += dt;
     if (this.pending && this.pending.p === p) { this.lobAim = null; return false; }   // (another kick went first - a pass or a shot pressed while aiming)
+    if (A.auto) return this.lobAutoTick(p, dir);
     if (!Input.held('lob')) {                                                    // let go: the kick
       this.lobAim = null;
+      // t-019: the aim's framing hands over to the normal follow over LOB_AIM.camBlend (it snapped back to the ball)
+      if (this.camTarget === this.lobAimCam && !LOB_AIM.camOld) this.lobCamBlend = { x: this.lobAimCam.x, y: this.lobAimCam.y, t: 0 };
       if (A.t < LOB2.tapT) this.doPass(p, dir, 'lob'); else this.aimLob(p, A);
       return true;
     }
     const m = len(ax.x, ax.y);
-    if (m > 0.1) { A.k = Math.min(1, A.k + dt / LOB2.ease); const v = LOB2.ringV * (LOB2.easeK + (1 - LOB2.easeK) * A.k); A.rx += ax.x * v * dt; A.ry += ax.y * v * dt; }
-    else A.k = 0;
+    if (LOB_AIM.ringOld) {                                                       // (t-008's ring: the Lab's LV4 comparison only)
+      if (m > 0.1) { A.k = Math.min(1, A.k + dt / LOB2.ease); const v = LOB2.ringV * (LOB2.easeK + (1 - LOB2.easeK) * A.k); A.rx += ax.x * v * dt; A.ry += ax.y * v * dt; }
+      else A.k = 0;
+    } else {
+      // t-019 RING (Luca: "too sensitive"): slower, and the ring's speed eases towards the stick's (up in ringUp, down in
+      // ringStop) - a steady glide with no jump in speed, and it stops about where you let go
+      const tv = m > 0.1 ? LOB_AIM.ringV : 0, a = 1 - Math.exp(-dt / (m > 0.1 ? LOB_AIM.ringUp : LOB_AIM.ringStop));
+      A.vx += (ax.x * tv - A.vx) * a; A.vy += (ax.y * tv - A.vy) * a; A.rx += A.vx * dt; A.ry += A.vy * dt;
+    }
     const c = this.lobAimClamp(p, A.rx, A.ry); A.rx = c.x; A.ry = c.y;
-    this.lobAimMagnet(p);
+    this.lobAimMagnet(p, dt);
     // the camera frames the ring and the ball (as it does your set piece's aim cursor): a 40 m ring was off screen
     const bx = wx(this.ball.x, this.ball.y), by = wy(this.ball.y), C = this.lobAimCam || (this.lobAimCam = {});
-    C.x = bx + (wx(A.x, A.y) - bx) * 0.7; C.y = by + (wy(A.y) - by) * 0.7 - 40;   // (mostly the ring: past ~25 m both don't fit, and where it lands is the point)
+    // (t-019: the framing eases over to the ring in its first half second - it jumped there at the press, the LV5 jolt)
+    const s = LOB_AIM.camOld ? 1 : clamp(A.t / 0.5, 0, 1), f = 0.7 * s * s * (3 - 2 * s);
+    C.x = bx + (wx(A.x, A.y) - bx) * f; C.y = by + (wy(A.y) - by) * f - 40;   // (mostly the ring: past ~25 m both don't fit, and where it lands is the point)
     if (!this.camTarget || this.camTarget === C) this.camTarget = C;
     return false;
   },
+  // ======================================================================= t-019 LOB AIM: AUTO (Luca 25 Oct 06:56: "a lob target is
+  // determined by the direction of where the arrow is pointing and is closest or something (closer to fifa)"). No ring:
+  // while LOB is held the pick shows as the usual pass-aim marker on him (the only thing on screen); let go = the lob,
+  // landing a step ahead of him on his run (ball.js lobAutoSpot), so his t-008 receiving run meets it. How long you held
+  // = a little more height and distance (capped at LOB_AIM.holdT); a tap = the quick one. Nobody in the cone = into
+  // space along the arrow, as far as the hold says. (The chip in their box and the keeper's throw: as they were.)
+  lobAutoTick(p, dir) {
+    const A = this.lobAim; this.lobAutoPick(p, dir);
+    if (!Input.held('lob')) { this.lobAim = null; this.autoLob(p, A, dir, clamp((A.t - LOB2.tapT) / LOB_AIM.holdT, 0, 1)); return true; }
+    this.passAim = A.mate;                                                       // (the marker on the grass under him; none = into space)
+    return false;
+  },
+  // who fits the arrow: team-mates within LOB_AIM.cone degrees of it, 8-45 m out; the cheapest wins, cost = his distance
+  // (a man at the cone's edge counts as LOB_AIM.angW further) + opponents near where it would drop (a marked man costs
+  // more, so one further on but clearly free can win). The pick shown stays unless another is clearly better.
+  lobAutoPick(p, dir) {
+    const A = this.lobAim, C = LOB_AIM, l = len(dir.x, dir.y) || 1, ux = dir.x / l, uy = dir.y / l, cone = C.cone * Math.PI / 180, cc = Math.cos(cone);
+    let best = null, bc = 1e9, kc = 1e9;
+    for (const q of p.team.players) {
+      if (q === p || q.sentOff || q.keeper) continue;
+      const dx = q.x - p.x, dy = q.y - p.y, d = len(dx, dy); if (d < C.minD || d > C.maxD) continue;
+      const cos = (dx * ux + dy * uy) / d; if (cos < cc) continue;
+      const ang = Math.acos(clamp(cos, -1, 1)) / cone, s = this.lobAutoSpot(p, q, 0);
+      let press = 0; for (const o of p.team.opp.players) { if (o.sentOff) continue; const od = len(o.x - s.x, o.y - s.y); if (od < C.pressR) press += C.pressR - od; }
+      const cost = d * (1 + C.angW * ang * ang) + press * C.pressW;
+      if (q === A.mate) kc = cost;
+      if (cost < bc) { bc = cost; best = q; }
+    }
+    A.mate = kc < 1e9 && !(bc < kc * C.keep) ? A.mate : best;
+  },
   // the light magnet: the ring within LOB2.magnet of a team-mate settles towards him (and he walks to it, so it ends on
   // the spot he'll reach); it lets go past LOB2.magnetOut
-  lobAimMagnet(p) {
+  // (t-019 RING: a lighter pull, LOB_AIM.magnetPull, eased in over LOB_AIM.magnetEase - it snapped ~1.8 m onto him)
+  lobAimMagnet(p, dt) {
     const A = this.lobAim; let q = A.q && !A.q.sentOff && len(A.q.x - A.rx, A.q.y - A.ry) < LOB2.magnetOut ? A.q : null;
     if (!q) { let bd = LOB2.magnet; for (const m of p.team.players) { if (m === p || m.sentOff || m.keeper) continue; const d = len(m.x - A.rx, m.y - A.ry); if (d < bd) { bd = d; q = m; } } }
     A.q = q;
-    if (q) { const c = this.lobAimClamp(p, A.rx + (q.x - A.rx) * LOB2.magnetPull, A.ry + (q.y - A.ry) * LOB2.magnetPull); A.x = c.x; A.y = c.y; }
+    const pull = LOB_AIM.ringOld ? LOB2.magnetPull : LOB_AIM.magnetPull, ox = q ? (q.x - A.rx) * pull : 0, oy = q ? (q.y - A.ry) * pull : 0;
+    if (dt == null || LOB_AIM.ringOld || A.ox == null) { A.ox = ox; A.oy = oy; }
+    else { const a = 1 - Math.exp(-dt / LOB_AIM.magnetEase); A.ox += (ox - A.ox) * a; A.oy += (oy - A.oy) * a; }
+    if (A.ox || A.oy) { const c = this.lobAimClamp(p, A.rx + A.ox, A.ry + A.oy); A.x = c.x; A.y = c.y; }
     else { A.x = A.rx; A.y = A.ry; }
   },
   // how long until a lob coming to you drops to head height (0 if it isn't one): SHOOT pressed early is kept that long

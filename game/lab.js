@@ -1071,10 +1071,14 @@
   const lbMark = (man, side) => (d, dt) => { const b = m.ball;                    // a defender on him: goal side, a beat after he moves (as the game's marker)
     if (b.lob && !b.owner && (b.airT || 0) > LOB2.markDelay) d.moveTo(man.x + side * 0.6, man.y + 0.3, d.top(true, false), dt); else d.steer(0, 0, dt); };
   const lbWho = p => `${p.team === m.home ? 'your' : 'their'} #${p.num}`;
+  // (t-019 LV6: a team-mate on a run - he keeps going until it's played, then the game's own receiving run)
+  const lvRun = (vx, vy) => (q, dt) => { const b = m.ball; if (m.lobAimMate(q, dt) || m.lobRun(q, dt)) return;
+    if (b.owner && b.owner.team === q.team && b.owner !== q) q.steer(vx, vy, dt); else lbBot(q, dt); };
   function lbTest(id, name, sub, o) {
-    return { id, group: 'LB', name, sub, kind: 'lb', you: true, lvl: o.lvl,
+    return { id, group: o.group || 'LB', name, sub, kind: 'lb', you: true, lvl: o.lvl,
       setup(r) {
         Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+        LOB_AIM_MODE = o.lobAim || 'ring'; LOB_AIM.camOld = !!o.camOld; LOB_AIM.ringOld = !!o.ringOld;   // t-019: LB is the ring's group (its -A tests: AUTO); LV names its own
         const H = m.home.players, A = m.away.players, list = [];
         const K = o.cpu ? A[6] : H[6]; list.push(K);
         const mates = (o.mates || []).map(([i, x, y]) => { const q = (o.cpu ? A : H)[i]; list.push(q); return [q, x, y]; });
@@ -1082,7 +1086,7 @@
         const gk = o.gk ? (o.cpu ? H[0] : A[0]) : null; if (gk) list.push(gk);
         cast(list);
         put(K, o.from[0], o.from[1], o.cpu ? 4 : 0); atFeet(K);
-        for (const [q, x, y] of mates) { put(q, x, y, o.cpu ? 4 : 0); r.bots.set(q, lbBot); }
+        for (const [q, x, y] of mates) { put(q, x, y, o.cpu ? 4 : 0); r.bots.set(q, o.run ? lvRun(o.run[0], o.run[1]) : lbBot); }
         for (const [q, x, y] of opps) { put(q, x, y, o.cpu ? 0 : 4); }
         if (o.mark) { const [di, mi] = o.mark; r.bots.set(opps[di][0], lbMark(mates[mi][0], o.cpu ? -1 : 1)); }
         if (gk) { put(gk, o.cpu ? PITCH_L - LINE_X : LINE_X, 34, o.cpu ? 0 : 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); }
@@ -1102,7 +1106,7 @@
       if (r.ph == null && r.t >= 0.5) { r.ph = 'hold'; T.btn.lob = true; r.pressT = r.t; }
       else if (r.ph === 'hold') {
         const A = m.lobAim, ht = r.t - r.pressT;
-        if (o.tap) { if (ht >= 0.08) { T.btn.lob = false; r.ph = 'gone'; r.tapT = ht; } }
+        if (o.tap) { if (o.drag) { T.x = o.drag[0]; T.y = o.drag[1]; } if (ht >= 0.08) { T.btn.lob = false; r.ph = 'gone'; r.tapT = ht; } }   // (t-019 LV3: a tap with the arrow held)
         else if (A) {
           const d = len(A.x - K.x, A.y - K.y); r.ring0 = r.ring0 || { x: A.x, y: A.y, q: A.q };
           if (A.q) { r.mag = A.q; r.magFrom = r.magFrom || { x: A.q.x, y: A.q.y }; }
@@ -1117,12 +1121,20 @@
     if (AB) { if (!r.bat) r.bat = { at: { x: AB.D.x, y: AB.D.y }, steps: 0 }; const me = AB.att.p.team === m.home ? AB.att.p : AB.def.p; r.human = me;
       r.bat.steps++; T.btn.shoot = !!o.mash && AB.phase === 'mash' && r.bat.steps % (o.mash * 2) < o.mash; }
     else if (r.bat && !r.bat.over) { r.bat.over = true; T.btn.shoot = false; r.bL = m.aerialLast; }
+    // ---- t-019 LV5: the camera, every frame from the press: its biggest move in one frame, and the biggest change in that
+    // move from one frame to the next (a jolt: the lead jumping at the kick, the ride up, the snap back from the aim)
+    if (o.kind === 'cam' && r.ph && m.camX != null) { const c = { x: m.camX, y: m.camY };
+      if (r.cam0) { const v = { x: c.x - r.cam0.x, y: c.y - r.cam0.y }, s = len(v.x, v.y); r.camMax = Math.max(r.camMax || 0, s);
+        if (r.camV) r.camJolt = Math.max(r.camJolt || 0, len(v.x - r.camV.x, v.y - r.camV.y)); r.camV = v; }
+      r.cam0 = c; }
     // ---- the kick and its flight
     if (r.kickT == null) { if (!b.owner && !m.pending && b.lastP === K && (r.ph === 'gone' || o.cpu)) { r.kickT = r.t; r.n0 = b.bounced || 0; r.start = { x: b.x, y: b.y }; r.aimed = m.lobAimLast && m.lobAimLast.by === K ? m.lobAimLast : null; r.tgt = b.target; r.lob = !!b.lob; }
       else return r.t > 7 ? done({ o: 'NO KICK' }) : null; }
     const ft = r.t - r.kickT; if (!r.land) r.maxZ = Math.max(r.maxZ, b.z);
     if (!r.land && !r.touch && (b.bounced || 0) > r.n0) r.land = { x: b.x, y: b.y, t: ft };
-    if (!r.touch && b.lastP && b.lastP !== K) r.touch = { p: b.lastP, how: b.how ? b.how.kind : 'touch', z: b.z, own: b.owner === b.lastP, at: { x: b.x, y: b.y } };
+    if (!r.touch && b.lastP && b.lastP !== K) r.touch = { p: b.lastP, how: b.how ? b.how.kind : 'touch', z: b.z, own: b.owner === b.lastP, at: { x: b.x, y: b.y }, v: len(b.lastP.vx, b.lastP.vy), t: ft };
+    if (!r.drop && r.tgt && !r.touch && b.vz < 0 && b.z < 2.6) r.drop = { d: len(r.tgt.x - b.x, r.tgt.y - b.y), x: b.x, y: b.y };   // (t-019: how far he was from it as it came down through head height)
+    if (o.kind === 'pick' || o.kind === 'space' || o.kind === 'stride' || o.kind === 'cam') { const e = lvCheck(r, ft, done); if (e !== undefined) return e; }
     const shot = r.touch && (r.touch.how === 'header' || r.touch.how === 'volley' || r.touch.how === 'shot' || r.ev('AERIAL SPECIAL'));
     const end = (head) => { if (b.inNet) return done({ o: head + 'GOAL', hold: 1.4 }); if (r.gk && b.owner === r.gk) return done({ o: head + 'keeper has it' });
       if (r.ev('PARRIED') || r.ev('SAVED')) return done({ o: head + 'SAVED', hold: 1 }); if (r.out) return done({ o: head + 'OUT · ' + r.out.toLowerCase() });
@@ -1135,7 +1147,7 @@
       return done({ o: L ? `ring ${f1(d)} m out (held ${f2(r.holdT)} s) · peak ${f2(r.maxZ)} m (${why}) · ${f2(r.land.t)} s in the air · lands ${f2(err)} m from the ring (${err <= 1 ? 'ok' : 'OFF'})` : 'NOT AN AIMED LOB', hold: 0.6 });
     }
     if (o.kind === 'tap') {
-      const head = `TAP (${f2(r.tapT || 0)} s): ${r.aimed ? 'an AIMED lob (OFF: a tap should be the instant lob)' : 'the instant lob'} to ${r.tgt ? lbWho(r.tgt) : 'nobody'} · peak ${f2(r.maxZ)} m · `;
+      const head = `TAP (${f2(r.tapT || 0)} s): ${o.lobAim === 'auto' ? (r.aimed && r.aimed.auto ? 'AUTO: the quick lob' : 'OFF: not the AUTO lob') : r.aimed ? 'an AIMED lob (OFF: a tap should be the instant lob)' : 'the instant lob'} to ${r.tgt ? lbWho(r.tgt) : 'nobody'} · peak ${f2(r.maxZ)} m · `;
       if (b.owner === r.rcv) return done({ o: head + `he CONTROLLED it (${r.touch && r.touch.how === 'header' ? 'header' : r.touch && r.touch.z > 0.9 ? 'chest' : 'feet'})` });
       if (b.owner && b.owner.team !== K.team) return done({ o: head + 'they won it' });
       return ft > 6 ? done({ o: head + 'NOT CONTROLLED' }) : null;
@@ -1175,6 +1187,82 @@
         { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 0.5, gk: true }),
       lbTest('LB8', 'AERIAL BATTLE the other way: their lob, your defender', 'the computer lobs to its striker, your defender is on him: PRESS! (the Lab mashes every other step)',
         { kind: 'battle', battle: true, cpu: true, mash: 2, from: [45, 30], mates: [[9, 17, 35]], opps: [[3, 20.2, 34.6]], gk: true, lvl: 'normal' }),
+      // t-019: the same in AUTO (the arrow held at the man: no ring to walk)
+      lbTest('LB4-A', 'AUTO · a quick TAP of LOB to a team-mate', 'the quick AUTO lob to the man ahead, landing a step ahead of him', { kind: 'tap', tap: true, from: [30, 34], mates: [[9, 52, 34]], lobAim: 'auto' }),
+      lbTest('LB6-A', 'AUTO · AERIAL BATTLE: you win it', 'arrow at your striker, hold, let go: it drops on him and his marker - MASH!',
+        { kind: 'battle', battle: true, mash: 1, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0.94, -0.35, 0.35], holdT: 0.4, gk: true, lobAim: 'auto' }),
+      lbTest('LB7-A', 'AUTO · AERIAL BATTLE: you lose it (no mash)', 'the same, no presses: their man wins and clears it',
+        { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0.94, -0.35, 0.35], holdT: 0.4, gk: true, lobAim: 'auto' }),
+    ];
+  }
+  // ======================================================================= t-019 LOB AIM: TWO VERSIONS (Luca 25 Oct 06:56: "make 2
+  // versions - 1 [...] a lob target is determined by the direction of where the arrow is pointing [...] second version is
+  // still the circle on the ground but no arc [...] make it so the camera doesnt follow - try make it smooth"). LV1-LV3
+  // AUTO's pick (the right man, the free man, into space by the hold), LV4 the RING's movement against t-008's, LV5 the
+  // camera through a 40 m lob before / after in both versions, LV6 the receiver taking it in stride in both.
+  function lvCheck(r, ft, done) {
+    const b = m.ball, o = r.o, f1 = v => v.toFixed(1), f2 = v => v.toFixed(2), H = m.home.players;
+    if (r.kickT == null) return undefined;
+    const came = r.touch || (r.land && ft > r.land.t + 0.4);
+    if (o.kind === 'pick') {
+      if (!came && ft < 6) return null;
+      const want = H[o.want], got = r.tgt, P = r.touch ? r.touch.at : r.land;
+      return done({ o: `arrow at ${lbWho(want)}: went to ${got ? lbWho(got) : 'nobody'} (${got === want ? 'ok' : 'OFF'}) · ${r.aimed ? `aimed ${f1(len(r.aimed.x - r.start.x, r.aimed.y - r.start.y))} m, peak ${f2(r.maxZ)} m` : 'NOT AN AUTO LOB'} · he was ${r.drop ? f2(r.drop.d) : '?'} m from it as it came down to head height${r.touch ? ` · ${lbWho(r.touch.p)}: ${r.touch.how === 'header' ? 'HEADER' : r.touch.how === 'volley' ? 'VOLLEY' : r.touch.own ? (r.touch.z > 0.9 ? 'CHEST' : 'FEET') : r.touch.how.toUpperCase()} at ${f1(r.touch.z)} m` : P ? ' · nobody met it' : ''}`, hold: 0.6 });
+    }
+    if (o.kind === 'space') {
+      if (!r.land && ft < 6) return null;
+      const L = r.aimed, d = r.land ? len(r.land.x - r.start.x, r.land.y - r.start.y) : 0, k = clamp(((r.tapT ?? r.holdT ?? 0) - LOB2.tapT) / LOB_AIM.holdT, 0, 1), want = LOB_AIM.spaceMin + (LOB_AIM.spaceMax - LOB_AIM.spaceMin) * k;
+      return done({ o: `nobody in the cone · held ${f2(r.tapT ?? r.holdT ?? 0)} s → into space ${f1(d)} m along the arrow (want ~${f1(want)} m: ${Math.abs(d - want) < 2.5 ? 'ok' : 'OFF'}) · peak ${f2(r.maxZ)} m${L && L.q ? ` · for ${lbWho(L.q)} to chase` : ''}`, hold: 0.6 });
+    }
+    if (o.kind === 'stride') {
+      if (!r.touch && ft < 6) return null;
+      const T = r.touch; if (!T) return done({ o: `${r.tgt ? lbWho(r.tgt) : 'nobody'} never got to it · he was ${r.drop ? f2(r.drop.d) : '?'} m from it at head height` });
+      const how = T.how === 'header' ? 'HEADER' : T.how === 'volley' ? 'VOLLEY' : T.own ? (T.z > 0.9 ? 'CHEST' : 'FEET') : T.how.toUpperCase();
+      return done({ o: `to ${r.tgt ? lbWho(r.tgt) : 'nobody'} · ${lbWho(T.p)} met it at ${f1(T.z)} m: ${how}, moving at ${f1(T.v)} m/s (${T.v > 1.5 ? 'in stride' : 'standing still'}) · ${f2(r.drop ? r.drop.d : 0)} m from it at head height`, hold: 0.8 });
+    }
+    if (o.kind === 'cam') {
+      if (!(came && (r.touch ? ft > 1.2 + (r.touch.t ?? 0) : ft > r.land.t + 1.2)) && ft < 6) return null;
+      return done({ o: `${LOB_AIM.camOld ? 'BEFORE (the old camera' + (LOB_AIM.ringOld ? ' + t-008 ring' : '') + ')' : 'AFTER'} · ${f1(len(r.aimed ? r.aimed.x - r.start.x : 0, r.aimed ? r.aimed.y - r.start.y : 0))} m lob · camera's biggest move in one frame ${f1(r.camMax || 0)} px · biggest jolt (change in that move, frame to frame) ${f1(r.camJolt || 0)} px`, hold: 0.4 });
+    }
+    return undefined;
+  }
+  // LV4: the RING walked 10 m left then 5 m up by the stick; let go 0.15 s after it gets there (a human's reaction):
+  // how far past it ends (overshoot), its top speed and the biggest change in its speed in one frame (the jumpiness)
+  function lvWalk(r) {
+    const T = Input.touch, A = m.lobAim, f2 = v => v.toFixed(2);
+    const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); return res; };
+    if (r.ph == null) { if (r.t >= 0.5) { r.ph = 'hold'; T.btn.lob = true; r.legs = [{ ax: [-1, 0], d: 10 }, { ax: [0, -1], d: 5 }]; r.leg = 0; r.top = 0; r.jerk = 0; } return null; }
+    if (!A) return done({ o: 'NO RING' });
+    const pos = { x: A.x, y: A.y }; if (r.prev) { const v = { x: (pos.x - r.prev.x) * 60, y: (pos.y - r.prev.y) * 60 }; r.top = Math.max(r.top, len(v.x, v.y)); if (r.pv) r.jerk = Math.max(r.jerk, len(v.x - r.pv.x, v.y - r.pv.y)); r.pv = v; } r.prev = pos;
+    const L = r.legs[r.leg]; if (!L.from) L.from = { ...pos };
+    const along = (pos.x - L.from.x) * L.ax[0] + (pos.y - L.from.y) * L.ax[1];
+    if (L.at == null) { if (along >= L.d) L.at = r.t; T.x = L.ax[0]; T.y = L.ax[1]; }
+    else if (r.t < L.at + 0.15) { T.x = L.ax[0]; T.y = L.ax[1]; }
+    else { T.x = T.y = 0; if (r.t > L.at + 0.75) { L.over = along - L.d; r.leg++; if (r.leg >= r.legs.length) {
+      const [a, c] = r.legs; return done({ o: `${LOB_AIM.ringOld ? 't-008 ring' : 'RING now'} · overshoot ${f2(a.over)} m (10 m left), ${f2(c.over)} m (5 m up) · top speed ${r.top.toFixed(1)} m/s · biggest change of speed in one frame ${r.jerk.toFixed(1)} m/s` }); } } }
+    return r.t > 9 ? done({ o: 'NOT FINISHED' }) : null;
+  }
+  function lvTests() {
+    const A = (id, name, sub, o) => lbTest(id, name, sub, Object.assign({ group: 'LV', lobAim: 'auto' }, o));
+    const n = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
+    const three = [[9, 70, 34], [7, 62, 14], [10, 62, 54]];
+    return [
+      A('LV1', 'AUTO · arrow at the top one of three', 'three team-mates 0° and ±42° from you: point at one, hold, let go - he gets it', { kind: 'pick', from: [40, 34], mates: three, want: 7, drag: [...n(22, -20), 0.39], holdT: 0.4 }),
+      A('LV1-S', 'AUTO · arrow straight at the middle one', 'the same three: the one ahead', { kind: 'pick', from: [40, 34], mates: three, want: 9, drag: [1, 0, 0.39], holdT: 0.4 }),
+      A('LV1-B', 'AUTO · arrow at the bottom one', 'the same three: the bottom one', { kind: 'pick', from: [40, 34], mates: three, want: 10, drag: [...n(22, 20), 0.39], holdT: 0.4 }),
+      A('LV2', 'AUTO · two in the cone, the nearer one marked', 'a defender on the nearer man: the free one further on gets it', { kind: 'pick', from: [40, 34], mates: [[9, 60, 34], [10, 72, 37]], opps: [[3, 61, 34.6]], want: 10, drag: [1, 0, 0.39], holdT: 0.4 }),
+      A('LV2-F', 'AUTO · two in the cone, both free', 'nobody marked: the nearer one', { kind: 'pick', from: [40, 34], mates: [[9, 60, 34], [10, 72, 37]], want: 9, drag: [1, 0, 0.39], holdT: 0.4 }),
+      A('LV3-T', 'AUTO · nobody in the cone, a tap', 'into space along the arrow: the short one', { kind: 'space', tap: true, from: [40, 16], mates: [[9, 70, 34]], drag: [0, 1, 0.08] }),
+      A('LV3', 'AUTO · nobody in the cone, held half way', 'into space: further', { kind: 'space', from: [40, 16], mates: [[9, 70, 34]], drag: [0, 1, 0.52], holdT: 0.53 }),
+      A('LV3-F', 'AUTO · nobody in the cone, held all the way', 'into space: the longest', { kind: 'space', from: [40, 16], mates: [[9, 70, 34]], drag: [0, 1, 1.0], holdT: 1.0 }),
+      Object.assign(lbTest('LV4', 'RING · walk it 10 m left, then 5 m up', 'how steady: let go 0.15 s after it gets there - how far past?', { group: 'LV', from: [50, 34], lobAim: 'ring' }), { check: lvWalk }),
+      Object.assign(lbTest('LV4-T8', 'RING · the same with t-008\'s ring (before)', 'the old speed, ease and magnet, for comparison', { group: 'LV', from: [50, 34], lobAim: 'ring', ringOld: true }), { check: lvWalk }),
+      A('LV5-A0', 'AUTO · camera through a 40 m lob: BEFORE', 'the old camera: it rode up with the lob', { kind: 'cam', from: [30, 34], mates: [[9, 70, 34]], drag: [1, 0, 0.39], holdT: 0.4, camOld: true }),
+      A('LV5-A', 'AUTO · camera through a 40 m lob: AFTER', 'no ride up, the lead eases', { kind: 'cam', from: [30, 34], mates: [[9, 70, 34]], drag: [1, 0, 0.39], holdT: 0.4 }),
+      A('LV5-R0', 'RING · camera through a 40 m lob: BEFORE', 't-008: the aim framing snaps back, then it rides up', { kind: 'cam', from: [30, 34], aimD: 40, ax: [1, 0], lobAim: 'ring', camOld: true, ringOld: true }),
+      A('LV5-R', 'RING · camera through a 40 m lob: AFTER', 'the aim framing hands over, no ride up', { kind: 'cam', from: [30, 34], aimD: 40, ax: [1, 0], lobAim: 'ring' }),
+      A('LV6', 'AUTO · to a man on the run', 'he\'s running in behind: it lands ahead of him, he takes it in stride', { kind: 'stride', from: [55, 40], mates: [[9, 66, 30]], run: [4.5, 0], drag: [...n(14, -10), 0.29], holdT: 0.3, gk: true }),
+      A('LV6-R', 'RING · the ring on a man on the run', 'the ring settles on him (light magnet), he takes it in stride', { kind: 'stride', from: [55, 40], mates: [[9, 66, 30]], run: [4.5, 0], holdT: 0.6, gk: true, lobAim: 'ring' }),
     ];
   }
   // ======================================================================= t-011 CURVING SPECIAL PASS (Luca 24 Oct 05:57: "add a special lvl 1
@@ -1851,6 +1939,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
+    add('LV', 't-019 · LOB AIM: AUTO / RING', 'Two versions to compare (Pause > Options > LOB AIM). AUTO: LOB goes to the team-mate your arrow points at (the nearest free one in a ~38° cone), landing a step ahead on his run; hold = a little longer, tap = the quick one, nobody there = into space. RING: the ring without the arc, slower and steadier. Both: the camera no longer rides up with a lob.', lvTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
     add('KF', 't-016 · KEEPER FACING + BLOCKED PATHS', 'Luca\'s Bug Watch marks: a keeper never shows his back to a ball within 6 m (KF1-3: the biggest angle between his facing and the ball), and a man with someone in his straight line steps round him instead of standing still (KF4-5).', kfTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
@@ -1901,6 +1990,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; }           // (t-012: a WG test plays the computer on both sides)
     TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
+    if (LAB.lobAim0 == null) LAB.lobAim0 = LOB_AIM_MODE;                        // t-019: LB / LV set LOB AIM per test; every other test plays the picked one
+    LOB_AIM_MODE = LAB.lobAim0; LOB_AIM.camOld = LOB_AIM.ringOld = false; Object.assign(m, { lobCamBlend: null, camLead: undefined, camLeadOn: false });
     if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null; Object.assign(m, { aerial: null, lobAim: null, slowMo: 0 }); Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
     sc.setup(r);
     m.human = r.human; m.camX = m.camY = undefined;

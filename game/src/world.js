@@ -154,8 +154,19 @@ hc2Mix(Match, {
     // a keeper sent up and out (ball.js gkDeflect sets b.camUp), or an open-play lob, high in the air: the camera rides up
     // with it (its height counts 85%, not 30%) with less lead, until it comes down, someone has it, or it's out and back
     if (b.camUp && (b.owner || (b.z < 0.3 && b.vz <= 0))) b.camUp = false;
-    const rideUp = !b.owner && (b.camUp || b.lob) && b.z > 0.5;
-    let tx = X + b.vx * (rideUp ? 9 : 14), ty = wy(b.y, b.z * (rideUp ? 0.85 : 0.3)) - 40 - clamp(1 - b.y / 20, 0, 1) * 170;
+    // t-019 (Luca 25 Oct: "the camera is janky [...] make it so the camera doesnt follow - try make it smooth"): an
+    // open-play lob no longer rides up - the camera stays on the play, its normal follow. Only t-007's ball a keeper sent
+    // up and out still does. And while a lob is on, the follow's lead (14 px per m/s of the ball) eases at LOB_AIM.camLead
+    // instead of jumping with the ball's speed at the kick and at the drop; once the lob is over it eases back to the
+    // normal, instant lead before handing over. (LOB_AIM.camOld = the old camera: the Lab's LV5 'before'.)
+    const old = LOB_AIM.camOld, rideUp = !b.owner && (b.camUp || (old && b.lob)) && b.z > 0.5;
+    const rawL = b.vx * (rideUp ? 9 : 14), lobOn = !old && ((b.lob && !b.owner) || (this.camLeadOn && Math.abs((this.camLead ?? rawL) - rawL) > 4));
+    if (lobOn) this.camLead = (this.camLead ?? rawL) + (rawL - (this.camLead ?? rawL)) * (1 - Math.exp(-dt * LOB_AIM.camLead)); else this.camLead = rawL;
+    this.camLeadOn = lobOn;
+    let tx = X + this.camLead, ty = wy(b.y, b.z * (rideUp ? 0.85 : 0.3)) - 40 - clamp(1 - b.y / 20, 0, 1) * 170;
+    const LB = this.lobCamBlend;                                                // t-019 RING: the aim's framing hands over to the follow
+    if (LB) { if (old) this.lobCamBlend = null; else { LB.t += dt; const s = clamp(LB.t / LOB_AIM.camBlend, 0, 1), e = s * s * (3 - 2 * s);
+      tx = LB.x + (tx - LB.x) * e; ty = LB.y + (ty - LB.y) * e; if (s >= 1) this.lobCamBlend = null; } }
     const fs = this.foulScene;
     if (fs) { const q = fs.card ? fs.by : fs.victim; tx = wx(q.x, q.y); ty = wy(q.y) - 70 - clamp(1 - q.y / 20, 0, 1) * 120; }   // v0.8: the camera stays on the incident
     const spc = this.setPiece;
