@@ -50,7 +50,7 @@ All art is made in PixelLab and Aseprite. The official game and its Test Lab are
 4. **Test:** run the tests above and the ones in your brief.
 5. **Your own preview page (optional now):** Luca's side builds an "HC2 PR #N preview" page from your branch for every PR (step 7), so you no longer need to share one. For trying things yourself you can still publish your branch as your **own private page** (`HC2 Football · preview · <topic>`).
    - The game is about 300 files and one publish takes at most 255, so publish twice to the same page.
-   - Never publish to Luca's pages.
+   - Never publish to Luca's game or Test Lab pages. HC2 HQ is the one page you may publish yourself (CLAUDE.md, "HC2 HQ is the exception").
 6. **Pull request:** push and open a PR. Put in the description:
    - what changed and why
    - how to try it (what to click)
@@ -99,7 +99,7 @@ Next to your main session you run **worker-f**, a general worker: it does whatev
 ## Never
 
 - push to `main` or merge pull requests
-- publish to, or change, Luca's pages (HC2 Football, Test Lab, the Taskboard's settings)
+- publish to, or change, Luca's game or Test Lab pages (HC2 HQ is the exception: CLAUDE.md, "HC2 HQ is the exception")
 - delete files: propose deletions in the PR instead
 - add libraries or a build step without a card Luca has OK'd
 - change another lane's files without saying so in the PR

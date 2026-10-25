@@ -56,6 +56,7 @@ Branch: <you>/<task>-<topic> · PR: <link> · Files: <list>
 
 ## Never
 
-- push to `main`, merge, or publish to Luca's pages (game, Test Lab, Taskboard)
+- push to `main`, merge, or publish to Luca's pages (game, Test Lab, Taskboard). Exception: worker-f may publish HC2 HQ when
+  the co-designer asks it to (CLAUDE.md, "HC2 HQ is the exception").
 - write in `agents/tasks/` or `agents/reviews/` (the taskmaster's), or edit any file in the agents folder by hand
 - start a task that wasn't assigned to you
