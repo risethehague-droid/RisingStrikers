@@ -11,6 +11,12 @@ const RAMI_ALT = {                                   // a few extra takes so the
   post: [['RATTLES THE POST!']],
   banter: [['WHAT A CROWD', 'AT KLEINE LOO!'], ['SIX TEAMS, ONE CUP,', 'ONE GOOD CAUSE!']],
 };
+// t-023 (Luca: "make lv3 shots rip through the goal ... and a rami reaction about it"): his lines for the net coming
+// alive (NET_FX, a Test Lab preview for now) - a ripped net, and a big stretch. [lines, expression]
+const RAMI_NET = {
+  rip: [[['HE HAS RIPPED', 'THE NET OPEN!!'], 'shock'], [['STRAIGHT THROUGH', 'THE NET! GET A NEEDLE!'], 'laugh']],
+  stretch: [[['THE NET NEARLY', 'ENDED UP IN THE STANDS!'], 'goal'], [['LOOK AT THAT', 'NET STRETCH!'], 'shock']],
+};
 
 class RamiBox {
   static make(scene) { return MAN.rami && scene.textures.exists('rami') ? new RamiBox(scene) : null; }
@@ -25,7 +31,7 @@ class RamiBox {
     this.line = null; this.t = 0; this.prio = 0; this.cool = {}; this.quiet = 0;
   }
   say(key, v = {}, prio = 1) {
-    const L = MAN.rami.lines[key]; if (!L || (window.__lab && !window.__labCut)) return;
+    const L = MAN.rami.lines[key]; if (!L || (window.__lab && !window.__labCut && !v.lab)) return;   // (t-023: v.lab = a line the Test Lab shows)
     if (this.line && this.prio > prio && this.t < this.dur) return;                // a bigger moment is still on
     const now = this.s.time.now; if (prio < 3 && this.cool[key] && now - this.cool[key] < 9000) return; this.cool[key] = now;
     const alts = RAMI_ALT[key], src = alts && Math.random() < 0.5 ? alts[Math.floor(Math.random() * alts.length)] : L.text;
@@ -108,6 +114,9 @@ hc2Mix(Match, {
   // ---------- RAMI ON THE MIC (see class RamiBox)
   buildRami() { this.rami = RamiBox.make(this); },
   ramiSay(key, v, prio) { if (this.rami) this.rami.say(key, v, prio); },
+  // t-023 NET_FX: Rami on the net - 'rip' (an LV3 through it) or 'stretch' (a big one); the top priority, like a goal line
+  ramiNet(kind) { const A = RAMI_NET[kind]; if (!A) return; const [t, expr] = A[Math.floor(Math.random() * A.length)]; this.netSaid = kind;
+    this.ramiSay('goal_followup', { text: t.join('\n'), expr, lab: true }, 3); },
   ramiTick(dt) { if (this.rami) this.rami.tick(dt, this.replay ? (this.replay.ctl ? 92 : 52) : (this.help && this.help.visible ? 40 : 0)); },
   // ---- the overlay (team sheet / half time card): DOM, same look as the cup table
   flowEl(kind) {

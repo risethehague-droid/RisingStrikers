@@ -311,7 +311,35 @@ const GP = {
   // computer's side gets fewer of the pop-ups that help it (easyK)
   parryPop: 0.42, breakPop: 0.45, popVz: [5.5, 8], popOut: [1.5, 4.5], popSide: [0.5, 3], breakOn: [1.2, 4], breakBack: [2, 4.5], easyK: 0.5,
 };
-const HALF_END = [45, 90, 105, 120];                                // v0.8.5: the minute each half ends (3 + 4 = extra time)
+// t-023 THE NET COMES ALIVE (Luca 25 Oct 07:04: "add more polygons or whatever to the net so it makes it more flowy and
+// the impact of the goal is felt on stronger shots and especially special shots, the ball should roll with energy for a
+// second or two before it drops, make the net stretch more in general but drastically for special shots, increasingly
+// for each level, make lv3 shots rip through the goal ... and a rami reaction about it (make a preview of this before
+// you implement)"). A PREVIEW on top of t-013's spring net: null = ON in the Test Lab, OFF in matches (until Luca's
+// OK); true / false forces it. It needs GOAL_PHYS (the spring net it stretches).
+let NET_FX = null;
+const nfxOn = () => gpOn() && (NET_FX ?? !!window.__lab);
+// every number in one place (ball.js gpNet / nfxRollStep / nfxTear, world.js netMesh / netWarp)
+const NFX = {
+  // the stretch: a goal's net spring is softened by S^2 (and its reach grown by S), so the ball sinks S times deeper than
+  // t-013's net: S = base ("stretch more in general") + byV x its pace at the line (0 at v0 m/s, 1 at v1) + lv[special
+  // level] - a soft shot ~1.2, a power shot ~1.5, LV1 ~2.3, LV2 ~2.9 (the drastic ones). The boards are board m behind
+  // the line (6 m of grass, then the end boards: docs/lanes/stadiums-maps.md)
+  base: 1.2, byV: 0.55, v0: 14, v1: 32, lv: [0, 0.6, 1.1, 1.6], board: 5.6,
+  // the ball keeps its energy: at its deepest point the netting takes it round the pocket the bulge made (a swirl rollR m
+  // across at rollHz turns a second, shrinking as it slows) for rollT s (soft .. hard, + rollLv per level), sliding down
+  // the bulge (sag m/s), the mesh giving it back slowly (keep: the share of the depth left at the end); then it drops
+  rollT: [0.9, 1.7], rollLv: 0.15, rollR: 0.42, rollHz: 1.5, sag: 0.35, keep: 0.35,
+  // LV3 rips through: once it has pushed the mesh tearD m back the mesh splits (holeR m across the hole, opening in
+  // holeT s), the ball flies on at keepV of its pace at least, hits the boards and drops; the hole stays open until the
+  // restart. Rami: a big-stretch line past bigD m
+  tearD: 1.25, holeR: 0.62, holeT: 0.12, keepV: 0.62, bigD: 1.2,
+  // the drawn net: the art warped by a mesh of seg px triangles (WebGL; canvas falls back to t-013's cells); a vertex
+  // moves at most drawMax px; the bulge's radius grows with the stretch (sigK x depth on top of GP.netSig); a torn
+  // edge peels back flap px and flutters at flapHz
+  seg: 5, drawMax: 150, sigK: 0.5, flap: 14, flapHz: 5,
+};
+const HALF_END = [45, 90, 105, 120];                               // v0.8.5: the minute each half ends (3 + 4 = extra time)
 const RULE_OPTS = {                                                 // v0.8.5 match settings (arenas / light / weather: placeholders for the art)
   arena: [['loo', 'HET KLEINE LOO'], ['epic', 'EPIC STADIUM'], ['vuc', 'VUC GROUND']],
   tod: [['day', 'DAY'], ['sunset', 'SUNSET'], ['night', 'NIGHT']],
