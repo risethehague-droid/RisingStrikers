@@ -1588,6 +1588,96 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (b.owner === gk) return done({ o: head + `it died before him: the keeper took it at his feet (${f1(len(b.x - r.start.x, b.y - r.start.y))} m from the kick)`, hold: 1 });
     return r.t - r.kickT > 4 ? done({ o: head + 'ball loose' }) : null;
   }
+  // t-018 TACKLE REWORK (Luca 25 Oct 06:56: "you can spam it too easy, it should have more draw back if you miss so
+  // slower reset time ... making the slide actually slide more, but not too far either and gets up after"). The Lab
+  // presses the real buttons (Input.touch) and times what the player can do. TT1 a slide that misses, TT2 one that wins
+  // it, TT3 SHOOT mashed 10 times in 5 s, TT4 a standing challenge made to miss + PASS mashed after it, TT5 the computer
+  // defending against you for 20 s. A foul in TT3 / TT5 is counted and play goes on (no free kick in the Lab).
+  const ttFree = p => !p.busy() && p.stun <= 0;                                  // he's up and can play again (a tackle: p.cool too)
+  const ttFoul = (r, back) => { if (!m.foulScene && !r.out) return false; r.fouls = (r.fouls || 0) + 1;
+    m.foulScene = null; m.setPiece = null; m.pending = null; r.out = null; for (const p of m.all) if (p.state === 'fall') { p.state = 'idle'; p.stun = 0; } if (back) atFeet(back); return true; };
+  const ttShuttle = (a, b, v) => { let to = b; return (p, dt) => { if (m.ball.owner !== p || p.busy()) { p.steer(0, 0, dt); return; }
+    if (len(to[0] - p.x, to[1] - p.y) < 0.8) to = to === b ? a : b; const dx = to[0] - p.x, dy = to[1] - p.y, d = len(dx, dy) || 1;
+    p.wantDir = { x: dx / d, y: dy / d }; m.carrySteer(p, dx / d, dy / d, v, dt); }; };
+  function ttTest(id, name, sub, o) {
+    return { id, group: 'TT', name, sub, kind: 'tt', you: true, o, maxT: o.maxT,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+        const you = m.home.players[4], d = m.away.players[9], d2 = o.cpu ? m.away.players[5] : null; cast([you, d, ...(d2 ? [d2] : [])]);
+        Object.assign(r, { human: you, drib: d, o, presses: 0, slides: 0, ignored: 0, fouls: 0, wins: 0, cools: [] });
+        if (o.cpu) {                                                             // TT5: you on the ball, two computer defenders press you
+          put(you, 76, 34, 0); atFeet(you); put(d, 90, 34, 4); put(d2, 82, 22, 6); r.wp = [[86, 27], [86, 41], [72, 41], [72, 27]]; r.wi = 0;
+          const press = (p, dt) => { const c = m.ball.owner; if (c && c.team !== p.team) m.aiPress(p, m.away, c, dt); else p.steer(0, 0, dt); };
+          r.bots.set(d, press); r.bots.set(d2, press); r.cam = () => ({ x: you.x, y: you.y }); r.fired = true; return;
+        }
+        put(you, o.me[0], o.me[1]); put(d, o.from[0], o.from[1]); faceTo(d, o.to[0], o.to[1]); faceTo(you, d.x, d.y); atFeet(d);
+        r.bots.set(d, o.shuttle ? ttShuttle(o.from, o.to, o.v) : dribbleTo(o.to[0], o.to[1], o.v));
+        r.cam = () => ({ x: (you.x + d.x) / 2, y: (you.y + d.y) / 2 }); r.fired = true;
+      },
+      check: ttCheck };
+  }
+  function ttCheck(r) {
+    const b = m.ball, o = r.o, p = r.human, T = Input.touch, f1 = v => v.toFixed(1), f2 = v => v.toFixed(2);
+    const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); if (r.rand0) { LAB.rand = r.rand0; r.rand0 = null; } return res; };
+    if (r.rand0) { LAB.rand = r.rand0; r.rand0 = null; }                         // (TT4: the forced miss lasts one step)
+    const btn = o.btn || 'shoot', was = T.btn[btn]; T.btn[btn] = false;          // a press is one step down
+    if (p.state === 'slide' && r.prevState !== 'slide') { r.slides++; if (r.t0 == null) { r.t0 = r.t; r.x0 = p.x; r.y0 = p.y; } }
+    else if (was && btn === 'shoot') r.ignored++;                                // pressed last step and no slide came of it
+    const chal = p.cool > (r.prevCool ?? 0) + 0.05 && p.state !== 'slide'; if (chal) r.cools.push(r.t);   // a challenge went in
+    r.prevState = p.state; r.prevCool = p.cool;
+    const press = () => { T.btn[btn] = true; r.presses++; r.pressT = r.t; };
+    if (o.kind === 'miss' || o.kind === 'win') {
+      if (r.pressT == null) { if (o.kind === 'miss' ? r.t >= 0.3 : len(b.x - p.x, b.y - p.y) < o.at) { press(); if (o.stick) { T.x = o.stick[0]; T.y = o.stick[1]; } } return r.t > 5 ? done({ o: 'NO PRESS' }) : null; }
+      if (r.t - r.pressT > 0.05) { T.x = T.y = 0; }
+      if (r.t0 == null) return r.t - r.pressT > 0.5 ? done({ o: 'NO SLIDE' }) : null;
+      if (p.slideWon && r.winT == null) r.winT = r.t;
+      if (p.state === 'getup' && r.upT == null) { r.upT = r.t; r.xUp = p.x; r.yUp = p.y; }
+      if (r.actT == null && r.upT != null && ttFree(p)) r.actT = r.t;
+      if (r.tackT == null && r.actT != null && p.cool <= 0) r.tackT = r.t;
+      if (r.actT == null || r.tackT == null) return r.t > 8 ? done({ o: 'STILL DOWN after 8 s' }) : null;
+      const slid = len(r.xUp - r.x0, r.yUp - r.y0), ground = r.upT - r.t0, up = r.actT - r.upT;
+      if (o.kind === 'miss') return done({ o: `${r.winT != null ? 'IT WON THE BALL (meant to miss) · ' : 'MISSED · '}slid ${f1(slid)} m in ${f2(ground)} s, get-up ${f2(up)} s → can act again ${f2(r.actT - r.t0)} s after the press, slide / challenge again after ${f2(r.tackT - r.t0)} s`, hold: 0.6 });
+      if (r.winT == null) return done({ o: `MISSED (meant to win) · slid ${f1(slid)} m, can act again ${f2(r.actT - r.t0)} s after the press` });
+      const mine = b.owner === p ? 'the ball is YOURS (block tackle)' : b.owner ? `${b.owner.team === p.team ? 'you' : 'he'} picked it up` : `knocked loose (${f1(len(b.vx, b.vy))} m/s)`;
+      return done({ o: `WON IT ${f2(r.winT - r.t0)} s into the slide · up and free ${f2(r.actT - r.winT)} s after the contact (${f2(r.actT - r.t0)} s after the press) · ${mine}`, hold: 0.6 });
+    }
+    if (o.kind === 'mash') {                                                      // TT3: 10 presses, one every 0.5 s; the ball goes back to him
+      ttFoul(r, r.drib);
+      if (b.owner !== r.drib && r.t - (r.pressT ?? 0) > 0.1) { if (p.slideWon || p.state === 'getup') r.wins += b.owner === p ? 1 : 0; atFeet(r.drib); }
+      if (r.presses < 10 && r.t >= 0.2 + r.presses * 0.5) { press(); T.x = 0; T.y = r.presses % 2 ? -1 : 1; }   // (the stick up / down in turn: every slide misses and he stays by him)
+      else if (r.t - r.pressT > 0.05) T.x = T.y = 0;
+      if (r.t < 5.6) return null;
+      return done({ o: `SHOOT pressed ${r.presses} times in 5 s → ${r.slides} slides${r.wins ? ` (${r.wins} won it)` : ''}, ${r.ignored} presses did nothing (on the grass / getting up / cooling down)${r.fouls ? ` · ${r.fouls} foul${r.fouls > 1 ? 's' : ''}` : ''}`, hold: 0.6 });
+    }
+    if (o.kind === 'chal') {                                                      // TT4: the challenge made to miss, then PASS mashed every 0.1 s
+      if (r.pressT == null) { if (len(b.x - p.x, b.y - p.y) < 1.3) { press(); r.rand0 = LAB.rand; LAB.rand = () => 0.999; } return r.t > 5 ? done({ o: 'NO PRESS' }) : null; }
+      if (r.c1 == null) { if (r.cools.length) { r.c1 = r.cools[0]; r.stun0 = p.stun; r.won1 = b.owner === p; } return null; }
+      if (r.stunT == null && p.stun <= 0) r.stunT = r.t;
+      if (r.cools.length < 2) { if (Math.round((r.t - r.c1) / STEP) % 6 === 0) press(); return r.t - r.c1 > 4 ? done({ o: `no second challenge in 4 s` }) : null; }
+      const c2 = r.cools[1], res2 = b.owner === p ? 'WON IT' : len(b.x - p.x, b.y - p.y) > 1.6 ? 'lunged at nothing (he was gone)' : 'missed';
+      return done({ o: `${r.won1 ? 'WON (meant to miss)' : 'MISSED'} · off balance ${f2((r.stunT ?? r.t) - r.c1)} s · PASS mashed: ${r.presses - 2} presses did nothing · next challenge ${f2(c2 - r.c1)} s after the first → ${res2}`, hold: 0.6 });
+    }
+    // TT5: you dribble round a square; count the computer's slides and challenges in 20 s
+    const D = [r.drib, m.away.players[5]];
+    for (const q of D) { if (q.state === 'slide' && q._ttS !== 'slide') r.slides++; q._ttS = q.state; if (q.cool > (q._ttC ?? 0) + 0.05 && q.state !== 'slide') r.chal = (r.chal || 0) + 1; q._ttC = q.cool; }
+    if (ttFoul(r, null)) r.backT = r.t + 0.6;
+    if (b.owner && b.owner.team !== p.team && r.backT == null) { r.wins++; r.backT = r.t + 0.6; }   // it won it: back to you shortly
+    if (!b.owner && r.backT == null) r.looseT = (r.looseT || 0) + STEP; else r.looseT = 0;
+    if ((r.backT != null && r.t >= r.backT) || r.looseT > 1) { r.backT = null; r.looseT = 0; if (!p.busy()) { p.stun = 0; atFeet(p); } else r.backT = r.t + 0.2; }
+    const w = r.wp[r.wi]; if (len(w[0] - p.x, w[1] - p.y) < 1.5) r.wi = (r.wi + 1) % r.wp.length;
+    const w2 = r.wp[r.wi], dx = w2[0] - p.x, dy = w2[1] - p.y, dl = len(dx, dy) || 1; T.x = dx / dl; T.y = dy / dl;
+    if (r.t < 20) return null;
+    return done({ o: `the computer in 20 s: ${r.slides} slides, ${r.chal || 0} standing challenges · won the ball ${r.wins} times · ${r.fouls} foul${r.fouls === 1 ? '' : 's'}`, hold: 0.4 });
+  }
+  function ttTests() {
+    return [
+      ttTest('TT1', 'a slide that misses', 'SHOOT with the stick pushed away from him: he slides along the grass, gets up, and only then can he play again', { kind: 'miss', me: [50, 34], from: [58, 40], to: [72, 40], v: 3, stick: [0, -1] }),
+      ttTest('TT2', 'a slide that wins the ball', 'he runs straight at you; SHOOT at 3.2 m, stick idle: the slide wins it - how soon is he up and away?', { kind: 'win', me: [50, 34], from: [60, 34], to: [30, 34], v: 4.6, at: 3.2 }),
+      ttTest('TT3', 'SHOOT mashed 10 times in 5 s', 'a dribbler shuttles just in front of you; the Lab presses SHOOT every 0.5 s with the stick up / down in turn (slides that miss): how many slides come out?', { kind: 'mash', me: [50, 34], from: [53, 34], to: [57, 34], v: 2.5 }),
+      ttTest('TT4', 'a standing challenge that misses', 'he walks past 1.2 m away; PASS as he comes (the Lab makes it miss), then PASS mashed every 0.1 s: the stumble and the reset', { kind: 'chal', btn: 'pass', me: [50, 34], from: [57, 32.8], to: [40, 32.8], v: 2.5 }),
+      ttTest('TT5', 'the computer tackling you (20 s)', 'you dribble round a square at running pace; two computer defenders press you with the match AI: how often do they slide?', { cpu: true, maxT: 21 }),
+    ];
+  }
   function tkTests() {
     return [
       tkTest('TK1', 'tap from 6 m straight at a set keeper', 'SHOOT tapped, stick idle, facing goal: in his reach - he should hold it', { from: [98.5, 34], gk: [LINE_X, 34] }),
@@ -1704,6 +1794,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
     add('KF', 't-016 · KEEPER FACING + BLOCKED PATHS', 'Luca\'s Bug Watch marks: a keeper never shows his back to a ball within 6 m (KF1-3: the biggest angle between his facing and the ball), and a man with someone in his straight line steps round him instead of standing still (KF4-5).', kfTests());
     add('GKX', 't-007 · KEEPER SAVES', 'Their keeper reads where the shot crosses him (side and height) and how hard it is: holds the soft ones, dives low or high, jumps, tips over the bar, pushes it round the post, punches a crowded lob. A touch out of play is a corner.', gkxTests());
+    add('TT', 't-018 · TACKLE REWORK', 'The slide really slides (~3.6 m) and he gets up after: a miss costs ~1.4 s, a won one is up in 0.3 s. A missed standing challenge leaves him off balance 0.6 s and he can\'t go again for 1 s. No presses kept from the grass. The computer plays by the same rules.', ttTests());
     add('TK', 't-010 · TAP KICK', 'SHOOT tapped (let go within 0.15 s) = a snappy, low stab along your arrow that dies on the grass: a close-range finish. Held = the power shot as before. In the keeper\'s reach he holds most; out of it, it goes in. (On in the Test Lab only.)', tkTests());
     add('KP', 't-017 · KEEPER 1v1 + TRACKING', 'Their keeper against a striker who tries to walk round him (straight at him, past his side, a tap into the empty net) and one walking the ball across the edge of the box. GOAL = he was walked round; he should block, smother or take it off his feet, and stay on the angle smoothly.', kpTests());
     add('GK', 'v0.9.1 · KEEPER AI', 'Their keeper with the real AI in 11 situations: walking up with the ball far away, the angle, 1v1s, sweeping, back passes, lobs. The yellow diamond is where he wants to be; the label says what he is doing.', gkTests());

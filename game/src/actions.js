@@ -49,7 +49,9 @@ hc2Mix(Match, {
     }
     if (!(b.owner && b.owner.team === team) && (Input.pressed('lob') || (b.owner && b.owner.team !== team && this.human.keeper))) this.switchHuman();
     const p = this.human;
-    if (p.state === 'kick' || p.state === 'slide' || p.state === 'dheader' || p.stun > 0) return;
+    // t-018 (Luca: "you can spam it too easy"): getting up off the grass he does nothing either - a SHOOT pressed there
+    // slid again, shot first time or was kept for a header (no queued presses)
+    if (p.state === 'kick' || p.state === 'slide' || p.state === 'getup' || p.state === 'dheader' || p.stun > 0) return;
     const ax = Input.axis, moving = len(ax.x, ax.y) > 0.1, owns = b.owner === p;
     const sprint = Input.held('sprint') && moving;
     if (sprint && !p.sprinting && p.stamina > 0.3 && (p.burstCd || 0) <= this.time.now) { p.burst = 0.55; p.burstCd = this.time.now + 1500; }   // v0.8 burst (not spammable)
@@ -434,10 +436,10 @@ hc2Mix(Match, {
   challenge(p, carrier) {
     const b = this.ball;
     if (!carrier || (carrier.keeper && carrier.hands) || p.cool > 0) return;
-    p.cool = 0.6; p.face = dirIndex(b.x - p.x, b.y - p.y);
+    p.cool = TACKLE.chCool; p.face = dirIndex(b.x - p.x, b.y - p.y);
     if (MAN.kits[p.kit].anims[`tackle-${DIRS[p.face]}`]) p.setState('tackle', 0.3);      // the lunge (PixelLab batch 5)
     const db = len(b.x - p.x, b.y - p.y);
-    if (db > 1.6) { p.stun = 0.35; return; }                                     // lunged at nothing: too far
+    if (db > 1.6) { p.stun = TACKLE.chMissStun; p.cool = TACKLE.chMissCool; return; }   // lunged at nothing: too far (t-018: it costs as much as a miss)
     const cv = carrier.speed > 0.6 ? { x: carrier.vx / carrier.speed, y: carrier.vy / carrier.speed } : dirVec(carrier.face);
     const rx = p.x - carrier.x, ry = p.y - carrier.y, rl = len(rx, ry) || 1, front = (cv.x * rx + cv.y * ry) / rl;
     const human = p === this.human && !this.demo, vsHuman = carrier === this.human && !this.demo;
@@ -450,7 +452,7 @@ hc2Mix(Match, {
     if (Math.random() < pWin) { this.steal(p, carrier); return; }               // won: it's yours, at your feet
     if (front < -0.3 && rl < 1.2 && Math.random() < 0.4) { this.foul(p, carrier, true); return; }   // through the back of him
     if (rl < 1.0 && Math.random() < 0.06) { this.foul(p, carrier, false); return; }                // clipped his ankle
-    p.stun = 0.4;                                                                // missed: off balance
+    p.stun = TACKLE.chMissStun; p.cool = TACKLE.chMissCool;                      // missed: off balance (t-018: longer, so mashing it doesn't pay)
   },
   // SLIDE: you go to ground in the direction you're pushing (or at the ball). It reaches further than a challenge.
   // A perfect slide from straight in front can stop the ball dead for you; otherwise the ball rolls on the way the
@@ -459,16 +461,18 @@ hc2Mix(Match, {
     const b = this.ball; if (p.cool > 0) return;
     // v0.8.2: aim where the ball WILL be (it was aimed at where it was, so a slide at a runner hit the man: 22 fouls in 60);
     // a push within ~35 degrees of that line is helped onto it
-    // (a slide covers (9.5 / 3.2) * (1 - e^(-3.2 t)) metres: it slows fast, so the lead is solved on that, not on 9.5 m/s)
+    // (a slide covers (V / K) * (1 - e^(-K t)) metres: it slows down, so the lead is solved on that, not on V m/s)
     // the earliest moment the slide can reach where the ball will be (foot 0.7 m out, ~1 m of leg reach)
+    const V = TACKLE.slideV, K = TACKLE.slideK;
     let tr = 0, gap = 1e9;
-    for (let t = 0; t <= 0.6; t += 0.025) { const D = len(b.x + b.vx * t - p.x, b.y + b.vy * t - p.y) - 0.7 - 2.97 * (1 - Math.exp(-3.2 * t));
+    for (let t = 0; t <= TACKLE.slideT; t += 0.025) { const D = len(b.x + b.vx * t - p.x, b.y + b.vy * t - p.y) - 0.7 - V / K * (1 - Math.exp(-K * t));
       if (D < 0.6) { tr = t; break; } if (D < gap) { gap = D; tr = t; } }
     const lx = b.x + b.vx * tr - p.x, ly = b.y + b.vy * tr - p.y, ll = len(lx, ly) || 1, lead = { x: lx / ll, y: ly / ll };
     let d = dir && len(dir.x, dir.y) > 0.2 ? { x: dir.x / len(dir.x, dir.y), y: dir.y / len(dir.x, dir.y) } : lead;
     if (d !== lead && d.x * lead.x + d.y * lead.y > 0.82 && ll < 5) d = lead;
     p.face = dirIndex(d.x, d.y); p.slideDir = d;
-    p.vx = d.x * 9.5; p.vy = d.y * 9.5; p.setState('slide', 0.6); p.cool = 0.7; p.slideWon = false; p.slideHit = new Set();
+    // t-018: a longer slide and a cool-down that runs through the get-up (it ran out in the get-up: slide, slide, slide)
+    p.vx = d.x * V; p.vy = d.y * V; p.setState('slide', TACKLE.slideT); p.cool = TACKLE.missCool; p.slideWon = false; p.slideHit = new Set();
   },
   // v0.8 a clean win: the ball is yours, he stumbles
   steal(p, carrier, block) {
@@ -509,6 +513,7 @@ hc2Mix(Match, {
         const head = cv ? (sd.x * cv.x + sd.y * cv.y) : 0;                       // -1 = straight into him, head on
         const front = carrier ? ((p.x - carrier.x) * (cv ? cv.x : 0) + (p.y - carrier.y) * (cv ? cv.y : 0)) / (len(p.x - carrier.x, p.y - carrier.y) || 1) : 0;
         this.knock(p, carrier, 0); p.slideWon = true;
+        p.stateT = Math.min(p.stateT, TACKLE.wonRest);                          // t-018: won it - he stops sliding and gets up (player.js)
         if (carrier) { carrier.stun = 0.85; carrier.cool = 1.0; }                // v0.8.2: he hurdles your leg and loses his stride
         if (carrier && head < -0.6 && front > 0.5 && Math.random() < 0.55) {   // perfect, head on: a block - you both stop dead and
           p.vx *= 0.2; p.vy *= 0.2; p.stateT = Math.min(p.stateT, 0.3);           // the ball's yours as you get up (no teleport: it

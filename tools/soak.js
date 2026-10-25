@@ -56,7 +56,15 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       return r; };
     // exploit hunt: a runner standing still short of his run's spot (seconds), and a carrier parked out wide in the final 30 m (4 s+)
     W.z0 = W.z; W.z = () => { W.z0(); Object.assign(W, { taps: 0, runIdle: 0, wideHold: 0, wideT: 0, wideIn: 0, wideCross: 0, widePass: 0, wideShot: 0, wideLost: 0, wideOwner: null, lastKick: null }); }; W.z();
+    // t-018 TACKLE COUNTERS (Luca 25 Oct: the tackle was spammable): slides and standing challenges that actually went in
+    // (a press on cool-down doesn't count), the ones that won the ball, and how often the ball changed teams - wrapped
+    // around the game's own moves, so the before / after soaks count the same way
+    W.z1 = W.z; W.z = () => { W.z1(); Object.assign(W, { slides: 0, slideWins: 0, challenges: 0, chWins: 0, possCh: 0, possTeam: null }); }; W.z();
+    const st0 = m.slideTackle; m.slideTackle = function (p, ...a) { const was = p.state, r = st0.call(this, p, ...a); if (p.state === 'slide' && was !== 'slide') W.slides++; return r; };
+    const ch0 = m.challenge; m.challenge = function (p, c, ...a) { const c0 = p.cool, r = ch0.call(this, p, c, ...a); if (p.cool > c0) { W.challenges++; if (this.ball.owner === p) W.chWins++; } return r; };
     const ai0 = m.ai; m.ai = function (dt, ...rest) { const r = ai0.call(this, dt, ...rest), b = this.ball, o = b.owner;
+      if (o && !o.keeper && o.team !== W.possTeam) { if (W.possTeam) W.possCh++; W.possTeam = o.team; }   // (t-018)
+      for (const p of this.all) if (p.state === 'slide' && p.slideWon && !p._soakWon) { p._soakWon = true; W.slideWins++; } else if (p.state !== 'slide') p._soakWon = false;
       for (const t of [this.home, this.away]) if (t.wing) for (const [p, w] of t.wing) if (!p.busy() && p.speed < 0.3 && len(w.x - p.x, w.y - p.y) > 2) W.runIdle += dt;
       { const wo = W.wideOwner;                                                     // wide in the final 30 m: how did each of those moments end?
         if (wo && o !== wo) { const k = W.lastKick && W.lastKick.p === wo ? W.lastKick.kind : null; W[k === 'cross' ? 'wideCross' : k === 'shot' ? 'wideShot' : k || (o && o.team === wo.team) ? 'widePass' : 'wideLost']++; W.wideOwner = null; }
@@ -107,6 +115,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
     const tr = Object.entries(st.trips).map(([k, v]) => `${k} ${v}`).join(', ');
     { const w = st.wing; console.log(`   wing: crosses ${w.cross} (whipped ${w.crossWhip}, floated ${w.crossFloat}, other ${w.crossCut}, you ${w.crossH} / them ${w.crossA}) + set-piece ${w.spCross} · aerial shots ${w.aerial} (head ${w.head}, volley ${w.volley}, overhead ${w.bike}, diving ${w.dhead}, air SP ${w.airSp}) · goals ${w.goals}: aerial ${w.aerialGoals}, after a cross ${w.crossGoals} · corners ${st.corners} · chips ${w.chips} · runners idle ${w.runIdle.toFixed(1)} s · parked wide ${w.wideHold}${w.goalLog.length ? '\n     ' + w.goalLog.join('\n     ') : ''}`); }
+    { const w = st.wing; console.log(`   tackles (t-018): slides ${w.slides} (won the ball ${w.slideWins}) · challenges ${w.challenges} (won ${w.chWins}) · fouls ${st.fouls} · possession changes ${w.possCh}`); }
     console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${process.env.TAP ? `tap kicks ${st.wing.taps} · ` : ''}${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
   }
   await br.close();

@@ -66,7 +66,7 @@ class Player {
     }
     else if (this.state === 'catch') { if (!(this.claimHigh && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); }
     else if (this.state === 'dive') { this.play(this.diveAnim, /^ksmother/.test(this.diveAnim || '') ? 20 : /^kcollapse/.test(this.diveAnim || '') ? 12 : 16, true); }   // (t-017: the smother's hands land on frame 6 at ~0.3 s; the 4-frame collapse a little slower)
-    else if (this.state === 'slide') { if (!this.play(`slide-${d}`, 12, true)) { this.play(`run-${d}`, 13); this.spr.anims.timeScale = 0.01; } }
+    else if (this.state === 'slide') { if (!this.tacklePlay('slide', d, TACKLE.slideT)) { this.play(`run-${d}`, 13); this.spr.anims.timeScale = 0.01; } }
     else if (this.state === 'applaud') { if (!this.play(`applaud-${d}`, 9) && !this.play('applaud-S', 9)) this.play(`idle-${d}`, 5); }   // full time (loops)
     else if (this.state === 'trophy') {                                         // v0.7.4 cup ceremony: PixelLab trophy lift, then he keeps it up there
       const up = this.anim === `${this.kit}:trophy-S` && !this.spr.anims.isPlaying;
@@ -79,6 +79,7 @@ class Player {
       const a = this.labAnim, k = [d, dirVec(this.face).x >= 0 ? 'E' : 'W', 'S'].find(q => K.anims[`${a}-${q}`]);
       if (!k || !this.play(`${a}-${k}`, this.labFps || 12, true)) this.play(`idle-${d}`, 5);
     }
+    else if (this.state === 'getup' && this.slideUp && this.tacklePlay('slideup', d, this.slideWon ? TACKLE.upWon : TACKLE.upMiss)) { }   // t-018: up off the grass after a slide
     else if (this.state === 'getup' && this.getupAnim && this.play(this.getupAnim, 18, true)) { }   // t-017: the keeper back up off the grass after a dive (batch 18 kgetup)
     else if (ONCE[this.state]) { const [nm, fps] = this.state === 'header' && K.anims['header-S'] ? ['header', 15] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state]; if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
     else if (this.waitingThrowIn()) { if (!this.play(`throwinhold-${this.y < 34 ? 'S' : 'N'}`, 1, true)) this.play(`idle-${d}`, 5); }   // ball held over his head
@@ -173,6 +174,19 @@ class Player {
   }
   // a one-off move: always restarts its animation
   setState(s, t) { this.state = s; this.stateT = t; this.anim = ''; if (this.rig && ((RIGS[this.rig.n] || {}).brk || RIG_BREAK).test(s)) this.rig = null; }   // (v0.8.9: a rough rig stops when he's knocked over; t-014: a keeper's special-save move only when he's knocked over - his dive / punch states carry on under it)
+  // t-018: the slide / get-up move from TACKLE.anims (the first one this kit has, batch 19's slide2 / slideup when they're
+  // in), played once: over the slide / a missed get-up when the table gives no frame rate, and sped up to fit a quicker
+  // get-up (a won slide's 0.3 s) - the key's frame rate is fixed when it's first made, so the fit is a time scale
+  tacklePlay(kind, d, dur) {
+    const K = MAN.kits[this.kit];
+    for (const [nm, fps] of TACKLE.anims[kind]) {
+      const fr = K.anims[`${nm}-${d}`]; if (!fr) continue;
+      const rate = fps || Math.max(4, fr.length / (kind === 'slide' ? TACKLE.slideT : TACKLE.upMiss));
+      if (!this.play(`${nm}-${d}`, rate, true)) return false;
+      this.spr.anims.timeScale = Math.max(1, fr.length / rate / dur); return true;
+    }
+    return false;
+  }
   busy() { return this.state !== 'idle' && this.state !== 'run'; }
   step(dt) {
     if (this.sentOff) { this.vx = this.vy = 0; this.speed = 0; this.rig = null; return; }
@@ -184,15 +198,16 @@ class Player {
     if (this.state !== 'idle' && this.state !== 'run') {
       this.stateT -= dt;
       if (this.stateT <= 0) {                                       // after a slide or a fall you get up first
-        if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted' || (this.state === 'kick' && this.bike)) { const won = this.state === 'slide' && this.slideWon; this.bike = false; this.setState('getup', won ? 0.25 : 0.45);
+        if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted' || (this.state === 'kick' && this.bike)) { const won = this.state === 'slide' && this.slideWon; this.slideUp = this.state === 'slide'; this.bike = false; this.setState('getup', won ? TACKLE.upWon : this.slideUp ? TACKLE.upMiss : 0.45);
+          if (won) this.cool = Math.min(this.cool, TACKLE.upWon);                 // t-018: won it - free once he's up (a miss keeps its cool-down)
           const b = this.m.ball; if (this.slideKeep && !b.owner && len(b.x - this.x, b.y - this.y) < 1.8 && b.z < 0.5) { this.cool = 0; this.m.gain(this, 0); }   // v0.8.2 the block tackle: yours
           this.slideKeep = false; }
         else if (this.keeper && this.state === 'dive' && !this.hands && /^(diveLow|dive|diveHigh|smother)$/.test(this.saveKind || '') && MAN.kits[this.kit].anims['kgetup-E']) {   // t-017: off the grass, not a pop-up
           this.getupAnim = `kgetup-${this.team.side > 0 ? 'E' : 'W'}`; this.setState('getup', 0.44); }   // (8 frames at 18 a second)
-        else { this.state = 'idle'; this.getupAnim = null; }
+        else { this.state = 'idle'; this.getupAnim = null; this.slideUp = false; }
       }
       if (this.state === 'dive') { const age = (this.diveLen || 0.85) - this.stateT, k = Math.exp(-dt * (age > (this.diveFly || 0.4) ? 16 : 0.4)); this.vx *= k; this.vy *= k; }
-      else if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted') { const k = Math.exp(-dt * 3.2); this.vx *= k; this.vy *= k; }
+      else if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted') { const k = Math.exp(-dt * (this.state === 'slide' ? TACKLE.slideK : 3.2)); this.vx *= k; this.vy *= k; }   // (t-018: the slide glides further)
       else this.steer(0, 0, dt);
     }
     if (this.stun > 0 && this.state !== 'slide') this.steer(0, 0, dt);

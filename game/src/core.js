@@ -165,6 +165,25 @@ const TAP = {
   aiD: 9,              // the computer taps it in from this close (metres from the goal's centre)...
   aiGap: 0.6,          // ...when the corner away from the keeper is this much past his reach
 };
+// t-018 TACKLE (Luca 25 Oct 06:56, "super important": "you can spam it too easy, it should have more draw back if you
+// miss so slower reset time ... making the slide actually slide more, but not too far either and gets up after, this will
+// pace the game better"). v0.11.0 slid 2.5 m in 0.6 s (9.5 m/s, cool 0.7) and could go again ~1 s after a miss, even
+// from the get-up; the standing challenge was back after 0.6 s. Same numbers for you and the computer, both paces.
+const TACKLE = {
+  slideV: 9,           // off the mark, m/s, slowing by e^(-slideK t): (9 / 2) * (1 - e^(-1.9)) = 3.8 m in the slide's 0.95 s (TT1: 3.6 m)
+  slideK: 2.0,         // (was 3.2: it stopped dead after 2.5 m - now it really goes along the grass, ~1.3 m/s at the end)
+  slideT: 0.95,        // on the grass (was 0.6)
+  upMiss: 0.45,        // the get-up after a miss: slide + get-up = 1.4 s before he can do anything...
+  missCool: 1.5,       // ...and 1.5 s from the press before the next tackle of either kind (was 0.7)
+  wonRest: 0.2,        // won it: the slide stops this soon after the contact (it ran its full length)...
+  upWon: 0.3,          // ...and he's up in 0.3 s (was 0.25 after the full slide), free at once
+  chCool: 0.6,         // the standing CHALLENGE: back after this when it wins...
+  chMissStun: 0.6,     // ...a miss (or a lunge at nothing) leaves him off balance this long (was 0.35-0.4)...
+  chMissCool: 1.0,     // ...and he can't challenge again for this long from the press (was 0.6)
+  // the moves, best first: a kit uses the first it has. Batch 19 (slide2, slideup) drops in here; fps null = its frames
+  // spread over the slide / get-up time
+  anims: { slide: [['slide2', null], ['slide', 12]], slideup: [['slideup', null], ['getup', 12]] },
+};
 const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the weather scales these (clear = as tuned)
 // t-013 GOAL PHYSICS (Luca 24 Oct 14:04: "a net through which the ball can interact with slight give ... more dynamic
 // feedback when the ball hits the post ... the keeper, when he blocks a lot of shots but can't grab it, but it breaks his
