@@ -151,6 +151,32 @@ const AERIAL = {
   hsMax: 3,
   clearRand: 0.5,      // the loser clears it: this much random direction, the rest by position (up the pitch, to the near touchline)
 };
+// t-022 CHARGED HEADERS AND VOLLEYS (Luca 25 Oct 07:04: "headers and volleys can also be charged up and hit like a power
+// shot (from kicks) if timed properly ... make the animation feel impactful (add frames flashing sparks etc but still
+// subtle compared to special moves)"). Hold SHOOT as the ball comes in, let go as it reaches you: the hold sets the power
+// (as the ground shot's charge), the release's timing against the contact sets how much of it you keep and how straight
+// it goes. A tap is today's header / volley. Every number in one place for the Lab (group HV).
+const AIR_CHARGE = {
+  on: true,            // the Lab's switch (off = every header / volley is today's)
+  tapT: 0.15,          // SHOOT held shorter than this (s) = a tap: today's header / volley, unchanged
+  fullT: 0.8,          // held this long = full power (the ground shot's 0.8 s)
+  sweet: 0.12,         // let go within this (s) before the contact = timed right: all the power, on target
+  slop: 0.4,           // ...earlier than that the strike fades over this much more (s): weaker and wilder
+  lateOff: 0.34,       // still holding as it reaches you = late: graded as a release this far off (s)
+  minQ: 0.4,           // the worst-timed charged strike keeps this much of its power
+  hdrLo: 12, hdrHi: 24,   // a charged header off the head (m/s): from today's ~45 km/h up to ~86 km/h
+  overP: 0.88,         // power past this lifts it over the bar (as the ground shot: vz + (p - overP) * overK)
+  overK: 30,
+  err0: 0.35,          // aim error at the goal line (m) when timed right...
+  err: 2.6,            // ...plus up to this much at the worst timing
+  wild: 1.6,           // ...and up to this much extra lift (m/s): a mistimed one flies
+  // the impact on a well-timed one (power past impP): clearly less than a special (no banner, no cut-in, no colour flash)
+  impP: 0.3, flashT: 0.05, stop: 0.035, shakeMs: 90, shakeK: 0.0022,
+  // the computer: charges cpuP of its headers / volleys at goal, power cpuLo-cpuHi, and lets go up to cpuJit s off the
+  // contact x its finishing (difficulty.js shotErr, never under cpuFloor): Easy ~1 in 3 timed right, Normal ~2 in 5,
+  // Hard ~2 in 3, Rise Warrior ~3 in 4
+  cpuP: 0.3, cpuLo: 0.35, cpuHi: 0.8, cpuJit: 0.3, cpuFloor: 0.55,
+};
 // t-010 TAP KICK (Luca 24 Oct 05:57: "the kick if just pressed quickly once so not held should be a snappier kick from
 // up close and it drops off [...] it follows a predictable path which just faces the direction of the arrow"): SHOOT
 // tapped = a low stab along your arrow that dies on the grass; held = the power shot as before. OFF in matches until

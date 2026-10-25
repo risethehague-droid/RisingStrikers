@@ -1,6 +1,30 @@
 'use strict';
 // HC2 Football · player.js: Player (movement, stamina, animation, drawing) and Team
 // (split out of game.js in v0.9.5 - load order and lanes: src/README.md)
+// t-022 THE HEADER / VOLLEY / DIVING HEADER PICKS, in one table so the taskmaster's new PixelLab moves (batch 20:
+// header2-<dir>, volley2-<dir>, a new diving header) drop in by name: the first row whose frames are in his kit (his
+// direction, or -S) and whose test passes wins. h = p.airHit at the contact: z (the ball's height, m) and side (degrees
+// between where the ball came from and where he sends it: 0 = straight back, 90 = across him). Until batch 20 lands
+// only today's rows match, so nothing changes on screen. (A volley plays at its kick rate, kickRate in core.js.)
+const AIR_PICKS = {
+  header: [
+    { a: 'header2', fps: 15, ok: h => h.side > 55 },     // batch 20: a glancing header, the ball across him
+    { a: 'header', fps: 15 },                            // the PixelLab header
+    { a: 'jump', fps: 16 },                              // kits without it
+  ],
+  volley: [
+    { a: 'volley2', fps: 18, ok: h => h.z > 0.75 || h.side > 55 },   // batch 20: a high / side-on volley
+    { a: 'volley', fps: 18 },
+  ],
+  dheader: [
+    { a: 'dheader2', fps: 16, ok: h => h.z < 0.9 },      // batch 20: the low diving header
+    { a: 'dheader', fps: 16 },
+  ],
+};
+function airPick(K, kind, d, h) {
+  for (const r of AIR_PICKS[kind]) if ((K.anims[`${r.a}-${d}`] || K.anims[`${r.a}-S`]) && (!r.ok || (h && r.ok(h)))) return r;
+  return null;
+}
 class Player {
   constructor(m, team, i, kit) {
     this.m = m; this.team = team; this.i = i; this.kit = kit; this.keeper = i === 0;
@@ -59,6 +83,7 @@ class Player {
     if (this.state !== 'run' && this.state !== 'idle') this.spr.anims.timeScale = 1;
     if (this.state === 'kick') {
       let ka = this.kickAnim || 'kick', kd = d;
+      if (ka === 'volley') { const ap = airPick(K, 'volley', d, this.airHit); if (ap) ka = ap.a; }   // t-022: the volley from AIR_PICKS
       if (ka === 'throwin') kd = this.y < 34 ? 'S' : 'N';                   // throw-ins: made facing in from either touchline
       if (ka === 'gkick') kd = dirVec(this.face).x >= 0 ? 'E' : 'W';                           // keeper kick-outs: made side-on
       if (ka === 'super' || ka === 'sp1' || ka === 'sp2') kd = dirVec(this.face).x >= 0 ? 'E' : 'W';   // the special moves: made side-on
@@ -81,7 +106,8 @@ class Player {
     }
     else if (this.state === 'getup' && this.slideUp && this.tacklePlay('slideup', d, this.slideWon ? TACKLE.upWon : TACKLE.upMiss)) { }   // t-018: up off the grass after a slide
     else if (this.state === 'getup' && this.getupAnim && this.play(this.getupAnim, 18, true)) { }   // t-017: the keeper back up off the grass after a dive (batch 18 kgetup)
-    else if (ONCE[this.state]) { const [nm, fps] = this.state === 'header' && K.anims['header-S'] ? ['header', 15] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state]; if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
+    else if (ONCE[this.state]) { const ap = (this.state === 'header' || this.state === 'dheader') && airPick(K, this.state, d, this.airHit);   // (t-022: the header / dive from AIR_PICKS)
+      const [nm, fps] = ap ? [ap.a, ap.fps] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state]; if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
     else if (this.waitingThrowIn()) { if (!this.play(`throwinhold-${this.y < 34 ? 'S' : 'N'}`, 1, true)) this.play(`idle-${d}`, 5); }   // ball held over his head
     else if (this.keeper && this.hands && this.speed < 0.5) { if (!(this.claimHigh && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); }   // holds it as he caught it
     else if (this.keeper && this.speed < 0.5 && ((this.m.ball.save && this.m.ball.save.gk === this) || this.gkSet) && K.anims[`kset-${d}`]) this.play(`kset-${d}`, 10);   // set for the shot (v0.9.1: or ready for one)

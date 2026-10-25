@@ -51,6 +51,7 @@ hc2Mix(Match, {
     const p = this.human;
     // t-018 (Luca: "you can spam it too easy"): getting up off the grass he does nothing either - a SHOOT pressed there
     // slid again, shot first time or was kept for a header (no queued presses)
+    this.airChargeTick(p, dt);                                                   // t-022: SHOOT held for a header / volley
     if (p.state === 'kick' || p.state === 'slide' || p.state === 'getup' || p.state === 'dheader' || p.stun > 0) return;
     const ax = Input.axis, moving = len(ax.x, ax.y) > 0.1, owns = b.owner === p;
     const sprint = Input.held('sprint') && moving;
@@ -114,11 +115,12 @@ hc2Mix(Match, {
       }
       else if ((Input.pressed('shoot') || Input.pressed('pass')) && !b.owner) {  // ball in the air: get ready to head it
         this.headBuf = Math.max(0.7, this.lobDropIn(p)); this.headKind = Input.pressed('shoot') ? 'shoot' : 'pass';   // lob-mechanics: 0.7 s (was 0.35 s, near impossible to time)
+        if (this.headKind === 'shoot') this.airChargeStart(p);                   // t-022: keep holding it = the charged header / volley
       }                                                                          // (t-008: a lob dropping to you - kept until it gets there)
       // t-008 (Luca: "so aerial shots are easier to do and become more common"): SHOOT pressed as a lob drops to you and it
       // came down past head height without a header: you volley it at goal as it reaches you (it took a second press)
       else if (this.headBuf > 0 && this.headKind === 'shoot' && !b.owner && b.last === team && b.z > 0.25 && b.z < 1.0 && len(b.x - p.x, b.y - p.y) < 1.6 && !p.busy()) {
-        b.owner = p; this.doShot(p, 0.6, ax.y); p.kickAnim = 'volley'; this.headBuf = 0;
+        b.owner = p; this.airVolley(p, 0.6, ax.y); this.headBuf = 0;            // (t-022: charged if you held SHOOT)
       }
     }
   },
@@ -166,7 +168,7 @@ hc2Mix(Match, {
         const d = len(p.x - b.x, p.y - b.y), toGoal = len(p.team.goalX - p.x, 34 - p.y);
         if (d < 1.0 && toGoal < 20 && (p.team.goalX - p.x) * p.team.side > 2) {
           (b.tried = b.tried || new Set()).add('v' + p.team.name + p.i);
-          if (Math.random() < 0.8) { if (b.z > 0.55 && this.aiAirSpecial(p)) return; const volley = b.z > 0.35; b.owner = p; this.doShot(p, rnd(0.45, 0.75), rnd(-1, 1)); if (volley) p.kickAnim = 'volley'; return; }
+          if (Math.random() < 0.8) { if (b.z > 0.55 && this.aiAirSpecial(p)) return; const volley = b.z > 0.35; b.owner = p; if (volley) this.airVolley(p, rnd(0.45, 0.75), rnd(-1, 1)); else this.doShot(p, rnd(0.45, 0.75), rnd(-1, 1)); return; }   // (t-022: a volley may be charged)
         }
       }
     }
@@ -215,7 +217,7 @@ hc2Mix(Match, {
     if (them.length) this.say('', win.team === q.team ? 'WON IT IN THE AIR!' : 'HEADED AWAY!', 0.7);
     if (win.team !== q.team) { this.header(win, win === this.human && this.headBuf > 0 && this.headKind === 'shoot' ? 'goal' : 'clear'); return true; }
     const toGoal = len(win.team.goalX - win.x, 34 - win.y);
-    if (win === this.human && this.headBuf > 0 && this.headKind === 'shoot' && b.z < 1.1) { b.owner = win; this.doShot(win, 0.6, Input.axis.y); win.kickAnim = 'volley'; this.headBuf = 0; return true; }   // (t-008: too low to head: volleyed at goal)
+    if (win === this.human && this.headBuf > 0 && this.headKind === 'shoot' && b.z < 1.1) { b.owner = win; this.airVolley(win, 0.6, Input.axis.y); this.headBuf = 0; return true; }   // (t-008: too low to head: volleyed at goal)
     if (win === this.human && this.headBuf > 0) { this.header(win, this.headKind === 'shoot' ? 'goal' : 'pass'); return true; }
     if (win !== this.human && toGoal < (b.aimLob ? 22 : 18) && b.z > 1.1) { if (!this.aiAirSpecial(win)) this.header(win, 'goal'); return true; }   // (t-012: or the aerial special; t-008: your aimed lob - he goes for goal from a little further)
     if (b.z < 1.75) {                                                             // chest / thigh it down: his ball
@@ -229,10 +231,15 @@ hc2Mix(Match, {
       b.target = win; (b.tried = new Set()).add('h' + win.team.name + win.i); return true; }   // or volley it)
     this.header(win, free ? 'down' : 'pass'); return true;                       // or cushions it to his feet; marked tight: nods it on first time
   },
-  header(p, kind, dir) {                                                         // (t-008: dir - the AERIAL BATTLE's clearance)
-    const b = this.ball, s = p.team.side; let tx, ty, spd, vz, best = null;
+  header(p, kind, dir, chIn) {                                                   // (t-008: dir - the AERIAL BATTLE's clearance; t-022: chIn - its charge)
+    const b = this.ball, s = p.team.side; let tx, ty, spd, vz, best = null, ch = null;
     if (kind === 'goal') { const gk = p.team.opp.players[0], away = gk && !gk.sentOff ? (gk.y > 34 ? -2.4 : 2.4) : 0;   // (t-008: yours with the stick idle - away from the keeper, it was straight at him)
-      tx = p.team.goalX + s * 2; ty = 34 + (p === this.human ? (Math.abs(Input.axis.y) > 0.2 ? Input.axis.y * 2.6 : away) : rnd(-2.6, 2.6)); spd = rnd(12, 15); vz = rnd(-1.5, 0.8);
+      ch = chIn !== undefined ? chIn : this.airChargeFor(p);                     // t-022: held SHOOT (or the computer's dice): a charged header
+      tx = p.team.goalX + s * 2; ty = 34 + (p === this.human ? (Math.abs(Input.axis.y) > 0.2 ? Input.axis.y * 2.6 : away) : rnd(-2.6, 2.6));
+      if (!ch) { spd = rnd(12, 15); vz = rnd(-1.5, 0.8); }                        // a tap: today's header
+      else { const C = AIR_CHARGE, w = 1 - ch.q;                                  // charged: pace from the hold, lost and sprayed by the timing
+        spd = C.hdrLo + (C.hdrHi - C.hdrLo) * ch.pw; ty += rnd(-1, 1) * (C.err0 + w * C.err);
+        vz = rnd(-0.9, 0.3) + w * rnd(0, C.wild) + (ch.pw > C.overP ? (ch.pw - C.overP) * C.overK : 0); }   // (too much: over the bar, like a ground shot)
       if (p !== this.human) { const toG = len(p.team.goalX - p.x, 34 - p.y), e = (0.9 + toG * 0.13) * this.dk(p.team).shotErr;   // t-012: the computer's headers
         ty += rnd(-1, 1) * e; vz += rnd(0, 1) * e * 0.5; } }                     // miss too (the soak: a headed cross went in 1 in 2 - the posts were never missed)
     else if (kind === 'clear' && dir) { tx = p.x + dir.x * 25; ty = clamp(p.y + dir.y * 25, 2, 66); spd = 15; vz = 4.5; }
@@ -244,14 +251,17 @@ hc2Mix(Match, {
     }
     else { best = this.bestOption(p); tx = best ? best.q.x : p.x + s * 12; ty = best ? best.q.y : p.y; spd = clamp(len(tx - p.x, ty - p.y) * 0.9, 7, 14); vz = 2.5; }
     const dx = tx - b.x, dy = ty - b.y, l = len(dx, dy) || 1;
-    Object.assign(b, { vx: dx / l * spd, vy: dy / l * spd, vz, skid: true, rollV: 0.72 * spd, last: p.team, lastP: p, save: null, target: best ? best.q : null, special: 0, power: 0, saveable: null });   // v0.8.8: a headed ball is an ordinary ball (a spent special kept its special flight)
+    this.airHitNote(p, dx, dy);                                                  // (t-022: for the animation pick - before the ball turns)
+    Object.assign(b, { vx: dx / l * spd, vy: dy / l * spd, vz, skid: true, rollV: 0.72 * spd, last: p.team, lastP: p, save: null, target: best ? best.q : null, special: 0, power: ch ? ch.pw : 0, saveable: null });   // v0.8.8: a headed ball is an ordinary ball (a spent special kept its special flight)   // (t-022: a charged one is a shot by its pace for the keeper's guard, as a ground shot)
     p.face = dirIndex(dx, dy); p.setState('header', 0.5); p.cool = kind === 'down' ? 0 : 0.4; this.headBuf = 0;   // (a cushion: he takes it straight away)
     b.tried = null; b.lob = false; SFX.head(); b.how = { kind: 'header', x: b.x, y: b.y };
     if (b.spin || b.curl || b.aft) { b.spin = 0; b.curl = 0; b.aft = null; }     // (t-002 prototype: a header kills the lob's spin)
     if (kind === 'goal') { this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }
+    if (kind === 'goal') this.airChargeDone(p, 'header', ch, spd);
     if (best && p.team === this.home) { this.nextHuman = best.q; this.passRing = { p: best.q, t: 1.0 }; }
   },
   divingHeader(p) {
+    this.airHitNote(p, this.ball.x - p.x, this.ball.y - p.y);                    // (t-022: the dive's pick)
     const b = this.ball, dx = b.x + b.vx * 0.15 - p.x, dy = b.y + b.vy * 0.15 - p.y, d = len(dx, dy) || 1;
     p.face = dirIndex(dx, dy); p.setState('dheader', 0.75); p.cool = 0; p.vx = dx / d * 8; p.vy = dy / d * 8;
     this.diving = { p, t: 0.35 };
@@ -269,6 +279,76 @@ hc2Mix(Match, {
       this.say('', 'DIVING HEADER!', 0.9); SFX.head(); b.how = { kind: 'dheader', x: b.x, y: b.y };
     }
   },
+  // ======================================================================= t-022 CHARGED HEADERS AND VOLLEYS (Luca 25 Oct 07:04: "headers
+  // and volleys can also be charged up and hit like a power shot (from kicks) if timed properly"). SHOOT pressed off the
+  // ball as it comes through the air starts the charge (airChargeStart); held, it counts up like the ground shot's;
+  // the header / volley still happens where it always did (headers, lobDuel, the late volley) and asks airChargeAt
+  // what it's worth: under AIR_CHARGE.tapT held = a tap (null: today's strike), else the power from the hold, graded by
+  // when you let go - within AIR_CHARGE.sweet before the contact keeps it all and goes where you aimed, earlier fades
+  // it, still holding as it reaches you is late. The computer rolls its timing by level (aiAirCharge). The aerial
+  // battle's winner is charged by how long he's been holding SHOOT since his last press (aerialCharge).
+  airChargeStart(p) { this.airCh = AIR_CHARGE.on ? { p, held: 0, rel: null } : null; },
+  airChargeTick(p, dt) {
+    const C = this.airCh; if (!C) return; const b = this.ball;
+    if (C.p !== p || b.owner || b.inNet || this.setPiece || (C.rel ?? 0) > 1.0 || C.held > 3) { this.airCh = null; return; }   // (it never came: forgotten)
+    if (C.rel != null) { C.rel += dt; return; }
+    if (Input.held('shoot')) { C.held += dt; this.headBuf = Math.max(this.headBuf || 0, 0.25); }   // (the press's 0.7 s would run out under a long hold)
+    else { C.rel = 0; this.headBuf = Math.max(this.headBuf || 0, 0.7); }        // let go: it still meets the ball as a press did
+  },
+  airChargeFor(p) { return p === this.human && !this.demo ? this.airChargeAt(p) : this.aiAirCharge(p); },
+  airChargeAt(p) {
+    const C = this.airCh, A = AIR_CHARGE; this.airCh = null;
+    if (!A.on || !C || C.p !== p || C.held < A.tapT) return null;                // a tap (or no hold): today's header / volley
+    const late = C.rel == null; return this.airGrade(Math.min(1, C.held / A.fullT), late ? A.lateOff : C.rel, late);
+  },
+  aiAirCharge(p) {
+    const A = AIR_CHARGE; if (!A.on || Math.random() >= A.cpuP) return null;
+    return this.airGrade(rnd(A.cpuLo, A.cpuHi), Math.random() * A.cpuJit * Math.max(this.dk(p.team).shotErr, A.cpuFloor), false);
+  },
+  aerialCharge(A, w) {
+    if (w !== this.human || this.demo) return this.aiAirCharge(w);
+    const held = Input.held('shoot') && A.holdFrom != null ? A.t - A.holdFrom : 0; this.airCh = null;
+    return AIR_CHARGE.on && held >= AIR_CHARGE.tapT ? this.airGrade(Math.min(1, held / AIR_CHARGE.fullT), 0, false) : null;   // (the ball hung for you: on time)
+  },
+  // q: 1 = timed right, falling to 0 at AIR_CHARGE.slop past the sweet window; the power kept = minQ..1 of the hold's
+  airGrade(raw, off, late) {
+    const A = AIR_CHARGE, q = off <= A.sweet ? 1 : clamp(1 - (off - A.sweet) / A.slop, 0, 1);
+    return { raw, pw: raw * (A.minQ + (1 - A.minQ) * q), q, off, late, sweet: q >= 1 };
+  },
+  // a volley at goal: doShot as before (a tap: the same call), charged = its power, the timing's spray on the kick waiting
+  airVolley(p, power, aimY) {
+    const ch = this.airChargeFor(p);
+    this.airHitNote(p, p.team.goalX - p.x, 34 - p.y);
+    this.doShot(p, ch ? ch.pw : power, aimY); p.kickAnim = 'volley';
+    const k = this.pending; if (!ch || !k || k.p !== p) { this.airChargeDone(p, 'volley', null, k && k.p === p ? k.speed : 0); return; }
+    const A = AIR_CHARGE, w = 1 - ch.q;
+    k.ty = clamp(k.ty + rnd(-1, 1) * w * A.err, 24, 44); k.vz += w * rnd(0, A.wild); k.info.airCh = ch;   // (ball.js impact: the sparks when it leaves the boot; not info.air - that is the aerial special's hang point)
+    this.airChargeDone(p, 'volley', ch, k.speed);
+  },
+  // where the ball came from and how high, for the header / volley pick (player.js AIR_PICKS)
+  airHitNote(p, ox, oy) {
+    const b = this.ball, ix = -b.vx, iy = -b.vy, il = len(ix, iy), ol = len(ox, oy);
+    p.airHit = { z: b.z, side: il > 0.5 && ol > 0.1 ? Math.acos(clamp((ix * ox + iy * oy) / (il * ol), -1, 1)) * 180 / Math.PI : 0 };
+  },
+  airChargeDone(p, kind, ch, spd) {
+    this.acLast = ch ? { by: p, kind, ...ch, spd, t: this.time.now } : { by: p, kind, tap: true, spd, t: this.time.now };   // (the Lab's HV lines)
+    if (!ch) return;
+    if (kind === 'header') SFX.kick(0.3 + ch.pw * 0.5);                          // a charged header thumps (the ground shot's voice, softer)
+    if (kind === 'header' && ch.sweet && ch.raw >= AIR_CHARGE.impP) this.airImpact(true);   // (a volley's comes with its kick: ball.js impact)
+  },
+  // the impact of a well-timed one, subtle: the ball white for ~3 frames, a small spark burst from the fx atlas, a
+  // tiny hit-stop and a light camera nudge (a volley already has the kick's own hit-stop and shake: only flash + sparks)
+  airImpact(all) {
+    const A = AIR_CHARGE, b = this.ball;
+    this.flashT = Math.max(this.flashT || 0, A.flashT + (all ? A.stop : 0));
+    if (all) { this.hitStop = Math.max(this.hitStop || 0, A.stop); this.cameras.main.shake(A.shakeMs, A.shakeK); }
+    if (!this.textures.exists('fx') || !this.cameras.main.visible) return;
+    const X = wx(b.x, b.y), Y = wy(b.y) - 12 - b.z * PX_H;
+    const pop = (name, s0, s1, ms, a) => { const im = this.add.image(X, Y, 'fx', name).setScale(s0).setAlpha(a).setDepth(wy(b.y) + 2);
+      this.tweens.add({ targets: im, scale: s1, alpha: 0, duration: ms, delay: (this.hitStop || 0) * 600, ease: 'Cubic.easeOut', onComplete: () => im.destroy() }); };
+    pop('sparks', 0.45, 1.15, 220, 0.9); pop('impact', 0.3, 0.7, 140, 0.7);      // (a special: impactBig, a fire ring, sparks at 0.8-2.2, a flash in its colour)
+  },
+
   // ======================================================================= t-008 HOLD LOB TO AIM (Luca 24 Oct 05:57: "make the lob a hold
   // until its the right spot then release is the actual lob kick to pass it"). Press: the landing ring appears where a
   // lob would go (ball.js lobAimStart). Held: the stick walks it at LOB2.ringV, easing in so a tap of a key nudges it,
@@ -363,6 +443,7 @@ hc2Mix(Match, {
   aerialInput() {
     const A = this.aerial, s = A.att.p === this.human ? A.att : A.def.p === this.human ? A.def : null; if (!s) return;
     const h = Input.held('shoot'), hit = Input.pressed('shoot') || (h && !A.lastShoot); A.lastShoot = h;
+    if (hit) A.holdFrom = A.t;                                                   // t-022: how long the last press has been held (the winner's charge)
     if (A.phase === 'mash' && hit) this.aerialHit(s);
     if (s === A.att && Input.pressed('special') && this.meterOf(s.p.team).level() >= 1) A.sp = true;   // SPECIAL in the battle: the aerial special if you win it
   },
@@ -406,7 +487,7 @@ hc2Mix(Match, {
       this.say('', 'WON IT IN THE AIR!', 0.9);
       if (toG < 26 && (me ? A.sp && this.meterOf(w.team).level() >= 1 : false)) this.airSpecial(w);   // your aerial special (SPECIAL pressed in the battle)
       else if (toG < 26 && !me && this.aiAirSpecial(w)) { /* the computer's, SP banked */ }
-      else this.header(w, toG < 26 ? 'goal' : 'down');                            // near goal: at goal; far out: down to his feet
+      else this.header(w, toG < 26 ? 'goal' : 'down', undefined, toG < 26 ? this.aerialCharge(A, w) : undefined);   // near goal: at goal; far out: down to his feet (t-022: charged by the hold)
       if (toG < 26) SFX.roar(2.5, 1);
     } else {
       dir = this.aerialClearDir(w); this.header(w, 'clear', dir); this.say('', 'HEADED AWAY!', 0.9);
