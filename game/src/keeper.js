@@ -45,9 +45,13 @@ const GK_NEW_ON_NORMAL = true, GK_NEW = /^k(leap|tip|divecatch|block)/;
 // the feet stays inside his box (hands). [the t-017 value in brackets]
 const GK_1V1 = {
   engage: 32,        // a striker running at goal, no defender covering him: he starts closing from this far (m from goal) [26]
-  engageSlow: 20,    // ...one not running at goal (walking it across): from this far [14]
+  engageSlow: 14,    // ...one not running at goal (walking it across / set to shoot): as t-017 (20 pulled him ~2 m further out
+                     // against a set shooter at 14-20 m: the soak's goals from there doubled)
   stayOut: 24,       // once out, he stays out while the striker is within this, even if he slows [18]
-  outMax: 14,        // how far off his line he comes while closing a breakaway (m along the angle; the box is 16.5) [9]
+  outMax: 14,        // how far off his line he comes while closing a breakaway (m along the angle; the box is 16.5) [9]...
+  outNear: 20,       // ...once the ball is this close to goal (m); further out he stays at most outFar off his line, then moves up
+  outFar: 9,         // with it (the first soak had him 14 m out with the striker still 25 m away: long shots went in 8 -> 22 in 12
+                     // matches, goals 2.2 -> 3.3 a match)
   outSlow: 5.5,      // ...for a striker walking across the box or set to shoot: as t-017 (8 left him 6 m from a set shooter at
                      // 14 m with no time for a hard low shot: Test Lab GKX3 went in)
   blockGap: 9.5,     // nearer than this to the ball (m) on a breakaway, he attacks it: up to ~1.4 m in front of it [6.5]
@@ -364,7 +368,8 @@ hc2Mix(Match, {
           const u = this.gkBisector(bx, by, gx, side, clamp(bdd - 1.4, 0.6, GK_1V1.blockMax)); g = u; mode = 'BLOCK';   // (t-027: never past the edge of his box)
         } else {
           const gap = deep ? clamp(GK_1V1.gap0 + bdd * GK_1V1.gapK, GK_1V1.gapMin, GK_1V1.gapMax) : clamp(1.4 + bdd * 0.3, 1.9, 7);   // how far in front of the ball he wants to be (t-027: nearer only on a breakaway)
-          const depth = clamp(bdd - gap, 1.0, deep ? GK_1V1.outMax : GK_1V1.outSlow);         // (t-027: out towards the edge of the box for a breakaway; a striker walking across the box: ~8 m)
+          const far = clamp((bdd - GK_1V1.outNear) / 4, 0, 1), outCap = GK_1V1.outMax + (GK_1V1.outFar - GK_1V1.outMax) * far;   // (t-027: all the way out only as the striker gets near)
+          const depth = clamp(bdd - gap, 1.0, deep ? outCap : GK_1V1.outSlow);         // (t-027: out towards the edge of the box for a breakaway; a striker walking across the box: as t-017)
           g = this.gkBisector(bx, by, gx, side, depth); mode = gapNow < 4 ? 'BLOCK' : 'CLOSE';
         }
         const set = gapNow > 2.6 && gapNow < 10 && od < 0.75 && carrier.speed < 3.2 && (still || !deep);
