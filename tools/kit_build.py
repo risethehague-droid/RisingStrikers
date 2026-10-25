@@ -59,18 +59,24 @@ def snap(im):
 from ballrm import remove_balls
 from ballfind import drop_detached
 BALL_FIX = {'clob', 'kick', 'pass', 'shot', 'super', 'sp1', 'sp2', 'chip'}                       # batch 1 moves where PixelLab drew a football at the foot (the game draws its own)
-DETACHED = {'cpass', 'cthru', 'clob', 'tap', 'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor', 'chip', 'sp1', 'volley', 'dheader', 'throwin', 'celebrate', 'penalty', 'header', 'sprint', 'tackle', 'touch', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4', 'bicycle', 'slide2', 'slideup'}       # batch 2: drop loose balls / specks that don't touch the body
+DETACHED = {'cpass', 'cthru', 'clob', 'tap', 'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor', 'chip', 'sp1', 'volley', 'dheader', 'throwin', 'celebrate', 'penalty', 'header', 'sprint', 'tackle', 'touch', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4', 'bicycle', 'slide2', 'slideup', 'header2', 'dheader2', 'volley2', 'volleyf'}       # batch 2: drop loose balls / specks that don't touch the body
 # batch 2 balls still touching the body, placed by eye on the raw frames (window px): (anim, dir, PixelLab frame) -> discs
 ERASE = {('clob', 'E', 5): [(122, 91, 12)],   # batch 17: the scoop lob's PixelLab ball at the boot (the game draws its own)
          ('volley', 'S', 5): [(102, 59.5, 12)],
          ('volley', 'SE', 3): [(119, 55, 10)], ('volley', 'SE', 4): [(104.5, 82.5, 10)], ('volley', 'SE', 5): [(92, 41, 10)],
          ('volley', 'E', 4): [(117, 19, 11)],
          ('volley', 'NE', 3): [(62, 8.5, 10.5)], ('volley', 'NE', 4): [(62.5, 4, 11)], ('volley', 'NE', 5): [(65, 21.5, 11)],
-         ('volley', 'N', 4): [(77, 12, 11)]}
+         ('volley', 'N', 4): [(77, 12, 11)],
+         # batch 20: the header2 balls at his head (found with ballfind.find r 10-17 on the raw frames, 192 px window)
+         ('header2', 'E', 3): [(69, 14, 14)], ('header2', 'E', 5): [(151, 30, 14)], ('header2', 'SE', 3): [(138, 35, 15)],
+         ('header2', 'NE', 2): [(65, 9, 15)], ('header2', 'NE', 3): [(142, 21, 14)],
+         ('header2', 'N', 2): [(81, 8, 15)], ('header2', 'N', 3): [(104, 17, 12)], ('header2', 'S', 2): [(94, 10, 15)]}
 # batch 19: other PixelLab leftovers at the boots, by box (192 px window, raw frame): (x0, y0, x1, y1, colour) - only that
 # colour (+-14) inside the box, or everything inside it when the colour is None (the box stops short of the boot)
 ERASE_BOX = {('slideup', 'E', 1): [(119, 96, 143, 109, None)],                       # a white kick-swoosh arc over the boot
-             **{('slideup', 'SE', i): [(120, 118, 170, 150, (134, 131, 131))] for i in (1, 2, 3)}}   # the grey dirt patch where the ball was
+             **{('slideup', 'SE', i): [(120, 118, 170, 150, (134, 131, 131))] for i in (1, 2, 3)},   # the grey dirt patch where the ball was
+             ('volley2', 'SE', 3): [(145, 66, 170, 120, None)],                    # batch 20: black motion lines hanging under the boot
+             ('header2', 'N', 3): [(110, 17, 121, 29, None)]}                      # batch 20: the rim of the ball left beside his head
 # chest trap: the PixelLab ball is KEPT (the game hides its own ball while he traps it - manifest 'carry'), so the kit
 # painting must not recolour it: these discs mark the ball in each frame
 PROTECT = {('trap', 'S', 5): (65, 60, 10), ('trap', 'S', 6): (65, 99, 10), ('trap', 'S', 7): (65, 135, 10), ('trap', 'S', 8): (68.5, 129, 10.5),
@@ -125,7 +131,7 @@ WIN_RIG = (0, 32, 256, 216)                    # batch 12: the cup goes above th
 # batch 19 (t-018, Luca 25 Oct 06:56: "making the slide actually slide more ... and gets up after"): lying along the grass
 # the new slide is up to 132 px long, more than the 128 px window - a 192 px wide window, same rows (feet on row 143) and
 # the same centre, so it needs no origin of its own
-WIDE = {'slide2', 'slideup'}
+WIDE = {'slide2', 'slideup', 'header2', 'dheader2', 'volley2', 'volleyf'}   # batch 20: arms flung wide, a leg whipped out level, a dive at full stretch
 WIN_WIDE = (32, WIN[1], 224, WIN[3])
 SHIFT_Y = {('walk', 'S'): 6, ('walk', 'N'): 7, ('walk', 'E'): 1}                     # batch 12: the V3 walk stands 6 px higher on its canvas than the rig (feet 191 vs 197)
 
@@ -192,9 +198,15 @@ def pack(frames, name, maxw=4096):           # 4096 wide: keeps both sides insid
 new = {}
 removed_total = 0
 # PixelLab folder name (template name, or the start of a custom prompt) -> game animation name
-REDONE = ('side-foot_pass_seen_from_behind', 'power_shot_seen_from_behind')
+REDONE = ('side-foot_pass_seen_from_behind', 'power_shot_seen_from_behind', 'laced_front_volley_seen_from_behind', 'whipped_side_volley_seen_from_behind')   # batch 20: the N front volley and NE side volley redone (the first tries turned round to face the camera)
 PICK = {('shot', 'N'): [2, 3, 4, 8, 9, 10, 11, 12]}   # run-up, then straight into the strike (frames 5-7 have PixelLab's ball at the boot)   # batch 12: ball-free pass N / NE + shot N
-MAP = [('curling_pass', 'cpass'), ('outside-of-the-boot', 'cthru'), ('curling_scoop_lob', 'clob'),   # batch 17 (24 Oct, Luca 05:57: "a special lvl 1 pass that curves ... 1 for lob, one for through ball, one for normal pass", Test Lab first): made facing E only, W = mirror; PixelLab drew balls into the scoop lob (BALL_FIX + DETACHED clean them)
+# batch 20 (t-022, Luca 25 Oct 07:04: "the header animation and volley animation should generate new versions from different
+# angles and make the animation feel impactful"): 4 new outfield moves, before 'attacking_header' / 'volleys' /
+# 'diving_header' (first match wins). The redone S front volley ('towards the camera') still kicked sideways and drew a
+# ball at his feet - the first S try is used, the redo is skipped.
+MAP = [('rising_power_header', 'header2'), ('flat_out_flying_header', 'dheader2'), ('whipped_side_volley', 'volley2'),
+       ('laced_front_volley_towards_the_camera', None), ('laced_front_volley', 'volleyf'),
+       ('curling_pass', 'cpass'), ('outside-of-the-boot', 'cthru'), ('curling_scoop_lob', 'clob'),   # batch 17 (24 Oct, Luca 05:57: "a special lvl 1 pass that curves ... 1 for lob, one for through ball, one for normal pass", Test Lab first): made facing E only, W = mirror; PixelLab drew balls into the scoop lob (BALL_FIX + DETACHED clean them)
        ('quick_snap_shot', 'tap'), ('comet_volley', 'air1'), ('thunder_overhead', 'air2'), ('phoenix_dive', 'air3'), ('tide_cutter', 'tide'), ('cyclone_heel', 'cyclone'), ('meteor_drive', 'meteor'),   # batch 16 (24 Oct, Luca: "re pick up the alternate animations for lvl 1-2-3 ... match them to the arc of the ball from passes" + the tap kick): made facing E only, W = mirror; the aerial specials are rig poses (the game moves the body)
        ('chip_shot', 'chip'),   # batch 15 (v0.9.4, PixMiniMax, ball-free prompt): the chip - short step, stab under it, leg lifts
        ('defender_jockeying', 'jockey'),   # batch 13: low side-on stance, shuffling back (the presser contains a dribbler)
@@ -229,9 +241,30 @@ TRIM_DIR = {('chip', 'S'): (2, None), ('chip', 'NE'): (2, None), ('chip', 'N'): 
             ('slideup', 'NE'): (3, None), ('slideup', 'N'): (2, None),   # batch 19: PixelLab started these two standing and fell him over first - start on the grass
             ('slideup', 'E'): (1, None), ('slideup', 'SE'): (1, None),   # batch 19: frame 0 has PixelLab's ball over the boot (erasing it took the boot too)
             ('kick', 'E'): (4, 7), ('touch', 'N'): (2, None), ('bicycle', 'NE'): (2, None)}   # bicycle NE: frame 1 shows PixelLab's ball   # first touch N: frame 1 has PixelLab's ball over his head
-SKIP_DIR = {('chip', 'N'), ('touch', 'NE'), ('shot', 'N'), ('pass', 'NE'), ('pass', 'N'), ('jockey', 'NE')}   # batch 13: the NE jockey turned round + drew a ball - E stands in   # batch 11: PixelLab's NE / N pass lifts its own ball into the air - the E pass stands in                     # first touch NE: PixelLab plays the ball with his hand - the E move stands in (and mirrors to NW)               # kick East: PixelLab turns him round (back + a number) after the strike
+SKIP_DIR = {('volleyf', 'N'), ('volley2', 'NE'),   # batch 20: the redone ones (REDONE) are used
+            ('chip', 'N'), ('touch', 'NE'), ('shot', 'N'), ('pass', 'NE'), ('pass', 'N'), ('jockey', 'NE')}   # batch 13: the NE jockey turned round + drew a ball - E stands in   # batch 11: PixelLab's NE / N pass lifts its own ball into the air - the E pass stands in                     # first touch NE: PixelLab plays the ball with his hand - the E move stands in (and mirrors to NW)               # kick East: PixelLab turns him round (back + a number) after the strike
+# batch 20: the frames each new move keeps (PixelLab frame numbers, 8 made). CONTACT20 = the forehead / boot on the ball,
+# as an index into the kept frames (t-022 times the strike on it; written to the manifest as 'contact')
+#   header2: the leap and the arch, the snap through the ball, the landing. E arches for 4 frames: 2 of them kept
+#   dheader2: the launch, flat at full stretch (contact), the drop onto his chest - lying, then the get-up plays
+#   volley2: PixelLab drew a big motion swoosh round the boot on the whip frame (E 1, SE 2, NE-redo 1 with a ball too) -
+#            dropped (kit painting would colour it like a sock); the stance goes straight into the leg-high strike. The NE
+#            redo's stance has PixelLab's ball behind his knee: it starts on the strike
+#   volleyf: S kicks across to his left (screen right) rather than at the camera, like batch 19's N / S slides; its strike
+#            frame (3) has gold motion lines drawn through the standing knee - the fully stretched leg (4) is the contact
+PICK20 = {('header2', 'E'): [1, 3, 5, 6, 7], ('header2', 'SE'): [1, 2, 3, 4, 5, 6, 7], ('header2', 'NE'): [1, 2, 3, 4, 5, 6, 7],
+          ('header2', 'S'): [1, 2, 3, 4, 5, 6, 7], ('header2', 'N'): [1, 2, 3, 4, 5, 6, 7],
+          ('dheader2', 'E'): [0, 1, 2, 3, 4, 5, 6, 7],
+          ('volley2', 'E'): [0, 2, 3, 4, 5, 6, 7], ('volley2', 'SE'): [0, 1, 3, 4, 5, 6, 7], ('volley2', 'NE'): [2, 3, 4, 5, 6, 7],
+          ('volleyf', 'S'): [1, 2, 4, 5, 6, 7], ('volleyf', 'N'): [1, 2, 3, 4, 5, 6, 7]}
+CONTACT20 = {('header2', 'E'): 2, ('header2', 'SE'): 2, ('header2', 'NE'): 2, ('header2', 'S'): 1, ('header2', 'N'): 2,
+             ('dheader2', 'E'): 2, ('volley2', 'E'): 1, ('volley2', 'SE'): 2, ('volley2', 'NE'): 0,
+             ('volleyf', 'S'): 2, ('volleyf', 'N'): 1}
+SIBLING = {'volley2': 'volleyf', 'volleyf': 'volley2', 'dheader2': 'dheader'}   # a direction PixelLab didn't make: the sibling move's frames (same atlas frames, no copies)
+DH2_DX = {}
 NEIGH = {'S': ['SE'], 'SE': ['S', 'E'], 'E': ['SE', 'NE'], 'NE': ['E', 'N'], 'N': ['NE']}   # stand-in when a direction failed
-ONLY_MADE = {'cpass', 'cthru', 'clob', 'tap', 'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor', 'trophy', 'super', 'sp1', 'sp2', 'throwin', 'celebrate', 'penalty', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4'}       # penalty: seen from behind (N) for the penalty camera             # made for the directions the game uses only (throw-ins S / N, celebration S)
+ONLY_MADE = {'header2', 'dheader2', 'volley2', 'volleyf',   # batch 20: no stand-ins from a neighbour - a missing direction borrows the sibling move's (SIBLING)
+             'cpass', 'cthru', 'clob', 'tap', 'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor', 'trophy', 'super', 'sp1', 'sp2', 'throwin', 'celebrate', 'penalty', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4'}       # penalty: seen from behind (N) for the penalty camera             # made for the directions the game uses only (throw-ins S / N, celebration S)
 prot = {}                                        # anim -> per-frame ball masks (trap), protected from the kit painting
 
 
@@ -258,16 +291,21 @@ for folder in sorted(glob.glob(f'{ZIPDIR}/*/animations/*')):
         idxs = list(range(len(fs)))[a0:a1]; fs = fs[a0:a1]
         if (anim, d) in PICK and any(fname.startswith(k) for k in REDONE):     # batch 12: hand-picked frames (skip the ones where PixelLab drew a ball)
             idxs = [i for i in PICK[(anim, d)] if i < len(sorted(glob.glob(f'{folder}/{pd}/frame_*.png')))]; allf = sorted(glob.glob(f'{folder}/{pd}/frame_*.png')); fs = [allf[i] for i in idxs]
+        if (anim, d) in PICK20:                                            # batch 20: hand-picked frames
+            allf = sorted(glob.glob(f'{folder}/{pd}/frame_*.png')); idxs = [i for i in PICK20[(anim, d)] if i < len(allf)]; fs = [allf[i] for i in idxs]
         lst, masks = [], []
         for i, f in zip(idxs, fs):
             im, r = clean(window(Image.open(f).convert('RGBA'), anim, d, i)); removed_total += r; lst.append(im)
             pc = PROTECT.get((anim, d, i))
             masks.append(None if pc is None else disc((FH, FW), *pc[:2], pc[2] + 1) & ~skin_hair(np.array(im))[0] & (np.array(im)[:, :, 3] > 0))
             if (anim, d, i) in GOLD_MASK: masks[-1] = GOLD_MASK[(anim, d, i)] & (np.array(im)[:, :, 3] > 0)
-        if anim == 'dheader' and f'getup-{d}' in new:
+        if anim in ('dheader', 'dheader2') and f'getup-{d}' in new:
             # PixelLab moves him across the frame as he dives; the game moves the player itself, and the get-up that follows
             # starts where he stands - so slide the frames back progressively, landing where the get-up starts
-            dx = bbox_cx(new[f'getup-{d}'][0]) - bbox_cx(lst[-1])
+            # (batch 20: dheader2 sits in the 192 px window, the get-up in the 128 one - compared on the canvas)
+            off = (WIN[0] - WIN_WIDE[0]) if anim in WIDE else 0
+            dx = bbox_cx(new[f'getup-{d}'][0]) + off - bbox_cx(lst[-1])
+            if anim == 'dheader2': DH2_DX[d] = round(dx, 1)
             lst = [shifted(im, dx * min(1, max(0, (k - 1) / 3))) for k, im in enumerate(lst)]
         new[f'{anim}-{d}'] = lst
         if any(m is not None for m in masks): prot[f'{anim}-{d}'] = masks
@@ -292,6 +330,7 @@ for d in PL_DIR:
 for d, src_d in MIRROR.items():
     if f'slideup-{src_d}' in new: new[f'slideup-{d}'] = [ImageOps.mirror(im) for im in new[f'slideup-{src_d}']]
 if UP_DX: print('slideup lined up on the slide (px):', UP_DX)
+if DH2_DX: print('dheader2 lined up on the get-up (px):', DH2_DX)
 # batch 11b: sprint N regenerated (the first try was drawn tiny)
 for d in ('S', 'N'):                             # throw-in: the taker waits holding the ball over his head (first frame)
     if f'throwin-{d}' in new: new[f'throwinhold-{d}'] = new[f'throwin-{d}'][:1]
@@ -383,12 +422,23 @@ for kit in ['IS-home'] + list(KITS):
         an[name] = [f'old-{k}' for k in keys]; frames += [(f'old-{k}', pad_old(old_is[k])) for k in keys]
     for d in DIRS:                                               # no pass yet in a direction: use that direction's kick
         if f'pass-{d}' not in an and f'kick-{d}' in an: an[f'pass-{d}'] = an[f'kick-{d}']
+    contact = {}
+    for a_, sib in SIBLING.items():                              # batch 20: the new moves in all 8 directions
+        for d in DIRS:
+            if f'{a_}-{d}' not in an and f'{sib}-{d}' in an: an[f'{a_}-{d}'] = an[f'{sib}-{d}']
+    for (a_, d), c in CONTACT20.items():
+        for dd in [d] + [m for m, src in MIRROR.items() if src == d]:
+            if f'{a_}-{dd}' in an: contact[f'{a_}-{dd}'] = c
+    for a_, sib in SIBLING.items():                              # a borrowed direction keeps the sibling's contact frame
+        for d in DIRS:
+            if f'{a_}-{d}' not in contact and f'{sib}-{d}' in contact: contact[f'{a_}-{d}'] = contact[f'{sib}-{d}']
     h = pack(frames, kit)
     man['kits'][kit] = dict(anims=an, feetY=FEET, frameH=FH, n=len(frames), carry=sorted(c for c in CARRY if c in an),
                             src='PixelLab (IS rig) + kits.py')
     org = {f'{a_}-S': [0.5, (199 - TALL[a_.replace('up', '')]) / (WIN[3] - TALL[a_.replace('up', '')])] for a_ in ('trophy', 'trophyup') if f'{a_}-S' in an}
     org.update({f'{a_}-{d_}': [0.5, (199 - WIN_RIG[1]) / (WIN_RIG[3] - WIN_RIG[1])] for a_ in RIG for d_ in ('E', 'W') if f'{a_}-{d_}' in an})   # batch 16
     if org: man['kits'][kit]['origins'] = org                    # tall frames: feet row / frame height
+    if contact: man['kits'][kit]['contact'] = contact             # batch 20: frame index of the strike (header2 / dheader2 / volley2 / volleyf)
     print(kit, len(frames), 'frames, atlas h', h)
 json.dump(man, open(f'{GAME}/assets/manifest.json', 'w'))
 
