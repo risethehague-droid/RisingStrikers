@@ -175,7 +175,7 @@ const AIR_CHARGE = {
   // the computer: charges cpuP of its headers / volleys at goal, power cpuLo-cpuHi, and lets go up to cpuJit s off the
   // contact x its finishing (difficulty.js shotErr, never under cpuFloor): Easy ~1 in 3 timed right, Normal ~2 in 5,
   // Hard ~2 in 3, Rise Warrior ~3 in 4
-  cpuP: 0.5, cpuLo: 0.45, cpuHi: 0.92, cpuJit: 0.3, cpuFloor: 0.55,
+  cpuP: 0.3, cpuLo: 0.35, cpuHi: 0.8, cpuJit: 0.3, cpuFloor: 0.55,
 };
 // t-010 TAP KICK (Luca 24 Oct 05:57: "the kick if just pressed quickly once so not held should be a snappier kick from
 // up close and it drops off [...] it follows a predictable path which just faces the direction of the arrow"): SHOOT

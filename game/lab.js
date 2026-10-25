@@ -1443,7 +1443,7 @@
       hvTest('HV2', 'a header released EARLY', 'let go 0.45 s before it arrives: weaker and wider', { ...hdr, press: 0.9, rel: 0.45 }),
       hvTest('HV3', 'a charged volley (low driven cross)', 'hold as it comes in at knee height, let go just before: a power volley', { from: [100, 14], z: 0.6, T: 0.75, vol: true, press: 0.75, rel: 0.05 }),
       hvTest('HV4', 'a TAP header', 'SHOOT tapped (0.06 s) as the cross comes: today\'s header (~45-54 km/h)', { ...hdr, press: 0.5, tap: true }),
-      hvTest('HV5', 'the computer\'s header by level (NORMAL)', 'their striker meets a cross: it charges about half of them, its timing a dice by level', { ...hdr, cpu: true, lvl: 'normal' }),
+      hvTest('HV5', 'the computer\'s header by level (NORMAL)', 'their striker meets a cross: it charges about 3 in 10, its timing a dice by level', { ...hdr, cpu: true, lvl: 'normal' }),
       hvTest('HV6', 'a charged header straight at their keeper', 'timed right, aimed at him: does the pace beat his hold (held / parried)?', { ...hdr, press: 0.75, rel: 0.05, gkY: 33.1, stick: [0, -0.4] }),
       hvTest('HV7', 'a header held through the contact (LATE)', 'still holding SHOOT as it reaches you: struck late - weaker and wilder', { ...hdr, press: 0.75, rel: null }),
     ];
