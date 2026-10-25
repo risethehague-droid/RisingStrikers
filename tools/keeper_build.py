@@ -56,13 +56,23 @@ WIN_WIDE = (0, 56, 256, 216)
 # facing E (W = mirror) on a 256 x 184 window (the leap goes above the usual window), drawn on their own origins
 WIN_RIG = (0, 32, 256, 216)
 KRIG = [('spinning_leap', 'kleap'), ('planted_iron_block', 'kblock'), ('spectacular_flying_dive', 'kdivecatch'), ('fingertip_save', 'ktip')]                              # penalty dives: he flies sideways across the whole canvas
+# batch 18 (25 Oct, t-017: Luca 02:58 "very broken gk logic ... it need animations and logic into diving etc", 03:11 "yes,
+# generate all animations u need"): the new keeper AI's moves, made facing E (W = mirror) - the 1v1 smother at a striker's
+# feet, the starfish jump (a close shot), the get-up after a dive, and the collapse save for a low ball close to him (turned
+# a quarter like kdivecatch: he goes down along his goal line). The backpedal (kback) is a loop on the normal window.
+# PixelLab drew a ball into the collapse save: the loose one goes with drop_detached, the one at his gloves is erased (KERASE).
+# The first starfish try drew a striker next to him ('starfish_block', unused): remade alone as 'starfish_jump'.
+KRIG += [('1v1_smother', 'ksmother'), ('starfish_jump', 'kstar'), ('gets_up_after', 'kgetup'), ('collapse_save', 'kcollapse')]
+KFRAMES = {'kgetup': (0, None), 'kcollapse': (5, None)}         # (PixelLab frames used; the rest drop frame 0 = the kept idle pose. The get-up was made without it; the collapse from the moment he leaves the grass)
+KERASE = {('kcollapse', 5): [(208, 176, 13)]}                    # (move, PixelLab frame): PixelLab's ball at his gloves (cx, cy, r)
 
 
 from ballrm import remove_balls
 
 
-def window(im256, loose=False, wide=False, ball=False, rig=False):
+def window(im256, loose=False, wide=False, ball=False, rig=False, alone=False):
     a = np.array(im256.crop(WIN_RIG if rig else WIN_WIDE if wide else WIN)); a[a[:, :, 3] < 128] = 0
+    if alone: a = drop_detached(a, max_blob=10 ** 6)              # batch 18: only the keeper (the biggest figure); anyone PixelLab drew beside him goes
     if ball: a, _, _ = remove_balls(a, attached=True)          # batch 12: PixelLab's own football at the boot (the game draws the ball)
     if loose: a = drop_detached(a, max_blob=900)          # balls in flight, motion lines, sparkles: not touching the keeper
     return clean(snap(Image.fromarray(a)))
@@ -125,14 +135,22 @@ states = [st for g in groups for st in g['states'] if 'goalkeeper' in st['charac
 DFR = (3, None)                                           # dives: the airborne frames only (push-off onwards)
 
 
-def dive_frames(paths, cw):
+def erase_disc(a, cx, cy, r):
+    """batch 18: a PixelLab ball touching the keeper - clear the disc, then anything it left hanging (outline specks)"""
+    a = a.copy(); H, W = a.shape[:2]; yy, xx = np.mgrid[0:H, 0:W]
+    a[(xx - cx) ** 2 + (yy - cy) ** 2 <= (r + 1.5) ** 2] = 0
+    return drop_detached(a, max_blob=60)
+
+
+def dive_frames(paths, cw, fix=None):
     """PixelLab made the dive as a full-length dive along the way he faces (East). On the pitch the keeper dives along his
     goal line = up / down the screen, so the airborne frames are turned a quarter (pixel-exact, like the mirrors):
     clockwise = head first towards the bottom of the screen, anticlockwise = towards the top. Each frame is centred on the
     body, and the game draws dives centred on the keeper (manifest 'origins'), so the keeper's own movement carries him."""
     out = []
-    for f in paths:
+    for j, f in enumerate(paths):
         a = np.array(Image.open(f).convert('RGBA')); a[a[:, :, 3] < 128] = 0
+        for cx, cy, r in (fix or {}).get(j, []): a = erase_disc(a, cx, cy, r)   # batch 18: PixelLab's ball
         im = Image.fromarray(drop_detached(a, max_blob=900))          # specks would throw the centring off
         if cw is not None: im = im.transpose(Image.ROTATE_270 if cw else Image.ROTATE_90)
         al = np.array(im)[:, :, 3] > 0; ys, xs = np.nonzero(al)
@@ -161,11 +179,13 @@ for st in states:
         low = aname.lower()
         rig = next((nm for key, nm in KRIG if key in low), None)   # batch 16 (before the generic 'dive' match below)
         if rig:
-            fs = dirs.get('east', [])[1:]                              # (frame 0 = PixelLab's kept idle pose)
+            f0, f1 = KFRAMES.get(rig, (1, None))
+            fs = dirs.get('east', [])[f0:f1]                           # (frame 0 = PixelLab's kept idle pose)
             if not fs: continue
-            if rig == 'kdivecatch':                                    # flies along his goal line like the dives: turned a quarter
+            if rig in ('kdivecatch', 'kcollapse'):                     # flies along his goal line like the dives: turned a quarter
                 paths = [f'{ZIPDIR}/{f}' for f in fs]
-                new['kdivecatchDown-E'] = dive_frames(paths, cw=True); new['kdivecatchUp-E'] = dive_frames(paths, cw=False)
+                fix = {j: KERASE[(rig, j + f0)] for j in range(len(fs)) if (rig, j + f0) in KERASE}
+                new[f'{rig}Down-E'] = dive_frames(paths, cw=True, fix=fix); new[f'{rig}Up-E'] = dive_frames(paths, cw=False, fix=fix)
             else:
                 new[f'{rig}-E'] = [window(Image.open(f'{ZIPDIR}/{f}').convert('RGBA'), loose=True, rig=True) for f in fs]
                 new[f'{rig}-W'] = [ImageOps.mirror(im) for im in new[f'{rig}-E']]
@@ -183,6 +203,15 @@ for st in states:
             fs = dirs.get('south', [])[tr[0]:tr[1]]
             if fs: new[nm] = [window(Image.open(f'{ZIPDIR}/{f}').convert('RGBA'), loose=True, wide=nm.startswith('pdive')) for f in fs]
             if fs and nm == 'pdiveH-SR': new['pdiveH-SL'] = [ImageOps.mirror(im) for im in new[nm]]
+            continue
+        if 'goalkeeper_backpedal' in low:                              # batch 18: drops back facing the play (loop; E made, W = mirror)
+            fs = dirs.get('east', [])[1:]
+            if fs: new['kback-E'] = [window(Image.open(f'{ZIPDIR}/{f}').convert('RGBA'), loose=True) for f in fs]; new['kback-W'] = [ImageOps.mirror(im) for im in new['kback-E']]
+            continue
+        if 'starfish_block' in low:                                    # batch 18's first try: PixelLab drew a striker next to him (a separate
+            if any('starfish_jump' in n.lower() for n in st['frames']['animations']): continue   # figure in every frame) - used only until the remake is in the export
+            fs = dirs.get('east', [])[1:]
+            if fs: new['kstar-E'] = [window(Image.open(f'{ZIPDIR}/{f}').convert('RGBA'), rig=True, alone=True) for f in fs]; new['kstar-W'] = [ImageOps.mirror(im) for im in new['kstar-E']]
             continue
         if 'shuffles_sideways' in low:                                  # batch 12: side-shuffle along the line, facing the play (E made, W = mirror)
             fs = dirs.get('east', [])[1:]
@@ -251,10 +280,10 @@ for anim in ('idle', 'run', 'walk', 'kick', 'catch', 'throw', 'punch', 'kset', '
         if f'{anim}-{s}' in new: new[f'{anim}-{d}'] = [ImageOps.mirror(im) for im in new[f'{anim}-{s}']]
 if 'gkick-E' in new: new['gkick-W'] = [ImageOps.mirror(im) for im in new['gkick-E']]
 # the West-facing keeper (right-hand goal) gets the mirrors; down stays down
-for nm in ('diveDown', 'diveUp', 'kdivecatchDown', 'kdivecatchUp'):
+for nm in ('diveDown', 'diveUp', 'kdivecatchDown', 'kdivecatchUp', 'kcollapseDown', 'kcollapseUp'):
     if f'{nm}-E' in new and f'{nm}-W' not in new: new[f'{nm}-W'] = [ImageOps.mirror(im) for im in new[f'{nm}-E']]
-ORIGINS = {k: [0.5, 0.5] for k in new if k.startswith('dive') or k.startswith('kdivecatch')}
-ORIGINS.update({f'{a}-{d}': [0.5, (199 - WIN_RIG[1]) / (WIN_RIG[3] - WIN_RIG[1])] for a in ('kleap', 'kblock', 'ktip') for d in ('E', 'W') if f'{a}-{d}' in new})   # batch 16
+ORIGINS = {k: [0.5, 0.5] for k in new if k.startswith('dive') or k.startswith('kdivecatch') or k.startswith('kcollapse')}
+ORIGINS.update({f'{a}-{d}': [0.5, (199 - WIN_RIG[1]) / (WIN_RIG[3] - WIN_RIG[1])] for a in ('kleap', 'kblock', 'ktip', 'ksmother', 'kstar', 'kgetup') for d in ('E', 'W') if f'{a}-{d}' in new})   # batch 16 + 18
 
 # ---------- IRO keeper: red kit, white trims and socks
 GREEN, GREEN_D, GREEN_DD, GREEN_X = (46, 161, 83), (38, 112, 54), (24, 124, 56), (14, 88, 40)
