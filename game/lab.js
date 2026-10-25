@@ -1037,7 +1037,7 @@
           r.cam = () => ({ x: gk.x - 3, y: gk.y }); ghHook(r); },
         check(r) { const gk = r.gk; if (gk.state === 'dive' && gk.saveKind === 'smother' && !r.forced) { r.forced = true; gk.smU = 0; }
           r.shotT = r.shotT ?? 0; const e = heldEnd(r); return e || (r.t > 7 ? { o: 'nothing · ' + ghLine(r) } : null); } },
-      ghShot('GH4', 'the computer\'s keeper walks it out', 'a soft shot from 17 m, nobody near him: he holds it, walks it a few steps towards the edge of his box on his outlet\'s side, then plays it', { spot: SPOTS[1], tgt: { y: 0.3, low: true }, speed: 14, mates: [[2, 84, 18], [3, 86, 50], [6, 72, 30]],
+      ghShot('GH4', 'the computer\'s keeper walks it out', 'a soft shot from 17 m, nobody near him: he holds it, walks it a few steps towards the edge of his box on his outlet\'s side, then plays it', { spot: SPOTS[1], tgt: { y: 0.3, low: true }, speed: 17, mates: [[2, 84, 18], [3, 86, 50], [6, 72, 30]],
         end: r => { const gk = r.gk, b = m.ball;
           if (r.heldT != null && r.from == null && !gk.busy()) { r.from = { x: gk.x, y: gk.y, t: r.t }; }
           if (r.from && gk.gkMode === 'WALK OUT') { r.walkT = (r.walkT || 0) + STEP; r.maxH = Math.max(r.maxH || 0, GX - gk.x); }
