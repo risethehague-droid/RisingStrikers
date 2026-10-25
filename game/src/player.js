@@ -1,30 +1,38 @@
 'use strict';
 // HC2 Football · player.js: Player (movement, stamina, animation, drawing) and Team
 // (split out of game.js in v0.9.5 - load order and lanes: src/README.md)
-// t-022 THE HEADER / VOLLEY / DIVING HEADER PICKS, in one table so the taskmaster's new PixelLab moves (batch 20:
-// header2-<dir>, volley2-<dir>, a new diving header) drop in by name: the first row whose frames are in his kit (his
-// direction, or -S) and whose test passes wins. h = p.airHit at the contact: z (the ball's height, m) and side (degrees
-// between where the ball came from and where he sends it: 0 = straight back, 90 = across him). Until batch 20 lands
-// only today's rows match, so nothing changes on screen. (A volley plays at its kick rate, kickRate in core.js.)
+// t-022 THE HEADER / VOLLEY / DIVING HEADER PICKS, in one table so the taskmaster's new PixelLab moves drop in by name:
+// the first row whose frames are in his kit (his direction, or -S), whose dirs (if any) hold his direction and whose
+// test passes wins. h = p.airHit at the contact: z (the ball's height, m), side (degrees between where the ball came
+// from and where he sends it: 0 = straight back, 90 = across him) and pw (a charged one's power, 0 = a tap).
+// Batch 20 (taskmaster, 25 Oct; Luca 07:04: "the header animation and volley animation should generate new versions
+// from different angles and make the animation feel impactful"): header2 is a rising POWER header (leap, arch, snap
+// through it), so it plays for the charged ones and the balls he leaps for; volley2 a whipped side volley (charged,
+// high or side-on); volleyf a laced front volley, made facing S / N; dheader2 a flat-out diving header, made E / W
+// (its other directions are the old dive's frames). (A volley plays at its kick rate, kickRate in core.js.)
 const AIR_PICKS = {
   header: [
-    { a: 'header2', fps: 15, ok: h => h.side > 55 },     // batch 20: a glancing header, the ball across him
-    { a: 'header', fps: 15 },                            // the PixelLab header
-    { a: 'jump', fps: 16 },                              // kits without it
+    { a: 'header2', fps: 15, ok: h => h.pw > 0 || h.z > 2.2 },             // batch 20: the power header (headers are met at 1.1-2.7 m: over 2.2 he leaps)
+    { a: 'header', fps: 15 },                                                // the PixelLab header
+    { a: 'jump', fps: 16 },                                                  // kits without it
   ],
   volley: [
-    { a: 'volley2', fps: 18, ok: h => h.z > 0.75 || h.side > 55 },   // batch 20: a high / side-on volley
+    { a: 'volley2', fps: 18, ok: h => h.pw > 0 || h.z > 0.75 || h.side > 55 },   // batch 20: the whipped side volley
+    { a: 'volleyf', fps: 18, dirs: ['S', 'N'] },                             // batch 20: the laced front volley
     { a: 'volley', fps: 18 },
   ],
   dheader: [
-    { a: 'dheader2', fps: 16, ok: h => h.z < 0.9 },      // batch 20: the low diving header
+    { a: 'dheader2', fps: 16 },                                              // batch 20: the flat-out diving header
     { a: 'dheader', fps: 16 },
   ],
 };
 function airPick(K, kind, d, h) {
-  for (const r of AIR_PICKS[kind]) if ((K.anims[`${r.a}-${d}`] || K.anims[`${r.a}-S`]) && (!r.ok || (h && r.ok(h)))) return r;
+  for (const r of AIR_PICKS[kind]) if ((K.anims[`${r.a}-${d}`] || K.anims[`${r.a}-S`]) && (!r.dirs || r.dirs.includes(d)) && (!r.ok || (h && r.ok(h)))) return r;
   return null;
 }
+// batch 20: the frame where his forehead / boot meets the ball (manifest 'contact', written by tools/kit_build.py), for
+// the direction that will actually play (his own, else -S, as play() falls back); undefined for moves without one
+function airContact(K, a, d) { const c = K.contact; return c ? c[`${a}-${K.anims[`${a}-${d}`] ? d : 'S'}`] : undefined; }
 class Player {
   constructor(m, team, i, kit) {
     this.m = m; this.team = team; this.i = i; this.kit = kit; this.keeper = i === 0;
@@ -37,7 +45,7 @@ class Player {
     this.num = team.side > 0 ? [1, 2, 3, 4, 5, 6, 8, 10, 7, 9, 11][i] : [1, 2, 3, 4, 5, 6, 8, 10, 7, 9, 11][i];
   }
   play(name, rate, once) {
-    const key = `${this.kit}:${name}`;
+    const key = `${this.kit}:${name}`, from = this._from || 0; this._from = 0;   // (batch 20: a header starts on its contact frame)
     if (!this.m.anims.exists(key)) {
       const fr = MAN.kits[this.kit].anims[name]; if (!fr) return false;
       this.m.anims.create({ key, frames: fr.map(f => ({ key: this.kit, frame: f })), frameRate: rate, repeat: once ? 0 : -1 });
@@ -47,7 +55,7 @@ class Player {
       // run <-> sprint: carry on from the same point of the stride instead of snapping back to frame 0 (the v0.6 sprint 'jank')
       const loop = /:(run|sprint|walk)-/.test(key) && /:(run|sprint|walk)-/.test(this.anim || '') && this.spr.anims.isPlaying;
       const prog = loop ? this.spr.anims.getProgress() : 0;
-      this.spr.play(key); this.anim = key;
+      this.spr.play(from ? { key, startFrame: from } : key); this.anim = key;
       if (loop && prog > 0) this.spr.anims.setProgress(prog);
     }
     return true;
@@ -107,7 +115,9 @@ class Player {
     else if (this.state === 'getup' && this.slideUp && this.tacklePlay('slideup', d, this.slideWon ? TACKLE.upWon : TACKLE.upMiss)) { }   // t-018: up off the grass after a slide
     else if (this.state === 'getup' && this.getupAnim && this.play(this.getupAnim, 18, true)) { }   // t-017: the keeper back up off the grass after a dive (batch 18 kgetup)
     else if (ONCE[this.state]) { const ap = (this.state === 'header' || this.state === 'dheader') && airPick(K, this.state, d, this.airHit);   // (t-022: the header / dive from AIR_PICKS)
-      const [nm, fps] = ap ? [ap.a, ap.fps] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state]; if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
+      const [nm, fps] = ap ? [ap.a, ap.fps] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state];
+      if (ap && this.state === 'header') this._from = airContact(K, nm, d) || 0;   // batch 20: the ball leaves his head the moment the header starts, so the move opens on the frame that meets it (the snap shows with the thump, flash and hit-stop; the take-off frames before it are skipped)
+      if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
     else if (this.waitingThrowIn()) { if (!this.play(`throwinhold-${this.y < 34 ? 'S' : 'N'}`, 1, true)) this.play(`idle-${d}`, 5); }   // ball held over his head
     else if (this.keeper && this.hands && this.speed < 0.5) { if (!(this.claimHigh && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); }   // holds it as he caught it
     else if (this.keeper && this.speed < 0.5 && ((this.m.ball.save && this.m.ball.save.gk === this) || this.gkSet) && K.anims[`kset-${d}`]) this.play(`kset-${d}`, 10);   // set for the shot (v0.9.1: or ready for one)
