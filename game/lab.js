@@ -1612,7 +1612,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
         }
         put(you, o.me[0], o.me[1]); put(d, o.from[0], o.from[1]); faceTo(d, o.to[0], o.to[1]); faceTo(you, d.x, d.y); atFeet(d);
         r.bots.set(d, o.shuttle ? ttShuttle(o.from, o.to, o.v) : dribbleTo(o.to[0], o.to[1], o.v));
-        r.cam = () => ({ x: (you.x + d.x) / 2, y: (you.y + d.y) / 2 }); r.fired = true;
+        r.cam = o.kind === 'miss' ? () => ({ x: you.x, y: you.y }) : () => ({ x: (you.x + d.x) / 2, y: (you.y + d.y) / 2 }); r.fired = true;   // (TT1: on him, the slide and the get-up)
       },
       check: ttCheck };
   }
