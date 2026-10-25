@@ -77,6 +77,11 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       if (A) { W.aerialGoals++; if (W.lastAerial.kind === 'airSp') W.airSpGoals++; if (W.lastAerial.kind === 'head') W.headGoals++; } if (C) { W.crossGoals++; W['crossGoals' + W.lastCross.y]++; } W.goalLog.push(`${v.team.name} ${v.min}' ${v.how || '?'}${A ? ' AERIAL:' + W.lastAerial.kind : ''}${C ? ' from a cross ' + W.lastCross.y : ''} far ${Math.round(v.far || 0)}`); } }); }
     return GAME_VER; }, !!process.env.TAP);
   if (process.env.GOAL_PHYS) await page.evaluate(() => { GOAL_PHYS = true; });   // t-013
+  // t-021: each check's kind on this version (bug / odd / look...), so the report can lead with the real bugs and put the
+  // cosmetic 'look' ones (animation flicker, jitter, stutter: counted, never clipped) in one line
+  const SEV = await page.evaluate(() => Object.fromEntries(Object.entries(BW_CHECKS).map(([k, v]) => [k, v.sev])));
+  const ERRS = new Set(['CRASH', 'CONSOLE_ERR', 'FROZE']), RANK = { bug: 1, flag: 2, mark: 3, odd: 4, perf: 5, look: 6 };
+  const rank = c => (ERRS.has(c) ? 0 : RANK[SEV[c]] ?? 5);
   const out = { game: ver, at: new Date().toISOString(), matches: [], errors: errs };
   for (let i = 0; i < list.length; i++) {
     const c = list[i]; cur = i; const t0 = Date.now();
@@ -105,19 +110,22 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
         possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null,
         wing: Object.fromEntries(Object.entries(window.__wing).filter(([k, v]) => (typeof v === 'number' && k !== 'wideT') || k === 'goalLog')) }; });
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
-    const tr = Object.entries(st.trips).map(([k, v]) => `${k} ${v}`).join(', ');
+    const TR = Object.entries(st.trips).sort((a, b) => rank(a[0]) - rank(b[0]) || b[1] - a[1]), lk = TR.filter(([k]) => SEV[k] === 'look');   // (t-021: bugs first, looks last)
+    const tr = [TR.filter(([k]) => SEV[k] !== 'look').map(([k, v]) => `${k} ${v}`).join(', '), lk.length ? `looks: ${lk.map(([k, v]) => `${k} ${v}`).join(', ')}` : ''].filter(Boolean).join(' · ');
     { const w = st.wing; console.log(`   wing: crosses ${w.cross} (whipped ${w.crossWhip}, floated ${w.crossFloat}, other ${w.crossCut}, you ${w.crossH} / them ${w.crossA}) + set-piece ${w.spCross} · aerial shots ${w.aerial} (head ${w.head}, volley ${w.volley}, overhead ${w.bike}, diving ${w.dhead}, air SP ${w.airSp}) · goals ${w.goals}: aerial ${w.aerialGoals}, after a cross ${w.crossGoals} · corners ${st.corners} · chips ${w.chips} · runners idle ${w.runIdle.toFixed(1)} s · parked wide ${w.wideHold}${w.goalLog.length ? '\n     ' + w.goalLog.join('\n     ') : ''}`); }
     console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${process.env.TAP ? `tap kicks ${st.wing.taps} · ` : ''}${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
   }
   await br.close();
-  // summary: every Bug Watch code across all matches, bugs first
+  // summary: every Bug Watch code across all matches, errors and bugs first (t-021: the 'look' ones apart, counts only)
   const by = {};
   for (const mt of out.matches) {
-    for (const [code, n] of Object.entries(mt.trips)) { const e = by[code] = by[code] || { code, trips: 0, matches: 0, sev: '', title: '', examples: [] }; e.trips += n; e.matches++; }
-    for (const x of mt.incidents) { const e = by[x.code] = by[x.code] || { code: x.code, trips: 0, matches: 0, examples: [] }; e.sev = x.sev; e.title = x.title;
+    for (const [code, n] of Object.entries(mt.trips)) { const e = by[code] = by[code] || { code, trips: 0, matches: 0, sev: SEV[code] || '', title: '', examples: [] }; e.trips += n; e.matches++; }
+    for (const x of mt.incidents) { const e = by[x.code] = by[x.code] || { code: x.code, trips: 0, matches: 0, examples: [] }; e.sev = SEV[x.code] || x.sev; e.title = x.title;
       if (e.examples.length < 3) e.examples.push(`#${mt.n} ${x.min}' ${x.msg} (repro: ${mt.repro})`); }
   }
-  out.summary = Object.values(by).sort((a, b) => (a.sev === 'bug' ? 0 : 1) - (b.sev === 'bug' ? 0 : 1) || b.trips - a.trips);
+  out.summary = Object.values(by).sort((a, b) => rank(a.code) - rank(b.code) || b.trips - a.trips);
+  const bugs = out.summary.filter(e => e.sev === 'bug'), looks = Object.keys(SEV).filter(c => SEV[c] === 'look').map(c => by[c] || { code: c, trips: 0, matches: 0 });
+  out.looks = Object.fromEntries(looks.map(e => [e.code, e.trips]));
   { const T = {}, n = out.matches.length; for (const mt of out.matches) { for (const [k, v] of Object.entries(mt.wing)) if (typeof v === 'number') T[k] = (T[k] || 0) + v;
       T.corners = (T.corners || 0) + mt.corners; const [a, b] = mt.shots.split('-').map(Number); T.shots = (T.shots || 0) + a + b; const [g1, g2] = mt.score.split('-').map(Number); T.score = (T.score || 0) + g1 + g2; }
     out.wing = Object.fromEntries(Object.entries(T).map(([k, v]) => [k, +(v / n).toFixed(2)]));
@@ -130,9 +138,11 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
   const md = [`# Soak ${out.game} · ${out.matches.length} matches · ${out.at.slice(0, 16).replace('T', ' ')} UTC`, '',
     `- Finished: ${fin} of ${out.matches.length}${stalls.length ? ` · STALLS: ${stalls.map(m => `#${m.n}`).join(', ')}` : ''}`,
     `- Page errors: ${errs.length}${errs.length ? '' : ' (none)'}`,
-    `- Per match: goals ${per('goals')} · shots on target ${per('onT')} · corners ${per('corners')} · saves held ${per('held')} · parried ${per('parried')} · keeper touches out ${per('kOut')} / in play ${per('kIn')} (totals ${tot('goals')} / ${tot('onT')} / ${tot('corners')} / ${tot('held')} / ${tot('parried')})`, ...errs.slice(0, 5).map(e => `  - #${e.match + 1}: ${e.msg} ${e.stack}`), '',
+    `- Per match: goals ${per('goals')} · shots on target ${per('onT')} · corners ${per('corners')} · saves held ${per('held')} · parried ${per('parried')} · keeper touches out ${per('kOut')} / in play ${per('kIn')} (totals ${tot('goals')} / ${tot('onT')} / ${tot('corners')} / ${tot('held')} / ${tot('parried')})`, ...errs.slice(0, 5).map(e => `  - #${e.match + 1}: ${e.msg} ${e.stack}`),
+    `- Real bugs: ${bugs.length ? bugs.map(e => `${e.code} ${e.trips}`).join(' · ') : 'none'}`, ...bugs.flatMap(e => e.examples.map(x => `  - ${e.code}: ${x}`)),
+    `- Looks (cosmetic: counted, no clips): ${looks.map(e => `${e.code} ${e.trips}${e.matches ? ` in ${e.matches} matches` : ''}`).join(' · ')}`, '',
     '| Code | Kind | Trips | In matches | Example |', '| --- | --- | --- | --- | --- |',
-    ...out.summary.map(e => `| ${e.code} | ${e.sev || '?'} | ${e.trips} | ${e.matches} | ${(e.examples[0] || '').replace(/\|/g, '/').slice(0, 160)} |`), '',
+    ...out.summary.filter(e => e.sev !== 'look').map(e => `| ${e.code} | ${e.sev || '?'} | ${e.trips} | ${e.matches} | ${(e.examples[0] || '').replace(/\|/g, '/').slice(0, 160)} |`), '',
     '| # | Set-up | Result | Shots | On target | Corners | Held / parried | Possession (home) | Repro |', '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
     ...out.matches.map(m => `| ${m.n} | ${m.setup.home} v ${m.setup.away}, ${m.setup.lvl}, ${m.setup.ai} AI, ${m.setup.weather}/${m.setup.tod} | ${m.finished ? m.score : 'not finished'} | ${m.shots} | ${m.onT} | ${m.corners} | ${m.held} / ${m.parried} | ${m.possHome}% | \`${m.repro}\` |`)].join('\n');
   console.log('\n' + md + '\n');

@@ -14,6 +14,7 @@ All tests drive the real game headless (Node + Playwright + Chromium, time stepp
 | --- | --- |
 | `node tools/soak.js` | 12 seeded computer-v-computer matches across teams, levels, AI, weather, light, with BUG WATCH on: every trip, stall and page error, a repro line per match (`MATCHES=30`, `OUT=soak-out`) |
 | `ONE='seed=... home=... away=... lvl=... ai=... weather=... tod=...' node tools/soak.js` | replay one match exactly, to check a fix |
+| `node tools/bwtest.js` | t-021: Bug Watch catches every error - a failed promise, `console.error`, a throw inside a frame (CRASH clips with the stack) and the frozen loop after it (the watchdog's FROZE clip) |
 
 In the game, **WATCH** on the start screen: the computer plays both sides; ENTER pauses, 1-4 = speed, N marks a moment,
 the review opens at full time. Marks and notes reach the taskmaster through the game's database.

@@ -1362,7 +1362,7 @@
 
   // ---- BUG WATCH clips (the game's watchdog + Claude's overnight runs): watch each one here, rate it, ask Claude
   function clipTest(d, j) {
-    return { id: `BW${j + 1}`, group: 'BW', name: `${d.min}' ${d.title}`, sub: `${d.home} v ${d.away} · ${d.msg}`, kind: 'clip', doc: d,
+    return { id: `CL${j + 1}`, group: 'CL', name: `${d.min}' ${d.title}`,   // (t-021: group CL - BW is now the checks' own tests) sub: `${d.home} v ${d.away} · ${d.msg}`, kind: 'clip', doc: d,
       setup(r) { cast([]); Object.assign(r, { fired: true, marks: [], human: m.home.players[9], snaps: [] }); playClip(r, d); },
       check() { return null; } };
   }
@@ -1407,11 +1407,13 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     } catch (e) { out.textContent = e && e.code === 'not_granted' ? 'Not allowed on this page (you said no to Claude). That\'s fine - rate it yourself.' : `Couldn't ask Claude (${(e && e.code) || 'error'}).`; }
   }
   async function loadClips() {
-    const G = LAB.groups.find(g => g.id === 'BW'); if (!G || !LAB.db) return;
+    const G = LAB.groups.find(g => g.id === 'CL'); if (!G || !LAB.db) return;
     try {
       const snap = await LAB.db.collection('bugwatch').get(), docs = [];
-      for (const s of snap.docs) { const v = s.data(); if (v && v.clip && v.code) docs.push(Object.assign({ _id: s.id }, v)); }
-      docs.sort((a, b) => (a.review ? 1 : 0) - (b.review ? 1 : 0) || (a.order ?? 999) - (b.order ?? 999) || String(a.at).localeCompare(String(b.at)));
+      // t-021: old flicker / jitter / stutter clips stay hidden (those checks are counted only now), and real bugs lead:
+      // errors first, then broken mechanics, then flags, marks and the 'looks odd' ones (to rate before rated)
+      for (const s of snap.docs) { const v = s.data(); if (v && v.clip && v.code && !bwLook(v)) docs.push(Object.assign({ _id: s.id }, v)); }
+      docs.sort((a, b) => (a.review ? 1 : 0) - (b.review ? 1 : 0) || bwRank(a) - bwRank(b) || (a.order ?? 999) - (b.order ?? 999) || String(b.at).localeCompare(String(a.at)));
       G.tests = docs.length ? docs.map(clipTest) : G.tests;
       G.blurb = docs.length ? `${docs.length} clips the bug watch kept (${docs.filter(d => !d.review).length} not rated yet). 1 = the game was right · 2 = it's a bug · ASK CLAUDE for a second opinion.` : G.blurb;
       if (LAB.active) render();
@@ -1421,6 +1423,64 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     const r = LAB.run, d = r && r.sc.doc; if (!d || !LAB.db || !d._id) return;
     const review = { verdict: verdict === 'right' ? 'fine' : 'bug', note: $('note').value.trim(), reasons: [...(reasons || [])].map(x => REASONS[x]), claude: r.claudeSays || '', at: new Date().toISOString(), lab: true };
     try { await LAB.db.collection('bugwatch').doc(d._id).update({ review }); d.review = review; } catch (e) {}
+  }
+
+  // ======================================================================= t-021 BUG WATCH CHECKS (Luca 25 Oct 06:44: "it should flag
+  // mechanics issues, actual game bugs, when game code breaks"). One case per new check: the Lab breaks the game on
+  // purpose (LAB.undo puts it back at the next test) and the check must trip; BW9 is normal play with the real AI on
+  // both sides, where none of them may. Bug Watch watches only here (window.__labWatch) and keeps nothing (__bwNoStore).
+  const BW_NEW = ['CLOCK_FROZEN', 'BALL_TOO_FAST', 'BALL_UNDER', 'THROUGH_KEEPER', 'IN_THE_NET', 'GOAL_TWICE', 'TEAM_FROZEN', 'CONTROL_DEAD'];
+  const undo = f => { (LAB.undo = LAB.undo || []).push(f); };
+  const swap = (o, k, v) => { const own = Object.prototype.hasOwnProperty.call(o, k), was = o[k]; o[k] = v; undo(() => { if (own) o[k] = was; else delete o[k]; }); };
+  function bwTest(id, code, name, sub, setup, inject, T = 7, extra = {}) {
+    return Object.assign({ id, group: 'BW', name, sub, kind: 'bw', you: code === 'CONTROL_DEAD',
+      setup(r) {
+        window.__labWatch = true; window.__bwNoStore = true; window.__labClock = code === 'CLOCK_FROZEN';
+        m.bw.reset(); m.bw.list = m.bw.list.filter(x => x.mode !== 'lab'); r.fired = true;
+        const H = m.home.players, A = m.away.players; setup(r, H, A);
+      },
+      check(r) {
+        if (inject) inject(r, m.ball);
+        const S = m.bw.stats, hit = (code ? [code] : BW_NEW).filter(c => S[c]);
+        if (code) {
+          if (hit.length) { const x = m.bw.list.filter(q => q.code === code && q.mode === 'lab').pop(); return { o: `TRIPPED ${code} after ${r.t.toFixed(1)} s · ${x ? x.msg : ''}`, hold: 0.6 }; }
+          return r.t > T ? { o: `NOT TRIPPED: ${code} stayed quiet for ${T} s` } : null;
+        }
+        if (hit.length) return { o: `TRIPPED IN NORMAL PLAY: ${hit.map(c => `${c} ${S[c]}`).join(', ')}` };
+        return r.t > T ? { o: `NONE OF THE ${BW_NEW.length} NEW CHECKS TRIPPED in ${T} s of normal play` } : null;
+      } }, extra);
+  }
+  function bwTests() {
+    return [
+      bwTest('BW1', 'CLOCK_FROZEN', 'a frozen match clock', 'live play, the Lab holds the clock: after 4 s it trips', (r, H, A) => {
+        cast([H[9], A[5]]); put(H[9], 50, 34, 0); put(A[5], 58, 30, 4); atFeet(H[9]); r.human = H[9]; }),
+      bwTest('BW2', 'BALL_TOO_FAST', 'the physics blows up: a 55 m/s ball', 'a loose ball suddenly at 55 m/s, no special', (r, H) => {
+        cast([H[9]]); put(H[9], 40, 20, 0); ballAt(45, 34, 0.3); r.human = H[9]; },
+        (r, b) => { if (r.t > 0.3 && !r.inj) { r.inj = 1; b.vx = 54; b.vy = 8; b.vz = 3; b.special = 0; } }),
+      bwTest('BW3', 'BALL_UNDER', 'the ball under the grass', 'the ball dropped 0.4 m into the ground', (r, H) => {
+        cast([H[9]]); put(H[9], 40, 20, 0); ballAt(50, 34, 0); r.human = H[9]; },
+        (r, b) => { if (r.t > 0.3 && !r.inj) { r.inj = 1; b.z = -0.4; } }),
+      bwTest('BW4', 'THROUGH_KEEPER', 'a shot straight through the keeper', 'their keeper square on his line; the Lab switches off every touch (the ball\'s pick-ups) so it goes through him', (r, H, A) => {
+        cast([H[9], A[0]]); put(A[0], LINE_X, 34, 4); Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); put(H[9], 86, 30, 0);
+        ballAt(92, 34, 0.6); Object.assign(m.ball, { vx: 26, vy: 0, vz: 1.2, last: m.home, lastP: H[9] });
+        swap(m, 'pickups', function () {}); r.human = H[9]; }),
+      bwTest('BW5', 'IN_THE_NET', 'a man standing in the net', 'one of yours parked inside their goal, play going on', (r, H, A) => {
+        cast([H[9], A[5]]); put(H[9], 106.2, 34.5, 4); put(A[5], 60, 30, 4); ballAt(55, 40, 0); r.human = H[9]; }),
+      bwTest('BW6', 'GOAL_TWICE', 'one goal counted twice', 'the score goes up, then up again a second later', (r, H) => {
+        cast([H[9]]); put(H[9], 50, 34, 0); atFeet(H[9]); r.human = H[9]; },
+        (r) => { if (r.t > 0.5 && !r.g1) { r.g1 = 1; m.home.score++; } if (r.t > 1.5 && !r.g2) { r.g2 = 1; m.home.score++; } }),
+      bwTest('BW7', 'TEAM_FROZEN', 'their whole team frozen', 'six of theirs stand still while you have the ball', (r, H, A) => {
+        cast([H[9], A[0], A[1], A[2], A[3], A[4], A[6], A[7]]); put(H[9], 50, 34, 0); atFeet(H[9]); [A[1], A[2], A[3], A[4], A[6], A[7]].forEach((p, k) => put(p, 62 + (k % 3) * 8, 18 + k * 6, 4));
+        put(A[0], LINE_X, 34, 4); r.human = H[9]; }),
+      bwTest('BW8', 'CONTROL_DEAD', 'your man won\'t move', 'you hold RIGHT, the Lab freezes his legs (his step does nothing)', (r, H) => {
+        cast([H[9]]); put(H[9], 50, 34, 0); ballAt(70, 50, 0); r.human = H[9]; Input.touch.x = 1; swap(H[9], 'step', function () {}); }),
+      bwTest('BW9', null, 'normal play: none of the new checks trip', 'the real AI on both sides, 11 v 11, for 10 s', (r, H, A) => {
+        cast(m.all.filter(p => !p.benched)); m.all.forEach(p => { put(p, p.home.x, p.home.y, p.team.side > 0 ? 0 : 4); });
+        Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); Object.assign(H[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+        put(H[9], 52, 34, 0); atFeet(H[9]); LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true; r.human = H[9]; }, null, 10, { realAi: true, demo: true }),
+    ];
   }
 
   // ======================================================================= t-010 TAP KICK (Luca 24 Oct 05:57: "give me a test lab of the
@@ -1604,8 +1664,9 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     ]);
     add('KS', 't-014 · KEEPER SPECIAL SAVES BY THE SHOT', 'Their keeper has a special save ready; the shot picks the move: a lob → kleap, straight → kblock, wide → kdivecatch, too strong to hold → ktip (a corner). Who wins stays as before.', ksTests());
     add('CS', 'CUT SCENES', 'Every cut scene in full (the Lab normally skips them). R plays it again. Rate how it looks; ENTER moves the menus on.', buildCuts());
-    add('BW', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai). 1 = the game was right · 2 = it\'s a bug.', [{ id: 'BW0', group: 'BW', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,
-      setup(r) { cast([]); r.fired = true; }, check() { return { o: 'NOTHING TO WATCH YET' }; } }]);
+    add('BW', 't-021 · BUG WATCH CHECKS', 'Each new Bug Watch check tripped on purpose (the Lab breaks the game for it: a frozen clock, a ball shot through a keeper who can\'t touch it, a man who won\'t move...). BW9: normal play, where none of them may trip. Nothing here is saved as a clip.', bwTests());
+    add('CL', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai), real bugs first. 1 = the game was right · 2 = it\'s a bug.', [{ id: 'CL0', group: 'CL', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,
+      setup(r) { cast([]); r.fired = true; r.human = m.home.players[9]; }, check() { return { o: 'NOTHING TO WATCH YET' }; } }]);   // (t-021: a human to draw the cursor on - with none the Lab threw in drawCursor, on main too)
     return G;
   }
 
@@ -1631,6 +1692,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
     if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null; Object.assign(m, { aerial: null, lobAim: null, slowMo: 0 }); Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+    if (LAB.undo) { for (const f of LAB.undo) f(); LAB.undo = null; }            // t-021: the BW cases break the game on purpose - put it back
+    window.__labWatch = window.__bwNoStore = window.__labClock = false;         // (Bug Watch watches only in the BW cases)
     sc.setup(r);
     m.human = r.human; m.camX = m.camY = undefined;
     render();
@@ -1834,7 +1897,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     $('r1').textContent = clip ? 'game was right' : 'looks right'; $('r2').textContent = clip ? "it's a bug" : 'looks wrong';
     $('rate-h').textContent = clip ? 'RATE THIS CLIP' : 'RATE THIS TEST';
     if (clip && sc.doc) { const d = sc.doc, esc = t => String(t || '').replace(/[<>&]/g, '');
-      $('bw-why').innerHTML = `<b>${esc(d.sev === 'bug' ? 'LOOKS LIKE A BUG' : d.sev === 'perf' ? 'SPEED' : 'LOOKS ODD')}</b> ${esc(d.why)}<br><span>${esc(d.home)} ${esc(d.score)} ${esc(d.away)} · ${esc(d.mode)} · ${esc(d.weather || 'clear')} · ${esc(d.game)}</span>${d.claude ? `<br><i>CLAUDE${d.status === 'fixed' ? ' (FIXED IN v0.8.7)' : ''}: ${esc(d.claude)}</i>` : ''}${d.review ? `<br><em>RATED: ${esc(d.review.verdict)}${d.review.note ? ' · ' + esc(d.review.note) : ''}</em>` : ''}`; }
+      $('bw-why').innerHTML = `<b>${esc(BW_ERR.has(d.code) ? 'CODE ERROR' : d.sev === 'bug' ? 'LOOKS LIKE A BUG' : d.sev === 'flag' ? 'YOUR FLAG' : d.sev === 'perf' ? 'SPEED' : 'LOOKS ODD')}</b> ${esc(d.why)}<br>${BW_ERR.has(d.code) && d.stack ? `<code style="display:block;white-space:pre-wrap;word-break:break-all;max-height:9em;overflow:auto">${esc(String(d.stack).slice(0, 900))}</code>` : ''}<span>${esc(d.home)} ${esc(d.score)} ${esc(d.away)} · ${esc(d.mode)} · ${esc(d.weather || 'clear')} · ${esc(d.game)}</span>${d.claude ? `<br><i>CLAUDE${d.status === 'fixed' ? ' (FIXED IN v0.8.7)' : ''}: ${esc(d.claude)}</i>` : ''}${d.review ? `<br><em>RATED: ${esc(d.review.verdict)}${d.review.note ? ' · ' + esc(d.review.note) : ''}</em>` : ''}`; }
   }
   function readouts() {
     const r = LAB.run; if (!r) return;
