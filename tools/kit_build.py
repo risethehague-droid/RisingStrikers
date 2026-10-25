@@ -59,7 +59,7 @@ def snap(im):
 from ballrm import remove_balls
 from ballfind import drop_detached
 BALL_FIX = {'clob', 'kick', 'pass', 'shot', 'super', 'sp1', 'sp2', 'chip'}                       # batch 1 moves where PixelLab drew a football at the foot (the game draws its own)
-DETACHED = {'cpass', 'cthru', 'clob', 'tap', 'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor', 'chip', 'sp1', 'volley', 'dheader', 'throwin', 'celebrate', 'penalty', 'header', 'sprint', 'tackle', 'touch', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4', 'bicycle'}       # batch 2: drop loose balls / specks that don't touch the body
+DETACHED = {'cpass', 'cthru', 'clob', 'tap', 'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor', 'chip', 'sp1', 'volley', 'dheader', 'throwin', 'celebrate', 'penalty', 'header', 'sprint', 'tackle', 'touch', 'pcele', 'pmiss', 'ppower', 'pchip', 'pwait', 'celeb2', 'chance', 'celeb3', 'dejected', 'applaud', 'pplace', 'protest', 'hips', 'hurt', 'signal', 'celeb4', 'bicycle', 'slide2', 'slideup'}       # batch 2: drop loose balls / specks that don't touch the body
 # batch 2 balls still touching the body, placed by eye on the raw frames (window px): (anim, dir, PixelLab frame) -> discs
 ERASE = {('clob', 'E', 5): [(122, 91, 12)],   # batch 17: the scoop lob's PixelLab ball at the boot (the game draws its own)
          ('volley', 'S', 5): [(102, 59.5, 12)],
@@ -67,6 +67,10 @@ ERASE = {('clob', 'E', 5): [(122, 91, 12)],   # batch 17: the scoop lob's PixelL
          ('volley', 'E', 4): [(117, 19, 11)],
          ('volley', 'NE', 3): [(62, 8.5, 10.5)], ('volley', 'NE', 4): [(62.5, 4, 11)], ('volley', 'NE', 5): [(65, 21.5, 11)],
          ('volley', 'N', 4): [(77, 12, 11)]}
+# batch 19: other PixelLab leftovers at the boots, by box (192 px window, raw frame): (x0, y0, x1, y1, colour) - only that
+# colour (+-14) inside the box, or everything inside it when the colour is None (the box stops short of the boot)
+ERASE_BOX = {('slideup', 'E', 1): [(119, 96, 143, 109, None)],                       # a white kick-swoosh arc over the boot
+             **{('slideup', 'SE', i): [(120, 118, 170, 150, (134, 131, 131))] for i in (1, 2, 3)}}   # the grey dirt patch where the ball was
 # chest trap: the PixelLab ball is KEPT (the game hides its own ball while he traps it - manifest 'carry'), so the kit
 # painting must not recolour it: these discs mark the ball in each frame
 PROTECT = {('trap', 'S', 5): (65, 60, 10), ('trap', 'S', 6): (65, 99, 10), ('trap', 'S', 7): (65, 135, 10), ('trap', 'S', 8): (68.5, 129, 10.5),
@@ -118,17 +122,26 @@ TALL = {'trophy': 30}
 # width, from row 32), drawn on its own origin (feet row / frame height in the manifest's 'origins')
 RIG = {'air1', 'air2', 'air3', 'tide', 'cyclone', 'meteor'}   # tide / cyclone / meteor: batch 16b, the 3 new aerial specials (Luca 14:16: "new aerial shots with different names / vibe / animation / effect")
 WIN_RIG = (0, 32, 256, 216)                    # batch 12: the cup goes above the usual window -> taller frames (128 x 186, feet on row 169)
+# batch 19 (t-018, Luca 25 Oct 06:56: "making the slide actually slide more ... and gets up after"): lying along the grass
+# the new slide is up to 132 px long, more than the 128 px window - a 192 px wide window, same rows (feet on row 143) and
+# the same centre, so it needs no origin of its own
+WIDE = {'slide2', 'slideup'}
+WIN_WIDE = (32, WIN[1], 224, WIN[3])
 SHIFT_Y = {('walk', 'S'): 6, ('walk', 'N'): 7, ('walk', 'E'): 1}                     # batch 12: the V3 walk stands 6 px higher on its canvas than the rig (feet 191 vs 197)
 
 
 def window(im256, anim=None, d=None, idx=None):
     dy = SHIFT_Y.get((anim, d), 0); top = TALL.get(anim, WIN[1])
-    box = WIN_RIG if anim in RIG else (WIN[0], top - dy, WIN[2], WIN[3] - dy)
+    box = WIN_RIG if anim in RIG else WIN_WIDE if anim in WIDE else (WIN[0], top - dy, WIN[2], WIN[3] - dy)
     a = np.array(im256.crop(box)); rgb = a[:, :, :3].astype(int)
     fx = (rgb[:, :, 1] > rgb[:, :, 0] + 25) & (rgb[:, :, 1] > rgb[:, :, 2] + 25)   # PixelLab's green grass / dust puffs: not part of the player
     if anim != 'throwin': a[fx, 3] = 0                                            # (the throw-in ball is cyan: handled below)
     if anim in BALL_FIX: a, _, _ = remove_balls(a, attached=d != 'S')
     for cx, cy, r in ERASE.get((anim, d, idx), []): a = erase_disc(a, cx, cy, r)
+    for x0, y0, x1, y1, c in ERASE_BOX.get((anim, d, idx), []):
+        box = np.zeros(a.shape[:2], bool); box[y0:y1 + 1, x0:x1 + 1] = True
+        if c is not None: box &= np.abs(a[:, :, :3].astype(int) - np.array(c)).max(2) < 14
+        a[box] = 0
     if anim == 'throwin':
         a = erase_cyan(a); rgb = a[:, :, :3].astype(int)
         a[(rgb[:, :, 1] > rgb[:, :, 0] + 25) & (rgb[:, :, 1] > rgb[:, :, 2] + 25), 3] = 0
@@ -193,7 +206,8 @@ MAP = [('curling_pass', 'cpass'), ('outside-of-the-boot', 'cthru'), ('curling_sc
        ('seen_from_behind_waiting', 'pwait'), ('knee_slide', 'celeb2'), ('big_chance_missed', 'chance'),   # batch 7
        ('goal_celebration_towards', 'celeb4'),   # batch 9: points to the sky (after knee slide / aeroplane, which share the words)
        ('penalty_scored', 'pcele'), ('missed_penalty', 'pmiss'), ('power_penalty', 'ppower'), ('chipped_penalty', 'pchip'),   # batch 6: penalty camera, seen from behind
-       ('full_sprint', 'sprint'), ('standing_tackle', 'tackle'), ('first_touch', 'touch'), ('attacking_header', 'header'), ('Breathing_Idle', 'idle'), ('Running', 'run'), ('Slide', 'slide'), ('Getting_Up', 'getup'), ('Two-Footed_Jump', 'jump'),
+       ('full_sprint', 'sprint'), ('standing_tackle', 'tackle'), ('first_touch', 'touch'), ('attacking_header', 'header'), ('Breathing_Idle', 'idle'), ('Running', 'run'), ('slide_tackle_along', 'slide2'), ('getting_up_after_a_slide', 'slideup'),   # batch 19 (t-018): the long slide + its get-up - before 'Slide' / 'Getting_Up', which their names contain
+       ('Slide', 'slide'), ('Getting_Up', 'getup'), ('Two-Footed_Jump', 'jump'),
        ('Falling_Back', 'fall'), ('Taking_Punch', 'hit'), ('strikes', 'kick'), ('standing_in_place', None), ('side-foot', None),
        ('controls_a_dropping', 'trap'), ('volleys', 'volley'), ('diving_header', 'dheader'), ('celebration', 'celebrate'),
        ('throw-in', 'throwin'), ('penalty_kick', 'penalty')]
@@ -212,6 +226,8 @@ TRIM = {'cpass': (1, None), 'cthru': (1, None), 'clob': (1, None), 'tap': (1, No
 TRIM_DIR = {('chip', 'S'): (2, None), ('chip', 'NE'): (2, None), ('chip', 'N'): (2, None),   # batch 15: contact = 4th frame kept everywhere
             ('pass', 'SE'): (1, 6), ('pass', 'NE'): (2, 8), ('pass', 'N'): (3, 9), ('shot', 'N'): (4, None), ('shot', 'S'): (4, None),   # batch 12: NE / N pass + N shot redone ball-free (contact on frame 2 / 3)
               # batch 11: 2 frames before the contact frame, 2 after
+            ('slideup', 'NE'): (3, None), ('slideup', 'N'): (2, None),   # batch 19: PixelLab started these two standing and fell him over first - start on the grass
+            ('slideup', 'E'): (1, None), ('slideup', 'SE'): (1, None),   # batch 19: frame 0 has PixelLab's ball over the boot (erasing it took the boot too)
             ('kick', 'E'): (4, 7), ('touch', 'N'): (2, None), ('bicycle', 'NE'): (2, None)}   # bicycle NE: frame 1 shows PixelLab's ball   # first touch N: frame 1 has PixelLab's ball over his head
 SKIP_DIR = {('chip', 'N'), ('touch', 'NE'), ('shot', 'N'), ('pass', 'NE'), ('pass', 'N'), ('jockey', 'NE')}   # batch 13: the NE jockey turned round + drew a ball - E stands in   # batch 11: PixelLab's NE / N pass lifts its own ball into the air - the E pass stands in                     # first touch NE: PixelLab plays the ball with his hand - the E move stands in (and mirrors to NW)               # kick East: PixelLab turns him round (back + a number) after the strike
 NEIGH = {'S': ['SE'], 'SE': ['S', 'E'], 'E': ['SE', 'NE'], 'NE': ['E', 'N'], 'N': ['NE']}   # stand-in when a direction failed
@@ -262,6 +278,20 @@ for folder in sorted(glob.glob(f'{ZIPDIR}/*/animations/*')):
     for d, src_d in MIRROR.items():
         if f'{anim}-{src_d}' in new: new[f'{anim}-{d}'] = [ImageOps.mirror(im) for im in new[f'{anim}-{src_d}']]
         if f'{anim}-{src_d}' in prot: prot[f'{anim}-{d}'] = [None if m is None else np.fliplr(m) for m in prot[f'{anim}-{src_d}']]
+# batch 19: the get-up starts where the slide left him - each made direction's first frames slide over to the slide's
+# last frame (hips = the shorts), easing back to the centre by the last frame (where he stands, as idle / run do)
+def hips_x(im):
+    a = np.array(im); sh = (a[:, :, 3] > 0) & np.isin(a[:, :, :3].astype(np.int32) @ np.array([65536, 256, 1]), [r * 65536 + g * 256 + b for r, g, b in (SH_L, SH_D, SH_DD)])
+    xs = np.nonzero(sh)[1]; return xs.mean() if len(xs) else bbox_cx(im)
+SH_L, SH_D, SH_DD = (175, 193, 211), (132, 153, 180), (100, 118, 145)
+UP_DX = {}
+for d in PL_DIR:
+    if f'slideup-{d}' in new and f'slide2-{d}' in new:
+        lst = new[f'slideup-{d}']; dx = hips_x(new[f'slide2-{d}'][-1]) - hips_x(lst[0]); UP_DX[d] = round(dx, 1)
+        new[f'slideup-{d}'] = [shifted(im, dx * (1 - k / max(1, len(lst) - 1))) for k, im in enumerate(lst)]
+for d, src_d in MIRROR.items():
+    if f'slideup-{src_d}' in new: new[f'slideup-{d}'] = [ImageOps.mirror(im) for im in new[f'slideup-{src_d}']]
+if UP_DX: print('slideup lined up on the slide (px):', UP_DX)
 # batch 11b: sprint N regenerated (the first try was drawn tiny)
 for d in ('S', 'N'):                             # throw-in: the taker waits holding the ball over his head (first frame)
     if f'throwin-{d}' in new: new[f'throwinhold-{d}'] = new[f'throwin-{d}'][:1]
