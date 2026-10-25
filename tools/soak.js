@@ -98,7 +98,11 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
   if (process.env.PACE) await page.evaluate(v => { setPace(v); }, process.env.PACE);   // t-020 (applied at every kick-off)
   await page.evaluate(() => { const m = window.__hc2, W = window.__wing, sp = m.special, sf = m.saveFx;   // t-020: special shots / saves (counting only: all arguments passed on)
     m.special = function (...a) { W.spShot = (W.spShot || 0) + 1; return sp.apply(this, a); };
-    m.saveFx = function (gk, ...a) { if (gk && gk.spSave) W.spSave = (W.spSave || 0) + 1; return sf.call(this, gk, ...a); }; });
+    m.saveFx = function (gk, ...a) { if (gk && gk.spSave) W.spSave = (W.spSave || 0) + 1; return sf.call(this, gk, ...a); };
+    // t-028: what came of each special save at the keeper's line - clash()'s answer (any version: true / 'hand' / false
+    // before t-028), and on a version with the visible clash its outcomes (m.clashN: met, held, bounce, tip, hands, body)
+    const cl = m.clash; window.__clashN = {}; m.clash = function (...a) { const r = cl.apply(this, a), k = r === true ? 'saved' : r === false ? 'beaten' : String(r);
+      window.__clashN[k] = (window.__clashN[k] || 0) + 1; return r; }; });
   const out = { game: ver, at: new Date().toISOString(), matches: [], errors: errs };
   for (let i = 0; i < list.length; i++) {
     const c = list[i]; cur = i; const t0 = Date.now();
@@ -106,6 +110,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     await page.waitForFunction(() => window.__ready, null, { timeout: 120000 });
     await page.evaluate(c => { const m = window.__hc2; window.__soakInc = []; window.__wing.z(); Math.random = window.__rngOf(c.seed); m.gpStats = { wood: 0, back: 0, pops: 0, net: 0 };   // (t-013's goal-physics counts)
       m.arcN = { reb: 0, air: 0, rebShots: 0, sp: 0 }; window.__wing.spShot = 0; window.__wing.spSave = 0;   // (t-020's ARCADE counts)
+      window.__clashN = {}; m.clashN = {};                                        // (t-028's special-save outcomes)
       setAiMode(c.ai); setDiff(c.lvl === 'base' ? 'normal' : c.lvl);
       window.__diffTeams = { home: Object.assign({}, DIFF_TRAITS.base, { lvl: 'base' }), away: Object.assign({}, DIFF_TRAITS[c.lvl] || DIFF_TRAITS.normal, { lvl: c.lvl }) };
       m.mset = { arena: 'loo', tod: c.tod, weather: c.weather, ending: 'none' }; m.applyRules();
@@ -126,7 +131,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       return { score: `${m.home.score}-${m.away.score}`, shots: `${H.shots || 0}-${A.shots || 0}`, goals: m.home.score + m.away.score,
         corners: sum('corners'), onT: sum('onT'), held: sum('held'), parried: sum('parried'), kOut: sum('kOut'), kIn: sum('kIn'), fouls: `${H.fouls || 0}-${A.fouls || 0}`, offsides: sum('offsides'),   // (t-024)
         possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), arc: Object.assign({}, m.arcN || {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null,
-        wing: Object.fromEntries(Object.entries(window.__wing).filter(([k, v]) => (typeof v === 'number' && k !== 'wideT') || k === 'goalLog')) }; });
+        clash: Object.assign({}, window.__clashN), clashOut: Object.assign({}, m.clashN || {}), wing: Object.fromEntries(Object.entries(window.__wing).filter(([k, v]) => (typeof v === 'number' && k !== 'wideT') || k === 'goalLog')) }; });
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
     const TR = Object.entries(st.trips).sort((a, b) => rank(a[0]) - rank(b[0]) || b[1] - a[1]), lk = TR.filter(([k]) => SEV[k] === 'look');   // (t-021: bugs first, looks last)
     const tr = [TR.filter(([k]) => SEV[k] !== 'look').map(([k, v]) => `${k} ${v}`).join(', '), lk.length ? `looks: ${lk.map(([k, v]) => `${k} ${v}`).join(', ')}` : ''].filter(Boolean).join(' · ');
@@ -134,6 +139,8 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     { const w = st.wing; console.log(`   tackles (t-018): slides ${w.slides} (won the ball ${w.slideWins}) · challenges ${w.challenges} (won ${w.chWins}) · fouls ${st.fouls} · possession changes ${w.possCh}`); }
     if (process.env.PACE === 'arcade') { const a = st.arc; console.log(`   arcade: board rebounds ${a.reb} (up for a header ${a.air}) · headers / volleys off them ${a.rebShots} · special shots ${st.wing.spShot} · special saves ${st.wing.spSave} · aerial battles ${st.wing.battles} · SP extras ${a.sp} (aerial ${a.aerial || 0}, rebound ${a.rebound || 0}, save ${a.save || 0})`); }
     console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${process.env.TAP ? `tap kicks ${st.wing.taps} · ` : ''}${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
+    { const f = o => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(', ') || 'none';   // t-028: special shots / saves and what came of the saves
+      console.log(`   specials (t-028): special shots ${st.wing.spShot || 0} · special saves ${st.wing.spSave || 0} · at his line: ${f(st.clash)}${Object.keys(st.clashOut).length ? ` · clash outcomes: ${f(st.clashOut)}` : ''}`); }
     console.log(`   offsides ${st.offsides || 0}`);                                  // t-024 (aim: 1-3 a match)
   }
   await br.close();
@@ -162,6 +169,8 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     `- Finished: ${fin} of ${out.matches.length}${stalls.length ? ` · STALLS: ${stalls.map(m => `#${m.n}`).join(', ')}` : ''}`,
     `- Page errors: ${errs.length}${errs.length ? '' : ' (none)'}`,
     `- Offsides per match (t-024): ${per('offsides')} (total ${tot('offsides')})`,
+    (() => { const add = k => out.matches.reduce((a, mt) => { for (const [x, v] of Object.entries(mt[k] || {})) a[x] = (a[x] || 0) + v; return a; }, {}), f = o => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(' · ') || 'none';
+      return `- Specials (t-028), totals: special shots ${out.matches.reduce((a, mt) => a + (mt.wing.spShot || 0), 0)} · special saves ${out.matches.reduce((a, mt) => a + (mt.wing.spSave || 0), 0)} · at his line: ${f(add('clash'))} · clash outcomes: ${f(add('clashOut'))}`; })(),
     `- Per match: goals ${per('goals')} · shots on target ${per('onT')} · corners ${per('corners')} · saves held ${per('held')} · parried ${per('parried')} · keeper touches out ${per('kOut')} / in play ${per('kIn')} (totals ${tot('goals')} / ${tot('onT')} / ${tot('corners')} / ${tot('held')} / ${tot('parried')})`, ...errs.slice(0, 5).map(e => `  - #${e.match + 1}: ${e.msg} ${e.stack}`),
     `- Real bugs: ${bugs.length ? bugs.map(e => `${e.code} ${e.trips}`).join(' · ') : 'none'}`, ...bugs.flatMap(e => e.examples.map(x => `  - ${e.code}: ${x}`)),
     `- Looks (cosmetic: counted, no clips): ${looks.map(e => `${e.code} ${e.trips}${e.matches ? ` in ${e.matches} matches` : ''}`).join(' · ')}`, '',

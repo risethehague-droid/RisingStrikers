@@ -903,8 +903,9 @@ hc2Mix(Match, {
       const reach = box ? 1.3 : (b.target === p && b.last === p.team ? 1.25 : 0.8), zmax = box ? 2.6 : 0.9;   // v0.7: the man you passed to reaches for it
       if (p.keeper && p.spSave && ((b.special && b.spTeam && p.team !== b.spTeam) || (!b.special && b.saveable && b.saveable !== p.team))) {   // v0.8.6 SPECIAL SAVE v SPECIAL SHOT, on his line (v0.9.0: or v a normal shot)
         if (!((pbx - p.x) * (b.x - p.x) <= 0 || Math.abs(b.x - p.x) < 0.3)) continue;
-        if (Math.abs(b.y - 34) > 4.3 || b.z > 3.2) { p.spSave = 0; continue; }   // off target: nothing to save
+        if (Math.abs(b.y - 34) > CLASH.reach || b.z > 3.2) { p.spSave = 0; continue; }   // off target: nothing to save
         const K = SAVE_POWER[p.spSave - 1], ok = this.clash(p);
+        if (ok === 'clash') return;                                                // t-028: a special v his special save - the ball is held on his gloves, power decides after (specials.js clashTick / clashEnd)
         if (!ok) { this.guardBreak(p); if (this.gpPop(p, 'break', len(b.vx, b.vy))) return; continue; }   // (t-013: or it loops up off him)
         if (ok === 'hand') {                                                     // t-007: too strong to stop, but he gets a hand to it: over or wide
           p.y = clamp(b.y - Math.sign(b.y - p.y || 1) * 0.5, 29.6, 38.4); p.vx = p.vy = 0;
