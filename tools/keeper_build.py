@@ -169,10 +169,11 @@ KTRIM = {('catch', 'S'): (5, None), ('catch', 'SE'): (3, None), ('catch', 'E'): 
          ('catch', 'N'): (2, None)}
 PDH = (3, None)                                  # high penalty dive: frames used (start, end)
 KTRIM.update({('kick', 'S'): (4, None), ('kick', 'SE'): (1, None), ('kick', 'E'): (3, None), ('kick', 'NE'): (3, None), ('kick', 'N'): (2, None)})   # contact on frame 2
-KTRIM_ANIM = {'roll': (1, None), 'claim': (1, None), 'throw': (3, None), 'gkick': (5, None), 'punch': (1, None), 'kset': (1, None), 'punt': (1, None)}
+KTRIM_ANIM = {'roll': (1, None), 'claim': (1, None), 'throw': (3, None), 'gkick': (5, None), 'punch': (1, None), 'kset': (1, None), 'punt': (1, None), 'kcarry': (1, -1), 'kcarryrun': (1, -1)}   # (batch 21: 1..-1 = the loop)
 PUNT_HIT = 6                                    # batch 13 punt (after the trim): he holds the ball until here, the boot meets it on this frame
 CARRY = {f'catch-{d}' for d in DIRS} | {f'claim-{d}' for d in DIRS} | {f'roll-{d}' for d in DIRS} | {f'throw-{d}' for d in ('S', 'SE', 'SW', 'NE', 'NW', 'N')}   # throw E / W: no ball drawn
 CARRY |= {f'punt-{d}' for d in DIRS}            # batch 13: PixelLab's ball while he holds it; from the contact frame on the game's ball
+CARRY |= {f'{a}-{d}' for a in ('kcarry', 'kcarryrun') for d in DIRS}   # batch 21: the ball at his chest is in the frames
 new = {}
 for st in states:
     for aname, dirs in st['frames'].get('animations', {}).items():
@@ -224,6 +225,12 @@ for st in states:
         if 'breathing' in low: anim = 'idle'
         elif 'running' in low: anim = 'run'
         elif 'walking' in low: anim = 'walk'                  # batch 12: PixMiniMax walk
+        # batch 21 (25 Oct, t-031: Luca 15:41 "be able to hold it in his hands while he moves"): the carry walk and the carry jog
+        # - the ball held against his chest, made S / SE / E / NE / N on PixMiniMax (PixelLab's rewritten names below), the
+        # rest mirrored; frame 0 is the kept idle pose and the last frame returns to it (loops use 1..-1). The ball is in the
+        # frames on purpose (CARRY: the game hides its own ball while he carries it)
+        elif 'step_forward_at_a_steady_pace' in low: anim = 'kcarry'
+        elif 'jog_forward_in_a_rhythmic_loop' in low: anim = 'kcarryrun'
         elif 'clears_the_ball' in low: anim = 'kick'          # batch 12: clears with his foot (the game used his throw before)
         elif 'punts_the_ball' in low: anim = 'punt'           # batch 13: drop-kick out of his hands (long distribution)
         elif 'rolls_the_ball_out' in low: anim = 'roll'          # batch 10: underarm roll-out
@@ -261,7 +268,7 @@ for st in states:
             fs = dirs.get(pd)
             if not fs: continue
             a0, a1 = KTRIM.get((anim, d)) or KTRIM_ANIM.get(anim) or (0, None); fs = fs[a0:a1]
-            new[f'{anim}-{d}'] = [window(Image.open(f'{ZIPDIR}/{f}').convert('RGBA'), loose=anim in ('catch', 'throw', 'gkick', 'punch', 'claim', 'roll', 'kick', 'punt'),
+            new[f'{anim}-{d}'] = [window(Image.open(f'{ZIPDIR}/{f}').convert('RGBA'), loose=anim in ('catch', 'throw', 'gkick', 'punch', 'claim', 'roll', 'kick', 'punt', 'kcarry', 'kcarryrun'),
                                          ball=anim == 'kick') for i, f in enumerate(fs)]
             dy = WALK_DY.get(d, 0) if anim == 'walk' else 0                  # batch 12: the V3 walk's feet sit a few px off the rig's row
             if dy: new[f'{anim}-{d}'] = [Image.fromarray(np.roll(np.array(im), dy, axis=0)) for im in new[f'{anim}-{d}']]
@@ -270,7 +277,7 @@ for st in states:
 for d in PL_DIR:
     if f'punt-{d}' in new and f'kick-{d}' in new: new[f'punt-{d}'] = new[f'punt-{d}'][:PUNT_HIT] + new[f'kick-{d}'][2:]
 print('from PixelLab:', {k: len(v) for k, v in new.items()})
-for anim in ('idle', 'run', 'walk', 'kick', 'catch', 'throw', 'punch', 'kset', 'claim', 'roll', 'punt'):
+for anim in ('idle', 'run', 'walk', 'kick', 'catch', 'throw', 'punch', 'kset', 'claim', 'roll', 'punt', 'kcarry', 'kcarryrun'):
     if not any(k.startswith(anim + '-') for k in new): continue
     for d in PL_DIR:
         if f'{anim}-{d}' not in new:
