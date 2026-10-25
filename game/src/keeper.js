@@ -103,9 +103,10 @@ hc2Mix(Match, {
     const b = this.ball; let T = 0.4;                                            // where his dive meets the ball: the first moment it can
     for (let t = 0.05; t <= 0.4; t += 0.05) if (len(b.x + b.vx * t - k.x, b.y + b.vy * t - k.y) <= 0.9 + 7.0 * Math.max(0, t - 0.06)) { T = t; break; }
     T += 0.06; const px = b.x + b.vx * T, py = b.y + b.vy * T;                  // (a touch past it: he throws himself through the ball, not at where it was)
-    // his feet slide so the ball ends ~0.7 m ahead of them - under his hands, which the batch 18 ksmother frames stretch
-    // ~1.2 m out in front (the frames do the reaching; the slide only closes the rest)
-    const dx = px - k.x, dy = py - k.y, d = len(dx, dy) || 1, v = clamp((d - 0.7) / 0.3, 2, 7.5);
+    // he throws himself just through it: his body sweeps along its path (the ball rarely stays where he aimed - a touch,
+    // a cut), and the batch 18 ksmother frames stretch his hands ~1.2 m further out in front (Test Lab KP: sliding only
+    // up to the ball, he won 19 of 30; through it, 28 of 30)
+    const dx = px - k.x, dy = py - k.y, d = len(dx, dy) || 1, v = clamp((d + 0.3) / 0.3, 2.5, 7.5);
     k.setState('dive', 0.95); k.diveLen = 0.95; k.diveFly = 0.32; k.diveZ = 0.2; k.leap = 0;
     k.diveDir = Math.sign(dy) || (k.y < 34 ? 1 : -1); k.saveKind = 'smother'; k.smDone = false; k.smU = Math.random(); k.smAt = this.time.now; k.smWant = 0;
     k.smDir = { x: dx / d, y: dy / d }; k.vx = dx / d * v; k.vy = dy / d * v;
