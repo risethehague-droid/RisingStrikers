@@ -1,3 +1,13 @@
+HC2 WEB GAME - v0.12.3 (25 Oct) - THE KEEPER'S RANGE (PR #35, Luca's OK)
+- Luca 14:42: "gk needs to approach from further range to close in on attackers who are coming close, right now it's
+  easy to run around the goalie". keeper.js GK_1V1: on a breakaway (a striker running at goal, nobody covering) he
+  starts closing at 32 m (was 26), comes out to 14 m along the angle (was 9) once the striker is within ~20 m, attacks
+  the ball from 9.5 m away inside 19 m (was 6.5 / 13), never past 15.5 m; the smother dive only inside his box. A set
+  shooter / a striker walking across: v0.12's positions.
+- Test Lab KP: walk-rounds 22 / 140 -> 4 / 70; he meets the striker ~15-17 m out (was ~11-12). New KP7 / KP8.
+- Computer v computer goals 2.2 -> 3.4 a match (shots beat him when he's out and moving) - Luca: ship it, tune later
+  with t-031 (keeper hands).
+
 HC2 WEB GAME - v0.12.2 (25 Oct) - THE LIVING NET IN EVERY MATCH + ARCADE THROW-INS (PRs #34, #31, #33, Luca's OK)
 - THE LIVING NET (#34, t-025, from the t-023 preview Luca OK'd): in every match, ARCADE too - the PixelLab net on a mesh
   that stretches by the strike (a soft shot 32 cm ... an LV2 special 2 m), the ball rolls in it 1-2 s, an LV3 special
