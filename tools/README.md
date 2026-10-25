@@ -53,6 +53,7 @@ the review opens at full time. Marks and notes reach the taskmaster through the 
 | `python3 tools/lo_build.py game` | the half-size phone copies in `game/assets-lo/` |
 | `python3 tools/stadium/world_build.py <layers> game/assets` | stadium tiles + manifest world entries (see `docs/lanes/stadiums-maps.md`) |
 | `tools/ref_build.py`, `fx_build.py`, `ball_build.py`, `rami_build.py`, `pen_build.py` | referee, effects, ball, Rami, penalty view (read the header of each before running) |
+| `python3 tools/gk_hands.py` (`--check`) | t-031: where the keeper's gloves are on each frame of his catching moves (the `GK_HANDS` table in `keeper.js`); `--check` compares the kits' poses. Reads the frames, draws nothing. Rerun when the keeper moves change |
 | `tools/sheet.py`, `tools/atlas_sheet.py` | contact sheets: raw PixelLab frames / built frames per kit |
 
 `kits.py`, `ballrm.py`, `ballfind.py`, `tmask.py` are helpers the kit build imports. `tools/stadium/cfg.py` is the world

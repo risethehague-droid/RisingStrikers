@@ -834,6 +834,20 @@ hc2Mix(Match, {
     if (o && o[s]) return o[s].lvl || 'normal';
     return !this.demo && team !== this.home ? DIFF_LEVEL : 'base';
   },
+  // t-031 KEEPER HANDS: the ball he holds is drawn at (sx, sy) on the screen - his gloves on this frame (player.js
+  // handPoint, keeper.js GK_HANDS). The drawing goes from the ball's x / y / z (world.js render), so the ball is put
+  // where that lands on the point: on his line across the pitch (behind = a hair further from the camera, so his body
+  // hides it when he faces away), lower down the screen than his feet (a dive towards the camera) = nearer the camera,
+  // at least 5 cm up. Runs as he's drawn, after the step (dribble's hands branch puts it back by him every step); a
+  // throw / roll / punt leaves from where his hands last had it.
+  gkHandBall(p, sx, sy, behind) {
+    const b = this.ball, lift = 12 + (ballS() - 1) * 13;
+    let by = behind ? p.y - 0.08 : p.y + 0.04;
+    const z0 = (wy(by) - lift - sy) / PX_H;
+    if (z0 < 0.05) by += (0.05 - z0) * PX_H / PX_Y;                              // (below his feet on screen: the ball is in front of him, towards the camera)
+    by = clamp(by, -3, PITCH_W + 3);
+    b.y = by; b.z = Math.max(0.05, (wy(by) - lift - sy) / PX_H); b.x = PITCH_L / 2 + (sx - CX) / (PX_X * scaleAt(by)); b.vx = b.vy = b.vz = 0;
+  },
   // dribbling: the ball is NOT glued to the foot. The carrier touches it ahead, it rolls (and slows), he catches
   // up and touches it again. Faster running = bigger touches = easier to nick. Standing still = ball at the feet.
   dribble(p, dt) {
@@ -1041,6 +1055,9 @@ hc2Mix(Match, {
     if (prev) { prev.cool = 0.4; }
     if (box) {
       if (len(b.vx, b.vy) > 2 && p.state !== 'dive') p.face = dirIndex(-b.vx, -b.vy);
+      // t-031: soft hands - where the ball is on screen as he takes it; player.js eases it from there into his gloves
+      // (gkHandBall) instead of snapping it. k.walk: the computer's keeper decides afresh whether to walk this one out
+      p.handFrom = { x: wx(b.x, b.y), y: wy(b.y) - 12 - (ballS() - 1) * 13 - b.z * PX_H }; p.handEase = p.handEase0 = 0.1; p.handOff = null; p.walk = undefined; p.handJump = false;
       SFX.catch(); p.hands = true; p.hold = 0; p.claimHigh = b.z > 1.45 && p.state !== 'dive'; b.vz = 0; if (p.state !== 'dive') p.setState('catch', p.claimHigh ? 0.6 : 0.5);    // a diving catch keeps the dive; a high ball = the jumping claim
       if (incoming > 15) this.say('', 'SAVED!', 0.8); return;
     }
