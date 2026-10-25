@@ -1306,6 +1306,101 @@
       wgTest('WG2', 'YOUR winger crosses, your team-mates make the runs', 'you (scripted) go down the line and tap LOB at the near post: who is in the box, who attacks it?', { you: true }),
     ];
   }
+  // ======================================================================= t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule MANDATORY
+  // just make it smooth"). You attack the right-hand goal; their back line stands on x = 85 unless a test says otherwise.
+  // OF1-OF5 and OF7: Lab bots (the passer plays it at 0.6 s, the receiver runs onto it). OF6: the real team AI on both sides.
+  // Each line says who was in an offside position as it was played, and what the assistant did.
+  const ofWho = p => `#${p.num}`;
+  function ofTest(id, name, sub, o) {
+    return { id, group: 'OF', name, sub, kind: 'offside',
+      setup(r) {
+        const H = m.home.players, A = m.away.players, pa = H[o.passer || 6], st = H[9], mate = H[7], gk = A[0], d1 = A[2], d2 = A[3];
+        cast([pa, st, gk, d1, d2, ...(o.mate ? [mate] : [])]);
+        put(pa, ...o.from, 0); put(st, ...o.st, 0); if (o.mate) put(mate, ...o.mate, 0);
+        put(d1, o.line ?? 85, o.d1y ?? 30, 4); put(d2, o.line ?? 85, o.d2y ?? 40, 4); put(gk, LINE_X, 34, 4);
+        Object.assign(gk, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        const to = o.to === 'mate' ? mate : st; faceTo(pa, to.x, to.y); atFeet(pa);
+        if (o.set) { m.setPiece = { kind: o.set, team: m.home, taker: pa, t: 5, kicked: true }; m.ball.last = m.home; }
+        Object.assign(r, { human: pa, passer: pa, gk, st, to, marks: [{ x: o.line ?? 85, y: 34, r: 0.4 }], o });
+        r.bots.set(st, receive); if (o.mate) r.bots.set(mate, receive);
+        r.action = { at: 0.6, fire: () => { const b = m.ball, dx = to.x - pa.x, dy = to.y - pa.y, d = len(dx, dy) || 1;
+          if (o.set === 'THROW-IN') m.kick(pa, to.x, to.y, 0, 0, 0.18, { mode: 'lob', target: to });
+          else m.doPass(pa, { x: dx / d, y: dy / d }, o.mode || 'through', to); } };
+      },
+      check(r) {
+        const b = m.ball, L = m.offLast;
+        if (!r.kicked) { if (r.fired && !m.pending && !b.owner && b.lastP === r.passer) { r.kicked = true; const S = m.offSide;
+            r.snap = S ? [...S.men.keys()].map(q => `${ofWho(q)} ${(m.aiFrame(m.home, S.men.get(q).x) - S.line).toFixed(1)} m past`).join(', ') : 'nobody'; }
+          else return r.t > 4 ? { o: 'NO PASS' } : null; }
+        if (L) return { o: `OFFSIDE! called on ${ofWho(L.p)} (${L.past.toFixed(1)} m past the line as it was played) · free kick ${L.team.opp.name} at ${L.x.toFixed(1)}, ${L.y.toFixed(1)}${r.out === 'FREE KICK' ? '' : ' (no free kick?)'}`, hold: 1.4 };
+        const tail = ` · offside as it was played: ${r.snap}`;
+        if (b.owner && b.owner.team === m.home && b.owner !== r.passer) return { o: `PLAY ON · ${ofWho(b.owner)} has it${tail}`, hold: 0.6 };
+        if (b.owner && b.owner.team !== m.home) return { o: `PLAY ON · their ${b.owner.keeper ? 'keeper' : 'defender'} has it${tail}` };
+        if (r.out) return { o: `OUT · ${r.out.toLowerCase()}${tail}` };
+        return r.t > 7 ? { o: `NOTHING · ball loose${tail}` } : null;
+      } };
+  }
+  // OF6: the real team AI. Your striker (#9) starts 3 m past their line; he should step back onside, wait on the shoulder of
+  // the last defender and go when the pass is played. Every pass the line logs where both strikers stood against the line
+  function ofRunTest(id) {
+    return { id, group: 'OF', name: 'the computer\'s striker times his run', sub: 'the real team AI: your #9 starts 3 m off - back onside, on the last man\'s shoulder, then he goes as it is played', kind: 'offside', realAi: true, demo: true,
+      setup(r) {
+        const H = m.home.players, A = m.away.players;
+        cast([H[6], H[9], H[10], H[5], H[7], A[0], A[1], A[2], A[3], A[4], A[6], A[7]]);
+        put(H[6], 64, 34, 0); atFeet(H[6]); put(H[9], 88, 31, 0); put(H[10], 80, 41, 0); put(H[5], 60, 18, 0); put(H[7], 61, 50, 0);
+        put(A[0], LINE_X, 34, 4); put(A[1], 85, 14, 4); put(A[2], 85, 28, 4); put(A[3], 85, 40, 4); put(A[4], 85, 54, 4); put(A[6], 75, 30, 4); put(A[7], 75, 42, 4);
+        Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+        m.ball.crossBy = null; LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true;
+        Object.assign(r, { human: H[6], shooter: H[6], gk: A[0], marks: [], st: [H[9], H[10]], passes: [], lastK: H[6] });
+        r.start = (m.aiFrame(m.home, H[9].x) - m.offLine(m.home)).toFixed(1);
+      },
+      check(r) {
+        const b = m.ball, H = m.home, L = m.offLast, line = m.offLine(H);
+        if (b.owner) r.lastK = b.owner.team === H ? b.owner : null;
+        else if (r.lastK && !m.pending && b.lastP === r.lastK) {                   // the man who had it has just played it: a pass (or a shot)
+          r.passes.push(`${ofWho(r.lastK)}${b.target ? '→' + ofWho(b.target) : ''} [${r.st.map(q => `${ofWho(q)} ${(m.aiFrame(H, q.x) - line).toFixed(1)}`).join(' ')}]`); r.lastK = null; }
+        const log = ` · #9 started ${r.start} m past · passes [m past the line, - = onside]: ${r.passes.join(' · ') || 'none'}`;
+        if (L) return { o: `OFFSIDE called on ${ofWho(L.p)} (${L.past.toFixed(1)} m past)${log}`, hold: 1.2 };
+        if (b.inNet) return { o: `GOAL${log}`, hold: 1.4 };
+        if (b.owner && r.st.includes(b.owner) && r.passes.length) return { o: `ONSIDE · ${ofWho(b.owner)} got it${log}`, hold: 0.8 };
+        if (b.owner && b.owner.team !== H) return { o: `NO OFFSIDE · their ${b.owner.keeper ? 'keeper' : 'defender'} has it${log}` };
+        if (r.out) return { o: `NO OFFSIDE · out (${r.out.toLowerCase()})${log}` };
+        return r.t > 9 ? { o: `NO OFFSIDE in 9 s${log}` } : null;
+      } };
+  }
+  // OF7: your pass preview (the ring + marker under the man a pass would find) goes red while he is offside: #9 stands
+  // 3 m off, then walks back onside at 1.6 s - it turns blue
+  function ofHintTest(id) {
+    return { id, group: 'OF', name: 'your pass-aim marker on an offside man', sub: 'red while #9 is offside, back to blue once he steps onside (nothing is played)', kind: 'offside',
+      setup(r) {
+        const H = m.home.players, A = m.away.players, pa = H[6], st = H[9];
+        cast([pa, st, A[0], A[2], A[3]]);
+        put(pa, 70, 34, 0); atFeet(pa); put(st, 88, 34.5, 0); put(A[2], 85, 30, 4); put(A[3], 85, 40, 4); put(A[0], LINE_X, 34, 4);
+        Object.assign(r, { human: pa, passer: pa, st, marks: [{ x: 85, y: 34, r: 0.4 }], fired: true });
+        r.bots.set(pa, (p, dt) => { p.steer(0, 0, dt); if (m.ball.owner === p) m.passAim = m.passTarget(p, { x: 1, y: 0 }, 'ground', m.passAim); });
+        r.bots.set(st, (p, dt) => { if (r.t < 1.6) p.steer(0, 0, dt); else if (p.moveTo(83.5, 34.5, JOG, dt) < 0.2) p.steer(0, 0, dt); });
+      },
+      check(r) {
+        const pa = m.passAim, red = !!(pa && offsideOn() && m.offPos(pa));
+        if (r.t > 0.4 && r.t < 1.5 && pa === r.st) r.red = r.red ?? red;
+        if (r.t > 3.4) { r.blue = !red;
+          return { o: `HINT · ${r.red ? 'RED' : 'not red (!)'} while #9 was 3 m off · ${r.blue ? 'BLUE' : 'still red (!)'} once he stepped onside${pa === r.st ? '' : ' (the preview left him)'}` }; }
+        return null;
+      } };
+  }
+  function ofTests() {
+    return [
+      ofTest('OF1', 'a through ball to a man a step offside', 'called: OFFSIDE!, his marker, a free kick to them where he played it', { from: [68, 34], st: [87, 36] }),
+      ofTest('OF2', 'level with the last defender', 'level is onside: play on', { from: [68, 34], st: [85, 36] }),
+      ofTest('OF3', 'from his own half, past their high line', 'in his own half as it was played: never offside, play on', { from: [38, 34], st: [51.5, 36], line: 50 }),
+      ofTest('OF4', 'offside, but the ball goes to someone else', 'he stands there and stays out of it: not penalised, play on', { from: [68, 34], st: [88, 36], mate: [78, 20], to: 'mate', mode: 'ground' }),
+      ofTest('OF5', 'from a throw-in', 'no offside from a throw-in (nor a corner or a goal kick): play on', { passer: 4, from: [80, 67.6], st: [91, 50], d1y: 46, d2y: 56, set: 'THROW-IN' }),
+      ofRunTest('OF6'),
+      ofHintTest('OF7'),
+    ];
+  }
   // the SAVE! prompt: the computer shoots a special at YOUR keeper - press SPECIAL while SAVE! is up
   function pwSaveYou(id) {
     return { id, group: 'PW', name: 'YOUR KEEPER: special save', sub: 'press SPECIAL when SAVE! flashes', kind: 'pw', you: true,
@@ -1699,6 +1794,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
+    add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
@@ -1750,6 +1846,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
     if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null; Object.assign(m, { aerial: null, lobAim: null, slowMo: 0 }); Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+    window.HC2_NO_OFFSIDE = !(sc.group === 'OF' || sc.realAi);                 // t-024: offside in the OF group and the real-AI tests (the rest are half-team moments)
+    Object.assign(m, { offSide: null, offFlag: null, offLast: null, offGK: null, passAim: null });
     sc.setup(r);
     m.human = r.human; m.camX = m.camY = undefined;
     render();

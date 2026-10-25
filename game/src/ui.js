@@ -324,6 +324,7 @@ hc2Mix(Match, {
       { k: 'pace', l: `PACE: ${(PACE_OPTS.find(o => o[0] === PACE_MODE) || PACE_OPTS[0])[1]}`, act: () => setPace(PACE_OPTS[(PACE_OPTS.findIndex(o => o[0] === PACE_MODE) + 1) % PACE_OPTS.length][0]) },   // t-004 ARCADE PACE
       { k: 'bwon', l: `BUG WATCH: ${BW_ON ? 'ON' : 'OFF'}`, act: () => setBwOn(!BW_ON) },
       { k: 'ptr', l: `POINTER: ${PTR_ON ? 'ON' : 'OFF'}`, act: () => setPtrOn(!PTR_ON) },   // t-009: the direction chevron on the grass
+      { k: 'offside', l: `OFFSIDE: ${OFFSIDE_ON ? 'ON' : 'OFF (TESTING)'}`, act: () => setOffside(!OFFSIDE_ON) },   // t-024: the rule is mandatory; OFF only for testing
       { k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 3; } }];
     const BWn = this.bw ? this.bw.list.length : 0, BWnew = this.bw ? this.bw.list.filter(x => !x.review).length : 0;
     if (P.page === 'moves') return [{ k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 2; } }];
@@ -497,16 +498,24 @@ hc2Mix(Match, {
     const pa = this.passAim;
     if (pa && b.owner === hp && this.charge < 0 && !this.lobAim && !this.setPiece && !(this.passRing && this.passRing.t > 0 && this.passRing.p)) {
       const k = 0.5 + 0.25 * Math.sin(this.time.now / 110), cx = Math.round(wx(pa.x, pa.y)), cy = Math.round(wy(pa.y)) - 2;
-      this.ring.lineStyle(2, 0x28c8e6, k).strokeEllipse(cx, cy, 38, 14);
-      this.ring.fillStyle(0x28c8e6, k).fillTriangle(cx - 7, cy - 172, cx + 7, cy - 172, cx, cy - 162);
+      const pc = offsideOn() && this.offPos(pa) ? 0xff2878 : 0x28c8e6;           // t-024: red = he's offside, a pass to him gets flagged (never a surprise)
+      this.ring.lineStyle(2, pc, k).strokeEllipse(cx, cy, 38, 14);
+      this.ring.fillStyle(pc, k).fillTriangle(cx - 7, cy - 172, cx + 7, cy - 172, cx, cy - 162);
       const cam = this.cameras.main, V = cam.worldView, ty = cy - 70;
       if (!V.contains(cx, ty)) {                                                 // off screen: an arrow on the edge points at him
         const mg = 34 / cam.zoom, ex = clamp(cx, V.x + mg, V.right - mg), ey = clamp(ty, V.y + 168 / cam.zoom, V.bottom - 95 / cam.zoom);   // clear of the score box, meters, Rami + radar
         const an = Math.atan2(ty - ey, cx - ex), s = 13 / cam.zoom, c = Math.cos(an), sn = Math.sin(an);
         const tri = (r, col, al) => g.fillStyle(col, al).fillTriangle(ex + c * r * 1.7, ey + sn * r * 1.7, ex - c * r * 0.8 - sn * r * 0.75, ey - sn * r * 0.8 + c * r * 0.75, ex - c * r * 0.8 + sn * r * 0.75, ey - sn * r * 0.8 - c * r * 0.75);
-        tri(s + 4 / cam.zoom, INK, 0.9); tri(s, 0x28c8e6, 0.6 + 0.4 * k);
+        tri(s + 4 / cam.zoom, INK, 0.9); tri(s, pc, 0.6 + 0.4 * k);
       }
     }
+    // t-024 OFFSIDE: the man the assistant flagged, marked a moment (a red ring + a red marker over him, as the pass preview)
+    const OF = this.offFlag;
+    if (OF && this.time.now < OF.until && !this.replay && !OF.p.sentOff) {
+      const q = OF.p, qx = Math.round(wx(q.x, q.y)), qy = Math.round(wy(q.y)) - 2, bob = Math.round(3 * Math.sin(this.time.now / 90));
+      this.ring.lineStyle(5, INK, 0.75).strokeEllipse(qx, qy, 44, 17).lineStyle(3, 0xff2878, 1).strokeEllipse(qx, qy, 44, 17);
+      g.fillStyle(INK, 0.9).fillTriangle(qx - 11, qy - 176 + bob, qx + 11, qy - 176 + bob, qx, qy - 157 + bob).fillStyle(0xff2878, 1).fillTriangle(qx - 8, qy - 174 + bob, qx + 8, qy - 174 + bob, qx, qy - 160 + bob);
+    } else if (OF) this.offFlag = null;
     // ring under the player the pass is going to
     if (this.passRing && this.passRing.p) {
       const q = this.passRing.p, a = clamp(this.passRing.t, 0, 1);
@@ -531,9 +540,10 @@ hc2Mix(Match, {
       for (const q of sp.team.players) {
         if (q === sp.taker || q.sentOff || q.keeper) continue;
         const qx = Math.round(wx(q.x, q.y)), qy = Math.round(wy(q.y)) - 2;
-        if (q === tgt) { const bob = Math.round(3 * Math.sin(this.time.now / 140)); this.ring.lineStyle(3, 0x28c8e6, 0.5 + k).strokeEllipse(qx, qy, 44, 17);
-          g.fillStyle(INK, 0.9).fillTriangle(qx - 11, qy - 176 + bob, qx + 11, qy - 176 + bob, qx, qy - 157 + bob).fillStyle(0x28c8e6, 1).fillTriangle(qx - 8, qy - 174 + bob, qx + 8, qy - 174 + bob, qx, qy - 160 + bob); }
-        else g.fillStyle(INK, 0.55).fillTriangle(qx - 7, qy - 172, qx + 7, qy - 172, qx, qy - 162).fillStyle(0x28c8e6, 0.6).fillTriangle(qx - 5, qy - 171, qx + 5, qy - 171, qx, qy - 164);
+        const qc = sp.kind === 'FREE KICK' && offsideOn() && this.offPos(q) ? 0xff2878 : 0x28c8e6;   // t-024: a free kick has offside too (red = he's off)
+        if (q === tgt) { const bob = Math.round(3 * Math.sin(this.time.now / 140)); this.ring.lineStyle(3, qc, 0.5 + k).strokeEllipse(qx, qy, 44, 17);
+          g.fillStyle(INK, 0.9).fillTriangle(qx - 11, qy - 176 + bob, qx + 11, qy - 176 + bob, qx, qy - 157 + bob).fillStyle(qc, 1).fillTriangle(qx - 8, qy - 174 + bob, qx + 8, qy - 174 + bob, qx, qy - 160 + bob); }
+        else g.fillStyle(INK, 0.55).fillTriangle(qx - 7, qy - 172, qx + 7, qy - 172, qx, qy - 162).fillStyle(qc, 0.6).fillTriangle(qx - 5, qy - 171, qx + 5, qy - 171, qx, qy - 164);
       }
       if (this.charge >= 0) { const px = X - 30, py = Y + 13; g.fillStyle(INK).fillRect(px - 2, py - 2, 64, 12).fillStyle(0xffde1e).fillRect(px, py, Math.round(60 * this.charge), 8); }
       return;

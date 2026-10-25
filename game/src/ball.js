@@ -198,6 +198,7 @@ hc2Mix(Match, {
       if (k.info.special && this.bw) this.bw.flag('WHIFF', `${this.bw.who(k.p)}'s LV${k.info.special} ${k.p.kickAnim || 'special'} never touched the ball (${why}) - the bars were spent`, { p: k.p }); };   // v0.8.7 BUG WATCH
     if (b.owner !== k.p) return b.owner ? undefined : whiff('it got away');     // (someone took it off him in the wind-up: fair)
     if (!k.p.hands && len(b.x - k.p.x, b.y - k.p.y) > 2.0) return whiff(`it was ${len(b.x - k.p.x, b.y - k.p.y).toFixed(1)} m away`);   // the ball ran away from him: air kick
+    if (this.offKick(k)) return;                                                  // t-024 OFFSIDE: who's offside, taken on the contact frame (true = he was, the kick is off)
     const dx = k.tx - b.x, dy = k.ty - b.y, d = len(dx, dy) || 1;
     let speed = k.speed, vz = k.vz;
     const mode = k.info.mode;

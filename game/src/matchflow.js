@@ -53,7 +53,7 @@ hc2Mix(Match, {
 
   // ---------- restarts
   kickoff(team) {
-    this.dead = null; this.foulScene = null;
+    this.dead = null; this.foulScene = null; this.offSide = null;                // (t-024: a new phase - nobody is offside from before)
     for (const p of this.all) { if (p.sentOff) continue; p.x = p.home.x; p.y = p.home.y; p.vx = p.vy = 0; p.state = 'idle'; p.hands = false; p.face = p.team.side > 0 ? 0 : 4; }
     const on = [9, 10, 8, 7, 6, 5, 4, 3, 2, 1].map(i => team.players[i]).filter(p => !p.sentOff), k = on[0], k2 = on[1] || on[0];
     k.x = 52.5 - team.side * 0.5; k.y = 34; k2.x = 52.5 - team.side * 1.0; k2.y = 37;
@@ -65,6 +65,7 @@ hc2Mix(Match, {
   },
   // dead-ball restarts become SET PIECES: play stops, the taker stands over the ball and aims with a cursor
   restart(kind, team, x, y, note, opts = {}) {
+    this.offSide = null;                                                         // t-024: the ball was dead - whoever was offside before isn't now
     this.dead = null; if (kind === 'FREE KICK' || kind === 'PENALTY') SFX.whistle(1);
     if (kind === 'GOAL KICK') return this.goalKick(team, y);                     // v0.10.4: a cut to the keeper with it in his hands
     for (const p of this.all) p.spot = null;
@@ -109,6 +110,7 @@ hc2Mix(Match, {
     for (const p of this.all) if (!p.sentOff && p !== gk) p.face = dirIndex(gk.x - p.x, gk.y - p.y);
     Object.assign(b, { owner: gk, last: team, lastP: gk, z: 1.1, vx: 0, vy: 0, vz: 0, inNet: false, netRight: undefined, target: null, skid: false, save: null, lob: false, ring: null, shotBy: null });
     gk.hands = true; gk.hold = -0.4; this.placeAtFeet();                         // (a breath before he plays it)
+    this.offGK = gk;                                                             // t-024: no offside from a goal kick (his first ball out of his hands)
     if (this.ref) this.ref.place(b);
     this.camX = this.camY = undefined;                                           // a cut, not a pan
     this.setPiece = null; this.pending = null; this.charge = -1; this.nextHuman = null;
@@ -509,6 +511,63 @@ hc2Mix(Match, {
     if (this.human === p) this.switchHuman();
     if (this.nextHuman === p) this.nextHuman = null;
   },
+  // ======================================================================= t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule
+  // MANDATORY just make it smooth"). IFAB Law 11, simplified:
+  //  * when a team-mate plays the ball (releaseKick: the contact frame, not the button), every man of his in their half,
+  //    nearer their goal line than the ball AND than the second-last opponent (the keeper counts), is in an offside
+  //    POSITION. Level (OFFSIDE.LEVEL) is onside. None from a throw-in, a corner or a goal kick.
+  //  * he's only penalised when he plays it: gets it, heads it, shoots it (offWatch, every step). Being there and not
+  //    touching it is fine (the "clearly blocks a defender / the keeper" part is left out - too much guesswork).
+  //  * it lasts until someone else plays it: an onside team-mate, or an opponent's deliberate play (he gets it, heads it,
+  //    kicks it). A save or a deflection (a block, a ball off a body) doesn't end it.
+  //  * the call is instant and short: the HUD callout + Rami, the flagged man marked a moment, and the defending side's
+  //    quick free kick where he played it (the restart's own whistle). No replay, no scene.
+  // Frames are the team's (aiFrame: metres from the centre line, + = towards the goal it attacks).
+  offLine(team) {                                                                // their second-last man (the keeper counts)
+    const xs = team.opp.players.filter(o => !o.sentOff).map(o => this.aiFrame(team, o.x));
+    if (xs.length < 2) xs.push(52.5);                                            // (half a team in a Lab set-up: an empty goal counts as its keeper)
+    return xs.sort((u, v) => v - u)[1];
+  },
+  offPos(q, line = this.offLine(q.team)) {                                       // is he in an offside position right now?
+    const X = this.aiFrame(q.team, q.x);
+    return X > 0 && X > this.aiFrame(q.team, this.ball.x) + 0.05 && X > line + OFFSIDE.LEVEL;
+  },
+  offKick(k) {                                                                   // the snapshot, from releaseKick (true = he's offside: no kick)
+    const S = this.offSide, sp = this.setPiece, by = k.p;
+    if (!offsideOn()) { this.offSide = null; return false; }
+    if (S && S.team === by.team && S.men.has(by)) { this.offCall(by, S); return true; }   // (a first-time shot / pass by the man who was off)
+    const kind = sp && sp.taker === by ? sp.kind : '', gk = this.offGK; this.offGK = null;
+    if (kind === 'THROW-IN' || kind === 'CORNER' || kind === 'GOAL KICK' || gk === by) { this.offSide = null; return false; }
+    const team = by.team, line = this.offLine(team), men = new Map();
+    for (const q of team.players) if (q !== by && !q.sentOff && !q.keeper && this.offPos(q, line)) men.set(q, { x: q.x, y: q.y });
+    this.offSide = men.size ? { team, by, men, line, lp: undefined } : null;
+    return false;
+  },
+  offWatch() {                                                                   // every step: has one of them played it? has the phase ended?
+    const S = this.offSide; if (!S) return false;
+    const b = this.ball, o = b.owner;
+    if (!offsideOn()) { this.offSide = null; return false; }
+    if (o) { if (o.team === S.team && S.men.has(o)) { this.offCall(o, S); return true; } this.offSide = null; return false; }   // anyone else has it: over
+    if (S.lp === undefined) S.lp = b.lastP;                                      // (the kick's own step: a block on the strike is a deflection)
+    const lp = b.lastP; if (!lp || lp === S.lp) return false;
+    S.lp = lp;
+    if (lp.team === S.team) { if (S.men.has(lp)) { this.offCall(lp, S); return true; } if (lp !== S.by) this.offSide = null; return false; }   // his header / volley: off; an onside mate's touch: over
+    if (!lp.keeper) this.offSide = null;                                         // their header / clearance: a deliberate play, over (a keeper's touch is a save)
+    return false;
+  },
+  offCall(p, S) {
+    const def = S.team.opp, x = clamp(p.x, 1, PITCH_L - 1), y = clamp(p.y, 1, PITCH_W - 1), b = this.ball;
+    this.offSide = null; this.pending = null; this.charge = -1; p.hands = false;
+    Object.assign(b, { owner: null, vx: 0, vy: 0, vz: 0, target: null, save: null, saveable: null, special: 0, shotBy: null, lob: false, ring: null, crossBy: null });
+    const st = this.stat(S.team); st.offsides = (st.offsides || 0) + 1;
+    this.offFlag = { p, until: this.time.now + OFFSIDE.FLAG * 1000 };             // (ui.js marks him)
+    this.offLast = { p, team: S.team, x, y, from: S.men.get(p), past: this.aiFrame(S.team, S.men.get(p).x) - S.line, t: this.time.now };   // (the Test Lab and the soak read this)
+    if (this.ref) this.ref.act('whistle', 0.6);
+    this.restart('FREE KICK', def, x, y);                                        // the quick free kick to the defenders, where he played it (its whistle)
+    const k = keyset();
+    this.say('OFFSIDE!', def === this.home ? `FREE KICK · ${k.pass} PASS  ${k.lob} LONG` : `#${p.num} WAS OFF · FREE KICK ${def.name}`, 1.4);
+    this.ramiSay('offside', {}, 2);
+  },
   // a foul: free kick where it happened, or a penalty if it was in the fouler's own box.
   // v0.8 FOUL SCENE (Luca: no hard cut any more): whistle, the man goes down, play stops; the ref runs over and shows
   // the card to the fouler himself, Rami has his say, the fouler protests, the victim stays down hurt - then a TV wipe
@@ -636,6 +695,7 @@ hc2Mix(Match, {
   rules() {
     const b = this.ball;
     if ((b.special || b.saveable) && (b.inNet || b.x < -0.5 || b.x > PITCH_L + 0.5 || b.y < -0.5 || b.y > PITCH_W + 0.5)) { b.special = 0; b.saveable = null; }   // v0.8.7: out / in the net = an ordinary ball again
+    if (this.offWatch()) return;                                                 // t-024: a man who was offside when it was played has just played it
     if (b.inNet || (b.owner && b.owner.hands) || this.dead) return;
     if (b.owner && (b.x < 0 || b.x > PITCH_L || b.y < 0 || b.y > PITCH_W)) { b.last = b.owner.team; b.owner = null; }   // dribbled out
     if (b.owner) return;
