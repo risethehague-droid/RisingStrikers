@@ -203,7 +203,7 @@ hc2Mix(Match, {
       if (sp.kind !== 'PENALTY' && Input.pressed('pass')) return this.spKick('ground');
       if (sp.kind !== 'PENALTY' && (Input.pressed('lob') || Input.pressed('through'))) return this.spKick('lob');
       if (sp.kind === 'THROW-IN') { if (Input.pressed('shoot')) return this.spKick('lob'); return true; }
-      if (Input.held('shoot')) this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / 0.8);
+      if (Input.held('shoot')) this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / paceK().chargeT);
       if (Input.released('shoot') && this.charge >= 0) { const c = this.charge; this.charge = -1; return this.spKick(atGoal || sp.kind === 'PENALTY' ? 'shot' : 'lob', c); }
       return true;
     }
@@ -522,6 +522,14 @@ hc2Mix(Match, {
     this.loseTime(card ? 40 : 12);                                               // v0.8.4: added time
     const def = by.team, gx = def.ownGoalX, b = this.ball;
     const inBox = Math.abs(victim.x - gx) < 16.5 && Math.abs(victim.y - 34) < 20.16;
+    if (paceK().advantage && !card && !inBox) {                                  // arcade-2 ADVANTAGE (the co-designer: "fouls stop play only for a
+      if (!victim.keeper && victim.state !== 'fall' && victim.state !== 'getup') victim.setState('fall', 0.8);   // card", ~9 s of foul scenes a match):
+      const mate = victim.team.players.filter(q => q !== victim && !q.sentOff && !q.keeper && !q.busy() && len(q.x - b.x, q.y - b.y) < 5)   // a team-mate right there
+        .sort((u, v) => len(u.x - b.x, u.y - b.y) - len(v.x - b.x, v.y - b.y))[0];   // plays on with it, else a quick free kick, no scene
+      this.pending = null; this.charge = -1; this.passAim = null; this.loseTime(-8);
+      if (mate) { Object.assign(b, { owner: null, target: null, save: null, z: 0, vz: 0 }); this.gain(mate, 0); this.say('', 'ADVANTAGE!', 0.9); this.ramiSay('foul', { text: 'PLAY ON!\nADVANTAGE!', expr: 'smirk' }, 2); return; }
+      SFX.whistle(1); this.restart('FREE KICK', victim.team, clamp(victim.x, 1, PITCH_L - 1), clamp(victim.y, 1, PITCH_W - 1)); return;
+    }
     SFX.whistle(1);
     if (!victim.keeper && victim.state !== 'fall' && victim.state !== 'getup') {        // he goes down
       const ux = victim.x - by.x, uy = victim.y - by.y, ul = len(ux, uy) || 1;
@@ -671,6 +679,7 @@ hc2Mix(Match, {
             this.goalQ = { ep, frames, after: () => this.afterGoal(defending) }; this.goalQTick(); }); }   // v0.8.4: a goal in the last seconds - then the whistle
         this.freeze = 99; return;
       }
+      if (paceK().arcade) return this.arcadeOut();                              // t-020 ARCADE: no corners or goal kicks - it comes back off the board
       if (b.last === defending) this.dead = { kind: 'CORNER', team: defending.opp, x: left ? 0.4 : PITCH_L - 0.4, y: b.y < 34 ? 0.4 : PITCH_W - 0.4, t: 0.8 * paceK().deadT };   // (t-004: ARCADE restarts sooner)
       else {
         const close = b.shotBy && b.shotBy.team === defending.opp && Math.min(Math.abs(b.y - GOAL_Y0), Math.abs(b.y - GOAL_Y1)) < 1.3 && b.z < BAR_Z + 0.8;
@@ -679,6 +688,7 @@ hc2Mix(Match, {
       }
       return;
     }
+    if ((b.y < 0 || b.y > PITCH_W) && paceK().arcade) return this.arcadeOut();   // t-020 ARCADE: no throw-ins either
     if (b.y < 0 || b.y > PITCH_W) { const t = b.last === this.home ? this.away : this.home; this.dead = { kind: 'THROW-IN', team: t, x: clamp(b.x, 1, PITCH_L - 1), y: b.y < 0 ? 0.2 : PITCH_W - 0.2, t: 0.6 * paceK().deadT }; }
   },
 });

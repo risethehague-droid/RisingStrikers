@@ -112,7 +112,9 @@ hc2Mix(Match, {
         } else { tx = bl.x + ubx * 0.6; ty = bl.y + uby * 0.6; }
       }
       v = Math.min(p.top(false, false) * 1.05, len(carrier.vx, carrier.vy) + 1.2 + d * 0.5); p.look(carrier.x - p.x, carrier.y - p.y); }
-    p.moveTo(tx, ty, v * this.dk(team).press, dt);                             // (v0.9.2: how hard he closes down, by level)
+    const PK = team === this.home && !this.demo ? 1 : Math.min(1.45, 1 + (paceK().pressK - 1) * this.dkY(team).cmt);   // (arcade-2: ARCADE the computer's side
+    p.moveTo(tx, ty, v * this.dk(team).press * PK, dt);                        // closes down harder, more at the top levels: the dash mustn't make dribbling past it easier)
+                                                                                   // (v0.9.2: how hard he closes down, by level)
     p.watch = d < AI.MIRROR ? carrier : null;                                    // close: jockey him, facing him
     if (d < AI.MIRROR && p.speed < 2.5) p.look(carrier.x - p.x, carrier.y - p.y);
     // commit only from in front (or on a heavy touch), not every time he's near
@@ -120,7 +122,7 @@ hc2Mix(Match, {
     const front = (cv.x * (p.x - carrier.x) + cv.y * (p.y - carrier.y)) / (d || 1), loose = len(b.x - carrier.x, b.y - carrier.y) > 1.1;
     const vsHuman = carrier === this.human && !this.demo;
     p.standoff = carrier.speed < 1.5 && len(b.x - p.x, b.y - p.y) < 2.5 ? (p.standoff || 0) + dt : 0;   // (a stand-off that drags on: he pokes at it anyway)
-    if (p.cool <= 0 && len(b.x - p.x, b.y - p.y) < AI.REACH && (front > 0.25 || loose || (carrier.speed < 1.5 && front > -0.3) || p.standoff > 3) && Math.random() < dt * (vsHuman ? AI.COMMIT_VS_YOU * this.dkY(team).cmt : AI.COMMIT) * this.dk(team).commit) { p.standoff = 0; this.challenge(p, carrier); return; }
+    if (p.cool <= 0 && len(b.x - p.x, b.y - p.y) < AI.REACH && (front > 0.25 || loose || (carrier.speed < 1.5 && front > -0.3) || p.standoff > 3) && Math.random() < dt * (vsHuman ? AI.COMMIT_VS_YOU * this.dkY(team).cmt * paceK().cmtK : AI.COMMIT) * this.dk(team).commit) {   /* (arcade-2: ARCADE it goes in on you more - by level, via cmt) */ p.standoff = 0; this.challenge(p, carrier); return; }
     // v0.8.2 BEATEN (he's got past): a recovery slide from the side, or a lunge from behind when he's through - so the
     // computer gives fouls away too (it never did: no foul scenes or foul replays for its tackles)
     const beaten = front < -0.2, toOwn = len(carrier.x - gx, carrier.y - 34), db = len(b.x - p.x, b.y - p.y);
@@ -266,6 +268,7 @@ hc2Mix(Match, {
           const dx = p.x - owner.x, dy = p.y - owner.y, d = len(dx, dy) || 1;
           p.moveTo(owner.x + dx / d * 15, clamp(owner.y + dy / d * 15, 3, 65), JOG, dt); continue;
         }
+        if (!owner && b.reb && this.reboundRun(p, team, aerial, dt)) continue;   // t-020 ARCADE: a ball popping up off the boards - go and meet it in the air
         if (p === team.presser && !(owner && owner.keeper && owner.hands)) {
           if (owner && owner.team !== team) { this.aiPress(p, team, owner, dt); continue; }
           if (!owner) { const d = len(b.x - p.x, b.y - p.y), go = d > 4 && p.stamina > 0.35; p.sprinting = go;   // a loose ball: go and get it
@@ -357,7 +360,7 @@ hc2Mix(Match, {
       if (p.takeT <= 0) { const lat = front.y - p.y, edge = p.y < 9 ? 1 : p.y > PITCH_W - 9 ? -1 : 0;
         p.takeSide = edge || (Math.abs(lat) > 0.5 ? -Math.sign(lat) : (Math.sign(34 - p.y) || 1)); p.takeT = rnd(0.9, 1.5); }
       const a = clamp((6 - fd) / 6, 0, 1) * 0.85; dx = side * Math.cos(a); dy = p.takeSide * Math.sin(a) + dy * 0.25;
-      const KB = this.dk(team); if (fd < 3.2 && p.stamina > 0.35 && (p.burstCd || 0) <= this.time.now && Math.random() < dt * 2.5 * KB.burst) { p.burst = 0.5; p.burstCd = this.time.now + 1800 * KB.burstCd; }   // (v0.9.3: by level)
+      const KB = this.dk(team); if (fd < 3.2 && p.stamina > 0.35 && (p.burstCd || 0) <= this.time.now && Math.random() < dt * 2.5 * KB.burst * paceK().aiBurst) { p.burst = 0.5 * (paceK().burstT / 0.55); p.burstCd = this.time.now + 1800 * KB.burstCd; }   // (v0.9.3: by level)
     }
     const go = (near > 7 || p.burst > 0) && p.stamina > 0.3;                    // open grass / beating his man: knock it on and sprint
     p.sprinting = go; const v = p.top(go, true) * 0.95, dl = len(dx, dy) || 1;
@@ -370,8 +373,9 @@ hc2Mix(Match, {
     { const gko = team.opp.players[0];                                           // v0.9.2: a keeper rushing out at him - chip him (a smart side does it more)
       if (gko && !gko.sentOff && toGoal < 19) { const gH = (gko.x - team.opp.ownGoalX) * team.opp.side, gap = len(gko.x - p.x, gko.y - p.y);
         if (gH > K.chipOff && gap > 3 && gap < 12 && this.chipCan(p, { x: gx - p.x, y: 34 - p.y }) && Math.random() < (gap < 7 || gH > 7 ? 0.55 : 0.3) * K.chip) { this.chipShot(p, clamp((gap - 3) / 8, 0, 1) * 0.6, 0); return; } } }   // (Easy chips too early and rarely; Rise only when he's well off his line)
-    const sh = toGoal < 32 ? this.shotLook(team, p.x, p.y) : { q: 0, aim: 0 }, Q = K.shotQ;   // (v0.9.2: a weaker side needs a better look before it shoots, and shoots less)
-    const want = (sh.q > 0.85 + Q ? 0.9 : sh.q > 0.6 + Q ? (toGoal < 20 ? 0.6 : 0.3) : sh.q > 0.42 + Q ? (toGoal < 26 ? 0.12 : 0.04) : 0) * K.shotWant;
+    const PR = paceK().shotRange;                                                // (arcade-2: ARCADE shoots from ~20% further, and sooner - both sides)
+    const sh = toGoal < 32 * PR ? this.shotLook(team, p.x, p.y) : { q: 0, aim: 0 }, Q = K.shotQ;   // (v0.9.2: a weaker side needs a better look before it shoots, and shoots less)
+    const want = (sh.q > 0.85 + Q ? 0.9 : sh.q > 0.6 + Q ? (toGoal < 20 * PR ? 0.6 : 0.3) : sh.q > 0.42 + Q ? (toGoal < 26 * PR ? 0.12 : 0.04) : 0) * K.shotWant * paceK().shotWant;
     if (want && Math.random() < want) {
       const pw = toGoal < 14 ? rnd(0.5, 0.72) : toGoal < 22 ? rnd(0.62, 0.84) : rnd(0.76, 0.9);
       this.doShot(p, pw, clamp(sh.aim + rnd(-0.15, 0.15), -1, 1)); return;
@@ -574,6 +578,26 @@ hc2Mix(Match, {
   lobAimMate(p, dt) {
     const A = this.lobAim; if (!A || A.q !== p || this.ball.owner !== this.human) return false;
     p.moveTo(A.x, A.y, JOG, dt); return true;
+  },
+  // t-020 ARCADE REBOUNDS (Luca 25 Oct: "more rebounds that lead into aerials"): while a ball that came off the boards is
+  // up in the air (ARCADE.reb.airT s, until someone touches it), each side sends its quickest man to meet it at chest /
+  // head height - not where it lands - so the header, the volley, the duel and the aerial specials come out of it. The
+  // man it was "aimed" at (ball.js arcadeRebound: he runs under it with the lob code) and their man going with him keep
+  // their jobs; this is one more from each side, picked once per rebound. CLASSIC: b.reb is never set.
+  reboundRun(p, team, aerial, dt) {
+    const b = this.ball, R = b.reb;
+    if (!paceK().arcade || !R || R.done || this.time.now - R.t > ARCADE.reb.airT * 1000 || (b.z < 0.3 && b.vz <= 0)) return false;
+    const zmax = paceK().headZ - 0.6;                                            // (meet it where a header or a volley can take it)
+    if (team.rebFor !== R) {
+      team.rebFor = R; team.rebMan = null; let bt = ARCADE.reb.run / 7;          // (no further than he can sprint in that time)
+      for (const q of team.players) {
+        if (q.keeper || q.sentOff || q === this.human || q === b.target || q === aerial || !this.aiFree(q)) continue;
+        const pt = this.intercept(q, q.top(true, false), 0.12, zmax); if (pt.t != null && pt.t < bt) { bt = pt.t; team.rebMan = q; }
+      }
+    }
+    if (team.rebMan !== p) return false;
+    const v = p.top(p.stamina > 0.15, false), pt = this.intercept(p, v, 0.12, zmax);
+    p.sprinting = p.stamina > 0.15; p.moveTo(pt.x, pt.y, v, dt); return true;
   },
   // his marker reads the drop a beat after the receiver does (LOB2.markDelay), then goes with him
   lobMarkLate(p) { const b = this.ball; return !!b.lob && (b.airT || 0) < LOB2.markDelay; },

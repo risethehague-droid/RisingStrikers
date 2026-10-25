@@ -605,9 +605,9 @@ hc2Mix(Match, {
         k: this.add.text(0, 0, '', { fontFamily: F, fontSize: '9px', color: '#0c0a0e', backgroundColor: '#ffde1e', padding: { x: 5, y: 4 } }).setOrigin(0.5, 0).setDepth(8.6e6) }; }
     const U = this.aerUi, D = A.D, cx = Math.round(wx(D.x, D.y)), cy = Math.round(wy(D.y)) - 205, mine = !this.demo && (A.att.p === this.human || A.def.p === this.human);
     const intro = A.phase === 'intro', s = intro ? 0.3 + 0.7 * clamp(A.t / AERIAL.introT, 0, 1) : 1 + 0.1 * Math.sin(this.time.now / 45) + (A.pulse = Math.max(0, (A.pulse || 0) - 0.06));
-    const word = A.phase === 'done' ? (A.res === 'att' ? 'WON IT!' : 'CLEARED!') : mine && A.def.p === this.human ? 'PRESS!' : 'MASH!';
+    const word = A.phase === 'done' ? (A.kind === 'ground' ? (A.res === 'att' ? 'KEPT IT!' : 'WON IT!') : A.res === 'att' ? 'WON IT!' : 'CLEARED!') : mine && A.def.p === this.human ? 'PRESS!' : 'MASH!';   // (arcade-2: the duel on the grass)
     U.t.setText(word).setPosition(cx, cy - 34).setScale(s).setAngle(intro ? 0 : Math.sin(this.time.now / 60) * 3).setVisible(true);
-    U.k.setText(mine && A.phase !== 'done' ? `${keyset().shoot}  ${keyset().shoot}  ${keyset().shoot}` : '').setPosition(cx, cy + 14).setVisible(mine && A.phase !== 'done');
+    U.k.setText(mine && A.phase !== 'done' ? (A.kind === 'ground' ? `${keyset().pass} / ${keyset().shoot}  MASH` : `${keyset().shoot}  ${keyset().shoot}  ${keyset().shoot}`) : '').setPosition(cx, cy + 14).setVisible(mine && A.phase !== 'done');
     const sa = this.aerialScore(A.att), sd = this.aerialScore(A.def), sh = A.share = A.share == null ? 0.5 : A.share + (sa / (sa + sd) - A.share) * 0.25;
     const W = 150, x0 = cx - W / 2, y0 = cy, ca = TEAM_COL[A.att.p.team.name] ?? 0x28c8e6, cd = TEAM_COL[A.def.p.team.name] ?? 0xff2878, mx = Math.round(x0 + W * sh);
     g.fillStyle(INK, 0.9).fillRect(x0 - 3, y0 - 3, W + 6, 14).fillStyle(ca, 1).fillRect(x0, y0, mx - x0, 8).fillStyle(cd, 1).fillRect(mx, y0, x0 + W - mx, 8);

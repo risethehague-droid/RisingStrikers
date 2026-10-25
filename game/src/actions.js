@@ -55,7 +55,7 @@ hc2Mix(Match, {
     if (p.state === 'kick' || p.state === 'slide' || p.state === 'getup' || p.state === 'dheader' || p.stun > 0) return;
     const ax = Input.axis, moving = len(ax.x, ax.y) > 0.1, owns = b.owner === p;
     const sprint = Input.held('sprint') && moving;
-    if (sprint && !p.sprinting && p.stamina > 0.3 && (p.burstCd || 0) <= this.time.now) { p.burst = 0.55; p.burstCd = this.time.now + 1500; }   // v0.8 burst (not spammable)
+    if (sprint && !p.sprinting && p.stamina > 0.3 && (p.burstCd || 0) <= this.time.now) { p.burst = paceK().burstT; p.burstCd = this.time.now + 1500; }   // v0.8 burst (not spammable; arcade-2: ARCADE a longer dash, 0.8 s)
     p.sprinting = sprint;
     let spd = p.top(sprint, owns);
     if (owns && this.charge >= 0) spd *= 0.75;                                   // winding up a shot slows you down
@@ -91,7 +91,7 @@ hc2Mix(Match, {
         if (Input.held('lob')) this.lobCharge = Math.min(1, this.lobCharge + dt / 0.9);
         else { const c = this.lobCharge; this.lobCharge = -1; if (this.chipCan(p, dir)) this.chipShot(p, c, ax.y); else if (c < 0.2) this.doPass(p, dir, 'lob'); else this.powerLob(p, dir, c); }   // v0.9.2: in their box facing goal = CHIP
       }
-      if (Input.held('shoot')) { this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / 0.8); this.aimY = ax.y; }
+      if (Input.held('shoot')) { this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / paceK().chargeT); this.aimY = ax.y; }   // (arcade-2: ARCADE charges 25% quicker)
       if (Input.released('shoot') && this.charge >= 0) { if (!this.tapKickTry(p, ax, this.charge)) this.doShot(p, this.charge, this.aimY); this.charge = -1; }   // (t-010: a quick tap = the tap kick)
     } else {
       this.charge = -1; this.lobCharge = -1; this.lobAim = null;
@@ -152,7 +152,7 @@ hc2Mix(Match, {
   headers() {
     const b = this.ball, bsp = len(b.vx, b.vy);
     if (b.special && b.pierce > 0) return;                                      // v0.8.6: nobody heads / volleys a special that still blows through people
-    if (this.aerial || this.aerialCheck()) return;                               // t-008: a clear contest at the drop = the AERIAL BATTLE
+    if (this.aerial || this.aerialCheck() || this.looseDuelCheck()) return;                               // t-008: a clear contest at the drop = the AERIAL BATTLE
     if (this.lobDuel()) return;                                                  // lob-mechanics: a lob's drop is a duel first
     // AI: a fast ball across the box at his feet / knees -> hit it first time (a volley if it's off the ground)
     if (!b.owner && !b.inNet && b.z > 1.35 && b.z < 2.4 && !this.diving) {         // AI: the odd bicycle kick
@@ -179,7 +179,7 @@ hc2Mix(Match, {
         if (d > 1.3 && d < 3.0 && toGoal < 16) { (b.tried = b.tried || new Set()).add('d' + p.team.name + p.i); if (Math.random() < 0.45) { this.divingHeader(p); break; } }
       }
     }
-    if (b.owner || b.inNet || b.z < 1.1 || b.z > 2.7) return;
+    if (b.owner || b.inNet || b.z < 1.1 || b.z > paceK().headZ) return;         // (arcade-2: ARCADE they leap higher: 3.1 m)
     for (const p of [...this.all].sort((u, v) => len(u.x - b.x, u.y - b.y) - len(v.x - b.x, v.y - b.y))) {   // lob-mechanics: nearest first (was: home side always first)
       if (p.busy() || p.stun > 0 || p.cool > 0) continue;
       if (p.keeper && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2) continue;   // keepers catch it
@@ -462,7 +462,7 @@ hc2Mix(Match, {
     let D = null; for (const pt of P) if (pt.z <= 2.0) { D = pt; break; }       // where it comes down to head height
     if (!D || D.t > 0.45) return false;                                          // (decided once, a moment before: they're both nearly there)
     R.battle = true;
-    if ((this.aerialClock || 0) - (this.aerialAt ?? -1e9) < C.cool) return false;
+    if ((this.aerialClock || 0) - (this.aerialAt ?? -1e9) < (paceK().duels ? paceK().duelCool : C.cool)) return false;   // (arcade-2: ARCADE more often)
     const ok = p => !p.sentOff && !p.keeper && !p.busy() && p.stun <= 0 && p.cool <= 0;
     const near = t => t.players.filter(p => ok(p) && len(p.x - D.x, p.y - D.y) < C.reach).sort((u, v) => len(u.x - D.x, u.y - D.y) - len(v.x - D.x, v.y - D.y))[0];
     const att = near(q.team), def = near(q.team.opp); if (!att || !def) return false;
@@ -472,24 +472,28 @@ hc2Mix(Match, {
     if (Math.random() > C.chance) return false;
     this.aerialStart(att, def, D); return true;
   },
-  aerialStart(att, def, D) {
+  aerialStart(att, def, D, o = {}) {                                             // (arcade-2: o.kind 'ground' = the same battle on the grass, o.hs = head starts)
     const b = this.ball, C = AERIAL, n0 = { x: att.x - def.x, y: att.y - def.y }, nl = len(n0.x, n0.y) || 1;
     const hs = (p, o) => { const dp = len(p.x - D.x, p.y - D.y), dq = len(o.x - D.x, o.y - D.y), f = dirVec(p.face), ux = (D.x - p.x) / (dp || 1), uy = (D.y - p.y) / (dp || 1);
       return clamp((dq - dp) * C.hsDist + Math.max(0, f.x * ux + f.y * uy) * C.hsFace + (p === b.target ? C.hsRun : 0) + (p.stamina ?? 1) * C.hsSpring, -C.hsMax, C.hsMax); };
-    const side = (p, o, sg) => ({ p, hs: hs(p, o), n: 0, acc: 0, x0: p.x, y0: p.y, tx: D.x + n0.x / nl * 0.45 * sg, ty: D.y + n0.y / nl * 0.45 * sg,
+    const side = (p, q, sg) => ({ p, hs: o.hs ? o.hs[sg > 0 ? 0 : 1] : hs(p, q), n: 0, acc: 0, x0: p.x, y0: p.y, tx: D.x + n0.x / nl * 0.45 * sg, ty: D.y + n0.y / nl * 0.45 * sg,
       cpu: !this.demo && p.team === this.home ? null : C.cpuRate * this.dk(p.team).mash * (1 + rnd(-1, 1) * C.cpuJit) });   // (you mash yourself; the computer at its rate)
-    const A = this.aerial = { t: 0, phase: 'intro', D, b0: { x: b.x, y: b.y, z: b.z }, att: side(att, def, 1), def: side(def, att, -1), sp: false, res: null, cam: { x: wx(D.x, D.y), y: wy(D.y) - 110 } };
+    const A = this.aerial = { t: 0, phase: 'intro', kind: o.kind || 'air', D, b0: { x: b.x, y: b.y, z: b.z }, att: side(att, def, 1), def: side(def, att, -1), sp: false, res: null, cam: { x: wx(D.x, D.y), y: wy(D.y) - 110 } };
+    if (A.kind === 'ground') { b.owner = null; b.target = null; this.duelN = (this.duelN || 0) + 1; }   // (the ball is nobody's while they fight for it)
+    else this.aerialN = (this.aerialN || 0) + 1;
     if (!this.demo) { this.human = att.team === this.home ? att : def; this.nextHuman = null; }
     for (const p of [att, def]) { p.vx = p.vy = 0; p.cool = 9; }               // (busy with each other: no pickups, no tackles)
     this.headBuf = 0; this.charge = -1; this.lobCharge = -1; this.lobAim = null;
     this.slowMo = Math.max(this.slowMo || 0, 0.2); this.camTarget = A.cam;
-    this.aerialAt = this.aerialClock || 0; SFX.ooh(); SFX.roar(2.2, 0.7);
-    this.ramiSay('skill', { text: ['UP THEY GO!\nWHO WANTS IT MORE?', 'A BATTLE IN\nTHE AIR!', 'THEY BOTH GO\nFOR IT!'][Math.floor(Math.random() * 3)], expr: 'laugh' }, 2);
+    if (A.kind === 'ground') this.duelAt = this.aerialClock || 0; else this.aerialAt = this.aerialClock || 0;   // (arcade-2: the grass duel keeps its own clock - lob battles aren't crowded out)
+    SFX.ooh(); SFX.roar(2.2, 0.7);
+    this.ramiSay('skill', { text: A.kind === 'ground' ? ['SHOULDER TO\nSHOULDER!', 'NEITHER WILL\nGIVE AN INCH!', 'A BATTLE FOR\nTHE BALL!'][Math.floor(Math.random() * 3)]
+      : ['UP THEY GO!\nWHO WANTS IT MORE?', 'A BATTLE IN\nTHE AIR!', 'THEY BOTH GO\nFOR IT!'][Math.floor(Math.random() * 3)], expr: 'laugh' }, 2);
   },
   // your mash: each new SHOOT press (a rising edge, so holding it down is one press; a tap between two frames counts too)
   aerialInput() {
     const A = this.aerial, s = A.att.p === this.human ? A.att : A.def.p === this.human ? A.def : null; if (!s) return;
-    const h = Input.held('shoot'), hit = Input.pressed('shoot') || (h && !A.lastShoot); A.lastShoot = h;
+    const g = A.kind === 'ground', h = Input.held('shoot') || (g && Input.held('pass')), hit = Input.pressed('shoot') || (g && Input.pressed('pass')) || (h && !A.lastShoot); A.lastShoot = h;   // (arcade-2: on the grass PASS mashes too)
     if (hit) A.holdFrom = A.t;                                                   // t-022: how long the last press has been held (the winner's charge)
     if (A.phase === 'mash' && hit) this.aerialHit(s);
     if (s === A.att && Input.pressed('special') && this.meterOf(s.p.team).level() >= 1) A.sp = true;   // SPECIAL in the battle: the aerial special if you win it
@@ -507,7 +511,8 @@ hc2Mix(Match, {
     if (b.owner || b.inNet || this.dead || this.setPiece || this.foulScene || A.att.p.sentOff || A.def.p.sentOff) { this.aerialEnd(); return; }   // (anything else: called off)
     this.slowMo = Math.max(this.slowMo, 0.2); A.t += rdt;
     const T = C.introT + C.mashT, k = clamp(A.t / T, 0, 1), e = 1 - (1 - Math.min(1, A.t / C.introT)) ** 2;
-    b.x = A.b0.x + (A.D.x - A.b0.x) * e; b.y = A.b0.y + (A.D.y - A.b0.y) * e; b.z = A.b0.z + (C.holdZ - A.b0.z) * e + Math.sin(k * Math.PI * 6) * 0.04;   // it drifts to the drop and hangs there
+    const hz = A.kind === 'ground' ? 0.12 : C.holdZ;                              // (arcade-2: on the grass it's held between their feet)
+    b.x = A.b0.x + (A.D.x - A.b0.x) * e; b.y = A.b0.y + (A.D.y - A.b0.y) * e; b.z = A.b0.z + (hz - A.b0.z) * e + Math.sin(k * Math.PI * 6) * 0.04;   // it drifts to the drop and hangs there
     b.vx = b.vy = b.vz = 0;
     for (const s of [A.att, A.def]) { const p = s.p; p.x = s.x0 + (s.tx - s.x0) * e; p.y = s.y0 + (s.ty - s.y0) * e; p.vx = p.vy = 0; p.face = dirIndex(b.x - p.x, b.y - p.y); }
     if (A.phase === 'intro' && A.t >= C.introT) A.phase = 'mash';
@@ -520,12 +525,35 @@ hc2Mix(Match, {
     } else if (A.phase === 'done') { A.wait -= rdt; if (A.wait <= 0) this.aerialEnd(); }
   },
   aerialScore(s) { return Math.max(0.2, 2 + s.hs + s.n); },                      // (the bar shows att / (att + def))
+  // arcade-2 (the co-designer: "a mini-game button masher... the same energy as football anime"): on ARCADE the MASH duel
+  // also comes on the grass - a contested tackle (challenge) and a 50-50 loose ball two men reach together. Never two
+  // within PACE duelCool seconds (shared with the AERIAL BATTLE); CLASSIC never gets here.
+  duelReady() { const c = this.aerialClock || 0, P = paceK();
+    return !this.aerial && !this.setPiece && !this.dead && !this.foulScene && !this.pending && c - (this.duelAt ?? -1e9) >= P.duelGap && c - (this.aerialAt ?? -1e9) >= P.duelCool; },
+  looseDuelCheck() {
+    if (!paceK().duels) return false;
+    const b = this.ball; if (b.owner || b.inNet || b.duelTry || b.z > 0.6 || len(b.vx, b.vy) > 7 || b.special || this.diving || !this.duelReady()) return false;
+    const ok = p => !p.sentOff && !p.keeper && !p.busy() && p.stun <= 0 && p.cool <= 0 && len(p.x - b.x, p.y - b.y) < 1.5;
+    const near = t => t.players.filter(ok).sort((u, v) => len(u.x - b.x, u.y - b.y) - len(v.x - b.x, v.y - b.y))[0];
+    const h = near(this.home), a = near(this.away); if (!h || !a || len(h.x - a.x, h.y - a.y) > 2.2) return false;
+    b.duelTry = true;                                                            // (once per loose ball: cleared when someone has it)
+    if (Math.random() > 0.4) return false;
+    const [att, def] = len(h.x - b.x, h.y - b.y) <= len(a.x - b.x, a.y - b.y) ? [h, a] : [a, h];   // (the nearer man is the "attacker": the bar starts his way)
+    this.aerialStart(att, def, { x: b.x, y: b.y }, { kind: 'ground' }); return true;
+  },
   aerialEnd() {
     const A = this.aerial; if (!A) return; this.aerial = null;
     if (this.camTarget === A.cam) this.camTarget = null;
     for (const s of [A.att, A.def]) s.p.cool = 0;
     if (!A.res) return;
     const b = this.ball, w = A.res === 'att' ? A.att.p : A.def.p, l = A.res === 'att' ? A.def.p : A.att.p;
+    if (A.kind === 'ground') {                                                    // arcade-2: the winner comes away with it at his feet, loud
+      Object.assign(b, { x: A.D.x, y: A.D.y, z: 0, vx: 0, vy: 0, vz: 0, lob: false, tried: null, owner: null });
+      l.stun = 0.45; l.cool = 0.7; l.setState('hit', 0.43); w.cool = 0; this.gain(w, 0);
+      this.say('', A.res === 'att' ? 'KEPT IT!' : 'WON IT!', 0.9); this.hitStop = Math.max(this.hitStop || 0, 0.09); this.cameras.main.shake(180, 0.006); SFX.boom(0.6);
+      this.aerialLast = { res: A.res, by: w, att: A.att.p, def: A.def.p, n: [A.att.n, A.def.n], hs: [+A.att.hs.toFixed(2), +A.def.hs.toFixed(2)], kind: 'ground', at: { x: A.D.x, y: A.D.y } };
+      return;
+    }
     Object.assign(b, { x: A.D.x, y: A.D.y, z: AERIAL.holdZ, lob: false, tried: null });
     l.stun = 0.35; l.cool = 0.6; l.setState('hit', 0.43);                       // beaten in the air: he comes down off balance
     let dir = null;
@@ -574,9 +602,13 @@ hc2Mix(Match, {
     let pWin = front > 0.3 ? 0.8 : front > -0.3 ? 0.55 : 0.2;                   // in his path / beside him / behind him
     if (len(b.x - carrier.x, b.y - carrier.y) < 0.7) pWin -= 0.1;               // tight control is harder to win
     if (db < 0.9) pWin += 0.08;                                                  // right on the ball
-    if (human) { const Y = this.dkY(carrier.team); pWin += Y.yb - Y.sh; }         // (v0.9.3: by level, was always +0.08; the top levels shield it)
-    if (vsHuman) { const Y = this.dkY(p.team); pWin -= carrier.burst > 0 ? Math.max(0.2, 0.3 * Y.tk) : (carrier.sprinting ? 0.2 : 0.12) * Y.tk; }   // you can beat the computer with a burst (v0.9.3: by how much, by level)
+    if (human) { const Y = this.dkY(carrier.team), P = paceK(); pWin += Y.yb - (Y.sh * P.shK + (Y.sh > 0 ? P.shAdd : 0)); }   // (v0.9.3: by level, was always +0.08; the top levels shield it;
+                                                                                   // arcade-2: on ARCADE more, so the quicker game isn't easier to defend)
+    if (vsHuman) { const Y = this.dkY(p.team); pWin -= carrier.burst > paceK().burstT - 0.55 ?   // (arcade-2: ARCADE's longer dash protects you only its first 0.55 s, as on CLASSIC)
+      Math.max(0.2, 0.3 * Y.tk) : (carrier.sprinting ? 0.2 : 0.12) * Y.tk; }   // you can beat the computer with a burst (v0.9.3: by how much, by level)
     else if (carrier.burst > 0) pWin -= 0.25;                                     // v0.8.2: the computer's take-on burst too
+    if (paceK().duels && front > -0.3 && Math.abs(pWin - 0.5) < 0.22 && !carrier.keeper && this.duelReady() && Math.random() < 0.35) {   // arcade-2: a CONTESTED tackle (not a clear
+      const h = clamp((pWin - 0.5) * 7, -AERIAL.hsMax, AERIAL.hsMax); this.aerialStart(carrier, p, { x: b.x, y: b.y }, { kind: 'ground', hs: [-h, h] }); return; }   // win or loss) becomes a MASH duel; the better tackle is a head start
     if (Math.random() < pWin) { this.steal(p, carrier); return; }               // won: it's yours, at your feet
     if (front < -0.3 && rl < 1.2 && Math.random() < 0.4) { this.foul(p, carrier, true); return; }   // through the back of him
     if (rl < 1.0 && Math.random() < 0.06) { this.foul(p, carrier, false); return; }                // clipped his ankle

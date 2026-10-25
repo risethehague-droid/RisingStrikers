@@ -80,24 +80,62 @@ const PACE_OPTS = [['classic', 'CLASSIC'], ['arcade', 'ARCADE']];
 const PACE = {
   classic: { RUN: 5.2, SPRINT: 7.7, ACC: 12, DEC: 26, SPRINT_DRAIN: 0.23, WITH_BALL: 0.9, WITH_BALL_SPRINT: 0.94,
     koFreeze: 1.2, half2Freeze: 1.6, spFreeze: 0.5, deadT: 1, aiTake: 1.3, htOff: 3.2, htCard: 25, htAnyKey: false,
-    goalWaitMs: 1450, goalFrames: 330, goalSlowPre: 1.7, goalSlow: 2.0, skipAfter: 0.4, evReplays: false },   // v0.10.4 (Luca 06:24: "dont do replays mid game being live, its janky"): big saves / near misses go to HIGHLIGHTS in CLASSIC too
+    goalWaitMs: 1450, goalFrames: 330, goalSlowPre: 1.7, goalSlow: 2.0, skipAfter: 0.4, evReplays: false,
+    KICK_MAX: 30, SHOT_K: 1, GRIP: 1, spGain: 1, shotRange: 1, shotWant: 1, chargeT: 0.8, gkCover: 0.95, gkAnswer: 0.55, passArrive: 1, lobH: 1,
+    hsPass: 1, hsShot: 1, trails: false, advantage: false, duels: false, duelCool: 5, duelGap: 30, pressK: 1, cmtK: 1, shK: 1, shAdd: 0, aiBurst: 1, burstT: 0.55, headZ: 2.7 },   // v0.10.4 (Luca 06:24: "dont do replays mid game being live, its janky"): big saves / near misses go to HIGHLIGHTS in CLASSIC too
   // A: end to end in ~12 s, snappier starts and turns, sprint more, dribbles that go somewhere. D: kick-off 0.6 s,
   // restarts taken after ~0.8 s, one short (~4 s) goal replay skippable at once, saves / near misses only in
   // HIGHLIGHTS, half time an 8 s card that any key skips
   arcade: { RUN: 6.0, SPRINT: 8.8, ACC: 16, DEC: 32, SPRINT_DRAIN: 0.15, WITH_BALL: 0.95, WITH_BALL_SPRINT: 0.97,
     koFreeze: 0.6, half2Freeze: 0.8, spFreeze: 0.3, deadT: 0.4, aiTake: 0.25, htOff: 1.2, htCard: 8, htAnyKey: true,
-    goalWaitMs: 900, goalFrames: 160, goalSlowPre: 1.0, goalSlow: 0.9, skipAfter: -1, evReplays: false },
+    goalWaitMs: 900, goalFrames: 160, goalSlowPre: 1.0, goalSlow: 0.9, skipAfter: -1, evReplays: false,
+  // arcade-2 (the co-designer, 25 Oct: "the same energy as football anime. Exciting, fast pace, more than human almost" -
+  // NOT easier: what helps the attacker helps the computer too, and keepers answer with MORE special saves, not slower
+  // reactions). 1 more big moments: the SP meter fills 1.75x, both sides shoot from ~20% further and sooner, power shots
+  // charge 25% quicker, shots +12% (KICK_MAX 33), keepers answer a shot they'd lose with a special save far more often.
+  // 2 the MASH duel also on 50-50 loose balls and contested tackles. 3 a longer sprint dash, higher headers, hot trails on
+  // hard shots. 4 passes 20% firmer, lobs ~8% less hang time (0.85 of the height: at 0.72 defenders headed them away and the AERIAL BATTLE nearly vanished), a little less grass grip.
+  // 5 no hit-stop on passes (more on shots), advantage: a foul stops play only for a card or a penalty.
+    KICK_MAX: 33, SHOT_K: 1.12, GRIP: 0.88, spGain: 1.75, shotRange: 1.2, shotWant: 0.85, chargeT: 0.6, gkCover: 0.7, gkAnswer: 0.85, passArrive: 1.2, lobH: 0.85,
+    hsPass: 0, hsShot: 1.35, trails: true, advantage: true, duels: true, duelCool: 3.5, duelGap: 9, pressK: 1.3, cmtK: 1.35, shK: 1.5, shAdd: 0.08, aiBurst: 1.4, burstT: 0.8, headZ: 3.1 },
 };
+// t-020 ARCADE GETS INTENSE (Luca 25 Oct 06:56: "arcade should have a smaller pitch, more rebounds that lead into aerials,
+// more energy sp, make the game feel incredibly intense in a dynamic sense"). On top of arcade-2. CLASSIC never reads
+// these: every use is behind paceK().arcade (false on CLASSIC, true on ARCADE).
+PACE.classic.arcade = false; PACE.classic.cutK = 1;
+PACE.arcade.arcade = true;
+PACE.arcade.cutK = 0.65;            // the special-save cut scene 1.5 s -> ~1 s: the bang without the wait (design E)
+const ARCADE = {
+  // 1 REBOUNDS: invisible boards along the touchlines and the bylines (not the goal mouth under the bar), so the ball never
+  // goes out for a throw-in, goal kick or corner. It comes back lively: e = how much of the speed INTO the board it keeps,
+  // tang = of the speed ALONG it; a ball low on the grass pops up off the board (pop x the speed into it, at most popMax
+  // m/s up: square on, a 14 m/s drive comes back ~4 m high, a firm 8 m/s pass ~1.3 m - the drop is at header / volley
+  // height; at 0.5, 3 rebounds in 10 went up for a header, at 0.65 about half, and ~4 goals a match). popMin: slower than
+  // this it just rolls back. The pop leans on the angle (a square hit pops most), never on dice, so the AI's predicted
+  // path (ball.js predict) is the path the ball really takes.
+  boards: { e: 0.75, tang: 0.88, pop: 0.65, popMax: 10, popMin: 2.5, popZ: 1.0 },
+  // 2 AERIALS: a rebound that will go up past headZ becomes a loose high ball "aimed" at the nearest man of the side that
+  // touched it last (the way a lob is), so the game's own lob machinery takes over: he times his run under the drop,
+  // their nearest man contests it, the drop is a duel / the AERIAL BATTLE, headers, volleys, the aerial specials.
+  // run = how far (m) a man will come to attack a rebound; the nearest of EACH side within it goes (teamai.js).
+  reb: { headZ: 1.3, run: 22, airT: 2.5 },
+  // 3 SP: arcade-2's 1.75x fill stays; plus a little (bars, before the 1.75x) for winning an AERIAL BATTLE, a header /
+  // volley straight off a rebound, and a special save (specials.js spBonus)
+  sp: { aerial: 0.07, rebound: 0.08, save: 0.1 },
+};
+// t-020: the Test Lab plays CLASSIC, except a test that names its pace (the AR group plays ARCADE's rebounds and SP)
+function paceK() { return window.__lab ? (window.__labPace && PACE[window.__labPace]) || PACE.classic : PACE[PACE_MODE] || PACE.classic; }
 let PACE_MODE = (() => { try { const v = localStorage.getItem('hc2-pace'); return PACE[v] ? v : 'classic'; } catch (e) { return 'classic'; } })();
-function paceK() { return window.__lab ? PACE.classic : PACE[PACE_MODE] || PACE.classic; }
 // (called by setPace and at every kick-off: the start screen's script runs before this file loads. It writes only when
 // the picked preset isn't the one in the globals, so a CLASSIC page never touches them - nor a tool's own tuning.)
 let PACE_SET = 'classic';
 function applyPace() { if (window.__lab || PACE_MODE === PACE_SET || !PACE[PACE_MODE]) return; const P = PACE[PACE_MODE];
-  RUN = P.RUN; SPRINT = P.SPRINT; ACC = P.ACC; DEC = P.DEC; SPRINT_DRAIN = P.SPRINT_DRAIN; WITH_BALL = P.WITH_BALL; WITH_BALL_SPRINT = P.WITH_BALL_SPRINT; PACE_SET = PACE_MODE; }
+  RUN = P.RUN; SPRINT = P.SPRINT; ACC = P.ACC; DEC = P.DEC; SPRINT_DRAIN = P.SPRINT_DRAIN; WITH_BALL = P.WITH_BALL; WITH_BALL_SPRINT = P.WITH_BALL_SPRINT;
+  KICK_MAX = P.KICK_MAX; SHOT_K = P.SHOT_K; PACE_GRIP = P.GRIP; PACE_SET = PACE_MODE; }   // (arcade-2: shot power and grass grip too)
 function setPace(v) { if (!PACE[v]) return; PACE_MODE = v; try { localStorage.setItem('hc2-pace', v); } catch (e) {} applyPace(); }
 // ball (a real football: air drag ~0.013/m; grass: skids first, then rolls)
-const G = 9.81, AIR_K = 0.012, ROLL_K = 0.03, DRIB_DEC = 5.0, KICK_MAX = 30;
+const G = 9.81, AIR_K = 0.012, ROLL_K = 0.03, DRIB_DEC = 5.0;
+let KICK_MAX = 30, PACE_GRIP = 1;                   // arcade-2: let, for the PACE preset (ARCADE 33 m/s, 0.88 of the grass grip)
 let SKID_DEC = 8.6, ROLL_DEC = 5.4, SHOT_K = 1;   // v0.8: tunable from the Test Lab (grip, shot power)   // v0.7: grippier grass (Luca: less slide)
 // v0.8.1 bounce from real numbers (Luca: "too bouncy, study real balls"): FIFA's natural-pitch test wants a 0.60-1.00 m
 // rebound from a 2 m drop (restitution ~0.55-0.7), and grass soaks up more of a hard landing, so restitution falls
