@@ -1,3 +1,10 @@
+HC2 WEB GAME - v0.12.1 (25 Oct) - INSTA FLAG FIX (PR #32, Luca's OK 15:14)
+- Luca's flag (v0.12.0, IS 3-0 IRO, 62:22, HARD): "the final lvl 3 aerial shot was completely blocked that cannot happen".
+  In an aerial special's wind-up the ball hangs at the striker's boot; a defender's standing tackle took it off him
+  there 17 times in 20. Now that tackle lunges at nothing (t-018's miss cost). Pierce, power and knockback unchanged;
+  off the woodwork a special is an ordinary ball (already the code).
+- Checked: smoke, Test Lab PW (PW11 LV3 aerial: goal) and AS errors [].
+
 HC2 WEB GAME - v0.12.0 (25 Oct) - LUCA'S 06:56 / 07:04 / 07:14 LIST: 8 PRs (#23-#30, Luca's OK 13:42)
 - TACKLE (#23, t-018): the slide really slides (3.6 m, was 2.3) and he gets up after (PixelLab batch 19 slide2 /
   slideup; N / S use the diagonals); a missed slide costs 1.4 s before he can act, 1.5 s before the next tackle; SHOOT
