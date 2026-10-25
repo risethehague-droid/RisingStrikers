@@ -1388,6 +1388,66 @@
         return null;
       } };
   }
+  // ======================================================================= t-022 CHARGED HEADERS AND VOLLEYS (HV). The Lab plays YOU through
+  // the touch buttons (the game's own input): a team-mate crosses to you, SHOOT goes down o.press s before the ball gets
+  // to you (by the game's predicted path) and is let go o.rel s before it (o.rel null: still held at the contact = late;
+  // o.tap: let go after 0.06 s = today's header). The line: held / let go, the charge (the hold's power -> what the
+  // timing kept), the speed off the head / boot, on target as it left him, then what came of it. HV5 is the computer's
+  // striker (its dice by level, AIR_CHARGE.cpu*), HV6 a charged header straight at their keeper.
+  function hvContactIn(p, vol) {                                                // s until the ball reaches him at header (or volley) height
+    const P = m.path; if (!P) return null;
+    for (const q of P) { const d = len(q.x - p.x, q.y - p.y); if (vol ? q.z > 0.25 && q.z < 1.0 && d < 1.6 : q.z > 1.1 && q.z < 2.7 && d < 1.2) return q.t; }
+    return null;
+  }
+  function hvOnTarget(gx) {                                                     // where the struck ball crosses the goal line (no keeper)
+    const b = m.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: true, rollV: b.rollV }, h = 1 / 120;
+    for (let t = 0; t < 3; t += h) { ballStep(c, h, false); if ((c.x - gx) * Math.sign(b.vx || 1) >= 0) return c.z >= BAR_Z ? `OVER (${c.z.toFixed(1)} m)` : c.y > GOAL_Y0 && c.y < GOAL_Y1 ? 'ON TARGET' : `WIDE (${Math.abs(c.y - 34).toFixed(1)} m off centre)`; }
+    return 'SHORT';
+  }
+  const hvRate = l => Math.round(100 * Math.min(1, AIR_CHARGE.sweet / (AIR_CHARGE.cpuJit * Math.max(diffK(l).shotErr, AIR_CHARGE.cpuFloor))));
+  function hvTest(id, name, sub, o) {
+    return { id, group: 'HV', name, sub, kind: 'hv', you: !o.cpu, lvl: o.lvl,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+        const S = o.cpu ? m.away.players : m.home.players, you = S[9], c = S[7], gk = (o.cpu ? m.home : m.away).players[0];
+        const X = x => o.cpu ? PITCH_L - x : x, Y = y => o.cpu ? 68 - y : y;    // (the computer attacks the other goal)
+        cast([you, c, gk]); put(you, X(92), Y(31), o.cpu ? 4 : 0); put(c, X(o.from[0]), Y(o.from[1])); faceTo(c, X(92), Y(31)); atFeet(c);
+        put(gk, X(LINE_X), Y(o.gkY || 33), o.cpu ? 0 : 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+        for (const mt of m.meters || []) mt.e = 0; m.acLast = null; m.airCh = null;
+        Object.assign(r, { human: o.cpu ? gk : you, striker: you, shooter: you, gk, gx: o.cpu ? 0 : PITCH_L, marks: [{ x: X(92), y: Y(31), r: 0.5 }] });
+        r.action = { at: 0.6, fire: () => { const b = m.ball, a = aimAir(b.x, b.y, X(92), Y(31), o.z, o.T); m.kick(c, X(92), Y(31), a.speed, a.vz, 0.13, {}); } };
+      },
+      check(r) {
+        const b = m.ball, T = Input.touch, you = r.striker, f2 = v => v.toFixed(2), pc = v => Math.round(v * 100) + '%';
+        const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); return res; };
+        if (!o.cpu && r.fired && !r.hit) {                                        // ---- you: SHOOT down, held, let go
+          const tc = b.owner || m.pending ? null : hvContactIn(you, o.vol);
+          if (r.downT == null) { if (tc != null && tc <= o.press) { T.btn.shoot = true; r.downT = r.t; } }
+          else if (r.upT == null && (o.tap ? r.t - r.downT >= 0.06 : o.rel != null && tc != null && tc <= o.rel)) { T.btn.shoot = false; r.upT = r.t; if (o.stick) { T.x = o.stick[0]; T.y = o.stick[1]; } }
+        }
+        const L = m.acLast;
+        if (!r.hit) { if (L && L.by === you) { r.hit = { ...L, at: r.t }; T.btn.shoot = false; } else return r.t > 7 ? done({ o: 'NO HEADER / VOLLEY' + (b.lastP && b.lastP !== r.shooter ? ` · ${b.lastP.team === m.home ? 'your' : 'their'} #${b.lastP.num} got it` : '') }) : null; }
+        if (!r.go) { if (m.pending || b.owner || b.lastP !== you) return null; r.go = { v: Math.round(len(b.vx, b.vy, b.vz) * 3.6), tgt: hvOnTarget(r.gx), t: r.t }; r.shotT = r.t; }
+        const H = r.hit, who = o.cpu ? `${LVL_NAME[r.sc.lvl] || 'BASE'} (timed right ~${hvRate(r.sc.lvl || 'normal')}% of its charged ones; E ${hvRate('easy')} · N ${hvRate('normal')} · H ${hvRate('hard')} · R ${hvRate('rise')}): ` : '';
+        const hold = o.cpu ? '' : `held ${f2((r.upT ?? H.at) - r.downT)} s, ${r.upT != null ? `let go ${f2(H.at - r.upT)} s before the contact` : 'still held at the contact (late)'} · `;
+        const ch = H.tap ? 'TAP: today\'s ' + H.kind : `CHARGED ${H.kind}: ${pc(H.raw)} power → ${pc(H.pw)} kept, timing ${H.sweet ? 'RIGHT (sweet)' : (H.late ? 'LATE' : 'off by ' + f2(H.off) + ' s') + ' q ' + f2(H.q)}`;
+        const head = `${who}${hold}${ch} · ${r.go.v} km/h · ${r.go.tgt} · `;
+        const res = gkxOut(r); if (res) return done({ ...res, o: head + res.o.replace(/^NO SAVE · /, '') });
+        return r.t - r.go.t > 4 ? done({ o: head + (b.owner ? `${b.owner.team === you.team ? 'your side' : 'their side'} has it` : 'loose') }) : null;
+      } };
+  }
+  function hvTests() {
+    const hdr = { from: [99, 6], z: 1.8, T: 1.35 };
+    return [
+      hvTest('HV1', 'a header released in the sweet window', 'hold SHOOT as the cross comes, let go just before it reaches you: full power, on target', { ...hdr, press: 0.75, rel: 0.05 }),
+      hvTest('HV2', 'a header released EARLY', 'let go 0.45 s before it arrives: weaker and wider', { ...hdr, press: 0.9, rel: 0.45 }),
+      hvTest('HV3', 'a charged volley (low driven cross)', 'hold as it comes in at knee height, let go just before: a power volley', { from: [100, 14], z: 0.6, T: 0.75, vol: true, press: 0.75, rel: 0.05 }),
+      hvTest('HV4', 'a TAP header', 'SHOOT tapped (0.06 s) as the cross comes: today\'s header (~45-54 km/h)', { ...hdr, press: 0.5, tap: true }),
+      hvTest('HV5', 'the computer\'s header by level (NORMAL)', 'their striker meets a cross: it charges about half of them, its timing a dice by level', { ...hdr, cpu: true, lvl: 'normal' }),
+      hvTest('HV6', 'a charged header straight at their keeper', 'timed right, aimed at him: does the pace beat his hold (held / parried)?', { ...hdr, press: 0.75, rel: 0.05, gkY: 33.1, stick: [0, -0.4] }),
+      hvTest('HV7', 'a header held through the contact (LATE)', 'still holding SHOOT as it reaches you: struck late - weaker and wilder', { ...hdr, press: 0.75, rel: null }),
+    ];
+  }
   function ksOut(r) {
     const b = m.ball, gk = r.gk, g = gk.rig;
     if (g && RIGS[g.n] && RIGS[g.n].gk && g.e0 == null) r.pre = g.n;           // started before the ball got there
@@ -1721,6 +1781,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       asTest('AS5', 'LV3 · a very high ball → PHOENIX', 'the leap and dive', { lv: 3, from: [99, 6], z: 1.8, T: 1.5 }),
       asTest('AS6', 'LV3 · a sky-high loop → METEOR DRIVE', 'somersault axe kick', { lv: 3, from: [96, 8], z: 1.8, T: 2.4 }),
     ]);
+    add('HV', 't-022 · CHARGED HEADERS + VOLLEYS', 'Hold SHOOT as the ball comes in, let go as it reaches you: the hold is the power (like a ground shot), the timing keeps it - just before the contact = full power and on target, early or late = weaker and wilder, too much = over the bar. A tap is today\'s header / volley. A well-timed one: a white flash, a few sparks, a tiny hit-stop.', hvTests());
     add('KS', 't-014 · KEEPER SPECIAL SAVES BY THE SHOT', 'Their keeper has a special save ready; the shot picks the move: a lob → kleap, straight → kblock, wide → kdivecatch, too strong to hold → ktip (a corner). Who wins stays as before.', ksTests());
     add('CS', 'CUT SCENES', 'Every cut scene in full (the Lab normally skips them). R plays it again. Rate how it looks; ENTER moves the menus on.', buildCuts());
     add('BW', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai). 1 = the game was right · 2 = it\'s a bug.', [{ id: 'BW0', group: 'BW', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,

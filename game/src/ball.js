@@ -264,6 +264,7 @@ hc2Mix(Match, {
     if (sp) { this.hitStop = 0.14 + sp * 0.05; this.flashT = this.hitStop; this.trailT = 1.6; this.trailSp = sp;
       const c = [[255, 140, 40], [80, 180, 255], [190, 90, 255]][sp - 1]; this.cameras.main.flash(90 + sp * 40, ...c); this.cameras.main.shake(300 + sp * 80, 0.005 + sp * 0.002); }
     if (this.fxImpact) this.fxImpact(k, pw);                                     // PixelLab impact burst (when the art is in)
+    const air = k.info.airCh; if (air && air.sweet && air.raw >= AIR_CHARGE.impP && this.airImpact) this.airImpact(false);   // t-022: a well-timed charged volley - the flash + sparks (actions.js)
   },
   dust(p) {
     if (!this.textures.exists('fx') || p.speed < RUN) return;
