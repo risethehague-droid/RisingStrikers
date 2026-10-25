@@ -7,12 +7,21 @@ These rules apply to every session on this repo, on either account. If you're on
 
 - **Luca** owns the project and gives the final OK on anything that goes live.
 - **The co-designer** (Luca's friend) runs the Design & Vision and Stadiums & maps lanes from his own account.
-- **The taskmaster** is Luca's main Claude chat. It splits work into cards on the Taskboard, checks every pull request, merges into `main` and publishes the official game. Nobody else merges or publishes. A new taskmaster chat starts with `docs/taskmaster.md` (and `/publish`).
+- **The taskmaster** is Luca's main Claude chat. It splits work into cards on the Taskboard, checks every pull request, merges into `main` and publishes the official game. Nobody else merges or publishes (one exception: the co-designer may publish HC2 HQ itself, see below). A new taskmaster chat starts with `docs/taskmaster.md` (and `/publish`).
 - **Agents:** four sessions, two per account. Luca's: the taskmaster and **worker-l**. The co-designer's: his main session and **worker-f**. The workers are general: they do the tasks the taskmaster assigns and report into the agents folder. `docs/agents.md` has the whole setup.
 - **The flow:** card → branch `<lane>/<topic>` (workers: `<agent>/t-NNN-<topic>`) → pull request → card to *Needs OK* → Luca's OK → the taskmaster merges and publishes. Workers also send a report, which the taskmaster reviews before the card goes to Needs OK.
   - Never push to `main`.
   - Never merge.
-  - Never publish to the official pages.
+  - Never publish to the official pages (the game, the Test Lab).
+- **HC2 HQ is the exception** (Luca's OK, PR #39): the co-designer may publish HQ's page directly from his own
+  account (his main session, or worker-f when he asks it to). The rules:
+  - **HQ's page only:** its layout, sections and menus. Never the game or the Test Lab, and never HQ's card data by
+    hand (cards change through HQ's own buttons, the taskmaster and the 2-hourly check, as now).
+  - **Start from the live HQ:** read the current version first (Artifact `read`) and build on that file, never on an
+    older copy. Keep HQ's data model, capabilities and ↻ Check now working.
+  - **Say what changed:** after each publish, a note through the folder (`bash tools/agent.sh report co-designer note
+    done <file>`): what changed and why. A big redesign: tell Luca first.
+  - Luca can always roll HQ back to an earlier version from the page's history.
 - HC2 HQ (the Taskboard): https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 · Team setup: https://claude.ai/artifact/8QEZs4UX4XEGYGWYdqPssF
 
 ## How to talk to Luca and the co-designer
