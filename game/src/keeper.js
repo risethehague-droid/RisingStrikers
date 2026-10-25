@@ -102,8 +102,8 @@ hc2Mix(Match, {
   gkSmotherDive(k) {
     const b = this.ball; let T = 0.4;                                            // where his dive meets the ball: the first moment it can
     for (let t = 0.05; t <= 0.4; t += 0.05) if (len(b.x + b.vx * t - k.x, b.y + b.vy * t - k.y) <= 0.9 + 7.0 * Math.max(0, t - 0.06)) { T = t; break; }
-    const px = b.x + b.vx * T, py = b.y + b.vy * T;
-    const dx = px - k.x, dy = py - k.y, d = len(dx, dy) || 1, v = Math.min(7.5, Math.max(2.5, (d + 0.3) / 0.32));
+    T += 0.06; const px = b.x + b.vx * T, py = b.y + b.vy * T;                  // (a touch past it: he throws himself through the ball, not at where it was)
+    const dx = px - k.x, dy = py - k.y, d = len(dx, dy) || 1, v = Math.min(7.5, Math.max(3, (d + 0.6) / 0.3));
     k.setState('dive', 0.95); k.diveLen = 0.95; k.diveFly = 0.32; k.diveZ = 0.2; k.leap = 0;
     k.diveDir = Math.sign(dy) || (k.y < 34 ? 1 : -1); k.saveKind = 'smother'; k.smDone = false; k.smU = Math.random(); k.smAt = this.time.now; k.smWant = 0;
     k.smDir = { x: dx / d, y: dy / d }; k.vx = dx / d * v; k.vy = dy / d * v;
@@ -116,14 +116,23 @@ hc2Mix(Match, {
     if (!k || !k.keeper || k.sentOff || k.state !== 'dive' || k.saveKind !== 'smother' || k.smDone || b.z > 0.7) return false;
     const age = (k.diveLen || 0.95) - k.stateT; if (age < 0.06 || age > 0.62) return false;
     const ux = k.smDir ? k.smDir.x : 0, uy = k.smDir ? k.smDir.y : 0, rx = b.x - k.x, ry = b.y - k.y;
-    const along = rx * ux + ry * uy, perp = Math.abs(rx * uy - ry * ux);         // his body on the grass: from his knees (0.4 m back) to his hands (1 m ahead)
-    if (along < -0.4 || along > 1.0 || perp > 0.62) return false;
+    const along = rx * ux + ry * uy, perp = Math.abs(rx * uy - ry * ux);         // his body at full length on the grass: from his knees (0.6 m back) to his fingertips (1.2 m ahead)
+    if (along < -0.6 || along > 1.2 || perp > 0.65) return false;
     k.smDone = true;
-    const od = len(b.x - o.x, b.y - o.y), q = this.dk(k.team).gkSave;
-    if (!(od > 0.7 || k.smU < clamp(0.45 + 0.25 * (q - 1) + od * 0.3, 0.3, 0.85))) return false;   // he got it away from him: round the keeper
-    k.vx *= 0.2; k.vy *= 0.2; this.gain(k, 0); o.stun = Math.max(o.stun, 0.25);
-    this.gkCount(k.team, 'smothered'); this.say('', 'SMOTHERED!', 0.8);
-    return true;
+    // gathered, knocked loose off his body, or the striker got it away from him (more likely the tighter he keeps it and
+    // the sharper he's cutting across the dive)
+    const od = len(b.x - o.x, b.y - o.y), q = this.dk(k.team).gkSave, cut = Math.abs(o.vx * uy - o.vy * ux);
+    const grab = od > 0.7 ? 1 : clamp(0.42 + 0.25 * (q - 1) + od * 0.3 - cut * 0.06, 0.2, 0.82), u = k.smU;
+    if (u < grab) {
+      k.vx *= 0.2; k.vy *= 0.2; this.gain(k, 0); o.stun = Math.max(o.stun, 0.25);
+      this.gkCount(k.team, 'smothered'); this.say('', 'SMOTHERED!', 0.8); return true;
+    }
+    if (u < grab + (1 - grab) * 0.55) {                                         // off his body: loose, away from his goal and to a side
+      const s = k.team.side, sv = rnd(4, 7), a = rnd(-1, 1) * 0.9;
+      b.owner = null; b.target = null; b.last = k.team; b.lastP = k; b.vx = s * sv * Math.cos(a); b.vy = sv * Math.sin(a); b.vz = rnd(0.5, 2);
+      o.cool = Math.max(o.cool, 0.3); this.gkCount(k.team, 'blocked'); this.say('', 'BLOCKED!', 0.7); return true;
+    }
+    return false;                                                               // he got it away from him: round the keeper
   },
   // t-017: a shot from close (under ~9 m) straight at him: no dive - planted and big (the batch 16 power block)
   gkBlock(k) {
@@ -202,7 +211,7 @@ hc2Mix(Match, {
         else if (ady < 1.1 && z > 2.05) {                                     // over his head: jump for it - timed, so he's at the top as it arrives
           if (left > 0.5) { k.moveTo(k.x, sv.y, 6.5, dt); return; }
           sv.act = 'leap'; this.gkLeap(k, sv, dy, left); return; }
-        else if (ady < 0.9 && z < 1.7 && len(b.x - k.x, b.y - k.y) < 9) { sv.act = 'block'; this.gkBlock(k); return; }   // t-017: from close, at him: a wall
+        else if (ady < 0.9 && z < 1.7 && left < 0.32) { sv.act = 'block'; this.gkBlock(k); return; }   // t-017: from close, at him, no time to set: a wall
         else if (ady < 0.45) sv.act = 'set';
         else if (ady < 1.3 && left > 0.4) sv.act = 'step';
         else {
