@@ -1,3 +1,19 @@
+HC2 WEB GAME - v0.11.1 (25 Oct) - THE KEEPER REBUILT (PR #22 + #20 + #21, Luca's OK)
+- Luca 02:58 (urgent): "very broken gk logic ... you could just walk around it and score". It wasn't new: 30 of 30
+  walk-rounds scored on v0.11.0 and on v0.10.4 (from close in, the v0.9.1 BLOCK stood stock still and a keeper couldn't
+  take the ball off your feet). Now (#22, t-017): CLOSE - on the line that halves the angle, following the ball a beat
+  ahead, mirroring every sideways move; BLOCK - he steps up to ~1.4 m in front of the ball; SET when you have it under
+  control in range; SMOTHER - he dives through the ball at your feet: SMOTHERED! (gathered), BLOCKED! (off his body) or
+  beaten if you cut late. Test Lab KP: the keeper wins 44 of 50 (was 0). He faces the ball while he tracks (side-step,
+  backpedal), gets up off the grass after a dive, blocks close shots with a starfish, collapses on low balls near him.
+- PixelLab batch 18 (6 generations): ksmother, kback, kstar, kgetup, kcollapse in every keeper kit; every normal save
+  uses the batch 16 dives (they were special-only).
+- Blocked players step round the man in their way (#20, t-016, worker-f); its keeper speed cap left out (t-017 does
+  the facing at full speed). Test Lab KF.
+- Bug Watch: a state change no longer counts as an animation flicker (#21, QA 25 Oct).
+- Checked: smoke, flagtest, resumetest, pointertest clean; Test Lab KP, KF, GK, GKX, PW, SM, WG, K, C, CH errors [];
+  12-match soak: goals 2.75 -> 2.6, corners 4.2 -> 5.2, 0 page errors.
+
 HC2 WEB GAME - v0.11.0 (24 Oct) - LUCA'S 05:57 LIST: 11 PRs (#9-#19, Luca's OK 18:35)
 - INSTA FLAG (#9, t-006): F / pad BACK / the FLAG button = the last 8 s + your note to Bug Watch. A REPLAY PLAYER (pause
   menu REPLAY LAST 10 S, LAST GOAL, HIGHLIGHTS, Bug Watch): play / pause, 1x / 0.5x / 0.25x, frame step, scrub, every
