@@ -189,7 +189,10 @@ class BugWatch {
         if (p.face !== F.f) { F.f = p.face; F.ts.push(this.now); while (F.ts.length && this.now - F.ts[0] > 1) F.ts.shift();
           if (F.ts.length >= 8 && (p.speed || 0) < 3) { F.ts = []; this.flag('JITTER', `${this.who(p)} turned 8 times in a second (${p.state}, ${bwF1(p.speed || 0)} m/s)`, { p }); } }
         const an = p.anim || '';                                                  // a BLIP: an animation on screen for under 0.1 s
-        if (an !== F.a) { if (F.a && this.now - (F.at || 0) < 0.1) { (F.bl = F.bl || []).push(this.now); while (F.bl.length && this.now - F.bl[0] > 1) F.bl.shift();
+        // (QA 25 Oct: '' is not an animation. setState() and a rig / replay clear p.anim to '' so the next draw() replays the
+        // move; the sprite still shows the old picture until then. Counting '' as one made a false blip at every state change
+        // - "run-W → " in the clips - so the code waits for the next real animation instead.)
+        if (an && an !== F.a) { if (F.a && this.now - (F.at || 0) < 0.1) { (F.bl = F.bl || []).push(this.now); while (F.bl.length && this.now - F.bl[0] > 1) F.bl.shift();
             if (F.bl.length >= 3) { F.bl = []; this.flag('ANIM_FLICKER', `${this.who(p)}: 3 animations flashed up for under 0.1 s within a second (${(F.a.split(':')[1] || F.a)} → ${(an.split(':')[1] || an)}, ${bwF1(p.speed || 0)} m/s)`, { p }); } }
           F.a = an; F.at = this.now; } });
       const nb = !o && b.z < 0.3 && len(b.vx, b.vy) < 0.6 ? this.nearest(b) : null;
