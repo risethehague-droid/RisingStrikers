@@ -25,6 +25,10 @@ here, in the repo, on the Taskboard and in the agents folder; nothing depends on
 | HC2 taskmaster check | every 2 hours, 09:00-23:00 Dutch time, and on HQ's ↻ Check now (a QUICK RUN: no test-running reviews) | Needs OK cards for `friend/` PRs; every PR card's preview (below); reviews new reports in the agents folder (`/inbox`); briefs OK'd cards whose `next` is a worker, when it's clear; HQ's status lines |
 | HC2 overnight QA | 01:44 every night | 12 simulated matches (`tools/soak.js`) + all tests + Luca's watch-mode marks; at most 2 small fixes on `qa/` branches with `qa-*` cards; a report to the folder |
 
+**HQ's page** can also change from the co-designer's side (CLAUDE.md "HC2 HQ is the exception", PR #39): before
+the taskmaster republishes HQ, it reads the live version first and builds on that. His notes after each publish
+arrive in the agents folder.
+
 They never merge or publish the game. (The check publishes only HQ assets and the "HC2 PR #N preview" pages.) Change
 them with the scheduled-task tools (list, update); tell Luca in plain words.
 
