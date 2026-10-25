@@ -1,6 +1,38 @@
 'use strict';
 // HC2 Football · player.js: Player (movement, stamina, animation, drawing) and Team
 // (split out of game.js in v0.9.5 - load order and lanes: src/README.md)
+// t-022 THE HEADER / VOLLEY / DIVING HEADER PICKS, in one table so the taskmaster's new PixelLab moves drop in by name:
+// the first row whose frames are in his kit (his direction, or -S), whose dirs (if any) hold his direction and whose
+// test passes wins. h = p.airHit at the contact: z (the ball's height, m), side (degrees between where the ball came
+// from and where he sends it: 0 = straight back, 90 = across him) and pw (a charged one's power, 0 = a tap).
+// Batch 20 (taskmaster, 25 Oct; Luca 07:04: "the header animation and volley animation should generate new versions
+// from different angles and make the animation feel impactful"): header2 is a rising POWER header (leap, arch, snap
+// through it), so it plays for the charged ones and the balls he leaps for; volley2 a whipped side volley (charged,
+// high or side-on); volleyf a laced front volley, made facing S / N; dheader2 a flat-out diving header, made E / W
+// (its other directions are the old dive's frames). (A volley plays at its kick rate, kickRate in core.js.)
+const AIR_PICKS = {
+  header: [
+    { a: 'header2', fps: 15, ok: h => h.pw > 0 || h.z > 2.2 },             // batch 20: the power header (headers are met at 1.1-2.7 m: over 2.2 he leaps)
+    { a: 'header', fps: 15 },                                                // the PixelLab header
+    { a: 'jump', fps: 16 },                                                  // kits without it
+  ],
+  volley: [
+    { a: 'volley2', fps: 18, ok: h => h.pw > 0 || h.z > 0.75 || h.side > 55 },   // batch 20: the whipped side volley
+    { a: 'volleyf', fps: 18, dirs: ['S', 'N'] },                             // batch 20: the laced front volley
+    { a: 'volley', fps: 18 },
+  ],
+  dheader: [
+    { a: 'dheader2', fps: 16 },                                              // batch 20: the flat-out diving header
+    { a: 'dheader', fps: 16 },
+  ],
+};
+function airPick(K, kind, d, h) {
+  for (const r of AIR_PICKS[kind]) if ((K.anims[`${r.a}-${d}`] || K.anims[`${r.a}-S`]) && (!r.dirs || r.dirs.includes(d)) && (!r.ok || (h && r.ok(h)))) return r;
+  return null;
+}
+// batch 20: the frame where his forehead / boot meets the ball (manifest 'contact', written by tools/kit_build.py), for
+// the direction that will actually play (his own, else -S, as play() falls back); undefined for moves without one
+function airContact(K, a, d) { const c = K.contact; return c ? c[`${a}-${K.anims[`${a}-${d}`] ? d : 'S'}`] : undefined; }
 class Player {
   constructor(m, team, i, kit) {
     this.m = m; this.team = team; this.i = i; this.kit = kit; this.keeper = i === 0;
@@ -13,7 +45,7 @@ class Player {
     this.num = team.side > 0 ? [1, 2, 3, 4, 5, 6, 8, 10, 7, 9, 11][i] : [1, 2, 3, 4, 5, 6, 8, 10, 7, 9, 11][i];
   }
   play(name, rate, once) {
-    const key = `${this.kit}:${name}`;
+    const key = `${this.kit}:${name}`, from = this._from || 0; this._from = 0;   // (batch 20: a header starts on its contact frame)
     if (!this.m.anims.exists(key)) {
       const fr = MAN.kits[this.kit].anims[name]; if (!fr) return false;
       this.m.anims.create({ key, frames: fr.map(f => ({ key: this.kit, frame: f })), frameRate: rate, repeat: once ? 0 : -1 });
@@ -23,7 +55,7 @@ class Player {
       // run <-> sprint: carry on from the same point of the stride instead of snapping back to frame 0 (the v0.6 sprint 'jank')
       const loop = /:(run|sprint|walk)-/.test(key) && /:(run|sprint|walk)-/.test(this.anim || '') && this.spr.anims.isPlaying;
       const prog = loop ? this.spr.anims.getProgress() : 0;
-      this.spr.play(key); this.anim = key;
+      this.spr.play(from ? { key, startFrame: from } : key); this.anim = key;
       if (loop && prog > 0) this.spr.anims.setProgress(prog);
     }
     return true;
@@ -59,6 +91,7 @@ class Player {
     if (this.state !== 'run' && this.state !== 'idle') this.spr.anims.timeScale = 1;
     if (this.state === 'kick') {
       let ka = this.kickAnim || 'kick', kd = d;
+      if (ka === 'volley') { const ap = airPick(K, 'volley', d, this.airHit); if (ap) ka = ap.a; }   // t-022: the volley from AIR_PICKS
       if (ka === 'throwin') kd = this.y < 34 ? 'S' : 'N';                   // throw-ins: made facing in from either touchline
       if (ka === 'gkick') kd = dirVec(this.face).x >= 0 ? 'E' : 'W';                           // keeper kick-outs: made side-on
       if (ka === 'super' || ka === 'sp1' || ka === 'sp2') kd = dirVec(this.face).x >= 0 ? 'E' : 'W';   // the special moves: made side-on
@@ -66,7 +99,7 @@ class Player {
     }
     else if (this.state === 'catch') { if (!(this.claimHigh && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); }
     else if (this.state === 'dive') { this.play(this.diveAnim, /^ksmother/.test(this.diveAnim || '') ? 20 : /^kcollapse/.test(this.diveAnim || '') ? 12 : 16, true); }   // (t-017: the smother's hands land on frame 6 at ~0.3 s; the 4-frame collapse a little slower)
-    else if (this.state === 'slide') { if (!this.play(`slide-${d}`, 12, true)) { this.play(`run-${d}`, 13); this.spr.anims.timeScale = 0.01; } }
+    else if (this.state === 'slide') { if (!this.tacklePlay('slide', d, TACKLE.slideT)) { this.play(`run-${d}`, 13); this.spr.anims.timeScale = 0.01; } }
     else if (this.state === 'applaud') { if (!this.play(`applaud-${d}`, 9) && !this.play('applaud-S', 9)) this.play(`idle-${d}`, 5); }   // full time (loops)
     else if (this.state === 'trophy') {                                         // v0.7.4 cup ceremony: PixelLab trophy lift, then he keeps it up there
       const up = this.anim === `${this.kit}:trophy-S` && !this.spr.anims.isPlaying;
@@ -79,8 +112,12 @@ class Player {
       const a = this.labAnim, k = [d, dirVec(this.face).x >= 0 ? 'E' : 'W', 'S'].find(q => K.anims[`${a}-${q}`]);
       if (!k || !this.play(`${a}-${k}`, this.labFps || 12, true)) this.play(`idle-${d}`, 5);
     }
+    else if (this.state === 'getup' && this.slideUp && this.tacklePlay('slideup', d, this.slideWon ? TACKLE.upWon : TACKLE.upMiss)) { }   // t-018: up off the grass after a slide
     else if (this.state === 'getup' && this.getupAnim && this.play(this.getupAnim, 18, true)) { }   // t-017: the keeper back up off the grass after a dive (batch 18 kgetup)
-    else if (ONCE[this.state]) { const [nm, fps] = this.state === 'header' && K.anims['header-S'] ? ['header', 15] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state]; if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
+    else if (ONCE[this.state]) { const ap = (this.state === 'header' || this.state === 'dheader') && airPick(K, this.state, d, this.airHit);   // (t-022: the header / dive from AIR_PICKS)
+      const [nm, fps] = ap ? [ap.a, ap.fps] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state];
+      if (ap && this.state === 'header') this._from = airContact(K, nm, d) || 0;   // batch 20: the ball leaves his head the moment the header starts, so the move opens on the frame that meets it (the snap shows with the thump, flash and hit-stop; the take-off frames before it are skipped)
+      if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
     else if (this.waitingThrowIn()) { if (!this.play(`throwinhold-${this.y < 34 ? 'S' : 'N'}`, 1, true)) this.play(`idle-${d}`, 5); }   // ball held over his head
     else if (this.keeper && this.hands && this.speed < 0.5) { if (!(this.claimHigh && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); }   // holds it as he caught it
     else if (this.keeper && this.speed < 0.5 && ((this.m.ball.save && this.m.ball.save.gk === this) || this.gkSet) && K.anims[`kset-${d}`]) this.play(`kset-${d}`, 10);   // set for the shot (v0.9.1: or ready for one)
@@ -173,6 +210,22 @@ class Player {
   }
   // a one-off move: always restarts its animation
   setState(s, t) { this.state = s; this.stateT = t; this.anim = ''; if (this.rig && ((RIGS[this.rig.n] || {}).brk || RIG_BREAK).test(s)) this.rig = null; }   // (v0.8.9: a rough rig stops when he's knocked over; t-014: a keeper's special-save move only when he's knocked over - his dive / punch states carry on under it)
+  // t-018: the slide / get-up move from TACKLE.anims (the first one this kit has, batch 19's slide2 / slideup when they're
+  // in), played once: over the slide / a missed get-up when the table gives no frame rate, and sped up to fit a quicker
+  // get-up (a won slide's 0.3 s) - the key's frame rate is fixed when it's first made, so the fit is a time scale
+  tacklePlay(kind, d, dur) {
+    const K = MAN.kits[this.kit];
+    for (const [nm, fps] of TACKLE.anims[kind]) {
+      // (batch 19: PixelLab drew the N and S slides going sideways, so up / down the pitch shows the diagonal on the
+      // side he's sliding towards - SE / SW, NE / NW)
+      let dd = d; if (TACKLE.diagNS.includes(nm) && (d === 'N' || d === 'S')) dd = d + (((this.slideDir && this.slideDir.x) ?? dirVec(this.face).x) >= 0 ? 'E' : 'W');
+      const fr = K.anims[`${nm}-${dd}`]; if (!fr) continue;
+      const rate = fps || Math.max(4, fr.length / (kind === 'slide' ? TACKLE.slideT : TACKLE.upMiss));
+      if (!this.play(`${nm}-${dd}`, rate, true)) return false;
+      this.spr.anims.timeScale = Math.max(1, fr.length / rate / dur); return true;
+    }
+    return false;
+  }
   busy() { return this.state !== 'idle' && this.state !== 'run'; }
   step(dt) {
     if (this.sentOff) { this.vx = this.vy = 0; this.speed = 0; this.rig = null; return; }
@@ -184,15 +237,16 @@ class Player {
     if (this.state !== 'idle' && this.state !== 'run') {
       this.stateT -= dt;
       if (this.stateT <= 0) {                                       // after a slide or a fall you get up first
-        if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted' || (this.state === 'kick' && this.bike)) { const won = this.state === 'slide' && this.slideWon; this.bike = false; this.setState('getup', won ? 0.25 : 0.45);
+        if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted' || (this.state === 'kick' && this.bike)) { const won = this.state === 'slide' && this.slideWon; this.slideUp = this.state === 'slide'; this.bike = false; this.setState('getup', won ? TACKLE.upWon : this.slideUp ? TACKLE.upMiss : 0.45);
+          if (won) this.cool = Math.min(this.cool, TACKLE.upWon);                 // t-018: won it - free once he's up (a miss keeps its cool-down)
           const b = this.m.ball; if (this.slideKeep && !b.owner && len(b.x - this.x, b.y - this.y) < 1.8 && b.z < 0.5) { this.cool = 0; this.m.gain(this, 0); }   // v0.8.2 the block tackle: yours
           this.slideKeep = false; }
         else if (this.keeper && this.state === 'dive' && !this.hands && /^(diveLow|dive|diveHigh|smother)$/.test(this.saveKind || '') && MAN.kits[this.kit].anims['kgetup-E']) {   // t-017: off the grass, not a pop-up
           this.getupAnim = `kgetup-${this.team.side > 0 ? 'E' : 'W'}`; this.setState('getup', 0.44); }   // (8 frames at 18 a second)
-        else { this.state = 'idle'; this.getupAnim = null; }
+        else { this.state = 'idle'; this.getupAnim = null; this.slideUp = false; }
       }
       if (this.state === 'dive') { const age = (this.diveLen || 0.85) - this.stateT, k = Math.exp(-dt * (age > (this.diveFly || 0.4) ? 16 : 0.4)); this.vx *= k; this.vy *= k; }
-      else if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted') { const k = Math.exp(-dt * 3.2); this.vx *= k; this.vy *= k; }
+      else if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted') { const k = Math.exp(-dt * (this.state === 'slide' ? TACKLE.slideK : 3.2)); this.vx *= k; this.vy *= k; }   // (t-018: the slide glides further)
       else this.steer(0, 0, dt);
     }
     if (this.stun > 0 && this.state !== 'slide') this.steer(0, 0, dt);

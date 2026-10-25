@@ -54,7 +54,8 @@ hc2Mix(Match, {
       const near = this.add.image(ox, oy, 'props', `goal-${side}-net_near`).setOrigin(0, 0).setDepth(oy + a.sort_near_post_y);
       this.nets[side] = { imgs: [back, near], x: ox };
       this.add.image(ox, oy, 'props', `goal-${side}-post_near`).setOrigin(0, 0).setDepth(oy + a.sort_near_post_y + 1);
-      if (gpOn()) this.netCells(this.nets[side]);                               // t-013: cut now, not on the first goal (~30 ms once)
+      if (nfxOn() && this.renderer.type === Phaser.WEBGL) this.netMesh(this.nets[side]);   // t-023 NET_FX: the art on a mesh (canvas: t-013's cells)
+      else if (gpOn()) this.netCells(this.nets[side]);                          // t-013: cut now, not on the first goal (~30 ms once)
     }
     const sz = MAN.propSizes['flag-0'], foot = MAN.flags.pole_foot_in_sprite;
     this.flags = [];
@@ -71,15 +72,16 @@ hc2Mix(Match, {
   // (props atlas goal-*-net_back / net_near) is cut into small cells that move with the bulges the ball makes (ball.js
   // gpNet), so the mesh itself bends and ripples - no new art. At rest the plain images show and the cells sleep.
   netDraw() {
+    const fx = nfxOn();
     for (const side of ['L', 'R']) {
       const n = this.nets && this.nets[side], L = this.netS[side]; if (!n) continue;
+      if (fx && !n.meshes && this.renderer.type === Phaser.WEBGL) this.netMesh(n);   // t-023 NET_FX (switched on after the goals were built)
+      if (fx && n.meshes) { this.netWarp(n, side, L); continue; }
+      if (n.meshOn) { for (const o of n.meshes) { o.mesh.setVisible(false); } for (const im of n.imgs) im.setVisible(true); n.meshOn = false; }   // (switched off: t-013's cells again)
       if (!L.length) { if (n.cellsOn) { for (const c of n.cells) c.img.setVisible(false); for (const im of n.imgs) im.setVisible(true); n.cellsOn = false; } continue; }
       if (!n.cells) this.netCells(n);
       if (!n.cellsOn) { for (const c of n.cells) c.img.setVisible(true); for (const im of n.imgs) im.setVisible(false); n.cellsOn = true; }
-      const B = L.map(q => { const u = Math.hypot(q.sx, q.sy) || 1;
-        return { X: wx(q.hx, q.hy), Y: wy(q.hy, q.hz) - 9, d: q.d, sx: q.sx, sy: q.sy, ux: q.sx / u, uy: q.sy / u, s2: 2 * ((GP.netSig + 0.6 * Math.abs(q.d)) * PX_X) ** 2,
-          front: GP.ripV * q.age, rip: GP.ripPx * Math.min(1, q.peak / 0.25) * Math.exp(-q.age / GP.ripTau) }; });
-      const M = GP.drawMax;
+      const B = this.netBulges(L), M = fx ? NFX.drawMax : GP.drawMax;          // (t-023 canvas fallback: the bigger stretch too)
       for (const c of n.cells) {
         let dx = 0, dy = 0;
         for (const q of B) {
@@ -90,6 +92,81 @@ hc2Mix(Match, {
         const m = Math.hypot(dx, dy); if (m > M) { dx *= M / m; dy *= M / m; }
         c.img.setPosition(c.x0 + Math.round(dx), c.y0 + Math.round(dy));
       }
+    }
+  },
+  // the bulges on one goal's net, in screen px: where (X, Y), how deep (d m, s* px per m), the ripple running out
+  netBulges(L) {
+    const k = nfxOn() ? NFX.sigK : 0.6;                                          // (t-023: a deeper stretch pulls a wider patch of mesh with it)
+    return L.map(q => { const u = Math.hypot(q.sx, q.sy) || 1;
+      return { X: wx(q.hx, q.hy), Y: wy(q.hy, q.hz) - 9, d: q.d, sx: q.sx, sy: q.sy, ux: q.sx / u, uy: q.sy / u, s2: 2 * ((GP.netSig + k * Math.abs(q.d)) * PX_X) ** 2,
+        front: GP.ripV * q.age, rip: GP.ripPx * Math.min(1, q.peak / 0.25) * Math.exp(-q.age / GP.ripTau) }; });
+  },
+  // t-023 NET_FX (Luca: "add more polygons or whatever to the net so it makes it more flowy"): the same PixelLab net art
+  // (goal-*-net_back / net_near), now on a WebGL mesh of NFX.seg-px triangles that share their corners, so the art
+  // stretches smoothly instead of cells sliding apart: a deep bulge pulls the threads long, nothing is redrawn. Empty
+  // cells get no triangles. At rest the plain images show and the meshes sleep. Each vertex: rest (x0, y0) in the image,
+  // its world point (X, Y).
+  netMesh(n) {
+    const Sg = NFX.seg, M = Phaser.Geom.Mesh; n.meshes = [];
+    for (const im of n.imgs) {
+      const f = im.frame, ss = f.data && f.data.trim ? f.data.spriteSourceSize : { x: 0, y: 0 }, w = f.cutWidth, h = f.cutHeight, TW = f.source.width, TH = f.source.height;
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d');
+      g.drawImage(f.source.image, f.cutX, f.cutY, w, h, 0, 0, w, h); const A = g.getImageData(0, 0, w, h).data;
+      const mesh = this.add.mesh(im.x, im.y, im.texture.key).setDepth(im.depth).setVisible(false);
+      mesh.setOrtho(mesh.width, mesh.height); mesh.hideCCW = false;             // (orthographic: a vertex's x, -y are its pixel offsets from the mesh;
+      mesh.depthSort = () => mesh;                                              // netWarp sets them straight onto vx / vy each frame, so Phaser's own
+                                                                                // per-frame projection and depth sort of ~5000 flat triangles are skipped)
+      const cols = Math.ceil(w / Sg), rows = Math.ceil(h / Sg), V = [];
+      for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) {
+        const px = Math.min(i * Sg, w), py = Math.min(j * Sg, h), x0 = ss.x + px, y0 = ss.y + py;
+        const v = new M.Vertex(x0, -y0, 0, (f.cutX + px) / TW, (f.cutY + py) / TH); v.x0 = x0; v.y0 = y0; v.X = im.x + x0; v.Y = im.y + y0; V.push(v);
+      }
+      const faces = [];
+      for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+        let any = false; for (let y = j * Sg; y < Math.min(h, (j + 1) * Sg) && !any; y++) for (let x = i * Sg; x < Math.min(w, (i + 1) * Sg); x++) if (A[(y * w + x) * 4 + 3]) { any = true; break; }
+        if (!any) continue;
+        const a = V[j * (cols + 1) + i], b = V[j * (cols + 1) + i + 1], c = V[(j + 1) * (cols + 1) + i], d = V[(j + 1) * (cols + 1) + i + 1];
+        for (const F of [new M.Face(a, c, b), new M.Face(b, c, d)]) { F.cx = (a.X + d.X) / 2; F.cy = (a.Y + d.Y) / 2; faces.push(F); }
+      }
+      mesh.faces = faces.slice(); mesh.vertices = V; mesh.dirtyCache[9] = -1;
+      n.meshes.push({ mesh, im, faces, V, torn: false });
+    }
+  },
+  // move every vertex with the bulges (as t-013's cells: deepest where the ball is, a ripple running out), and an LV3
+  // tear: the triangles over the hole go (it opens in NFX.holeT s, as wide as the ball punched it), the torn edges
+  // peel back around it and flutter, the mesh round it stays stretched; at the restart netStep drops netRip and the
+  // net is whole again
+  netWarp(n, side, L) {
+    const T = this.netRip && this.netRip.side === side ? this.netRip : null;
+    if (!L.length && !T) {
+      if (n.meshOn) { for (const o of n.meshes) { o.mesh.setVisible(false); if (o.torn) { o.mesh.faces = o.faces.slice(); o.mesh.dirtyCache[9] = -1; o.torn = false; } } for (const im of n.imgs) im.setVisible(true); n.meshOn = false; }
+      return;
+    }
+    if (!n.meshOn) { for (const o of n.meshes) o.mesh.setVisible(true); for (const im of n.imgs) im.setVisible(false); n.meshOn = true; }
+    const B = this.netBulges(L), Mx = NFX.drawMax;
+    let H = null;
+    if (T) { const age = Math.max(0, (this.gpT || 0) - T.t), sc = PX_X * scaleAt(T.hy);
+      H = { X: wx(T.hx, T.hy), Y: wy(T.hy, T.hz) - 9, R: NFX.holeR * sc * Math.min(1, age / NFX.holeT), R0: NFX.holeR * sc, sx: T.sx, sy: T.sy, d: T.d,
+        s2: 2 * ((GP.netSig + NFX.sigK * T.d) * PX_X) ** 2, fl: Math.sin(age * 2 * Math.PI * NFX.flapHz) * Math.exp(-age / 0.8) }; }
+    for (const o of n.meshes) {
+      for (const v of o.V) {
+        let dx = 0, dy = 0;
+        for (const q of B) {
+          const rx = v.X - q.X, ry = v.Y - q.Y, r2 = rx * rx + ry * ry, a = q.d * Math.exp(-r2 / q.s2);
+          dx += a * q.sx; dy += a * q.sy;
+          if (q.rip > 0.05) { const r = Math.sqrt(r2); if (r < q.front) { const w = q.rip * Math.sin(2 * Math.PI * (r - q.front) / GP.ripL) * Math.exp((r - q.front) / (2 * GP.ripL)); dx += w * q.ux; dy += w * q.uy; } }
+        }
+        if (H) {
+          const rx = v.X - H.X, ry = v.Y - H.Y, r2 = rx * rx + ry * ry, r = Math.sqrt(r2) || 1, a = H.d * 0.6 * Math.exp(-r2 / H.s2);   // the mesh round the hole stays stretched back
+          dx += a * H.sx; dy += a * H.sy;
+          if (r < H.R0 * 2.2 && H.R > 0) { const e = (NFX.flap * (H.R / H.R0) + 3 * H.fl) * Math.max(0, 1 - r / (H.R0 * 2.2)); dx += rx / r * e; dy += ry / r * e; }   // the torn edges peel open
+        }
+        const m = Math.hypot(dx, dy); if (m > Mx) { dx *= Mx / m; dy *= Mx / m; }
+        v.x = v.x0 + Math.round(dx); v.y = -(v.y0 + Math.round(dy)); v.vx = v.x; v.vy = -v.y;
+      }
+      const tear = !!(H && H.R > 1);
+      if (tear) { o.mesh.faces = o.faces.filter(F => (F.cx - H.X) ** 2 + (F.cy - H.Y) ** 2 > H.R * H.R); o.torn = true; }
+      else if (o.torn) { o.mesh.faces = o.faces.slice(); o.torn = false; }
     }
   },
   // cut the two net images of one goal into GP.cell-pixel cells (empty ones skipped; each overlaps the next by a pixel so
@@ -154,8 +231,19 @@ hc2Mix(Match, {
     // a keeper sent up and out (ball.js gkDeflect sets b.camUp), or an open-play lob, high in the air: the camera rides up
     // with it (its height counts 85%, not 30%) with less lead, until it comes down, someone has it, or it's out and back
     if (b.camUp && (b.owner || (b.z < 0.3 && b.vz <= 0))) b.camUp = false;
-    const rideUp = !b.owner && (b.camUp || b.lob) && b.z > 0.5;
-    let tx = X + b.vx * (rideUp ? 9 : 14), ty = wy(b.y, b.z * (rideUp ? 0.85 : 0.3)) - 40 - clamp(1 - b.y / 20, 0, 1) * 170;
+    // t-019 (Luca 25 Oct: "the camera is janky [...] make it so the camera doesnt follow - try make it smooth"): an
+    // open-play lob no longer rides up - the camera stays on the play, its normal follow. Only t-007's ball a keeper sent
+    // up and out still does. And while a lob is on, the follow's lead (14 px per m/s of the ball) eases at LOB_AIM.camLead
+    // instead of jumping with the ball's speed at the kick and at the drop; once the lob is over it eases back to the
+    // normal, instant lead before handing over. (LOB_AIM.camOld = the old camera: the Lab's LV5 'before'.)
+    const old = LOB_AIM.camOld, rideUp = !b.owner && (b.camUp || (old && b.lob)) && b.z > 0.5;
+    const rawL = b.vx * (rideUp ? 9 : 14), lobOn = !old && ((b.lob && !b.owner) || (this.camLeadOn && Math.abs((this.camLead ?? rawL) - rawL) > 4));
+    if (lobOn) this.camLead = (this.camLead ?? rawL) + (rawL - (this.camLead ?? rawL)) * (1 - Math.exp(-dt * LOB_AIM.camLead)); else this.camLead = rawL;
+    this.camLeadOn = lobOn;
+    let tx = X + this.camLead, ty = wy(b.y, b.z * (rideUp ? 0.85 : 0.3)) - 40 - clamp(1 - b.y / 20, 0, 1) * 170;
+    const LB = this.lobCamBlend;                                                // t-019 RING: the aim's framing hands over to the follow
+    if (LB) { if (old) this.lobCamBlend = null; else { LB.t += dt; const s = clamp(LB.t / LOB_AIM.camBlend, 0, 1), e = s * s * (3 - 2 * s);
+      tx = LB.x + (tx - LB.x) * e; ty = LB.y + (ty - LB.y) * e; if (s >= 1) this.lobCamBlend = null; } }
     const fs = this.foulScene;
     if (fs) { const q = fs.card ? fs.by : fs.victim; tx = wx(q.x, q.y); ty = wy(q.y) - 70 - clamp(1 - q.y / 20, 0, 1) * 120; }   // v0.8: the camera stays on the incident
     const spc = this.setPiece;

@@ -81,7 +81,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
       d.textContent += msg + '\n';
     }
     addEventListener('error', function (e) { show('ERROR: ' + e.message + ' (' + String(e.filename || '').split('/').pop() + ':' + e.lineno + ')'); window.HC2_CRUMB('error: ' + e.message); });
-    addEventListener('unhandledrejection', function (e) { show('ERROR (promise): ' + (e.reason && e.reason.message || e.reason)); });
+    addEventListener('unhandledrejection', function (e) { show('ERROR (promise): ' + (e.reason && e.reason.message || e.reason)); window.HC2_CRUMB('error (promise): ' + (e.reason && e.reason.message || e.reason)); });   // (t-021: the crumb too, like an error; Bug Watch keeps the clip - replay.js)
   })();
 </script>
 <script>window.HC2_TEST_FAST = !/flow/.test(location.hash);   // the regression tests run the old quick flow; test.html#flow = the real one</script>

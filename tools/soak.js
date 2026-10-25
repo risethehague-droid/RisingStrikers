@@ -11,6 +11,9 @@
 //   ONE='seed=8919 home=IS away=IRO lvl=hard ai=new weather=rain tod=night' node tools/soak.js    replay one match
 //   OUT=soak-out node tools/soak.js                      also write soak-out/soak-<time>.json and .md
 //   TAP=1 node tools/soak.js                            t-010: with the TAP KICK forced on (it's off in matches until Luca's OK)
+//   PACE=arcade node tools/soak.js                      t-020: the matches on ARCADE (default: the page's own, CLASSIC); the summary adds
+//                                                        board rebounds, those that went up for a header, headers / volleys off them,
+//                                                        special shots, special saves, the ARCADE SP extras
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
 //
 // The set-ups rotate with different strides, so pairs of factors (teams x level, level x weather, AI x light...)
@@ -56,7 +59,15 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       return r; };
     // exploit hunt: a runner standing still short of his run's spot (seconds), and a carrier parked out wide in the final 30 m (4 s+)
     W.z0 = W.z; W.z = () => { W.z0(); Object.assign(W, { taps: 0, runIdle: 0, wideHold: 0, wideT: 0, wideIn: 0, wideCross: 0, widePass: 0, wideShot: 0, wideLost: 0, wideOwner: null, lastKick: null }); }; W.z();
+    // t-018 TACKLE COUNTERS (Luca 25 Oct: the tackle was spammable): slides and standing challenges that actually went in
+    // (a press on cool-down doesn't count), the ones that won the ball, and how often the ball changed teams - wrapped
+    // around the game's own moves, so the before / after soaks count the same way
+    W.z1 = W.z; W.z = () => { W.z1(); Object.assign(W, { slides: 0, slideWins: 0, challenges: 0, chWins: 0, possCh: 0, possTeam: null }); }; W.z();
+    const st0 = m.slideTackle; m.slideTackle = function (p, ...a) { const was = p.state, r = st0.call(this, p, ...a); if (p.state === 'slide' && was !== 'slide') W.slides++; return r; };
+    const ch0 = m.challenge; m.challenge = function (p, c, ...a) { const c0 = p.cool, r = ch0.call(this, p, c, ...a); if (p.cool > c0) { W.challenges++; if (this.ball.owner === p) W.chWins++; } return r; };
     const ai0 = m.ai; m.ai = function (dt, ...rest) { const r = ai0.call(this, dt, ...rest), b = this.ball, o = b.owner;
+      if (o && !o.keeper && o.team !== W.possTeam) { if (W.possTeam) W.possCh++; W.possTeam = o.team; }   // (t-018)
+      for (const p of this.all) if (p.state === 'slide' && p.slideWon && !p._soakWon) { p._soakWon = true; W.slideWins++; } else if (p.state !== 'slide') p._soakWon = false;
       for (const t of [this.home, this.away]) if (t.wing) for (const [p, w] of t.wing) if (!p.busy() && p.speed < 0.3 && len(w.x - p.x, w.y - p.y) > 2) W.runIdle += dt;
       { const wo = W.wideOwner;                                                     // wide in the final 30 m: how did each of those moments end?
         if (wo && o !== wo) { const k = W.lastKick && W.lastKick.p === wo ? W.lastKick.kind : null; W[k === 'cross' ? 'wideCross' : k === 'shot' ? 'wideShot' : k || (o && o.team === wo.team) ? 'widePass' : 'wideLost']++; W.wideOwner = null; }
@@ -77,12 +88,22 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       if (A) { W.aerialGoals++; if (W.lastAerial.kind === 'airSp') W.airSpGoals++; if (W.lastAerial.kind === 'head') W.headGoals++; } if (C) { W.crossGoals++; W['crossGoals' + W.lastCross.y]++; } W.goalLog.push(`${v.team.name} ${v.min}' ${v.how || '?'}${A ? ' AERIAL:' + W.lastAerial.kind : ''}${C ? ' from a cross ' + W.lastCross.y : ''} far ${Math.round(v.far || 0)}`); } }); }
     return GAME_VER; }, !!process.env.TAP);
   if (process.env.GOAL_PHYS) await page.evaluate(() => { GOAL_PHYS = true; });   // t-013
+  // t-021: each check's kind on this version (bug / odd / look...), so the report can lead with the real bugs and put the
+  // cosmetic 'look' ones (animation flicker, jitter, stutter: counted, never clipped) in one line
+  const SEV = await page.evaluate(() => Object.fromEntries(Object.entries(BW_CHECKS).map(([k, v]) => [k, v.sev])));
+  const ERRS = new Set(['CRASH', 'CONSOLE_ERR', 'FROZE']), RANK = { bug: 1, flag: 2, mark: 3, odd: 4, perf: 5, look: 6 };
+  const rank = c => (ERRS.has(c) ? 0 : RANK[SEV[c]] ?? 5);
+  if (process.env.PACE) await page.evaluate(v => { setPace(v); }, process.env.PACE);   // t-020 (applied at every kick-off)
+  await page.evaluate(() => { const m = window.__hc2, W = window.__wing, sp = m.special, sf = m.saveFx;   // t-020: special shots / saves (counting only: all arguments passed on)
+    m.special = function (...a) { W.spShot = (W.spShot || 0) + 1; return sp.apply(this, a); };
+    m.saveFx = function (gk, ...a) { if (gk && gk.spSave) W.spSave = (W.spSave || 0) + 1; return sf.call(this, gk, ...a); }; });
   const out = { game: ver, at: new Date().toISOString(), matches: [], errors: errs };
   for (let i = 0; i < list.length; i++) {
     const c = list[i]; cur = i; const t0 = Date.now();
     await page.evaluate(c => { window.__ready = false; window.__hc2.setTeams(c.home, c.away, () => { window.__ready = true; }); }, c);
     await page.waitForFunction(() => window.__ready, null, { timeout: 120000 });
     await page.evaluate(c => { const m = window.__hc2; window.__soakInc = []; window.__wing.z(); Math.random = window.__rngOf(c.seed); m.gpStats = { wood: 0, back: 0, pops: 0, net: 0 };   // (t-013's goal-physics counts)
+      m.arcN = { reb: 0, air: 0, rebShots: 0, sp: 0 }; window.__wing.spShot = 0; window.__wing.spSave = 0;   // (t-020's ARCADE counts)
       setAiMode(c.ai); setDiff(c.lvl === 'base' ? 'normal' : c.lvl);
       window.__diffTeams = { home: Object.assign({}, DIFF_TRAITS.base, { lvl: 'base' }), away: Object.assign({}, DIFF_TRAITS[c.lvl] || DIFF_TRAITS.normal, { lvl: c.lvl }) };
       m.mset = { arena: 'loo', tod: c.tod, weather: c.weather, ending: 'none' }; m.applyRules();
@@ -101,26 +122,34 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       const sum = k => (H[k] || 0) + (A[k] || 0);                       // t-007: the keeper numbers (both sides together)
       // merge of t-007 + t-012 (t-008): both sets of numbers, the keeper's and the wing play's
       return { score: `${m.home.score}-${m.away.score}`, shots: `${H.shots || 0}-${A.shots || 0}`, goals: m.home.score + m.away.score,
-        corners: sum('corners'), onT: sum('onT'), held: sum('held'), parried: sum('parried'), kOut: sum('kOut'), kIn: sum('kIn'), fouls: `${H.fouls || 0}-${A.fouls || 0}`,
-        possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null,
+        corners: sum('corners'), onT: sum('onT'), held: sum('held'), parried: sum('parried'), kOut: sum('kOut'), kIn: sum('kIn'), fouls: `${H.fouls || 0}-${A.fouls || 0}`, offsides: sum('offsides'),   // (t-024)
+        possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), arc: Object.assign({}, m.arcN || {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null,
         wing: Object.fromEntries(Object.entries(window.__wing).filter(([k, v]) => (typeof v === 'number' && k !== 'wideT') || k === 'goalLog')) }; });
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
-    const tr = Object.entries(st.trips).map(([k, v]) => `${k} ${v}`).join(', ');
+    const TR = Object.entries(st.trips).sort((a, b) => rank(a[0]) - rank(b[0]) || b[1] - a[1]), lk = TR.filter(([k]) => SEV[k] === 'look');   // (t-021: bugs first, looks last)
+    const tr = [TR.filter(([k]) => SEV[k] !== 'look').map(([k, v]) => `${k} ${v}`).join(', '), lk.length ? `looks: ${lk.map(([k, v]) => `${k} ${v}`).join(', ')}` : ''].filter(Boolean).join(' · ');
     { const w = st.wing; console.log(`   wing: crosses ${w.cross} (whipped ${w.crossWhip}, floated ${w.crossFloat}, other ${w.crossCut}, you ${w.crossH} / them ${w.crossA}) + set-piece ${w.spCross} · aerial shots ${w.aerial} (head ${w.head}, volley ${w.volley}, overhead ${w.bike}, diving ${w.dhead}, air SP ${w.airSp}) · goals ${w.goals}: aerial ${w.aerialGoals}, after a cross ${w.crossGoals} · corners ${st.corners} · chips ${w.chips} · runners idle ${w.runIdle.toFixed(1)} s · parked wide ${w.wideHold}${w.goalLog.length ? '\n     ' + w.goalLog.join('\n     ') : ''}`); }
+    { const w = st.wing; console.log(`   tackles (t-018): slides ${w.slides} (won the ball ${w.slideWins}) · challenges ${w.challenges} (won ${w.chWins}) · fouls ${st.fouls} · possession changes ${w.possCh}`); }
+    if (process.env.PACE === 'arcade') { const a = st.arc; console.log(`   arcade: board rebounds ${a.reb} (up for a header ${a.air}) · headers / volleys off them ${a.rebShots} · special shots ${st.wing.spShot} · special saves ${st.wing.spSave} · aerial battles ${st.wing.battles} · SP extras ${a.sp} (aerial ${a.aerial || 0}, rebound ${a.rebound || 0}, save ${a.save || 0})`); }
     console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${process.env.TAP ? `tap kicks ${st.wing.taps} · ` : ''}${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
+    console.log(`   offsides ${st.offsides || 0}`);                                  // t-024 (aim: 1-3 a match)
   }
   await br.close();
-  // summary: every Bug Watch code across all matches, bugs first
+  // summary: every Bug Watch code across all matches, errors and bugs first (t-021: the 'look' ones apart, counts only)
   const by = {};
   for (const mt of out.matches) {
-    for (const [code, n] of Object.entries(mt.trips)) { const e = by[code] = by[code] || { code, trips: 0, matches: 0, sev: '', title: '', examples: [] }; e.trips += n; e.matches++; }
-    for (const x of mt.incidents) { const e = by[x.code] = by[x.code] || { code: x.code, trips: 0, matches: 0, examples: [] }; e.sev = x.sev; e.title = x.title;
+    for (const [code, n] of Object.entries(mt.trips)) { const e = by[code] = by[code] || { code, trips: 0, matches: 0, sev: SEV[code] || '', title: '', examples: [] }; e.trips += n; e.matches++; }
+    for (const x of mt.incidents) { const e = by[x.code] = by[x.code] || { code: x.code, trips: 0, matches: 0, examples: [] }; e.sev = SEV[x.code] || x.sev; e.title = x.title;
       if (e.examples.length < 3) e.examples.push(`#${mt.n} ${x.min}' ${x.msg} (repro: ${mt.repro})`); }
   }
-  out.summary = Object.values(by).sort((a, b) => (a.sev === 'bug' ? 0 : 1) - (b.sev === 'bug' ? 0 : 1) || b.trips - a.trips);
+  out.summary = Object.values(by).sort((a, b) => rank(a.code) - rank(b.code) || b.trips - a.trips);
+  const bugs = out.summary.filter(e => e.sev === 'bug'), looks = Object.keys(SEV).filter(c => SEV[c] === 'look').map(c => by[c] || { code: c, trips: 0, matches: 0 });
+  out.looks = Object.fromEntries(looks.map(e => [e.code, e.trips]));
   { const T = {}, n = out.matches.length; for (const mt of out.matches) { for (const [k, v] of Object.entries(mt.wing)) if (typeof v === 'number') T[k] = (T[k] || 0) + v;
       T.corners = (T.corners || 0) + mt.corners; const [a, b] = mt.shots.split('-').map(Number); T.shots = (T.shots || 0) + a + b; const [g1, g2] = mt.score.split('-').map(Number); T.score = (T.score || 0) + g1 + g2; }
     out.wing = Object.fromEntries(Object.entries(T).map(([k, v]) => [k, +(v / n).toFixed(2)]));
+    if (process.env.PACE === 'arcade') { const A = {}; for (const mt of out.matches) for (const [k, v] of Object.entries(mt.arc)) A[k] = (A[k] || 0) + v; out.arc = Object.fromEntries(Object.entries(A).map(([k, v]) => [k, +(v / n).toFixed(2)]));
+      console.log('\nARCADE per match (average of ' + n + '): ' + Object.entries(out.arc).map(([k, v]) => `${k} ${v}`).join(' · ')); }
     console.log('\nWING per match (average of ' + n + '): ' + Object.entries(out.wing).map(([k, v]) => `${k} ${v}`).join(' · '));
     const nw = out.matches.filter(mt => mt.setup.ai === 'new'), N = {};                // (the CLASSIC AI, v0.7.6, is kept as it was: no wing play)
     for (const mt of nw) { for (const k of ['cross', 'aerial', 'airSp', 'airSpGoals', 'aerialGoals', 'goals']) N[k] = (N[k] || 0) + mt.wing[k]; const [a, b] = mt.shots.split('-').map(Number); N.shots = (N.shots || 0) + a + b; N.corners = (N.corners || 0) + mt.corners; }
@@ -130,9 +159,12 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
   const md = [`# Soak ${out.game} · ${out.matches.length} matches · ${out.at.slice(0, 16).replace('T', ' ')} UTC`, '',
     `- Finished: ${fin} of ${out.matches.length}${stalls.length ? ` · STALLS: ${stalls.map(m => `#${m.n}`).join(', ')}` : ''}`,
     `- Page errors: ${errs.length}${errs.length ? '' : ' (none)'}`,
-    `- Per match: goals ${per('goals')} · shots on target ${per('onT')} · corners ${per('corners')} · saves held ${per('held')} · parried ${per('parried')} · keeper touches out ${per('kOut')} / in play ${per('kIn')} (totals ${tot('goals')} / ${tot('onT')} / ${tot('corners')} / ${tot('held')} / ${tot('parried')})`, ...errs.slice(0, 5).map(e => `  - #${e.match + 1}: ${e.msg} ${e.stack}`), '',
+    `- Offsides per match (t-024): ${per('offsides')} (total ${tot('offsides')})`,
+    `- Per match: goals ${per('goals')} · shots on target ${per('onT')} · corners ${per('corners')} · saves held ${per('held')} · parried ${per('parried')} · keeper touches out ${per('kOut')} / in play ${per('kIn')} (totals ${tot('goals')} / ${tot('onT')} / ${tot('corners')} / ${tot('held')} / ${tot('parried')})`, ...errs.slice(0, 5).map(e => `  - #${e.match + 1}: ${e.msg} ${e.stack}`),
+    `- Real bugs: ${bugs.length ? bugs.map(e => `${e.code} ${e.trips}`).join(' · ') : 'none'}`, ...bugs.flatMap(e => e.examples.map(x => `  - ${e.code}: ${x}`)),
+    `- Looks (cosmetic: counted, no clips): ${looks.map(e => `${e.code} ${e.trips}${e.matches ? ` in ${e.matches} matches` : ''}`).join(' · ')}`, '',
     '| Code | Kind | Trips | In matches | Example |', '| --- | --- | --- | --- | --- |',
-    ...out.summary.map(e => `| ${e.code} | ${e.sev || '?'} | ${e.trips} | ${e.matches} | ${(e.examples[0] || '').replace(/\|/g, '/').slice(0, 160)} |`), '',
+    ...out.summary.filter(e => e.sev !== 'look').map(e => `| ${e.code} | ${e.sev || '?'} | ${e.trips} | ${e.matches} | ${(e.examples[0] || '').replace(/\|/g, '/').slice(0, 160)} |`), '',
     '| # | Set-up | Result | Shots | On target | Corners | Held / parried | Possession (home) | Repro |', '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
     ...out.matches.map(m => `| ${m.n} | ${m.setup.home} v ${m.setup.away}, ${m.setup.lvl}, ${m.setup.ai} AI, ${m.setup.weather}/${m.setup.tod} | ${m.finished ? m.score : 'not finished'} | ${m.shots} | ${m.onT} | ${m.corners} | ${m.held} / ${m.parried} | ${m.possHome}% | \`${m.repro}\` |`)].join('\n');
   console.log('\n' + md + '\n');
