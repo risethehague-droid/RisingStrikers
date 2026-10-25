@@ -776,6 +776,7 @@ hc2Mix(Match, {
     const sp = len(b.vx, b.vy);
     if (b.owner) {                                                               // a loose touch can be nicked
       const o = b.owner; if (o.hands) return;
+      if (this.gkSmotherTake(o)) return;                                         // t-017: a keeper diving at his feet (keeper.js)
       const od = len(o.x - b.x, o.y - b.y); if (od < 0.85) return;
       for (const p of o.team.opp.players) {
         if (p.cool > 0 || p.stun > 0 || p.state === 'slide') continue;
