@@ -1,3 +1,4 @@
+// HELP OUT HAGUE CUP II - web game v0.12.4 (Luca OK'd PRs #36, #37, #38, 25 Oct: THE SPECIAL-SAVE CLASH - a charged save covers the whole goal, then power against power: held / bounces off / hands blown away / the body; SET PIECES WITH A RHYTHM - players jog into shape before every restart, CLASSIC and ARCADE timings, a press skips; KEEPER HANDS - the dive grabs the ball into his gloves, he gets up with it and carries it (PixelLab batch 21 carry walk / jog), the computer's keeper walks a calm catch out)
 // HELP OUT HAGUE CUP II - web game v0.12.3 (Luca OK'd PR #35, 25 Oct: THE KEEPER'S RANGE - "gk needs to approach from further range to close in on attackers": on a breakaway he starts closing at 32 m, comes out to the edge of his box as the striker gets within ~20 m and attacks the ball from ~9 m away; dives with his hands only inside his box)
 // v0.12.2 (Luca OK'd PRs #34, #31, #33, 25 Oct ~15:30: THE LIVING NET in every match - it stretches by shot strength and special level, the ball rolls in it, an LV3 special rips through, shown in every replay; ARCADE throw-ins again (no touchline boards; the byline boards stay); the house rule 'Think like football')
 // v0.12.1 (Luca OK'd PR #32, 25 Oct 15:14 - his INSTA FLAG: a defender's standing tackle stole the ball off a striker in his aerial special's wind-up, so a LV3 aerial was "completely blocked"; now that tackle lunges at nothing)
@@ -429,7 +430,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.12.3';
+const GAME_VER = 'v0.12.4';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)

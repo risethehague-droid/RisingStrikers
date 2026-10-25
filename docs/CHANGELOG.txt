@@ -1,3 +1,27 @@
+HC2 WEB GAME - v0.12.4 (25 Oct) - SPECIAL-SAVE CLASH + SET-PIECE RHYTHM + KEEPER HANDS (PRs #36, #37, #38, Luca's OK)
+- THE SPECIAL-SAVE CLASH (#36, t-028). Luca 14:59: "the keeper can cover the whole goal when using a special save, but a
+  special shot can still go through the hands if it's stronger, or bounce off". Pressing a special save CHARGES his
+  gloves (a glow); the save plays from the real ball, not a 1.2 s prediction (fixes INSTA FLAG qa-flag-20261025-1 "the
+  gk save plays too early"); with it on he reaches anything on target. Special shot v special save: the ball holds on
+  his gloves ~0.6 s (sparks, slow-mo, Rami "POWER AGAINST POWER"), then by shot/save power: HELD, BOUNCES OFF (parried
+  or tipped for a corner), HANDS BLOWN AWAY (goal), THE BODY (blasted into the net with it). Caption says the powers.
+  ENTER cuts it short. Test Lab KC1-6. Modelled on Inazuma Eleven / Captain Tsubasa / Mario Strikers.
+- SET PIECES WITH A RHYTHM (#37, t-029). Luca 14:59: offside was called "then they resume without people reorganizing";
+  corners "transition too quick". Every restart gets a SETUP: the nearby players jog into the restart's shape, anyone
+  far away moves under the TV wipe (never a teleport in view), the taker walks up and places it, then you aim / the
+  computer takes. One timing table (core.js SETUP): throw-in 1.5 s, offside / far free kick 2.5 s, corner and a
+  free kick with a wall 4 s; ARCADE 0.8 / 1.5 / 2.5. SHOOT / PASS / START skips once the shape is mostly in. Offside:
+  attackers trot back onside, the defence pushes up, a defender or the keeper places it. Test Lab RS1-7 + RS1-A, RS2-A.
+  Soak: time in play ~88%, set pieces ~4 s before the kick.
+- KEEPER HANDS (#38, t-031 + PixelLab batch 21). Luca 15:41: "dive with the hands to grab the ball, also be able to
+  hold it in his hands while he moves, keep it simple and smooth". On a catching dive the ball is drawn between his
+  gloves from the contact frame through the landing and the get-up (glove points measured off the PixelLab frames,
+  GK_HANDS); a parry still leaves the gloves on contact. New carry moves kcarry (walk) / kcarryrun (jog) in all six
+  keeper kits (batch 21: 10 generations, 112 frames, old frames untouched); the computer's keeper walks a calm catch
+  out ~4 m / ~2 s before he throws, under pressure he releases as before; you carry it as before (box, 6 s). Test Lab
+  GH1-6. Modelled on FIFA / PES (ball locked to the gloves, carry run, walk it out).
+- Tests on the merged build: smoke clean; KC, GH, RS, GK errors []; soak 4 matches 0 page errors, Real bugs none.
+
 HC2 WEB GAME - v0.12.3 (25 Oct) - THE KEEPER'S RANGE (PR #35, Luca's OK)
 - Luca 14:42: "gk needs to approach from further range to close in on attackers who are coming close, right now it's
   easy to run around the goalie". keeper.js GK_1V1: on a breakaway (a striker running at goal, nobody covering) he
