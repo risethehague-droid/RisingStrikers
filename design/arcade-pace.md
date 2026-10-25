@@ -185,3 +185,46 @@ These 8 seeds score more than the co-designer's v0.11.0 sample (2.5 goals): matc
 - Still open:
   - Rise "run" (19% vs 10%), about half of it from ADVANTAGE (Rise fouls most, and a foul now plays on)
   - Hard "def" (63% vs 53%)
+
+---
+
+## 7. Part 3, built (t-020, worker-l, 25 Oct): "incredibly intense in a dynamic sense"
+
+Luca, 25 Oct 06:56: "arcade should have a smaller pitch, more rebounds that lead into aerials, more energy sp, make the
+game feel incredibly intense in a dynamic sense". Stacks on part 2 (`worker-f/arcade-2`); none of part 2's numbers
+changed. ARCADE only (`PACE.arcade`, the new `ARCADE` block in `core.js`): CLASSIC plays exactly as before (12 seeded soak
+matches identical, line for line).
+
+**What's in**
+1. **Rebounds:** invisible boards along the touchlines and bylines (not the goal mouth under the bar). No throw-ins,
+   goal kicks or corners: the ball comes back off the board with 75% of its speed into it, and a ball on the grass
+   pops up (0.65 x the speed into it, more for a square hit: a 14 m/s drive comes back ~4 m high, a firm pass ~1.3 m).
+   No dice, so the AI's predicted path is the real one. Nothing drawn.
+2. **Aerials from them:** a rebound going up past 1.3 m becomes a high ball "aimed" at the nearest man of the side that
+   touched it last, so the lob code takes over (his run under the drop, their man contesting, the duel, the AERIAL
+   BATTLE, headers, volleys, aerial specials). The landing ring shows where it drops. Each side also sends its quickest
+   man to meet it at head height (team AI).
+3. **More SP:** part 2's 1.75x fill stays (a bar every 38 s instead of 67 s), plus a little for an AERIAL BATTLE won
+   (+0.12 bar), a header / volley straight off a rebound (+0.14), a special save (+0.18).
+4. **Intensity:** the special-save cut scene 1.5 s -> ~1 s. Already in from part 1/2: livelier ball (0.88 grip, firmer
+   passes), harder shots (1.12, 33 m/s), hit-stop only on shots / specials, quick restarts (a goal -> play on 5.3 s
+   later vs 8.5 s on CLASSIC, Test Lab AR5).
+
+**`tools/soak.js`, computer v computer, per match** (`PACE=arcade`; ARCADE part 3 = 18 matches, the others the first 12)
+
+| | CLASSIC | ARCADE part 2 | ARCADE part 3 |
+| --- | --- | --- | --- |
+| Shots | 9.8 | 13.0 | **15.7** |
+| Goals | 2.8 | 2.3 | **4.2** |
+| Corners / throw-ins | 3.4 / yes | 5.2 / yes | **0 / 0** |
+| Board rebounds (up for a header) | - | - | **7.6 (4.2)** |
+| Headers / volleys off a rebound | - | - | **1.1** |
+| AERIAL BATTLES | 1.2 | 7.0 | **6.6** |
+| Aerial shots (header, volley, overhead, air SP) | 4.8 | 5.6 | **3.6** |
+| Special shots / special saves / aerial specials | 0.8 / 1.7 / 1.1 | 1.3 / 4.4 / 1.5 | **2.1 / 5.7 / 1.0** |
+
+- Still open: aerial shots dipped (corners were ~5 aerial chances a match). The dials: `ARCADE.boards.pop` (more go
+  up), `ARCADE.reb.run` (men come from further).
+
+**Smaller pitch:** a plan, not built (t-020's PR has it in full: options, cost, the decisions for Luca and the
+co-designer).

@@ -1246,6 +1246,132 @@
       wgTest('WG2', 'YOUR winger crosses, your team-mates make the runs', 'you (scripted) go down the line and tap LOB at the near post: who is in the box, who attacks it?', { you: true }),
     ];
   }
+  // ======================================================================= t-020 ARCADE GETS INTENSE (Luca 25 Oct: "more rebounds that
+  // lead into aerials, more energy sp, make the game feel incredibly intense"). Every AR test plays ARCADE (pace: 'arcade').
+  // AR1-2 a loose ball driven at a line: what comes back (speed, height, where); AR3 the real team AI attacking a rebound
+  // in the air; AR4 the SP meter's fill per minute, CLASSIC v ARCADE; AR5 a goal -> the kick-off, ARCADE v CLASSIC.
+  function arBall(x, y, z, vx, vy, vz, by) {                                     // a loose ball on its way, last touched by `by`
+    ballAt(x, y, z); Object.assign(m.ball, { vx, vy, vz, skid: true, rollV: 0.8 * len(vx, vy), last: by.team, lastP: by, reb: null, lob: false, ring: null, how: { kind: 'pass', x, y } });
+  }
+  function arLine(id, name, sub, o) {
+    return { id, group: 'AR', name, sub, kind: 'phys', pace: o.pace || 'arcade',
+      setup(r) {
+        const k = m.home.players[6], gk = m.away.players[0]; cast(o.noGk ? [k] : [k, gk]); put(k, o.from[0] - 3, o.from[1], 0); put(gk, LINE_X, 34, 4);
+        arBall(o.from[0], o.from[1], o.z || 0, o.v[0], o.v[1], o.v[2] || 0, k);
+        Object.assign(r, { human: k, gk, marks: [], o, maxZ: 0, prev: null });
+      },
+      check(r) {
+        const b = m.ball, f1 = v => v.toFixed(1);
+        if (!r.hit) {
+          if (b.inNet) return { o: 'GOAL · the goal mouth is open (no board there)', hold: 1 };
+          if (r.out) return { o: `OUT · ${r.out.toLowerCase()} (CLASSIC: the ball goes out)` };
+          if (b.reb && b.reb.t != null) { const p = r.prev || { vx: b.vx, vy: b.vy, vz: b.vz }, into = b.reb.hit === 'T' ? Math.abs(p.vy) : Math.abs(p.vx);
+            r.hit = { side: b.reb.hit, t: r.t, x: b.x, y: b.y, vin: len(p.vx, p.vy), into, vout: len(b.vx, b.vy), vz: b.vz, apex: b.reb.apex, aimed: b.reb.q }; r.maxZ = b.z; }
+          r.prev = { vx: b.vx, vy: b.vy, vz: b.vz };
+          return r.t > 4 ? { o: 'it never reached the line' } : null;
+        }
+        r.maxZ = Math.max(r.maxZ, b.z);
+        const H = r.hit, dt = r.t - H.t;
+        if (dt < 1.5 && !(b.owner)) return null;
+        const into = H.side === 'T' ? Math.min(b.y, PITCH_W - b.y) : Math.min(b.x, PITCH_L - b.x);
+        return { o: `${H.side === 'T' ? 'TOUCHLINE' : 'BYLINE'} BOARD · in at ${kmh(H.vin)} km/h (${kmh(H.into)} into it) → back at ${kmh(H.vout)} km/h, `
+          + `popped ${f1(r.maxZ)} m up (${f1(H.vz)} m/s) · ${f1(into)} m back into the pitch 1.5 s later${H.aimed ? ` · a high ball: aimed at #${H.aimed.num}, landing ring on` : ''}`, hold: 0.8 };
+      } };
+  }
+  // AR3: the REAL team AI on both sides (as WG): a loose ball runs at a line near their box, pops up off the board, and
+  // the men there go for it in the air. The line says who met it, how (header / volley / duel / AERIAL BATTLE / chest)
+  // and at what height.
+  function arAir(id, name, sub, o) {
+    return { id, group: 'AR', name, sub, kind: 'wing', realAi: true, demo: true, pace: 'arcade',
+      setup(r) {
+        const H = m.home.players, A = m.away.players, k = H[7];
+        const men = [k, H[9], H[10], H[8], A[0], A[2], A[3], A[4], A[7]]; cast(men);
+        put(k, o.from[0] - 2, o.from[1], 0); for (const [p, x, y] of [[H[9], ...o.h9], [H[10], ...o.h10], [H[8], ...o.h8], [A[3], ...o.a3], [A[4], ...o.a4], [A[2], ...o.a2], [A[7], ...o.a7]]) put(p, x, y, 4);
+        put(A[0], LINE_X, 34, 4); Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
+        for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null, rebFor: null, rebMan: null });
+        if (o.sp) m.meters[0].e = o.sp;
+        LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true; m.aerialAt = -1e9; m.duelAt = -1e9;
+        arBall(o.from[0], o.from[1], 0.1, o.v[0], o.v[1], o.v[2] || 0.5, k);
+        Object.assign(r, { human: H[9], gk: A[0], k, marks: [], o });
+      },
+      check(r) {
+        const b = m.ball, Hm = m.home, who = p => `${p.team === Hm ? 'our' : 'their'} #${p.num}`;
+        if (!r.hit) {
+          if (b.reb && b.reb.t != null) { r.hit = { t: r.t, side: b.reb.hit, apex: b.reb.apex, q: b.reb.q, men: [] }; r.how0 = b.how; }
+          else return r.out ? { o: `OUT · ${r.out.toLowerCase()}` } : r.t > 4 ? { o: 'it never reached the line' } : null;
+        }
+        const H = r.hit;
+        for (const t of [Hm, Hm.opp]) if (t.rebFor === b.reb && t.rebMan && !H.men.includes(t.rebMan)) H.men.push(t.rebMan);   // (each side's man for it, picked by the AI)
+        if (!r.met) {
+          if (m.aerial && !r.battle) r.battle = m.aerial.kind === 'ground' ? 'MASH DUEL' : 'AERIAL BATTLE';
+          if (m.pending && m.pending.info.special && m.pending.p !== b.lastP) r.met = { p: m.pending.p, how: 'AERIAL SPECIAL', z: b.z };
+          else if (b.how !== r.how0 && b.lastP) { const k = b.how.kind; r.met = { p: b.lastP, how: k === 'header' ? 'HEADER' : k === 'dheader' ? 'DIVING HEADER' : k === 'volley' ? 'VOLLEY' : k === 'bicycle' ? 'OVERHEAD' : k.toUpperCase(), z: b.z }; }
+          else if (b.owner && b.owner !== r.k) r.met = { p: b.owner, how: b.owner.keeper ? 'keeper takes it' : b.z > 0.6 ? 'CHEST / THIGH, his ball' : 'controlled', z: b.z };
+          if (r.met) r.metT = r.t;
+        }
+        const head = `${H.side === 'T' ? 'TOUCHLINE' : 'BYLINE'} REBOUND up to ${H.apex.toFixed(1)} m${H.q ? ` (aimed at ${who(H.q)})` : ''} · going for it: ${[H.q, ...H.men].filter(Boolean).map(who).join(', ') || 'nobody'} · `;
+        const met = r.met ? `${r.battle ? r.battle + ' → ' : ''}${who(r.met.p)} ${r.met.how} at ${r.met.z.toFixed(1)} m after ${(r.metT - H.t).toFixed(1)} s` : '';
+        if (b.inNet) return { o: head + met + ' → GOAL', hold: 1.4 };
+        if (r.ev('SAVED') || r.ev('PARRIED')) return { o: head + met + ' → SAVED', hold: 1 };
+        if (r.met && r.t - r.metT > 1.2) return { o: head + met + (b.owner ? ` → ${who(b.owner)} has it` : ' → loose'), hold: 0.6 };
+        if (r.t - H.t > 5) return { o: head + (met || 'nobody got to it in the air') };
+        return null;
+      } };
+  }
+  // AR4: the meter's own add(), one minute of play each way (the Lab normally keeps the meters still: the gate is lifted
+  // for this one calculation), then the ARCADE extras for the big moments
+  function arSp() {
+    return { id: 'AR4', group: 'AR', name: 'SP meter: fill per minute, CLASSIC → ARCADE', sub: 'the meter\'s own fill over 60 s of play each way, then the ARCADE extras for an aerial won / a rebound volley / a special save', kind: 'phys', pace: 'arcade',
+      setup(r) { cast([m.home.players[9]]); Object.assign(r, { human: m.home.players[9], marks: [] }); ballAt(52.5, 34); },
+      check(r) {
+        if (r.t < 0.2) return null;
+        const mt = m.meters[0], L = window.__lab, PM = PACE_MODE, D = m.demo, out = {};
+        try {
+          window.__lab = null; m.demo = true;
+          for (const pace of ['classic', 'arcade']) { PACE_MODE = pace; mt.e = 0; for (let i = 0; i < 3600; i++) mt.add(SP_GAIN.regen * STEP, 'regen'); out[pace] = mt.e; }
+          PACE_MODE = 'arcade'; for (const k of ['aerial', 'rebound', 'save']) { mt.e = 0; m.spBonus(m.home, k); out[k] = mt.e; }
+        } finally { window.__lab = L; PACE_MODE = PM; m.demo = D; mt.e = 0; }
+        const f2 = v => v.toFixed(2), every = v => Math.round(60 / v);
+        return { o: `CLASSIC ${f2(out.classic)} bars a minute (a bar every ${every(out.classic)} s) → ARCADE ${f2(out.arcade)} (every ${every(out.arcade)} s, x${(out.arcade / out.classic).toFixed(2)}) · ARCADE extras: aerial battle won +${f2(out.aerial)}, header / volley off a rebound +${f2(out.rebound)}, special save +${f2(out.save)}`, hold: 1 };
+      } };
+  }
+  // AR5: a goal with the real celebration + replay (as CS5), timed from the ball crossing the line to the kick-off being
+  // taken (the replay counted in full, nobody skips it; then the kick-off freeze)
+  function arGoal(id, pace) {
+    return { id, group: 'AR', name: `a goal → the kick-off · ${pace.toUpperCase()}`, sub: 'celebration, the goal replay (watched in full), the kick-off freeze: how long until play is on again', kind: 'cut', pace,
+      setup(r) {
+        window.__labCut = true; cast(m.all.filter(p => !p.benched)); m.all.forEach(p => { put(p, p.home.x, p.home.y, p.team.side > 0 ? 0 : 4); });
+        const s = m.home.players[9], gk = m.away.players[0]; put(s, 93.5, 34, 0); atFeet(s); put(gk, LINE_X, 30.5, 4); gk.stun = 1.5;
+        Object.assign(r, { human: s, fired: false, marks: [] });
+        r.action = { at: 0.4, fire: () => m.kick(s, GX + 2, 36.2, 24, 0.35, 0.12, { shot: true, power: 0.6 }) };
+        m.rec = []; m.recN = 0; m.lastReplayEnd = -1e9; m.lastReplay = null;
+        if (!LAB.afterGoal0) { LAB.afterGoal0 = m.afterGoal; m.afterGoal = function (c) { const q = LAB.run; if (q) q.koAt = m.time.now; return LAB.afterGoal0.call(m, c); }; }   // (the Lab's kickoff does nothing: this is when the game would take it)
+      },
+      check(r) {
+        const b = m.ball;
+        if (r.goalAt == null) { if (b.inNet) { r.goalAt = m.time.now; r.replayAt = null; } return r.t > 4 ? { o: 'NO GOAL' } : null; }
+        if (r.replayAt == null && m.replay) r.replayAt = m.time.now;
+        if (r.koAt == null) return (m.time.now - r.goalAt) > 30000 ? { o: 'no kick-off after 30 s' } : null;
+        const P = PACE[r.sc.pace], s = v => (v / 1000).toFixed(1), tot = (r.koAt - r.goalAt) / 1000 + P.koFreeze;
+        return { o: `${r.sc.pace.toUpperCase()} · play on again ${tot.toFixed(1)} s after the goal: celebration ${s(P.goalWaitMs)} s, replay ${s(r.koAt - r.goalAt - P.goalWaitMs)} s (skippable ${P.skipAfter < 0 ? 'at once' : `after ${P.skipAfter} s`}), kick-off freeze ${P.koFreeze} s`, hold: 0.3 };
+      } };
+  }
+  function arTests() {
+    return [
+      arLine('AR1', 'a hard drive at the TOUCHLINE', 'a loose ball at 72 km/h, 60° into the line: it comes back off the board and pops up (CLASSIC: a throw-in)', { from: [56, 61], v: [10, 17.3] }),
+      arLine('AR1-S', 'a firm pass rolling at the touchline', 'a ground pass at 36 km/h, square on: it pops a little and rolls back into play', { from: [40, 63], v: [2, 10] }),
+      arLine('AR1-C', 'the same drive, CLASSIC', 'CLASSIC is untouched: the ball goes out for a throw-in', { from: [56, 61], v: [10, 17.3], pace: 'classic' }),
+      arLine('AR2', 'at the BYLINE beside the goal', 'a ball at 65 km/h runs past the post (outside the goal mouth): back off the board in front of goal (CLASSIC: goal kick / corner)', { from: [95, 22], v: [17, 3.5] }),
+      arLine('AR2-G', 'into the goal mouth: still a goal', 'the board stops at the posts: a shot inside them goes in', { from: [88, 33], v: [24, 0.3], z: 0.3, noGk: true }),
+      arAir('AR3', 'a rebound attacked in the air (touchline, by their box)', 'the real team AI: a ball driven at the touchline beside their box pops up off the board; who goes for it and how they meet it',
+        { from: [88, 61], v: [11, 19, 1.2], h9: [93, 57], h10: [90, 45], h8: [86, 52], a3: [97, 52], a4: [95, 59], a2: [99, 40], a7: [89, 55] }),
+      arAir('AR3-B', 'a rebound off the BYLINE beside the goal', 'driven past the post: it comes back off the board into the six-yard area', { from: [93, 21], v: [18, 3, 0.8], h9: [99, 32], h10: [96, 38], h8: [97, 27], a3: [102, 33], a4: [98, 36], a2: [101, 30], a7: [93, 34] }),
+      arAir('AR3-SP', 'the AR3-B rebound with 2 bars banked', 'near goal the man who wins it may spend them on an aerial special', Object.assign({ sp: 2 }, { from: [93, 21], v: [18, 3, 0.8], h9: [99, 32], h10: [96, 38], h8: [97, 27], a3: [102, 33], a4: [98, 36], a2: [101, 30], a7: [93, 34] })),
+      arSp(),
+      arGoal('AR5', 'arcade'), arGoal('AR5-C', 'classic'),
+    ];
+  }
   // the SAVE! prompt: the computer shoots a special at YOUR keeper - press SPECIAL while SAVE! is up
   function pwSaveYou(id) {
     return { id, group: 'PW', name: 'YOUR KEEPER: special save', sub: 'press SPECIAL when SAVE! flashes', kind: 'pw', you: true,
@@ -1639,6 +1765,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
+    add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the touchlines and bylines instead of going out - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
@@ -1688,6 +1815,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; }           // (t-012: a WG test plays the computer on both sides)
     TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
+    window.__labPace = sc.pace || null;                                         // t-020: the AR tests play ARCADE (core.js paceK); every other test CLASSIC
     if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null; Object.assign(m, { aerial: null, lobAim: null, slowMo: 0 }); Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
     sc.setup(r);
     m.human = r.human; m.camX = m.camY = undefined;

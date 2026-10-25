@@ -98,8 +98,33 @@ const PACE = {
     KICK_MAX: 33, SHOT_K: 1.12, GRIP: 0.88, spGain: 1.75, shotRange: 1.2, shotWant: 0.85, chargeT: 0.6, gkCover: 0.7, gkAnswer: 0.85, passArrive: 1.2, lobH: 0.85,
     hsPass: 0, hsShot: 1.35, trails: true, advantage: true, duels: true, duelCool: 3.5, duelGap: 9, pressK: 1.3, cmtK: 1.35, shK: 1.5, shAdd: 0.08, aiBurst: 1.4, burstT: 0.8, headZ: 3.1 },
 };
+// t-020 ARCADE GETS INTENSE (Luca 25 Oct 06:56: "arcade should have a smaller pitch, more rebounds that lead into aerials,
+// more energy sp, make the game feel incredibly intense in a dynamic sense"). On top of arcade-2. CLASSIC never reads
+// these: every use is behind paceK().arcade (false on CLASSIC, true on ARCADE).
+PACE.classic.arcade = false; PACE.classic.cutK = 1;
+PACE.arcade.arcade = true;
+PACE.arcade.cutK = 0.65;            // the special-save cut scene 1.5 s -> ~1 s: the bang without the wait (design E)
+const ARCADE = {
+  // 1 REBOUNDS: invisible boards along the touchlines and the bylines (not the goal mouth under the bar), so the ball never
+  // goes out for a throw-in, goal kick or corner. It comes back lively: e = how much of the speed INTO the board it keeps,
+  // tang = of the speed ALONG it; a ball low on the grass pops up off the board (pop x the speed into it, at most popMax
+  // m/s up: square on, a 14 m/s drive comes back ~4 m high, a firm 8 m/s pass ~1.3 m - the drop is at header / volley
+  // height; at 0.5, 3 rebounds in 10 went up for a header, at 0.65 about half, and ~4 goals a match). popMin: slower than
+  // this it just rolls back. The pop leans on the angle (a square hit pops most), never on dice, so the AI's predicted
+  // path (ball.js predict) is the path the ball really takes.
+  boards: { e: 0.75, tang: 0.88, pop: 0.65, popMax: 10, popMin: 2.5, popZ: 1.0 },
+  // 2 AERIALS: a rebound that will go up past headZ becomes a loose high ball "aimed" at the nearest man of the side that
+  // touched it last (the way a lob is), so the game's own lob machinery takes over: he times his run under the drop,
+  // their nearest man contests it, the drop is a duel / the AERIAL BATTLE, headers, volleys, the aerial specials.
+  // run = how far (m) a man will come to attack a rebound; the nearest of EACH side within it goes (teamai.js).
+  reb: { headZ: 1.3, run: 22, airT: 2.5 },
+  // 3 SP: arcade-2's 1.75x fill stays; plus a little (bars, before the 1.75x) for winning an AERIAL BATTLE, a header /
+  // volley straight off a rebound, and a special save (specials.js spBonus)
+  sp: { aerial: 0.07, rebound: 0.08, save: 0.1 },
+};
+// t-020: the Test Lab plays CLASSIC, except a test that names its pace (the AR group plays ARCADE's rebounds and SP)
+function paceK() { return window.__lab ? (window.__labPace && PACE[window.__labPace]) || PACE.classic : PACE[PACE_MODE] || PACE.classic; }
 let PACE_MODE = (() => { try { const v = localStorage.getItem('hc2-pace'); return PACE[v] ? v : 'classic'; } catch (e) { return 'classic'; } })();
-function paceK() { return window.__lab ? PACE.classic : PACE[PACE_MODE] || PACE.classic; }
 // (called by setPace and at every kick-off: the start screen's script runs before this file loads. It writes only when
 // the picked preset isn't the one in the globals, so a CLASSIC page never touches them - nor a tool's own tuning.)
 let PACE_SET = 'classic';

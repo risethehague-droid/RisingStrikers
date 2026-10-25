@@ -11,6 +11,9 @@
 //   ONE='seed=8919 home=IS away=IRO lvl=hard ai=new weather=rain tod=night' node tools/soak.js    replay one match
 //   OUT=soak-out node tools/soak.js                      also write soak-out/soak-<time>.json and .md
 //   TAP=1 node tools/soak.js                            t-010: with the TAP KICK forced on (it's off in matches until Luca's OK)
+//   PACE=arcade node tools/soak.js                      t-020: the matches on ARCADE (default: the page's own, CLASSIC); the summary adds
+//                                                        board rebounds, those that went up for a header, headers / volleys off them,
+//                                                        special shots, special saves, the ARCADE SP extras
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
 //
 // The set-ups rotate with different strides, so pairs of factors (teams x level, level x weather, AI x light...)
@@ -77,12 +80,17 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       if (A) { W.aerialGoals++; if (W.lastAerial.kind === 'airSp') W.airSpGoals++; if (W.lastAerial.kind === 'head') W.headGoals++; } if (C) { W.crossGoals++; W['crossGoals' + W.lastCross.y]++; } W.goalLog.push(`${v.team.name} ${v.min}' ${v.how || '?'}${A ? ' AERIAL:' + W.lastAerial.kind : ''}${C ? ' from a cross ' + W.lastCross.y : ''} far ${Math.round(v.far || 0)}`); } }); }
     return GAME_VER; }, !!process.env.TAP);
   if (process.env.GOAL_PHYS) await page.evaluate(() => { GOAL_PHYS = true; });   // t-013
+  if (process.env.PACE) await page.evaluate(v => { setPace(v); }, process.env.PACE);   // t-020 (applied at every kick-off)
+  await page.evaluate(() => { const m = window.__hc2, W = window.__wing, sp = m.special, sf = m.saveFx;   // t-020: special shots / saves (counting only: all arguments passed on)
+    m.special = function (...a) { W.spShot = (W.spShot || 0) + 1; return sp.apply(this, a); };
+    m.saveFx = function (gk, ...a) { if (gk && gk.spSave) W.spSave = (W.spSave || 0) + 1; return sf.call(this, gk, ...a); }; });
   const out = { game: ver, at: new Date().toISOString(), matches: [], errors: errs };
   for (let i = 0; i < list.length; i++) {
     const c = list[i]; cur = i; const t0 = Date.now();
     await page.evaluate(c => { window.__ready = false; window.__hc2.setTeams(c.home, c.away, () => { window.__ready = true; }); }, c);
     await page.waitForFunction(() => window.__ready, null, { timeout: 120000 });
     await page.evaluate(c => { const m = window.__hc2; window.__soakInc = []; window.__wing.z(); Math.random = window.__rngOf(c.seed); m.gpStats = { wood: 0, back: 0, pops: 0, net: 0 };   // (t-013's goal-physics counts)
+      m.arcN = { reb: 0, air: 0, rebShots: 0, sp: 0 }; window.__wing.spShot = 0; window.__wing.spSave = 0;   // (t-020's ARCADE counts)
       setAiMode(c.ai); setDiff(c.lvl === 'base' ? 'normal' : c.lvl);
       window.__diffTeams = { home: Object.assign({}, DIFF_TRAITS.base, { lvl: 'base' }), away: Object.assign({}, DIFF_TRAITS[c.lvl] || DIFF_TRAITS.normal, { lvl: c.lvl }) };
       m.mset = { arena: 'loo', tod: c.tod, weather: c.weather, ending: 'none' }; m.applyRules();
@@ -102,11 +110,12 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       // merge of t-007 + t-012 (t-008): both sets of numbers, the keeper's and the wing play's
       return { score: `${m.home.score}-${m.away.score}`, shots: `${H.shots || 0}-${A.shots || 0}`, goals: m.home.score + m.away.score,
         corners: sum('corners'), onT: sum('onT'), held: sum('held'), parried: sum('parried'), kOut: sum('kOut'), kIn: sum('kIn'), fouls: `${H.fouls || 0}-${A.fouls || 0}`,
-        possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null,
+        possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), arc: Object.assign({}, m.arcN || {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null,
         wing: Object.fromEntries(Object.entries(window.__wing).filter(([k, v]) => (typeof v === 'number' && k !== 'wideT') || k === 'goalLog')) }; });
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
     const tr = Object.entries(st.trips).map(([k, v]) => `${k} ${v}`).join(', ');
     { const w = st.wing; console.log(`   wing: crosses ${w.cross} (whipped ${w.crossWhip}, floated ${w.crossFloat}, other ${w.crossCut}, you ${w.crossH} / them ${w.crossA}) + set-piece ${w.spCross} · aerial shots ${w.aerial} (head ${w.head}, volley ${w.volley}, overhead ${w.bike}, diving ${w.dhead}, air SP ${w.airSp}) · goals ${w.goals}: aerial ${w.aerialGoals}, after a cross ${w.crossGoals} · corners ${st.corners} · chips ${w.chips} · runners idle ${w.runIdle.toFixed(1)} s · parked wide ${w.wideHold}${w.goalLog.length ? '\n     ' + w.goalLog.join('\n     ') : ''}`); }
+    if (process.env.PACE === 'arcade') { const a = st.arc; console.log(`   arcade: board rebounds ${a.reb} (up for a header ${a.air}) · headers / volleys off them ${a.rebShots} · special shots ${st.wing.spShot} · special saves ${st.wing.spSave} · aerial battles ${st.wing.battles} · SP extras ${a.sp} (aerial ${a.aerial || 0}, rebound ${a.rebound || 0}, save ${a.save || 0})`); }
     console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${process.env.TAP ? `tap kicks ${st.wing.taps} · ` : ''}${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
   }
   await br.close();
@@ -121,6 +130,8 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
   { const T = {}, n = out.matches.length; for (const mt of out.matches) { for (const [k, v] of Object.entries(mt.wing)) if (typeof v === 'number') T[k] = (T[k] || 0) + v;
       T.corners = (T.corners || 0) + mt.corners; const [a, b] = mt.shots.split('-').map(Number); T.shots = (T.shots || 0) + a + b; const [g1, g2] = mt.score.split('-').map(Number); T.score = (T.score || 0) + g1 + g2; }
     out.wing = Object.fromEntries(Object.entries(T).map(([k, v]) => [k, +(v / n).toFixed(2)]));
+    if (process.env.PACE === 'arcade') { const A = {}; for (const mt of out.matches) for (const [k, v] of Object.entries(mt.arc)) A[k] = (A[k] || 0) + v; out.arc = Object.fromEntries(Object.entries(A).map(([k, v]) => [k, +(v / n).toFixed(2)]));
+      console.log('\nARCADE per match (average of ' + n + '): ' + Object.entries(out.arc).map(([k, v]) => `${k} ${v}`).join(' · ')); }
     console.log('\nWING per match (average of ' + n + '): ' + Object.entries(out.wing).map(([k, v]) => `${k} ${v}`).join(' · '));
     const nw = out.matches.filter(mt => mt.setup.ai === 'new'), N = {};                // (the CLASSIC AI, v0.7.6, is kept as it was: no wing play)
     for (const mt of nw) { for (const k of ['cross', 'aerial', 'airSp', 'airSpGoals', 'aerialGoals', 'goals']) N[k] = (N[k] || 0) + mt.wing[k]; const [a, b] = mt.shots.split('-').map(Number); N.shots = (N.shots || 0) + a + b; N.corners = (N.corners || 0) + mt.corners; }

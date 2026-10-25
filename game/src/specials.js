@@ -472,6 +472,25 @@ hc2Mix(Match, {
     this.hitStop = Math.max(this.hitStop || 0, 0.06); this.cameras.main.shake(140, 0.008); SFX.boom(0.7);
     this.say('', `THROUGH HIM! · ${Math.round(b.spP)} POWER LEFT`, 0.9);
   },
+  // t-020 ARCADE SP (Luca 25 Oct: "more energy sp"): on top of arcade-2's 1.75x fill, a little for the big moments -
+  // winning an AERIAL BATTLE, a header / volley straight off a board rebound, a special save (ARCADE.sp, bars before the
+  // 1.75x). CLASSIC: nothing. spArcadeWatch runs every frame on ARCADE (ballPhysics) and only reads what the moves leave
+  // behind (aerialLast, the ball's how / reb), so the moves themselves stay untouched.
+  spBonus(team, kind) {
+    if (!paceK().arcade || !team || !ARCADE.sp[kind]) return;
+    this.meterOf(team).add(ARCADE.sp[kind], kind);
+    const N = this.arcN = this.arcN || { reb: 0, air: 0, rebShots: 0, sp: 0 }; N.sp++; N[kind] = (N[kind] || 0) + 1;
+  },
+  spArcadeWatch() {
+    const A = this.aerialLast, b = this.ball;
+    if (this.spAerialSeen === undefined) this.spAerialSeen = A || null;          // (one from before ARCADE was on doesn't count)
+    if (A && A !== this.spAerialSeen) { this.spAerialSeen = A; if (A.kind !== 'ground' && A.by) this.spBonus(A.by.team, 'aerial'); }   // (an AERIAL BATTLE won, either side)
+    const R = b.reb, h = b.how;
+    if (R && !R.done && h && h !== R.how) {                                      // the first touch after a rebound
+      R.done = true;
+      if (this.time.now - R.t < ARCADE.reb.airT * 1000 && /header|dheader|volley|bicycle/.test(h.kind) && b.lastP) { this.spBonus(b.lastP.team, 'rebound'); this.arcN.rebShots++; }
+    }
+  },
   // v0.8.6 SPECIAL SAVE: a special is on its way - the defending side can spend its bars on the keeper.
   // You: a SAVE! prompt for a moment, press SPECIAL. The computer: uses its bars if it has them (most of the time).
   saveCall(def) {
@@ -502,7 +521,7 @@ hc2Mix(Match, {
     const sub = add(this.add.text(0, 0, `${gk.team.name} KEEPER · LV${lv} SPECIAL SAVE`, { fontFamily: F, fontSize: '12px', color: '#ffffff', stroke: '#0c0a0e', strokeThickness: 5 }).setOrigin(0.5).setDepth(D + 5).setAlpha(0));
     SFX.special(lv); this.cameras.main.shake(160, 0.004);
     const hush = SAVE_NAMES.some(n => (this.msg.text || '').includes(n)); if (hush) { this.msg.setText(''); this.sub.setText(''); }   // (the banner says it: no second caption)
-    return { ...q, lv, col, t: 0, dur: 1.5, o, veil, band, lines, por, fl, name, sub, seed: Math.random() * 1000 };
+    return { ...q, lv, col, t: 0, dur: 1.5 * paceK().cutK, o, veil, band, lines, por, fl, name, sub, seed: Math.random() * 1000 };   // (t-020: dur - ARCADE ~1 s)
   },
   cutInTick(dt) {
     const c = this.cutIn; c.t += dt; const t = c.t, W = VIEW_W, H = VIEW_H, z = this.cameras.main.zoom || 1, cx = W / 2, cy = H / 2;
@@ -554,6 +573,7 @@ hc2Mix(Match, {
     if (hand) { this.gkSpecialHit(gk, 'hand', lv); this.say('A HAND TO IT!', norm ? `${SAVE_NAMES[lv - 1]} CAN ONLY PUSH IT AWAY` : `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4); return 'hand'; }
     if (ok) this.gkSpecialHit(gk, true, lv);                                      // t-014: the batch 16 move picked by the shot (v0.8.9: the rough save rig)
     if (ok) this.say('SAVED!', norm ? `${SAVE_NAMES[lv - 1]} STOPS THE SHOT` : `${SAVE_NAMES[lv - 1]} ${K} v ${Math.round(P)} ${SP_NAMES[b.special - 1]}`, 1.4);
+    if (ok) this.spBonus(gk.team, 'save');                                        // (t-020: ARCADE - a big save gives a little back)
     else this.say('IT BREAKS THROUGH!', `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4);
     return ok;
   },

@@ -268,6 +268,7 @@ hc2Mix(Match, {
           const dx = p.x - owner.x, dy = p.y - owner.y, d = len(dx, dy) || 1;
           p.moveTo(owner.x + dx / d * 15, clamp(owner.y + dy / d * 15, 3, 65), JOG, dt); continue;
         }
+        if (!owner && b.reb && this.reboundRun(p, team, aerial, dt)) continue;   // t-020 ARCADE: a ball popping up off the boards - go and meet it in the air
         if (p === team.presser && !(owner && owner.keeper && owner.hands)) {
           if (owner && owner.team !== team) { this.aiPress(p, team, owner, dt); continue; }
           if (!owner) { const d = len(b.x - p.x, b.y - p.y), go = d > 4 && p.stamina > 0.35; p.sprinting = go;   // a loose ball: go and get it
@@ -577,6 +578,26 @@ hc2Mix(Match, {
   lobAimMate(p, dt) {
     const A = this.lobAim; if (!A || A.q !== p || this.ball.owner !== this.human) return false;
     p.moveTo(A.x, A.y, JOG, dt); return true;
+  },
+  // t-020 ARCADE REBOUNDS (Luca 25 Oct: "more rebounds that lead into aerials"): while a ball that came off the boards is
+  // up in the air (ARCADE.reb.airT s, until someone touches it), each side sends its quickest man to meet it at chest /
+  // head height - not where it lands - so the header, the volley, the duel and the aerial specials come out of it. The
+  // man it was "aimed" at (ball.js arcadeRebound: he runs under it with the lob code) and their man going with him keep
+  // their jobs; this is one more from each side, picked once per rebound. CLASSIC: b.reb is never set.
+  reboundRun(p, team, aerial, dt) {
+    const b = this.ball, R = b.reb;
+    if (!paceK().arcade || !R || R.done || this.time.now - R.t > ARCADE.reb.airT * 1000 || (b.z < 0.3 && b.vz <= 0)) return false;
+    const zmax = paceK().headZ - 0.6;                                            // (meet it where a header or a volley can take it)
+    if (team.rebFor !== R) {
+      team.rebFor = R; team.rebMan = null; let bt = ARCADE.reb.run / 7;          // (no further than he can sprint in that time)
+      for (const q of team.players) {
+        if (q.keeper || q.sentOff || q === this.human || q === b.target || q === aerial || !this.aiFree(q)) continue;
+        const pt = this.intercept(q, q.top(true, false), 0.12, zmax); if (pt.t != null && pt.t < bt) { bt = pt.t; team.rebMan = q; }
+      }
+    }
+    if (team.rebMan !== p) return false;
+    const v = p.top(p.stamina > 0.15, false), pt = this.intercept(p, v, 0.12, zmax);
+    p.sprinting = p.stamina > 0.15; p.moveTo(pt.x, pt.y, v, dt); return true;
   },
   // his marker reads the drop a beat after the receiver does (LOB2.markDelay), then goes with him
   lobMarkLate(p) { const b = this.ball; return !!b.lob && (b.airT || 0) < LOB2.markDelay; },

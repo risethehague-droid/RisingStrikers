@@ -49,6 +49,27 @@ function ballStep(b, h, owned) {
   if (b.cv && !owned) curveStep(b, h);                                        // t-011: a curving special pass (never set in a match)
   b.x += b.vx * h; b.y += b.vy * h;
 }
+// t-020 ARCADE REBOUNDS (Luca 25 Oct: "more rebounds that lead into aerials"): the invisible boards along the touchlines and
+// the bylines (ARCADE.boards). A ball past a line - except into the goal mouth under the bar, where the goal / post / net
+// code decides - is put back on the pitch side and comes back off the board: e of its speed into it, tang of its speed
+// along it, and a ball low on the grass pops up (pop x the speed into it, more for a square hit). No dice, so the game's
+// predicted path (predict) and the real flight agree. Returns the board it hit ('T' touchline, 'B' byline) or null.
+// Only called on ARCADE (paceK().arcade).
+function boardBounce(b) {
+  const A = ARCADE.boards; let hit = null;
+  const mouth = b.y > GOAL_Y0 && b.y < GOAL_Y1 && b.z < BAR_Z;
+  const back = (vn, vt) => {                                                     // (vn: speed into the board, > 0)
+    const s = Math.hypot(vn, vt) || 1, sq = vn / s;                               // sq: 1 = square on, 0 = glancing
+    if (b.z < A.popZ && vn > A.popMin) { b.vz = Math.max(b.vz, Math.min(A.popMax, A.pop * vn * (0.55 + 0.45 * sq))); b.skid = true; }
+    return vn * A.e;
+  };
+  if (b.y < 0 && b.vy <= 0) { b.y = Math.min(-b.y, 0.5); b.vy = back(-b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
+  else if (b.y > PITCH_W && b.vy >= 0) { b.y = Math.max(2 * PITCH_W - b.y, PITCH_W - 0.5); b.vy = -back(b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
+  if (!mouth && b.x < 0 && b.vx <= 0) { b.x = Math.min(-b.x, 0.5); b.vx = back(-b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
+  else if (!mouth && b.x > PITCH_L && b.vx >= 0) { b.x = Math.max(2 * PITCH_L - b.x, PITCH_L - 0.5); b.vx = -back(b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
+  if (hit) b.rollV = 0.8 * Math.hypot(b.vx, b.vy);
+  return hit;
+}
 // t-013: when (0..1) a point moving from (x0, y0) to (x1, y1) first comes within R of (cx, cy); null if it doesn't
 // (already within R and moving in: 0). The goal frame's swept test (Match.gpWood)
 function gpSweep(x0, y0, x1, y1, cx, cy, R) {
@@ -456,7 +477,8 @@ hc2Mix(Match, {
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
   predict() {
     const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
-    for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
+    const ARC = paceK().arcade;                                                  // (t-020: ARCADE - the path comes back off the boards, so the AI reads the rebound)
+    for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (ARC) boardBounce(c); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
   },
   // t-005: where the landing ring sits - the ball's predicted first bounce while it flies, then the spot it came down
@@ -566,12 +588,14 @@ hc2Mix(Match, {
     if (gp) this.netStep(dt);                                                   // t-013: the mesh rings on after the ball has gone
     if (b.owner && b.owner.hands) return;
     if (gp && b.gpIn) { b.vx = b.gpIn.vx; b.vz = b.gpIn.vz; b.gpIn = null; }   // (t-013: the net takes the pace off now, not the goal line - netRipple)
-    const owned = !!b.owner, sub = 3, h = dt / sub;
+    const owned = !!b.owner, sub = 3, h = dt / sub, ARC = paceK().arcade;
+    if (ARC) this.spArcadeWatch();                                              // t-020: ARCADE's SP for aerials won, rebound volleys (specials.js)
     for (let i = 0; i < sub; i++) {
       const ox = b.x, oy = b.y, oz = b.z;
       ballStep(b, h, owned);
       if (gp) { if (!owned) this.gpWood(b, ox, oy, oz); this.gpNet(b, h, oz); }   // t-013 GOAL PHYSICS (core.js GP)
       else if (!owned) this.posts(b, ox);
+      if (ARC && !owned && !b.inNet && !this.dead) { const hit = boardBounce(b); if (hit) this.arcadeRebound(b, hit); }   // t-020: ARCADE's boards
       if (this.dead) {                                                          // out of play: the boards stop it
         if (b.x < -4 || b.x > PITCH_L + 4) { b.x = clamp(b.x, -4, PITCH_L + 4); b.vx *= -0.25; }
         if (b.y < -3 || b.y > PITCH_W + 3) { b.y = clamp(b.y, -3, PITCH_W + 3); b.vy *= -0.25; }
@@ -591,6 +615,37 @@ hc2Mix(Match, {
       }
       if (b.y > GOAL_Y0 && b.y < GOAL_Y1 && Math.abs(b.z - BAR_Z) < 0.15) { b.vz = -Math.abs(b.vz) * 0.6; b.vx *= -0.4; b.x = ox; this.say('', 'OFF THE BAR!', 0.9); this.flagReplay('OFF THE BAR!'); SFX.post(); SFX.ooh(); }
     }
+  },
+  // t-020 ARCADE REBOUNDS: what a hit on the boards means for play. It's a new loose ball (no pass target, no landing ring,
+  // no keeper's plan, a special is spent), and if it pops up past head height it becomes a high ball "aimed" at the
+  // nearest man of the side that touched it last (ARCADE.reb): the lob code then has him time his run under the drop,
+  // their nearest man contest it, and the drop is a duel / the AERIAL BATTLE / a header / a volley / an aerial special.
+  arcadeRebound(b, hit) {
+    const N = this.arcN = this.arcN || { reb: 0, air: 0, rebShots: 0, sp: 0 }; N.reb++;
+    Object.assign(b, { target: null, ring: null, lob: false, aimLob: false, tried: null, crossBy: null, save: null, saveable: null, special: 0, pierce: 0, chip: false, tap: false, duelTry: false });
+    const sp = Math.hypot(b.vx, b.vy); if (sp > 6) SFX.pass();                  // (the thud off the board)
+    const apex = b.z + Math.max(0, b.vz) ** 2 / (2 * G);
+    b.reb = { t: this.time.now, hit, apex, how: b.how, q: null };               // (specials.js spArcadeWatch: a header / volley straight off it)
+    if (apex < ARCADE.reb.headZ || !b.last) return;
+    const P = this.predict(), D = P.find((pt, i) => i > 0 && pt.z <= 2.0 && pt.z < P[i - 1].z) || P.land || P[P.length - 1];   // where it comes back down to head height
+    if (!D) return;
+    const q = b.last.players.filter(p => !p.keeper && !p.sentOff && p.stun <= 0 && len(p.x - D.x, p.y - D.y) < ARCADE.reb.run)
+      .sort((u, v) => len(u.x - D.x, u.y - D.y) - len(v.x - D.x, v.y - D.y))[0];
+    if (!q) return;
+    N.air++; b.reb.q = q;
+    Object.assign(b, { target: q, lob: true, airT: 0, ring: { by: b.lastP, chip: false, n: b.bounced || 0, at: null } });   // (the landing ring shows you where it drops)
+  },
+  // t-020: on ARCADE nothing goes out (matchflow.js rules): a ball found past a line - dribbled over it, or knocked there
+  // in a scramble - is released and knocked back in off the board, at least 2.5 m/s into the pitch
+  arcadeOut() {
+    const b = this.ball; if (b.owner && !b.owner.hands) { b.last = b.owner.team; b.lastP = b.owner; b.owner = null; }
+    if (b.owner) return;
+    const ix = b.x < 0 ? 1 : b.x > PITCH_L ? -1 : 0, iy = b.y < 0 ? 1 : b.y > PITCH_W ? -1 : 0;
+    if (iy && b.vy * iy < 0) b.vy = -b.vy; if (ix && b.vx * ix < 0) b.vx = -b.vx;
+    if (iy) { b.y = iy > 0 ? 0.3 : PITCH_W - 0.3; b.vy = iy * Math.max(2.5, Math.abs(b.vy) * ARCADE.boards.e); }
+    if (ix) { b.x = ix > 0 ? 0.3 : PITCH_L - 0.3; b.vx = ix * Math.max(2.5, Math.abs(b.vx) * ARCADE.boards.e); }
+    b.skid = true; b.rollV = 0.8 * Math.hypot(b.vx, b.vy);
+    this.arcadeRebound(b, iy ? 'T' : 'B');
   },
 
   // ======================================================================= t-013 GOAL PHYSICS (behind GOAL_PHYS, core.js)
