@@ -124,6 +124,25 @@ const ARCADE = {
   // volley straight off a rebound, and a special save (specials.js spBonus)
   sp: { aerial: 0.07, rebound: 0.08, save: 0.1 },
 };
+// ======================================================================= t-028 THE SPECIAL-SAVE CLASH (Luca 25 Oct 14:59: "the keeper can
+// cover the whole goal when using a special save move, so you can't shoot around the gk when the special move is
+// activated, but a special shot can still go through the hands after (blowing the hands away, or the body for a very
+// strong shot) if it's stronger, or bounce off etc"). specials.js clash / clashTick / clashEnd. One table for the bands:
+// r = the shot's power / the save's (spP v SAVE_POWER), shaken by the dice (r x 1 +- jit), then the first band it's under:
+//   held   the save clearly stronger (LV1 v LV2 0.71, LV1 v LV3 0.5): caught, he lands with it
+//   bounce close (the same level 1.0): parried back into play (a live rebound), or tipped over / round for a corner
+//   hands  the shot a bit stronger (LV2 v LV1 1.4, LV3 v LV2 1.43): his arms knocked back, it goes on into the net
+//   body   the shot much stronger (LV3 v LV1 2.0): he's blasted back into the net WITH the ball
+// Power decides most of it: with jit 0.15, LV2 v LV1 is a bounce about 1 in 7, LV3 v LV1 always the body.
+const CLASH = {
+  bands: [[0.85, 'held'], [1.25, 'bounce'], [1.65, 'hands'], [Infinity, 'body']], jit: 0.15,
+  tip: 0.5,                   // of the bounces: tipped over / round the post (a corner); else parried back out
+  hold: 0.6, holdArcade: 0.4, // s (real time) the ball grinds against his gloves - Inazuma's beat, never a wait (ENTER cuts it)
+  skip: 0.12,                 // ENTER skips it after this (the same key as the cut scene)
+  slow: 0.2,                  // the world's animations while it holds: a small slow-mo
+  carry: 0.4,                 // s THE BODY: he and the ball are driven back over the line together (Captain Tsubasa), then it's in
+  reach: 4.3,                 // with a special save on he gets to anything on target: |y - 34| under this (the posts are 3.66) and under 3.2 m
+};
 // t-020: the Test Lab plays CLASSIC, except a test that names its pace (the AR group plays ARCADE's rebounds and SP)
 function paceK() { return window.__lab ? (window.__labPace && PACE[window.__labPace]) || PACE.classic : PACE[PACE_MODE] || PACE.classic; }
 let PACE_MODE = (() => { try { const v = localStorage.getItem('hc2-pace'); return PACE[v] ? v : 'classic'; } catch (e) { return 'classic'; } })();

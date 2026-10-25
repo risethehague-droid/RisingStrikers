@@ -305,7 +305,7 @@ hc2Mix(Match, {
     const za = k.info.air && k.info.air.z; if (za > 1.6) { const T = len(k.tx - b.x, k.ty - b.y) / k.speed; k.vz = Math.min(k.vz, (1.6 - za + 0.5 * G * T * T) / T); }
     // t-014: the move's own name on the banner (like RISE UP / THUNDER SHOT) and its own line from Rami
     const nm = (P && R.name) || RIGS['air' + lv].name;
-    this.say(nm + '!', `${p.team.name} · LV${lv} AERIAL SPECIAL`, 1.3);
+    this.say(nm + '!', `${p.team.name} · LV${lv} AERIAL SPECIAL`, 1.3); this.spName = { p, name: nm };   // (t-028: the clash's caption names the move)
     this.ramiSay('skill', { text: AIR_RAMI[P ? n : 'air' + lv] || AIR_RAMI['air' + lv], expr: 'laugh' }, 3);
     SFX.special(lv); this.flagReplay('AERIAL SPECIAL!'); this.hitStop = 0.08; this.cameras.main.flash(90, 255, 230, 120);
   },
@@ -349,23 +349,42 @@ hc2Mix(Match, {
     return K[`${n}-${d}`] ? n : null;
   },
   // every step for a keeper with a special save ready (player.js): the move starts early enough that its contact frame
-  // lands as the ball reaches him, and holds that frame if the ball is a moment late; a shot that's gone (blocked, out,
-  // off target) calls it off before the contact
+  // lands as the ball reaches him; a shot that's gone (blocked, out, off target) calls it off before the contact.
+  // t-028 (Luca's INSTA FLAG 25 Oct 14:41, "the gk save plays too early some times"; and 14:59 "the keeper can cover the
+  // whole goal"): (1) CHARGED: while the shot is on its way and his move hasn't started, his gloves glow in the save's
+  // colour (gkGloveFx). (2) The move is played from the REAL ball, every frame: its clock is set to the time the ball
+  // still needs to his line (gkSpecialCross, re-read each step), never ahead of it - a dipping, slowing or deflected
+  // shot makes him wait on an earlier frame (it used to hold the contact frame, the save "gone off" too early), a ball
+  // that's suddenly close skips him on to the contact. It never runs backwards. His gloves aim at where it crosses NOW.
+  // (3) He gets to anything on target (CLASH.reach): the move slides him there with a dash (rigFx's after-images).
   gkSpecialRoll(gk) {
     const b = this.ball, g = gk.rig, R = g && RIGS[g.n];
     const live = !!gk.spSave && !b.owner && !b.inNet && (b.special ? !!b.spTeam && b.spTeam !== gk.team : !!b.saveable && b.saveable !== gk.team);
     if (!live) gk.spPick = null;
     if (R && R.gk && g.e0 == null) {
-      const hk = R.keys.find(q => q.hit); if (!live) gk.rig = null; else if (g.t > hk.t) g.t = hk.t;
+      if (!live) { gk.rig = null; return; }
+      const hk = R.keys.find(q => q.hit), x = this.gkSpecialCross(gk);
+      if (x && Math.abs(x.y - 34) <= CLASH.reach && x.z <= 3.2) { g.t = clamp(hk.t - x.t, g.lastT ?? 0, hk.t); g.B = { x: wx(x.x, x.y), y: wy(x.y) - 12 - x.z * PX_H }; }
+      else g.t = Math.min(g.lastT ?? g.t, hk.t);                                   // (no crossing in sight now: he waits where he is)
+      g.lastT = g.t;
       return;
     }
+    if (live && !g) this.gkGloveFx(gk);
     if (!live || g) return;
-    const x = this.gkSpecialCross(gk); if (!x || Math.abs(x.y - 34) > 4.3 || x.z > 3.2) return;
+    const x = this.gkSpecialCross(gk); if (!x || Math.abs(x.y - 34) > CLASH.reach || x.z > 3.2) return;
     // the move is read from where he stood as the shot came (picked once: his own steps / dive towards it don't turn a
     // shot to the side into a straight one)
     if (!gk.spPick) gk.spPick = { n: this.gkSpecialMove(gk, x) };
     const n = gk.spPick.n, hk = n && RIGS[n].keys.find(q => q.hit); if (!hk || x.t > hk.t) return;
-    gk.face = gk.team.side > 0 ? 0 : 4; gk.rig = { n, t: hk.t - x.t, d: gk.team.side > 0 ? 'E' : 'W', B: { x: wx(x.x, x.y), y: wy(x.y) - 12 - x.z * PX_H } };   // (B: the ball on screen as it reaches him)
+    gk.face = gk.team.side > 0 ? 0 : 4; gk.rig = { n, t: hk.t - x.t, lastT: hk.t - x.t, d: gk.team.side > 0 ? 'E' : 'W', B: { x: wx(x.x, x.y), y: wy(x.y) - 12 - x.z * PX_H }, dash: RIG_COL[clamp(gk.spSave, 1, 3) - 1] };   // (B: the ball on screen as it reaches him; dash: t-028's after-images)
+  },
+  // t-028 CHARGED GLOVES: a keeper with his special save on, waiting for the shot - a light glow in the save's colour
+  // at his hands (the fx atlas' orb + a sparkle, tinted: no new art)
+  gkGloveFx(gk) {
+    const now = this.time.now; if (now < (gk.gloveAt || 0) || this.replay || !gk.spr) return; gk.gloveAt = now + 80;
+    const c = RIG_COL[clamp(gk.spSave, 1, 3) - 1], X = wx(gk.x, gk.y), Y = wy(gk.y) - 64 * (gk.spr.scaleY || 1), D = wy(gk.y) + 0.3;
+    for (const s of [-1, 1]) this.rigPop('orb', X + s * 15 + rnd(-2, 2), Y + rnd(-3, 3), D, { s: [0.22, 0.42], ms: 260, a: 0.7, tint: c });
+    if (Math.random() < 0.5) this.rigPop('sparkle', X + rnd(-18, 18), Y + rnd(-8, 6), D, { s: [0.3, 0.6], ms: 300, tint: c });
   },
   // the clash: the move shows its contact frame now, with the level's effects. A hand to it: the fingertips (ktip).
   // A kit without the batch 16 moves: the v0.8.9 stand-in rig, as before
@@ -415,7 +434,7 @@ hc2Mix(Match, {
         let o = g.off, k = t < th ? 1 : Math.max(0, 1 - (t - th) / Math.max(R.dur - th, 0.05));
         if (!o || t < th) { const h = this.rigPt(this.rigAt(p, n, th, d), hk.fist, d); o = { x: g.B.x - h.x, y: g.B.y - h.y };
           if (t < th) k = Math.sin(Math.PI / 2 * clamp(t / th, 0, 1)); else g.off = o; }   // (from the contact on: frozen where the ball met him - the save has put him on its line by then)
-        P.x += clamp(o.x, -160, 160) * k; P.y += clamp(o.y, -160, 160) * k;
+        P.x += clamp(o.x, -230, 230) * k; P.y += clamp(o.y, -200, 200) * k;   // (t-028: the whole goal - 4.3 m either side, a ball under the bar in a top corner)
       }
       return P;
     }
@@ -437,7 +456,15 @@ hc2Mix(Match, {
   rigFx(p, P) {                                                                   // the rig's effects + after-images, as its clock passes them
     // t-014: a keeper's special-save move plays its level's effects from the contact on (g.ev / g.ghost / g.col, timed
     // from g.e0, set by gkSpecialHit) - nothing before it, while he's still getting there
-    const g = p.rig, R = RIGS[g.n]; if (R.gk && g.e0 == null) return;
+    const g = p.rig, R = RIGS[g.n];
+    if (R.gk && g.e0 == null) {                                                    // t-028 the dash across his goal: after-images in the save's colour + a whoosh as he goes
+      if (!g.dash || this.replay) return;
+      if (!g.wAt) { g.wAt = 1; this.rigPop('whoosh', p.spr.x, p.spr.y - 40, p.spr.depth + 0.1, { s: [0.7, 1.6], ms: 300, tint: g.dash, flip: g.d === 'W' }); }
+      if (this.time.now - (g.gAt || 0) > 45) { g.gAt = this.time.now; const s = p.spr;
+        const im = this.add.image(s.x, s.y, s.texture.key, s.frame.name).setOrigin(s.originX, s.originY).setRotation(s.rotation).setScale(s.scaleX, s.scaleY).setDepth(s.depth - 0.3).setTintFill(g.dash).setAlpha(0.45);
+        this.tweens.add({ targets: im, alpha: 0, duration: 200, onComplete: () => im.destroy() }); }
+      return;
+    }
     const ev = g.ev || R.ev || [], t = g.t - (g.e0 || 0), gh = g.ghost || R.ghost; g.ei = g.ei || 0;
     while (g.ei < ev.length && ev[g.ei].t <= t) { this.rigEvent(p, R, ev[g.ei], P); g.ei++; }
     if (gh && t >= gh[0] && t <= gh[1] && this.time.now - (g.gAt || 0) > 40) {
@@ -524,6 +551,7 @@ hc2Mix(Match, {
     return { ...q, lv, col, t: 0, dur: 1.5 * paceK().cutK, o, veil, band, lines, por, fl, name, sub, seed: Math.random() * 1000 };   // (t-020: dur - ARCADE ~1 s)
   },
   cutInTick(dt) {
+    if (this.cutIn.kind === 'clash') { this.clashTick(dt); return; }              // t-028: the clash plays on the cut scene's path (play waits, ENTER cuts it)
     const c = this.cutIn; c.t += dt; const t = c.t, W = VIEW_W, H = VIEW_H, z = this.cameras.main.zoom || 1, cx = W / 2, cy = H / 2;
     const at = (obj, x, y, sc = 1) => obj.setPosition(cx + (x - cx) / z, cy + (y - cy) / z).setScale(sc / z);   // screen point -> what this zoom needs
     const io = clamp(t / 0.2, 0, 1), ein = 1 - Math.pow(1 - io, 3), ko = clamp((t - (c.dur - 0.3)) / 0.3, 0, 1), eout = ko * ko;
@@ -545,7 +573,7 @@ hc2Mix(Match, {
     at(c.sub, W * 0.66 - eout * W * 0.8, H * 0.6, 1); c.sub.setAlpha(clamp((t - 0.3) / 0.15, 0, 1) * (1 - ko));
     if (t >= c.dur || (t > 0.35 && Input.pressed('start'))) this.cutInEnd();
   },
-  cutInEnd() { const c = this.cutIn; if (!c) return; for (const x of c.o) x.destroy(); this.cutIn = null; this.anims.globalTimeScale = 1; },
+  cutInEnd() { const c = this.cutIn; if (!c) return; for (const x of c.o) x.destroy(); this.cutIn = null; this.anims.globalTimeScale = 1; if (c.kind === 'clash') this.clashEnd(c); },   // (t-028: a skipped clash still ends by power)
   // v0.9.0 (Luca: "Teams should be able to use their Iron Wall-like special abilities to also block normal shots (K). Only
   // goalkeepers, no defenders can use defensive special abilities, yet.") A normal shot on target: the defending side
   // can spend its bars on a keeper special save - a sure stop. You: the SAVE prompt (only with a bar in the bank). The
@@ -557,25 +585,140 @@ hc2Mix(Match, {
     if (def === this.home && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset().special}`, 0.75); return; }
     const P = paceK(); if (s.dy > s.cover * P.gkCover && Math.random() < P.gkAnswer * this.dk(def).gkSave) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it (arcade-2: ARCADE answers more, and a little sooner: a keeper's move against every big shot)
   },
-  // the clash at the keeper: true = saved, 'hand' = he only gets a hand to it (t-007: it goes out), false = beaten
+  // the clash at the keeper: true = saved, 'hand' = he only gets a hand to it (t-007: it goes out), 'clash' = a special v
+  // his special save: the ball is held on his gloves now and power decides when that ends (t-028, clashStart .. clashEnd)
   clash(gk) {
     const b = this.ball, lv = gk.spSave || 0; gk.spSave = 0; if (!lv || !(b.special || b.saveable)) return null;
     const norm = !b.special; b.saveable = null;                                   // v0.9.0: a special save always stops a normal shot
-    const K = SAVE_POWER[lv - 1], P = norm ? 0 : b.spP || SP_POWER[b.special - 1];
-    let ok = norm || Math.random() < saveChance(K, P);
-    // t-007 (Luca: "from special saves that dont fully save a ball maybe if the ball is too strong it goes over to give a
-    // corner"): a special stronger than his save that would have beaten him: he gets a hand to it - over the bar or round
-    // the post - more often the closer the two are (K / P: LV2 v LV1 ~70%, LV3 v LV1 50%). A power shot (held K) against
-    // a LV1 save: half the time only a hand to it. Equal or stronger saves still stop it (saveChance is 1).
-    let hand = !ok && Math.random() < clamp(K / P, 0.3, 0.85);
-    if (norm && lv === 1 && (b.power || 0) > 0.72 && Math.random() < 0.5) { ok = false; hand = true; }
-    this.cameras.main.flash(140, 255, 240, 160); this.hitStop = Math.max(this.hitStop || 0, 0.12); SFX.boom(1);
-    if (hand) { this.gkSpecialHit(gk, 'hand', lv); this.say('A HAND TO IT!', norm ? `${SAVE_NAMES[lv - 1]} CAN ONLY PUSH IT AWAY` : `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4); return 'hand'; }
-    if (ok) this.gkSpecialHit(gk, true, lv);                                      // t-014: the batch 16 move picked by the shot (v0.8.9: the rough save rig)
-    if (ok) this.say('SAVED!', norm ? `${SAVE_NAMES[lv - 1]} STOPS THE SHOT` : `${SAVE_NAMES[lv - 1]} ${K} v ${Math.round(P)} ${SP_NAMES[b.special - 1]}`, 1.4);
-    if (ok) this.spBonus(gk.team, 'save');                                        // (t-020: ARCADE - a big save gives a little back)
-    else this.say('IT BREAKS THROUGH!', `${SP_NAMES[b.special - 1]} ${Math.round(P)} v ${K} ${SAVE_NAMES[lv - 1]}`, 1.4);
-    return ok;
+    const K = SAVE_POWER[lv - 1], N = this.clashN || (this.clashN = {});
+    if (norm) {
+      // t-007: a power shot (held K) against a LV1 save: half the time only a hand to it - over the bar or round the post
+      const hand = lv === 1 && (b.power || 0) > 0.72 && Math.random() < 0.5;
+      this.cameras.main.flash(140, 255, 240, 160); this.hitStop = Math.max(this.hitStop || 0, 0.12); SFX.boom(1);
+      N[hand ? 'metTip' : 'met'] = (N[hand ? 'metTip' : 'met'] || 0) + 1;         // (the soak: normal shots met by a special save)
+      if (hand) { this.gkSpecialHit(gk, 'hand', lv); this.say('A HAND TO IT!', `${SAVE_NAMES[lv - 1]} CAN ONLY PUSH IT AWAY`, 1.4); return 'hand'; }
+      this.gkSpecialHit(gk, true, lv);                                            // t-014: the batch 16 move picked by the shot (v0.8.9: the rough save rig)
+      this.say('SAVED!', `${SAVE_NAMES[lv - 1]} STOPS THE SHOT`, 1.4);
+      this.spBonus(gk.team, 'save');                                              // (t-020: ARCADE - a big save gives a little back)
+      return true;
+    }
+    // t-028 POWER AGAINST POWER: the band from the table (core.js CLASH), a little dice inside it. clashForce: the Test
+    // Lab's SM / KS / GP tests make an outcome happen so it can be seen
+    const P = b.spP || SP_POWER[b.special - 1], r = P / K * (1 + rnd(-CLASH.jit, CLASH.jit));
+    let out = CLASH.bands.find(q => r < q[0])[1], tip = Math.random() < CLASH.tip;
+    const F = this.clashForce; if (F) { out = F === 'tip' ? 'bounce' : F; tip = F === 'tip' || (F === 'bounce' && tip); }
+    this.clashStart(gk, lv, P, K, out, tip, r);
+    return 'clash';
+  },
+  // ======================================================================= t-028 THE CLASH (Inazuma Eleven's hissatsu shot v hissatsu catch, Captain
+  // Tsubasa's keeper driven back over the line: "the ball grinds against the technique for a moment, power numbers decide").
+  // The ball meets his gloves and HOLDS there (CLASSIC 0.6 s, ARCADE 0.4, real time): it shudders and spins against his
+  // hands on the contact frame of his move, sparks fly, an orb in each level's colour pushes at it (the stronger one
+  // grows), the world's animations run slow, the camera eases in on it, Rami: "POWER AGAINST POWER". It runs on the cut
+  // scene's path (match.js: play waits, ENTER cuts it short, a test tool's cutInEnd ends it) - however it ends, clashEnd
+  // plays the outcome. The same for both keepers: nothing here asks whose keeper it is.
+  clashStart(gk, lv, P, K, out, tip, r) {
+    const b = this.ball, slv = b.special, SN = this.spName && this.spName.p === b.shotBy ? this.spName.name : SP_NAMES[slv - 1];
+    gk.y = clamp(b.y, 30.6, 37.4); gk.vx = gk.vy = 0;                             // (he got there: on its line, as the old save did)
+    this.gkSpecialHit(gk, true, lv);                                              // his move on its contact frame, the save's effects
+    const c = { kind: 'clash', gk, lv, slv, P, K, out, tip, r, SN, SV: SAVE_NAMES[lv - 1], t: 0, dur: paceK().arcade ? CLASH.holdArcade : CLASH.hold, o: [], fxAt: 0,
+      bx: b.x, by: b.y, bz: b.z, vx: b.vx, vy: b.vy, vz: b.vz, cs: SP_HOT[slv - 1][0], ck: RIG_COL[lv - 1] };
+    b.vx = b.vy = b.vz = 0;
+    if (this.textures.exists('fx')) for (const t of [c.cs, c.ck]) { const im = this.add.image(0, 0, 'fx', 'orb').setTint(t).setAlpha(0.75).setBlendMode(Phaser.BlendModes.ADD); c.o.push(im); }
+    if (this.cutInQ && this.cutInQ.who === gk) this.cutInQ = null;               // (his save's cut scene never got its turn: this is the moment now)
+    if (!this.camTarget) this.camTarget = c.cam = { x: wx(b.x, b.y), y: wy(b.y) - 40 - b.z * PX_H * 0.5 };
+    this.hitStop = 99;                                                            // (no sim step may run under it - watch mode's extra steps a frame: the ball sits still by his gloves; clashEnd lets go)
+    this.cameras.main.flash(140, 255, 240, 160); this.cameras.main.shake(c.dur * 1000 + 120, 0.006); SFX.boom(1); SFX.special(lv);
+    this.say('POWER AGAINST POWER!', `${SN} ${Math.round(P)} v ${K} ${c.SV}`, c.dur + 0.4);
+    this.ramiSay('save', { text: 'POWER AGAINST\nPOWER!!', expr: 'shock' }, 3);
+    this.cutIn = c;
+  },
+  clashTick(dt) {
+    const c = this.cutIn, b = this.ball, side = c.gk.team.side;
+    if (c.carry) { this.clashCarryTick(c, dt); return; }
+    c.t += dt;
+    this.anims.globalTimeScale = CLASH.slow;                                      // (match.js froze them for the cut scene: a small slow-mo instead)
+    const u = clamp(c.t / c.dur, 0, 1), lean = clamp(c.r - 1, -0.6, 0.9);        // + the shot is winning, - the save
+    b.x = c.bx - side * lean * 0.3 * u + rnd(-0.035, 0.035); b.y = c.by + rnd(-0.035, 0.035); b.z = Math.max(0.12, c.bz + rnd(-0.025, 0.025));   // it shudders, pressed in (or pushed back out)
+    b.roll = (b.roll || 0) + dt * 30;                                             // spinning against his gloves (render steps the ball's frames by its roll)
+    const X = wx(b.x, b.y), Y = wy(b.y) - 12 - b.z * PX_H, D = wy(b.y) + 1, pulse = 0.08 * Math.sin(c.t * 40);
+    const [os, ok] = c.o; if (os) {                                               // the two powers pushing: an orb in each level's colour, the stronger one grows
+      os.setPosition(X + side * 9, Y).setDepth(D - 0.2).setScale(0.7 + 0.6 * u * Math.max(0, lean) + pulse);
+      ok.setPosition(X - side * 9, Y).setDepth(D - 0.2).setScale(0.7 + 0.6 * u * Math.max(0, -lean) + 0.15 * u - pulse); }
+    if (this.time.now >= c.fxAt) {                                                // sparks off the contact, both colours
+      c.fxAt = this.time.now + 45; c.n = (c.n || 0) + 1;
+      this.rigPop('sparks', X + rnd(-10, 10), Y + rnd(-10, 10), D, { s: [0.4, 1.2], ms: 260, tint: c.n % 2 ? c.cs : c.ck, rot: rnd(0, 6.3) });
+      if (c.n % 3 === 0) this.rigPop(c.slv >= 2 ? 'bolt' : 'flame', X + rnd(-12, 12), Y + rnd(-14, 6), D, { s: [0.5, 1], ms: 220, tint: c.cs });
+      if (c.n % 4 === 0) this.rigPop('ring', X, Y, D - 0.1, { s: [0.4, 1.4 + u], ms: 300, a: 0.7, tint: c.ck });
+    }
+    const skip = c.t > CLASH.skip && Input.pressed('start');
+    if (c.t >= c.dur && !skip && c.out === 'body') { this.clashCarry(c); return; }
+    if (c.t >= c.dur || skip) this.cutInEnd();
+  },
+  // THE BODY: the shot drives him back over his line WITH the ball at his chest (CLASH.carry s), the PixelLab 'blasted
+  // back' move. Both are moved by hand here (play still waits), so he really ends up in the net - left to the physics,
+  // the goal's freeze stopped him short of it. ENTER / a test tool's cutInEnd: straight to the end (clashEnd)
+  clashCarry(c) {
+    const gk = c.gk, side = gk.team.side, bl = MAN.kits[gk.kit].anims['blasted-E'];
+    c.carry = { t: 0, x0: gk.x, x1: gk.team.ownGoalX - side * 0.7, bz: this.ball.z };
+    gk.setState(bl ? 'blasted' : 'fall', 1.5); gk.face = side > 0 ? 0 : 4; gk.vx = gk.vy = 0;
+    if (c.cam && this.camTarget === c.cam) { this.camTarget = null; c.cam = null; }
+    this.cameras.main.flash(120, 255, 240, 200); this.cameras.main.shake(420, 0.018); SFX.boom(1);
+    this.say('BLASTED INTO THE NET!', `${c.SN} ${Math.round(c.P)} v ${c.K} ${c.SV} - HE GOES IN WITH IT!`, 1.8);
+    this.ramiSay('save', { text: 'HE\'S IN THE NET WITH IT!!!\nWHAT POWER!', expr: 'laugh' }, 3);
+  },
+  clashCarryTick(c, dt) {
+    const K = c.carry, gk = c.gk, b = this.ball, side = gk.team.side; K.t += dt;
+    this.anims.globalTimeScale = 1;
+    const u = clamp(K.t / CLASH.carry, 0, 1), e = 1 - (1 - u) * (1 - u);
+    gk.x = K.x0 + (K.x1 - K.x0) * e; b.x = gk.x + side * 0.45; b.y = c.by; b.z = Math.max(0.5, K.bz * (1 - 0.3 * e)); b.roll = (b.roll || 0) + dt * 30;
+    if (this.time.now >= c.fxAt) { c.fxAt = this.time.now + 60;
+      const X = wx(b.x, b.y), Y = wy(b.y) - 12 - b.z * PX_H; this.rigPop('sparks', X, Y, wy(b.y) + 1, { s: [0.5, 1.3], ms: 260, tint: c.cs, rot: rnd(0, 6.3) });
+      this.rigPop('dust', wx(gk.x, gk.y), wy(gk.y) - 4, wy(gk.y) - 1, { s: [0.4, 1.1], ms: 320 }); }
+    if (u >= 1 || Input.pressed('start')) this.cutInEnd();
+  },
+  // how it ends (core.js CLASH: the bands). The caption says it in plain words, the two numbers on it.
+  clashEnd(c) {
+    const b = this.ball, gk = c.gk, side = gk.team.side; this.hitStop = 0;
+    Object.assign(b, { x: c.bx, y: c.by, z: c.bz, vx: c.vx, vy: c.vy, vz: c.vz });
+    if (c.cam && this.camTarget === c.cam) this.camTarget = null;
+    const key = c.out === 'bounce' && c.tip ? 'tip' : c.out, N = this.clashN || (this.clashN = {}); N[key] = (N[key] || 0) + 1;
+    this.clashLast = { out: key, P: Math.round(c.P), K: c.K, r: +c.r.toFixed(2), held: +c.t.toFixed(2), slv: c.slv, lv: c.lv, sn: c.SN, sv: c.SV };   // (the Test Lab's KC lines read it)
+    const sk = `${c.SV} ${c.K} v ${Math.round(c.P)} ${c.SN}`, ss = `${c.SN} ${Math.round(c.P)} v ${c.K} ${c.SV}`;   // (the winner's name first)
+    this.cameras.main.flash(120, 255, 240, 200); SFX.boom(1);
+    if (c.out === 'held') {                                                       // HELD: caught - he lands with it (his move plays on from the contact)
+      b.vx = b.vy = b.vz = 0; this.gkCount(gk.team, 'held'); this.gain(gk, 0);
+      this.say('SAVED!', `${sk} - HE HOLDS IT!`, 1.6); this.ramiSay('save', { text: `HE HOLDS IT!!\n${c.SV} WINS!`, expr: 'shock' }, 3);
+      this.spBonus(gk.team, 'save'); this.flagReplay('WHAT A SAVE!', gk); this.shotSaved(gk); return;
+    }
+    if (c.out === 'bounce') {                                                     // BOUNCES OFF: tipped for a corner (t-007), or back out into play
+      b.special = 0; b.spP = 0; b.save = null; this.gkCount(gk.team, 'parried');
+      if (c.tip) { const hi = b.z > 1.3; this.gkSpecialHit(gk, 'hand', c.lv); this.gkDeflect(gk, hi ? 'tip' : 'wide');
+        this.say(hi ? 'TIPPED OVER!' : 'ROUND THE POST!', `${sk} - IT BOUNCES OFF HIS GLOVES`, 1.6); }
+      else { const rel = b.y - 34 || rnd(-1, 1);                                  // a live rebound for a man following in (a strong parry into a dangerous area: a real keeper's mistake)
+        b.vx = side * rnd(6, 10); b.vy = Math.sign(rel) * rnd(2, 6); b.vz = rnd(2.5, 4.5); b.z = Math.max(b.z, 0.4);
+        b.skid = true; b.rollV = 0; b.last = gk.team; b.lastP = gk; b.target = null; b.ring = null; gk.cool = 0.5;
+        this.gpPop(gk, 'parry', 30);
+        this.say('PARRIED!', `${sk} - IT BOUNCES OFF HIM!`, 1.6); }
+      this.ramiSay('save', { text: c.tip ? 'A HAND TO IT!!\nHE PUSHES IT AWAY!' : 'IT BOUNCES OFF HIM!!\nIT\'S STILL LIVE!', expr: 'shock' }, 3);
+      this.spBonus(gk.team, 'save'); this.flagReplay('WHAT A SAVE!', gk); this.shotSaved(gk); return;
+    }
+    // the shot wins: it goes on into the net (his hands took a little of it) and he can't touch it again
+    const body = c.out === 'body', k = body ? 0.7 : 0.8;
+    b.vx *= k; b.vy *= k; b.save = null; b.saveable = null; gk.spSave = 0; gk.face = side > 0 ? 0 : 4;
+    const bl = MAN.kits[gk.kit].anims['blasted-E'];
+    if (body) {                                                                   // THE BODY: he's in the net with it (clashCarry; skipped: straight there)
+      if (!c.carry) this.clashCarry(c);
+      gk.x = c.carry.x1; gk.vx = -side * 1.5; gk.vy = 0; gk.stun = 0.6; gk.cool = 2;
+      b.x = gk.team.ownGoalX - side * 0.3; b.y = c.by; b.z = Math.max(0.5, c.carry.bz * 0.7);   // just over the line: in (matchflow.js rules)
+      b.vx = -side * 6; b.vy = 0; b.vz = 0;
+    } else {                                                                      // HANDS BLOWN AWAY: arms knocked back, he's thrown off his feet, it goes on
+      gk.setState(bl ? 'blasted' : 'fall', 0.9); gk.vx = -side * 1.6; gk.vy = (Math.sign(gk.y - b.y) || 1) * 1.5; gk.stun = 0.9; gk.cool = 1.4;
+      this.hitStop = 0.07; this.cameras.main.shake(280, 0.012);
+      this.say('THROUGH HIS HANDS!', `${ss} - HIS HANDS ARE BLOWN AWAY!`, 1.8); this.ramiSay('save', { text: 'THROUGH HIS HANDS!!\nTOO MUCH POWER!', expr: 'laugh' }, 3);
+    }
+    this.flagReplay('THROUGH THE KEEPER!', gk);
+    if (!body) this.gpPop(gk, 'break', len(b.vx, b.vy));                          // (t-013 GOAL_PHYS: through his hands it sometimes loops up off him instead; the body goes in with it)
   },
   // RISE UP: the third bar is full. BASIC: the words blink in. WILD: they slam in huge and tilted, flicker through
   // fire colours, PixelLab flames burn under the letters and the flaming arrow-exclamation bobs beside them.
@@ -630,7 +773,7 @@ hc2Mix(Match, {
       k.t = (KICK_HIT[SA] + 0.6) / kickRate(SA);
       for (const o of p.team.opp.players) o.stun = Math.max(o.stun, k.t + 0.2);  // everyone stops to watch
     }
-    this.say(SP_NAMES[lv - 1] + '!', `${p.team.name} · LV${lv} SPECIAL`, 1.3);
+    this.say(SP_NAMES[lv - 1] + '!', `${p.team.name} · LV${lv} SPECIAL`, 1.3); this.spName = { p, name: SP_NAMES[lv - 1] };
     this.ramiSay('skill', { text: [`A ${SP_NAMES[0]}!\nTHE BALL IS ON FIRE!`, `${SP_NAMES[1]}!\nYOU CAN HEAR IT CRACKLE!`, `THE ${SP_NAMES[2]}!!\nI HAVE NEVER SEEN THAT!`][lv - 1], expr: 'laugh' }, 2);
     SFX.special(lv); this.flagReplay(SP_NAMES[lv - 1] + '!');
     return true;

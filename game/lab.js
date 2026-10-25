@@ -1734,6 +1734,42 @@
         return null;
       } };
   }
+  // ======================================================================= t-028 THE KEEPER CLASH (KC). With a special save on he gets to
+  // anything on target (KC1: a normal shot under the bar in the top corner, his move started from the real ball); a
+  // special against it is held on his gloves for a beat, then power decides (core.js CLASH). The dice are put in the
+  // middle here (force 'mid'), so each test shows its powers' own band. The line: the two powers (and their ratio), how
+  // long the ball was held on his gloves, the outcome, then what came of it.
+  const KC_OUT = { held: 'HELD - he catches it', bounce: 'BOUNCES OFF - parried back into play', tip: 'BOUNCES OFF - a hand to it, tipped', hands: 'HANDS BLOWN AWAY', body: 'THE BODY - blasted into the net with it' };
+  function kcTest(id, name, sub, o) {
+    const t = pwTest(id, name, sub, { lv: o.lv, from: o.from || [86, 33], block: [], save: o.save });
+    const pc = t.check, s0 = t.setup;
+    t.setup = r => { s0(r); m.clashLast = null; r.gk.rig = null; m.gkSpLast = null;
+      const f0 = r.action.fire; r.action.fire = () => { f0(); if (m.pending && m.pending.p === r.shooter) m.pending.ty = o.ty ?? 34.6; };   // (aimed just off his middle: his iron block meets it, easy to see)
+    };
+    t.check = r => { pc(r); if (r.shotT == null) return null;
+      const b = m.ball, L = m.clashLast;
+      if (!L) return r.t - r.shotT > 5 ? { o: 'NO CLASH' + (b.inNet ? ' · GOAL' : '') } : null;
+      if (r.clT == null) r.clT = r.t;
+      const head = `${L.sn} ${L.P} v ${L.K} ${L.sv} (shot/save ${L.r}) · held on his gloves ${L.held.toFixed(2)} s · ${KC_OUT[L.out] || L.out} · `;
+      if (b.inNet) return { o: head + 'GOAL', hold: 1.4 };
+      if (b.owner === r.gk) return { o: head + 'his ball', hold: 1 };
+      if (r.out) return { o: head + 'OUT · ' + r.out.toLowerCase(), hold: 0.6 };
+      if (b.owner) return { o: head + `${b.owner.team === r.gk.team ? 'his side' : 'the attackers'} pick it up` };
+      if (r.t - r.clT > 2.5) return { o: head + 'loose, in play' };
+      return null; };
+    return Object.assign(t, { group: 'KC', force: o.force || 'mid', noPop: true });
+  }
+  function kcTests() {
+    const kc1 = ksShot('KC1', 'a normal shot into the top corner v his LV1 save', 'he stands in the middle; with IRON WALL on he dashes across and meets it under the bar: saved', { n: '16 m', x: 89, y: 33 }, { y: GOAL_Y1 - 0.35, z: 2.15 }, 25, 0.6, 1);
+    kc1.group = 'KC'; { const s0 = kc1.setup; kc1.setup = r => { s0(r); put(r.gk, LINE_X, 34, 4); }; }
+    return [kc1,
+      kcTest('KC2', 'LV1 shot v his LV3 save → HELD', 'BLAZE SHOT 100 v 200 RISING SHIELD: the save is far stronger - he catches it', { lv: 1, save: 3 }),
+      kcTest('KC3', 'LV2 shot v his LV2 save → BOUNCES OFF', 'THUNDER SHOT 140 v 140 THUNDER GLOVE: close - parried back out, a live ball', { lv: 2, save: 2 }),
+      kcTest('KC4', 'LV2 shot v his LV1 save → HANDS BLOWN AWAY', 'THUNDER SHOT 140 v 100 IRON WALL: the shot a bit stronger - through his hands, goal', { lv: 2, save: 1 }),
+      kcTest('KC5', 'LV3 shot v his LV1 save → THE BODY', 'RISING PHOENIX 200 v 100 IRON WALL: much stronger - he is blasted into the net with it', { lv: 3, save: 1 }),
+      kcTest('KC6', 'LV2 shot v his LV2 save → tipped for a corner', 'the other half of BOUNCES OFF (made to happen here): a hand to it, over or round the post', { lv: 2, save: 2, force: 'tip' }),
+    ];
+  }
   // ======================================================================= t-022 CHARGED HEADERS AND VOLLEYS (HV). The Lab plays YOU through
   // the touch buttons (the game's own input): a team-mate crosses to you, SHOOT goes down o.press s before the ball gets
   // to you (by the game's predicted path) and is let go o.rel s before it (o.rel null: still held at the contact = late;
@@ -2284,6 +2320,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     ]);
     add('HV', 't-022 · CHARGED HEADERS + VOLLEYS', 'Hold SHOOT as the ball comes in, let go as it reaches you: the hold is the power (like a ground shot), the timing keeps it - just before the contact = full power and on target, early or late = weaker and wilder, too much = over the bar. A tap is today\'s header / volley. A well-timed one: a white flash, a few sparks, a tiny hit-stop.', hvTests());
     add('KS', 't-014 · KEEPER SPECIAL SAVES BY THE SHOT', 'Their keeper has a special save ready; the shot picks the move: a lob → kleap, straight → kblock, wide → kdivecatch, too strong to hold → ktip (a corner). Who wins stays as before.', ksTests());
+    add('KC', 't-028 · THE KEEPER CLASH', 'With a special save on, the keeper gets to anything on target (a dash across his goal). A special shot against it is held on his gloves for a beat - sparks, slow-mo, POWER AGAINST POWER (ENTER skips) - then power decides: HELD, BOUNCES OFF (parried or tipped), HANDS BLOWN AWAY (goal), or THE BODY (blasted into the net with it).', kcTests());
     add('CS', 'CUT SCENES', 'Every cut scene in full (the Lab normally skips them). R plays it again. Rate how it looks; ENTER moves the menus on.', buildCuts());
     add('BW', 't-021 · BUG WATCH CHECKS', 'Each new Bug Watch check tripped on purpose (the Lab breaks the game for it: a frozen clock, a ball shot through a keeper who can\'t touch it, a man who won\'t move...). BW9: normal play, where none of them may trip. Nothing here is saved as a clip.', bwTests());
     add('CL', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai), real bugs first. 1 = the game was right · 2 = it\'s a bug.', [{ id: 'CL0', group: 'CL', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,
@@ -2416,12 +2453,17 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       LAB.reactK = { src: K, d: LAB.react, K: Object.assign({}, K, { gkReact: K.gkReact + LAB.react }) }; return LAB.reactK.K; };
     m.dkY = function (team) { const r = LAB.run; return DIFF_YOU[r && r.sc.kind === 'free' && team === m.away ? LAB.fp.cpu : 'base']; };   // v0.9.3: its edges v you, same switch
     const gpPop = m.gpPop.bind(m);                                             // t-013 GP7-8: the pop-up made to happen, so it can be seen
-    m.gpPop = function (gk, kind, spd) { const r = LAB.run; if (!(r && r.sc.forcePop)) return gpPop(gk, kind, spd); const R = Math.random; let first = true;
+    m.gpPop = function (gk, kind, spd) { const r = LAB.run; if (r && r.sc.noPop) return false;   // (t-028 KC: the clash's own outcome, no GOAL_PHYS pop-up on top)
+      if (!(r && r.sc.forcePop)) return gpPop(gk, kind, spd); const R = Math.random; let first = true;
       Math.random = () => (first ? (first = false, 0) : R()); try { return gpPop(gk, kind, spd); } finally { Math.random = R; } };
     const kTouch = m.keeperTouch.bind(m);                                      // t-013 GP7: his touch made a plain parry (t-007's keeper may hold it or turn it round the post)
     m.keeperTouch = function (p, pbx) { const r = LAB.run, h = kTouch(p, pbx); return h && r && r.sc.forceParry ? 'parry' : h; };
     const clash = m.clash.bind(m);                                             // v0.8.9 SM tests: the save made to win / lose, so each one can be seen
-    m.clash = function (gk) { const r = LAB.run, f = r && r.sc.force; if (!f) return clash(gk); const R = Math.random; let n = 0; Math.random = () => (f === 'win' ? 0 : f === 'hand' && n++ ? 0 : 0.9999); /* (t-007 'hand': beaten, then a hand to it) */ try { return clash(gk); } finally { Math.random = R; } };
+    // (t-028: a special v his special save is a clash now - the old forces name its outcome: win = HELD, lose = THE BODY,
+    // hand = a hand to it (tipped for a corner); 'mid' = the dice in the middle, so the band is the powers' own: the KC tests)
+    m.clash = function (gk) { const r = LAB.run, f = r && r.sc.force; if (!f) return clash(gk); const R = Math.random; let n = 0;
+      m.clashForce = f === 'lose' && r.sc.forcePop ? 'hands' : { win: 'held', lose: 'body', hand: 'tip', tip: 'tip' }[f] || null;   // (GP8: the guard broken, the ball loops up - a pop-up is the hands' outcome, never the body's)
+      Math.random = () => (f === 'mid' || f === 'tip' ? 0.5 : f === 'win' ? 0 : f === 'hand' && n++ ? 0 : 0.9999); /* (t-007 'hand': beaten, then a hand to it) */ try { return clash(gk); } finally { Math.random = R; m.clashForce = null; } };
     const saveCall = m.saveCall.bind(m);                                       // v0.8.8 free play KEEPER SAVE: off, or always that level
     m.saveCall = function (def) { const r = LAB.run; if (!(r && r.sc.kind === 'free' && def === m.away)) return saveCall(def);
       const gk = def.players[0]; if (!gk || gk.sentOff) return; gk.spSave = LAB.fp.save || 0; if (gk.spSave) m.saveFx(gk); };
