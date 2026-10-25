@@ -184,6 +184,7 @@ const TACKLE = {
   // the moves, best first: a kit uses the first it has. Batch 19 (slide2, slideup) drops in here; fps null = its frames
   // spread over the slide / get-up time
   anims: { slide: [['slide2', null], ['slide', 12]], slideup: [['slideup', null], ['getup', 12]] },
+  diagNS: ['slide2', 'slideup'],   // batch 19's N / S came out sideways: those directions use the diagonal (player.js)
 };
 const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the weather scales these (clear = as tuned)
 // t-013 GOAL PHYSICS (Luca 24 Oct 14:04: "a net through which the ball can interact with slight give ... more dynamic

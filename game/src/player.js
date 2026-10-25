@@ -180,9 +180,12 @@ class Player {
   tacklePlay(kind, d, dur) {
     const K = MAN.kits[this.kit];
     for (const [nm, fps] of TACKLE.anims[kind]) {
-      const fr = K.anims[`${nm}-${d}`]; if (!fr) continue;
+      // (batch 19: PixelLab drew the N and S slides going sideways, so up / down the pitch shows the diagonal on the
+      // side he's sliding towards - SE / SW, NE / NW)
+      let dd = d; if (TACKLE.diagNS.includes(nm) && (d === 'N' || d === 'S')) dd = d + (((this.slideDir && this.slideDir.x) ?? dirVec(this.face).x) >= 0 ? 'E' : 'W');
+      const fr = K.anims[`${nm}-${dd}`]; if (!fr) continue;
       const rate = fps || Math.max(4, fr.length / (kind === 'slide' ? TACKLE.slideT : TACKLE.upMiss));
-      if (!this.play(`${nm}-${d}`, rate, true)) return false;
+      if (!this.play(`${nm}-${dd}`, rate, true)) return false;
       this.spr.anims.timeScale = Math.max(1, fr.length / rate / dur); return true;
     }
     return false;
