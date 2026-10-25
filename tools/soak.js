@@ -107,11 +107,16 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       setAiMode(c.ai); setDiff(c.lvl === 'base' ? 'normal' : c.lvl);
       window.__diffTeams = { home: Object.assign({}, DIFF_TRAITS.base, { lvl: 'base' }), away: Object.assign({}, DIFF_TRAITS[c.lvl] || DIFF_TRAITS.normal, { lvl: c.lvl }) };
       m.mset = { arena: 'loo', tod: c.tod, weather: c.weather, ending: 'none' }; m.applyRules();
+      window.__play = { run: 0, live: 0, sp: 0, n: 0, last: null };            // (t-029)
       m.demo = true; m.kickoff(m.home); }, c);
     let res = null, lastClock = -1, still = 0, stall = null;
     for (let chunk = 0; chunk < 60 && !res; chunk++) {                  // 600 steps (10 game-seconds at 1x) a chunk, at most ~1.3 matches long
       const s = await page.evaluate(() => { const m = window.__hc2, g = m.game;
-        for (let k = 0; k < 600 && !m.over; k++) { window.__T += 1000 / 60; g.step(window.__T, 1000 / 60); if (m.cutIn) m.cutInEnd(); if (m.replay) m.endReplay(); }
+        for (let k = 0; k < 600 && !m.over; k++) { window.__T += 1000 / 60; const c0 = m.clock; g.step(window.__T, 1000 / 60); if (m.cutIn) m.cutInEnd(); if (m.replay) m.endReplay();
+          // t-029 TIME IN PLAY: of the steps where the match clock ran, how many were live play (Bug Watch's live()) and how
+          // many sat in a set piece before the kick (its setup + the aim). Counted the same way on any version (before / after)
+          const P = window.__play; if (m.clock > c0) { P.run++; if (m.bw && m.bw.live()) P.live++; if (m.setPiece && !m.setPiece.kicked) P.sp++; }
+          const sp = m.setPiece; if (sp && !sp.kicked && sp !== P.last) { P.last = sp; P.n++; } }
         return { over: m.over, clock: m.clock, half: m.half }; });
       if (s.clock === lastClock && !s.over) { if (++still >= 3) { stall = `the clock stood at ${Math.round(s.clock)} s (half ${s.half}) for 30 game-seconds`; break; } } else still = 0;
       lastClock = s.clock;
@@ -123,6 +128,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       // merge of t-007 + t-012 (t-008): both sets of numbers, the keeper's and the wing play's
       return { score: `${m.home.score}-${m.away.score}`, shots: `${H.shots || 0}-${A.shots || 0}`, goals: m.home.score + m.away.score,
         corners: sum('corners'), onT: sum('onT'), held: sum('held'), parried: sum('parried'), kOut: sum('kOut'), kIn: sum('kIn'), fouls: `${H.fouls || 0}-${A.fouls || 0}`, offsides: sum('offsides'),   // (t-024)
+        play: (P => ({ inPlay: P.run ? +(100 * P.live / P.run).toFixed(1) : 0, spWait: P.n ? +(P.sp / 60 / P.n).toFixed(2) : 0, setPieces: P.n }))(window.__play),   // (t-029)
         possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), arc: Object.assign({}, m.arcN || {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null,
         wing: Object.fromEntries(Object.entries(window.__wing).filter(([k, v]) => (typeof v === 'number' && k !== 'wideT') || k === 'goalLog')) }; });
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
@@ -132,7 +138,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     { const w = st.wing; console.log(`   tackles (t-018): slides ${w.slides} (won the ball ${w.slideWins}) · challenges ${w.challenges} (won ${w.chWins}) · fouls ${st.fouls} · possession changes ${w.possCh}`); }
     if (process.env.PACE === 'arcade') { const a = st.arc; console.log(`   arcade: board rebounds ${a.reb} (up for a header ${a.air}) · headers / volleys off them ${a.rebShots} · special shots ${st.wing.spShot} · special saves ${st.wing.spSave} · aerial battles ${st.wing.battles} · SP extras ${a.sp} (aerial ${a.aerial || 0}, rebound ${a.rebound || 0}, save ${a.save || 0})`); }
     console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${process.env.TAP ? `tap kicks ${st.wing.taps} · ` : ''}${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
-    console.log(`   offsides ${st.offsides || 0}`);                                  // t-024 (aim: 1-3 a match)
+    console.log(`   offsides ${st.offsides || 0} · time in play ${st.play.inPlay}% · set pieces ${st.play.setPieces}, ${st.play.spWait} s each before the kick`);   // t-024 (aim: 1-3 a match) · t-029
   }
   await br.close();
   // summary: every Bug Watch code across all matches, errors and bugs first (t-021: the 'look' ones apart, counts only)
@@ -160,6 +166,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     `- Finished: ${fin} of ${out.matches.length}${stalls.length ? ` · STALLS: ${stalls.map(m => `#${m.n}`).join(', ')}` : ''}`,
     `- Page errors: ${errs.length}${errs.length ? '' : ' (none)'}`,
     `- Offsides per match (t-024): ${per('offsides')} (total ${tot('offsides')})`,
+    (n => `- Time in play (t-029): ${(out.matches.reduce((a, m) => a + m.play.inPlay, 0) / n).toFixed(1)}% of the running clock · set pieces ${(out.matches.reduce((a, m) => a + m.play.setPieces, 0) / n).toFixed(1)} a match, ${(out.matches.reduce((a, m) => a + m.play.spWait * m.play.setPieces, 0) / Math.max(1, out.matches.reduce((a, m) => a + m.play.setPieces, 0))).toFixed(2)} s each before the kick`)(out.matches.length || 1),
     `- Per match: goals ${per('goals')} · shots on target ${per('onT')} · corners ${per('corners')} · saves held ${per('held')} · parried ${per('parried')} · keeper touches out ${per('kOut')} / in play ${per('kIn')} (totals ${tot('goals')} / ${tot('onT')} / ${tot('corners')} / ${tot('held')} / ${tot('parried')})`, ...errs.slice(0, 5).map(e => `  - #${e.match + 1}: ${e.msg} ${e.stack}`),
     `- Real bugs: ${bugs.length ? bugs.map(e => `${e.code} ${e.trips}`).join(' · ') : 'none'}`, ...bugs.flatMap(e => e.examples.map(x => `  - ${e.code}: ${x}`)),
     `- Looks (cosmetic: counted, no clips): ${looks.map(e => `${e.code} ${e.trips}${e.matches ? ` in ${e.matches} matches` : ''}`).join(' · ')}`, '',

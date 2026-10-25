@@ -105,6 +105,12 @@ const PACE = {
 // these: every use is behind paceK().arcade (false on CLASSIC, true on ARCADE).
 PACE.classic.arcade = false; PACE.classic.cutK = 1;
 PACE.arcade.arcade = true;
+// t-029 SET-PIECE SETUP (Luca 25 Oct 14:59: "fix the pacing for set pieces"): how long each restart's setup lasts before
+// you aim / the computer takes it (matchflow.js spSetup: the players jog into the shape, the taker places the ball).
+// Seconds; v = the jog into the shape (m/s), walk = the taker's last steps, aiAfter = the computer's breath once it is set
+// (it was aiTake from the teleport), gk = the goal kick's jog-in after its wipe. Your own set piece skips once it is mostly in.
+PACE.classic.setup = { throw: 1.5, offside: 2.5, fk: 2.5, fkNear: 4, corner: 4, gk: 1.0, v: 3.8, walk: 1.9, aiAfter: 0.5 };
+PACE.arcade.setup = { throw: 0.8, offside: 1.5, fk: 1.5, fkNear: 2.5, corner: 2.5, gk: 0.6, v: 4.8, walk: 2.4, aiAfter: 0.15 };
 PACE.arcade.cutK = 0.65;            // the special-save cut scene 1.5 s -> ~1 s: the bang without the wait (design E)
 const ARCADE = {
   // 1 REBOUNDS: invisible boards along the touchlines and the bylines (not the goal mouth under the bar), so the ball never

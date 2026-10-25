@@ -64,6 +64,14 @@ hc2Mix(Match, {
     applyPace(); this.freeze = paceK().koFreeze; this.say('KICK-OFF', team.name + ' TO START', 1.2); SFX.whistle(1);   // (t-004: ARCADE 0.6 s)
   },
   // dead-ball restarts become SET PIECES: play stops, the taker stands over the ball and aims with a cursor
+  // t-029 (Luca 25 Oct 14:59: "only the catching of the offside happened, then they resume without people reorganizing
+  // ... do the same with the corners: they transition too quick, fix the pacing for set pieces"). Players used to be
+  // TELEPORTED onto their spots and the kick came half a second later. Now every restart (but the penalty, which has its
+  // own scene) has a SETUP first, as on TV and in FIFA / PES: the whistle / flag and a caption, the players JOG into the
+  // restart's shape (spShape: a spot each), the taker walks up and places the ball, then you aim / the computer takes it.
+  // Anyone who can't get there in time is moved under the goal kick's TV wipe (a cut), never in plain sight. How long it
+  // lasts: PACE[..].setup (core.js), CLASSIC / ARCADE; your own set piece skips to aiming with PASS / SHOOT / LOB / THROUGH
+  // once the shape is mostly in (spSetupTick).
   restart(kind, team, x, y, note, opts = {}) {
     this.offSide = null;                                                         // t-024: the ball was dead - whoever was offside before isn't now
     this.dead = null; if (kind === 'FREE KICK' || kind === 'PENALTY') SFX.whistle(1);
@@ -72,41 +80,143 @@ hc2Mix(Match, {
     if (kind === 'CORNER') { this.ramiSay('corner', { TEAM: team.name }); this.stat(team).corners++; }
     if (kind === 'PENALTY' && MAN.penalty && !window.HC2_NO_PENCAM && !this.demo) return this.startPenalty(team, note);
     const b = this.ball;
-    Object.assign(b, { x, y, z: 0, vx: 0, vy: 0, vz: 0, inNet: false, netRight: undefined, target: null, skid: false, save: null });
+    Object.assign(b, { vx: 0, vy: 0, vz: 0, inNet: false, netRight: undefined, target: null, skid: false, save: null, owner: null });
+    if (kind !== 'CORNER') Object.assign(b, { x, y, z: 0 });                     // (t-029: a corner's ball goes to the flag with its taker, under the cut)
     for (const p of this.all) { if (p.sentOff) continue; p.hands = false; if (p.busy() && p.state !== 'getup') p.setState('idle', 0); p.stun = 0; }
     let taker;
-    if (kind === 'GOAL KICK') taker = team.players[0];
-    else if (kind === 'PENALTY') taker = [9, 10, 8, 7, 6, 5, 4, 3, 2, 1].map(i => team.players[i]).find(p => !p.sentOff) || team.players[0];
-    else taker = team.players.filter(p => !p.keeper && !p.sentOff).sort((a, c) => len(a.x - x, a.y - y) - len(c.x - x, c.y - y))[0];
-    this.placeSetPiece(kind, team, taker, x, y, opts.cut);
-    this.aimPt = this.defaultAim(kind, team, taker, x, y);
-    const dx = this.aimPt.x - x, dy = this.aimPt.y - y, dl = len(dx, dy) || 1;
-    taker.x = x - dx / dl * 0.6; taker.y = y - dy / dl * 0.6; taker.vx = taker.vy = 0; taker.face = dirIndex(dx, dy);
-    if (kind === 'THROW-IN') { taker.x = x; taker.y = y + (y < 34 ? -0.5 : 0.5); }
-    b.owner = taker; b.last = team; taker.state = 'idle';
-    if (team === this.home) this.human = taker;
-    this.setPiece = { kind, team, taker, t: 0, kicked: false };
-    this.charge = -1; this.nextHuman = null;
-    this.freeze = paceK().spFreeze; this.say(kind, note || (team === this.home ? (k => `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`)(keyset()) : team.name), team === this.home ? 2.4 : 1.4);
+    if (kind === 'PENALTY') taker = [9, 10, 8, 7, 6, 5, 4, 3, 2, 1].map(i => team.players[i]).find(p => !p.sentOff) || team.players[0];
+    else taker = this.spTaker(kind, team, x, y, opts);
+    this.charge = -1; this.nextHuman = null; this.pending = null;
+    if (kind === 'PENALTY') {                                                    // (the demo / the old test page: no penalty scene - as before)
+      this.placeSetPiece(kind, team, taker, x, y);
+      this.aimPt = this.defaultAim(kind, team, taker, x, y);
+      const dx = this.aimPt.x - x, dy = this.aimPt.y - y, dl = len(dx, dy) || 1;
+      taker.x = x - dx / dl * 0.6; taker.y = y - dy / dl * 0.6; taker.vx = taker.vy = 0; taker.face = dirIndex(dx, dy);
+      b.owner = taker; b.last = team; taker.state = 'idle';
+      if (team === this.home) this.human = taker;
+      this.setPiece = { kind, team, taker, t: 0, kicked: false };
+      this.freeze = paceK().spFreeze; this.say(kind, note || (team === this.home ? (k => `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`)(keyset()) : team.name), team === this.home ? 2.4 : 1.4);
+      return;
+    }
+    b.last = team;
+    this.spSetup(kind, team, taker, x, y, note, opts);
   },
-  // v0.10.4 GOAL KICK (Luca, 24 Oct 06:21, "of immediate importance": "it should have a clean cut away to the goalie with
-  // it in his hands and the team laid out how they would in a normal game"). Players used to stay wherever the ball went
-  // out and the keeper walked to a ball on the grass. Now a TV wipe covers a cut (match.js starts it 0.24 s before), the
-  // keeper stands at the edge of his six-yard box with the ball in his hands and both teams stand in a goal-kick shape:
-  // his centre-backs split to the corners of the box, the full-backs high and wide, midfield spread, the strikers near
-  // halfway; the other side outside his box, its strikers screening, midfield marking, the back four goal-side of his
-  // strikers. Then he plays it out of his hands as after a catch: yours = you throw (PASS) or punt (LOB), the computer's =
-  // its outlet throw / punt. GK_SHAPE: [metres out from HIS goal line, y] per slot (1-4 back four, 5-8 midfield, 9-10 up front).
+  // who takes it: the nearest outfield man (as before); an offside free kick deep in his own half: the keeper, as on TV
+  // ("a defender (often the keeper or a centre-back) places it"), else a defender if one is close
+  spTaker(kind, team, x, y, opts) {
+    const on = team.players.filter(p => !p.keeper && !p.sentOff), d = p => len(p.x - x, p.y - y), by = (a, c) => d(a) - d(c);
+    if (opts.offside) {
+      const gk = team.players[0];
+      const S = paceK().setup, can = p => len(p.x - x, p.y - y) < S.v * (S.offside + 0.5);   // (if he can get there: no cut needed)
+      if (!gk.sentOff && Math.abs(x - team.ownGoalX) < 22 && Math.abs(y - 34) < 22 && can(gk)) return gk;
+      const def = on.filter(p => p.i >= 1 && p.i <= 4).sort(by)[0];
+      if (def && d(def) < 14) return def;
+    }
+    return on.sort(by)[0] || team.players[0];
+  },
+  // t-029 the SETUP. The table key, every man's spot, who has to be there before it is taken (must), whether a wipe is
+  // needed (a corner always: the TV cut to the taker at the flag), then spSetupTick runs it frame by frame
+  spSetup(kind, team, taker, x, y, note, opts) {
+    const P = paceK(), S = P.setup, b = this.ball, near = kind === 'FREE KICK' && len(team.goalX - x, 34 - y) < 35;
+    const key = opts.offside ? 'offside' : kind === 'CORNER' ? 'corner' : kind === 'THROW-IN' ? 'throw' : near ? 'fkNear' : 'fk';
+    const T = S[key], { spots, must } = this.spShape(kind, team, taker, x, y, opts);
+    const gx = team.goalX, s = team.side, top = y < 34;
+    const toward = kind === 'CORNER' ? { x: gx - s * 9, y: 34 } : kind === 'THROW-IN' ? { x, y: top ? 10 : PITCH_W - 10 } : near ? { x: gx, y: 34 } : { x: x + s * 20, y: 34 + (y - 34) * 0.5 };
+    const dx = toward.x - x, dy = toward.y - y, dl = len(dx, dy) || 1;
+    const stand = kind === 'THROW-IN' ? { x, y: top ? -0.5 : PITCH_W + 0.5 } : { x: x - dx / dl * 0.6, y: y - dy / dl * 0.6 };
+    for (const [p, q] of spots) p.spot = q;
+    const reach = S.v * (T + 0.5), far = p => p === taker ? len(stand.x - p.x, stand.y - p.y) > reach : !!p.spot && len(p.spot.x - p.x, p.spot.y - p.y) > reach;
+    const wipe = !opts.cut && (kind === 'CORNER' || [taker, ...must].some(far));   // (a foul's free kick: the foul scene's wipe is covering it right now)
+    if (wipe) this.wipe();
+    this.aimPt = null;                                                           // (no aim cursor yet: the camera follows the ball, ui.js draws nothing)
+    if (team === this.home) this.human = taker;
+    this.setPiece = { kind, team, taker: null, t: 0, kicked: false,
+      su: { key, t: 0, T, Tmax: T * 1.5 + 0.6, taker, must, stand, ball: { x, y }, toward, cutAt: wipe ? 0.24 : opts.cut ? 0 : -1, cut: false, placed: null, skip: false, wiped: wipe || !!opts.cut, moved: 0 } };
+    if (!wipe && !opts.cut) this.setPiece.su.cut = true;                         // (nothing to cut: they all jog)
+    const cap = opts.offside ? ['OFFSIDE!', note || `FREE KICK · ${team.name}`] : [kind, note || team.name];
+    this.say(cap[0], cap[1], Math.min(2.2, T + 0.4));
+  },
+  // the CUT, under the wipe: whoever is further than he can jog in the time lands a step or two off his spot and jogs
+  // the last bit in (v0.8's free-kick landing); a corner's taker lands a few metres along the byline with the ball in
+  // his hands and walks to the flag. The camera cuts too.
+  spCut() {
+    const sp = this.setPiece, U = sp.su, b = this.ball, tk = U.taker, S = paceK().setup, reach = S.v * Math.max(0.5, U.T - U.t) * 0.85, n0 = U.moved;
+    U.cut = true;
+    for (const p of this.all) {
+      if (p.sentOff || p === tk || !p.spot) continue;
+      const q = p.spot, d = len(p.x - q.x, p.y - q.y); if (d <= reach && !p.keeper) continue;
+      let ox = p.x - q.x, oy = p.y - q.y;
+      if (len(q.x - U.ball.x, q.y - U.ball.y) < 13) { ox = q.x - U.ball.x; oy = q.y - U.ball.y; }   // near the ball: come in from further out, never from inside 9.15
+      const ol = len(ox, oy) || 1, m = p.keeper ? Math.min(d, 1.2) : Math.min(2.6, d, 1.2 + Math.random() * 1.4);
+      p.x = clamp(q.x + ox / ol * m, -1.5, PITCH_L + 1.5); p.y = clamp(q.y + oy / ol * m, -1.5, PITCH_W + 1.5); p.vx = p.vy = 0; p.face = dirIndex(q.x - p.x, q.y - p.y); U.moved++;
+    }
+    const st = U.stand, dt0 = len(st.x - tk.x, st.y - tk.y);
+    if (sp.kind === 'CORNER') {                                                  // he comes over from the box side with the ball under his arm
+      const ix = sp.team.goalX - sp.team.side * 0.6, iy = st.y + (st.y < 34 ? 1 : -1) * 4.5;
+      tk.x = ix; tk.y = clamp(iy, 1, PITCH_W - 1); tk.vx = tk.vy = 0; tk.hands = true;
+      Object.assign(b, { owner: tk, z: 1.1, vx: 0, vy: 0, vz: 0 }); this.placeAtFeet(); U.moved++;
+    } else if (dt0 > reach) { const ox = (tk.x - st.x) / (dt0 || 1), oy = (tk.y - st.y) / (dt0 || 1);   // two or three steps away, then he walks up
+      tk.x = st.x + ox * 2.4; tk.y = st.y + oy * 2.4; tk.vx = tk.vy = 0; U.moved++; }
+    if (this.ref) this.ref.place(sp.kind === 'CORNER' ? { x: U.ball.x, y: U.ball.y } : b);
+    this.camX = this.camY = undefined;                                           // a cut, not a pan
+    U.cutMoved = U.moved - n0;
+  },
+  // one frame of the setup (true: still setting up). The taker walks to the ball (a corner's carries it), places it,
+  // waits for the shape; your set piece: a press of PASS / SHOOT / LOB / THROUGH takes you to aiming once it is mostly in
+  spSetupTick(dt) {
+    const sp = this.setPiece, U = sp.su, b = this.ball, tk = U.taker, S = paceK().setup;
+    U.t += dt;
+    if (!U.cut && U.t >= U.cutAt) this.spCut();
+    for (const q of this.all) { if (q.sentOff || q === tk) continue;
+      if (!U.cut || !this.settle(q, dt, q.keeper ? S.v * 0.8 : S.v)) q.steer(0, 0, dt);
+      q.step(dt); }
+    if (U.cut && U.placed == null) {
+      const st = U.stand, d = len(st.x - tk.x, st.y - tk.y);
+      tk.moveTo(st.x, st.y, d > 2.6 ? S.v : S.walk, dt);                        // jogs over, walks the last steps
+      if (b.owner === tk) this.placeAtFeet();
+      if (d < 0.3 || U.t > U.Tmax + 4) {                                         // (the last line: never stuck walking)
+        if (d >= 0.3) { tk.x = st.x; tk.y = st.y; }
+        tk.hands = false; tk.vx = tk.vy = 0; Object.assign(b, { x: U.ball.x, y: U.ball.y, z: 0, vx: 0, vy: 0, vz: 0, owner: tk, last: sp.team, lastP: tk });
+        tk.face = dirIndex(U.toward.x - tk.x, U.toward.y - tk.y); sp.taker = tk; U.placed = U.t;   // placed (a throw-in: picked up, over his head)
+      }
+    } else tk.steer(0, 0, dt);
+    tk.step(dt);
+    if (sp.taker) this.placeAtFeet();
+    // the camera frames the setup (world.js follows camTarget with its slower ease; the shot is only ~16 m deep, so the
+    // flag and the box never fit together): a corner follows the taker to the flag, then, once it is placed, goes over to
+    // the box as the bodies set; a free kick near goal looks towards the wall and the goal; everything else stays on the ball
+    const fk = sp.kind === 'CORNER' ? (U.placed == null ? 0 : 0.95) : U.key === 'fkNear' ? 0.4 : 0, fb = sp.kind === 'CORNER' && U.placed == null ? tk : U.ball;
+    if ((fk || sp.kind === 'CORNER') && U.cut && (!this.camTarget || this.camTarget === this.spCam)) { const fx = fb.x + (U.toward.x - fb.x) * fk, fy = fb.y + (U.toward.y - fb.y) * fk;
+      this.spCam = this.spCam || {}; this.spCam.x = wx(fx, fy); this.spCam.y = wy(fy) - 40; this.camTarget = this.spCam; }
+    if (sp.team === this.home && !this.demo && U.t > 0.2 && ['pass', 'shoot', 'lob', 'through'].some(a => Input.pressed(a))) U.skip = true;
+    const inN = U.must.filter(q => q.sentOff || !q.spot || len(q.x - q.spot.x, q.y - q.spot.y) < 1.2).length;
+    U.frac = U.must.length ? inN / U.must.length : 1;
+    if (U.placed == null || !((U.frac >= 0.8 && (U.t >= U.T || U.skip)) || U.t >= U.Tmax)) return true;
+    // ready: aim / the computer takes it (anyone not quite in keeps jogging in - settle() - until it is kicked)
+    if (this.spCam && this.camTarget === this.spCam) this.camTarget = null;     // (your aim's framing / the ball from here)
+    sp.su = null; sp.setup = { t: U.t, key: U.key, frac: U.frac, skip: U.skip, wiped: U.wiped, moved: U.moved, placed: U.placed };
+    sp.t = 0; sp.gate = Input.held('shoot');                                     // (a SHOOT that skipped: let go before it charges a shot)
+    this.aimPt = this.defaultAim(sp.kind, sp.team, tk, U.ball.x, U.ball.y);
+    if (sp.kind !== 'THROW-IN') tk.face = dirIndex(this.aimPt.x - tk.x, this.aimPt.y - tk.y);
+    if (sp.team === this.home) { this.human = tk; const k = keyset();
+      this.say(sp.kind, sp.kind === 'THROW-IN' ? `${k.move} AIM  ${k.pass} SHORT  ${k.lob} LONG` : `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`, 2.4); }
+    return true;
+  },
+  // goal kick: below - placed under the dead ball's wipe, then a short jog-in (t-029), PACE setup.gk
   goalKick(team, y) {
     const gk = team.players[0], s = team.side, gx = team.ownGoalX, opp = team.opp, b = this.ball;
     const X = d => gx + s * d, jit = () => rnd(-0.8, 0.8);
     const OURS = [null, [30, 6], [17, 19], [17, 49], [30, 62], [45, 10], [38, 27], [40, 41], [45, 58], [57, 28], [59, 41]];
     const THEIRS = [null, [60, 10], [61, 25], [61, 43], [60, 58], [41, 12], [39, 28], [40, 40], [41, 56], [23, 26], [24, 43]];
+    const T = paceK().setup.gk, until = this.time.now + (T + 1) * 1000;
     for (const p of this.all) { if (p.sentOff) continue; p.hands = false; p.spot = null; p.stun = 0; p.cool = 0; p.vx = p.vy = 0; p.claiming = false; if (p.busy()) p.setState('idle', 0); else p.state = 'idle'; }
-    const put = (p, sp) => { if (!p || p.sentOff || !sp) return; p.x = clamp(X(sp[0]) + jit(), 0.5, PITCH_L - 0.5); p.y = clamp(sp[1] + jit(), 0.5, PITCH_W - 0.5); };
+    // t-029: each man lands a step or two short of his spot (on the side he came from) and jogs the rest in the setup
+    const put = (p, sp) => { if (!p || p.sentOff || !sp) return; const q = { x: clamp(X(sp[0]) + jit(), 0.5, PITCH_L - 0.5), y: clamp(sp[1] + jit(), 0.5, PITCH_W - 0.5), until };
+      const ox = p.x - q.x, oy = p.y - q.y, ol = len(ox, oy) || 1, m = Math.min(ol, 0.8 + Math.random() * 1.6);
+      p.x = q.x + ox / ol * m; p.y = q.y + oy / ol * m; p.spot = q; };
     team.players.forEach((p, i) => put(p, OURS[i])); opp.players.forEach((p, i) => put(p, THEIRS[i]));
-    const og = opp.players[0]; if (!og.sentOff) { og.x = opp.ownGoalX + opp.side * 3; og.y = 34; }   // their keeper: on his line, far end
-    gk.x = X(5.5); gk.y = clamp(34 + (y - 34) * 0.3, 31, 37); gk.face = s > 0 ? 0 : 4;
+    const og = opp.players[0]; if (!og.sentOff) { og.spot = null; og.x = opp.ownGoalX + opp.side * 3; og.y = 34; }   // their keeper: on his line, far end
+    gk.spot = null; gk.x = X(5.5); gk.y = clamp(34 + (y - 34) * 0.3, 31, 37); gk.face = s > 0 ? 0 : 4;
     for (const p of this.all) if (!p.sentOff && p !== gk) p.face = dirIndex(gk.x - p.x, gk.y - p.y);
     Object.assign(b, { owner: gk, last: team, lastP: gk, z: 1.1, vx: 0, vy: 0, vz: 0, inNet: false, netRight: undefined, target: null, skid: false, save: null, lob: false, ring: null, shotBy: null });
     gk.hands = true; gk.hold = -0.4; this.placeAtFeet();                         // (a breath before he plays it)
@@ -115,7 +225,8 @@ hc2Mix(Match, {
     this.camX = this.camY = undefined;                                           // a cut, not a pan
     this.setPiece = null; this.pending = null; this.charge = -1; this.nextHuman = null;
     if (team === this.home) this.human = gk;
-    this.freeze = Math.max(this.freeze, paceK().spFreeze + 0.2);
+    this.freeze = Math.max(this.freeze, T);
+    this.gkSetup = { t0: this.time.now, T };                                     // (the Test Lab's RS6 reads it)
     const k = keyset(); this.say('GOAL KICK', team === this.home ? `${k.pass} THROW  ${k.lob} PUNT` : team.name, team === this.home ? 2.0 : 1.2);
   },
   defaultAim(kind, team, taker, x, y) {
@@ -126,70 +237,91 @@ hc2Mix(Match, {
     if (kind === 'PENALTY') return { x: gx + s * 0.5, y: 34 };
     if (kind === 'FREE KICK' && len(gx - x, 34 - y) < 32) return { x: gx + s * 0.5, y: 34 + rnd(-2, 2) };
     const ahead = mates.filter(p => (p.x - x) * s > 0).sort((a, c) => len(a.x - x, a.y - y) - len(c.x - x, c.y - y))[0] || nearest({ x, y }, 99);
-    return { x: ahead.x, y: ahead.y };
+    return ahead ? { x: ahead.x, y: ahead.y } : { x: x + s * 15, y };
   },
-  placeSetPiece(kind, team, taker, x, y, cut) {
+  placeSetPiece(kind, team, taker, x, y) {                                       // (t-029: only the penalty without its scene still lands everyone at once)
     const opp = team.opp, gx = team.goalX, s = team.side;
     const inBox = (p, g) => Math.abs(p.x - g) < 18 && Math.abs(p.y - 34) < 21;
-    if (cut && kind === 'FREE KICK') return this.layoutFreeKick(team, taker, x, y);
-    if (kind === 'CORNER') {                                                     // bodies in the box
-      const att = [9, 10, 7, 6].map(i => team.players[i]).filter(p => p !== taker && !p.sentOff);
-      if (att.length) att.forEach((p, k) => { p.x = gx - s * (6 + k * 2.2 + rnd(0, 2)); p.y = 34 + (k - 1.5) * 3.2 + rnd(-1, 1); p.vx = p.vy = 0; });
-      if (att.length) [2, 3, 4, 6].map(i => opp.players[i]).filter(p => !p.sentOff).forEach((p, k) => { const a = att[k % att.length]; p.x = a.x + s * 0.9; p.y = a.y + rnd(-0.6, 0.6); p.vx = p.vy = 0; });
-    } else if (kind === 'PENALTY') {                                             // everyone out of the box except the keeper
-      let k = 0;
-      for (const p of this.all) { if (p === taker || (p.keeper && p.team === opp)) continue; if (inBox(p, gx)) { p.x = gx - s * 19.5; p.y = 34 + ((k++ % 9) - 4) * 3; p.vx = p.vy = 0; } }
-      const gk = opp.players[0]; gk.x = gx - s * 0.6; gk.y = 34; gk.vx = gk.vy = 0;
-    } else {                                                                     // 9.15 m (5 m on throws) - and a wall near goal
-      const r = kind === 'FREE KICK' ? 9.15 : 5;
-      for (const p of opp.players) { const d = len(p.x - x, p.y - y); if (d < r && !p.keeper) { p.x = x + (p.x - x) / (d || 1) * r; p.y = y + (p.y - y) / (d || 1) * r; } }
-      if (kind === 'FREE KICK' && len(gx - x, 34 - y) < 35) {
-        const dx = gx - x, dy = 34 - y, dl = len(dx, dy), ux = dx / dl, uy = dy / dl;
-        [5, 6, 7].map(i => opp.players[i]).filter(p => !p.sentOff).forEach((p, k) => { p.x = x + ux * 9.15 + (-uy) * (k - 1) * 0.75; p.y = y + uy * 9.15 + ux * (k - 1) * 0.75; p.vx = p.vy = 0; });
-      }
-    }
+    let k = 0;
+    for (const p of this.all) { if (p === taker || (p.keeper && p.team === opp)) continue; if (inBox(p, gx)) { p.x = gx - s * 19.5; p.y = 34 + ((k++ % 9) - 4) * 3; p.vx = p.vy = 0; } }
+    const gk = opp.players[0]; gk.x = gx - s * 0.6; gk.y = 34; gk.vx = gk.vy = 0;
   },
-  // v0.8 free kick after a foul scene (Luca: "the players lay out properly ... like the other games"): both teams in
-  // their shape around the ball; near goal the defence builds a wall on 9.15 m, attackers line up on the edge of the box
-  // with a marker goal-side of each. Everyone lands a couple of metres off his spot and jogs the last bit in.
-  layoutFreeKick(team, taker, x, y) {
-    const opp = team.opp, gx = team.goalX, s = team.side, spots = new Map();
+  // t-029 THE SHAPES: a spot for every man, per restart, and the men who have to be on theirs before it is taken.
+  // Everyone starts from both teams' shape around the ball (v0.8's free-kick shape), then per kind:
+  //  * FREE KICK near goal: the wall on 9.15 m, attackers on the last defender's line with a marker goal-side of each
+  //    (v0.8); far out: just 9.15 m. OFFSIDE (t-024's free kick): the side that was caught trots back onside - every one
+  //    of them a metre or two behind the defenders' line - while the defenders push up into their shape.
+  //  * CORNER: the taker at the flag; near post, six-yard line, the spot, far post, the edge filled by the attackers,
+  //    each picked up goal-side by a marker; a man on the near post, a zonal man in the six-yard box, the keeper set on
+  //    his line a touch to the near side; the other side keeps a man up, the corner side's centre-backs hold halfway.
+  //  * THROW-IN: a short option back and a longer one up the line, each with a marker; nobody within 2 m (Law 15).
+  spShape(kind, team, taker, x, y, opts) {
+    const opp = team.opp, gx = team.goalX, s = team.side, spots = new Map(), must = [];
     const shape = (tm, has) => { for (const p of tm.players) { if (p.sentOff || p === taker) continue;
         if (p.keeper) { spots.set(p, { x: tm.ownGoalX + tm.side * 1.5, y: clamp(34 + (y - 34) * 0.08, 32, 36) }); continue; }
         const role = p.i <= 4 ? 0 : p.i <= 8 ? 1 : 2, push = (has ? [4, 10, 18][role] : [-1, 1, 3][role]) * tm.side;
         spots.set(p, { x: clamp(p.home.x + (x - 52.5) * (has ? 0.75 : 0.85) + push, 4, 101), y: clamp(p.home.y + (y - 34) * (has ? 0.32 : 0.45), 3, 65) }); } };
     shape(team, true); shape(opp, false);
-    const dGoal = len(gx - x, 34 - y);
-    if (dGoal < 35) {
-      const ux = (gx - x) / dGoal, uy = (34 - y) / dGoal, n = dGoal < 26 ? 3 : 2;
-      const wall = [6, 7, 5, 8].map(i => opp.players[i]).filter(p => !p.sentOff).slice(0, n);
-      wall.forEach((p, k) => { const o = (k - (n - 1) / 2) * 0.75; spots.set(p, { x: x + ux * 9.15 - uy * o, y: y + uy * 9.15 + ux * o }); });
-      const att = [9, 10, 8, 7].map(i => team.players[i]).filter(p => p !== taker && !p.sentOff).slice(0, 4);
-      const lineX = gx - s * clamp(Math.abs(gx - x) - 2, 5, 11);              // on the last defender's line, onside
-      att.forEach((p, k) => spots.set(p, { x: lineX - s * (k % 2) * 1.5 + rnd(-0.4, 0.4), y: 34 + (k - (att.length - 1) / 2) * 5.5 + rnd(-0.8, 0.8) }));
-      const mk = [2, 3, 4, 1, 8, 5].map(i => opp.players[i]).filter(p => !p.sentOff && !wall.includes(p));
-      att.forEach((a, k) => { const p = mk[k]; if (!p) return; const sa = spots.get(a); spots.set(p, { x: sa.x + s * 0.9, y: sa.y + (y > sa.y ? 0.5 : -0.5) }); });
+    const set = (p, q) => { if (p && !p.sentOff && p !== taker) { spots.set(p, q); return true; } return false; };
+    const mk = p => { if (p && !p.sentOff && p !== taker && !must.includes(p)) must.push(p); };
+    if (kind === 'FREE KICK') {
+      const dGoal = len(gx - x, 34 - y);
+      if (dGoal < 35) {                                                          // v0.8 near goal: the wall, the line, the markers
+        const ux = (gx - x) / dGoal, uy = (34 - y) / dGoal, n = dGoal < 26 ? 3 : 2;
+        const wall = [6, 7, 5, 8].map(i => opp.players[i]).filter(p => !p.sentOff).slice(0, n);
+        wall.forEach((p, k) => { const o = (k - (n - 1) / 2) * 0.75; set(p, { x: x + ux * 9.15 - uy * o, y: y + uy * 9.15 + ux * o }); mk(p); });
+        const att = [9, 10, 8, 7].map(i => team.players[i]).filter(p => p !== taker && !p.sentOff).slice(0, 4);
+        const lineX = gx - s * clamp(Math.abs(gx - x) - 2, 5, 11);              // on the last defender's line, onside
+        att.forEach((p, k) => { set(p, { x: lineX - s * (k % 2) * 1.5 + rnd(-0.4, 0.4), y: 34 + (k - (att.length - 1) / 2) * 5.5 + rnd(-0.8, 0.8) }); mk(p); });
+        const mks = [2, 3, 4, 1, 8, 5].map(i => opp.players[i]).filter(p => !p.sentOff && !wall.includes(p));
+        att.forEach((a, k) => { const p = mks[k]; if (!p) return; const sa = spots.get(a); set(p, { x: sa.x + s * 0.9, y: sa.y + (y > sa.y ? 0.5 : -0.5) }); mk(p); });
+        mk(opp.players[0]);
+      }
+      if (opts.offside) {                                                        // t-029: the attackers that were caught jog back onside
+        const xs = [...spots].filter(([p]) => p.team === team).map(([, q]) => this.aiFrame(opp, q.x)), F = f => opp.side > 0 ? f + 52.5 : PITCH_L - (f + 52.5);
+        if (!team.players[0].sentOff && !spots.has(team.players[0])) xs.push(this.aiFrame(opp, team.players[0].x));   // (the keeper taking it: where he is)
+        const line = xs.sort((a, c) => c - a)[1] ?? 40;
+        for (const [p, q] of spots) if (p.team === opp && !p.keeper && this.aiFrame(opp, q.x) > line - 0.6) { q.x = F(line - 1 - Math.random() * 2); mk(p); }
+      }
+    } else if (kind === 'CORNER') {
+      const c = y < 34 ? -1 : 1, X = d => gx - s * d, Y = o => 34 + c * o;      // o > 0: the corner's side (near post)
+      const BOX = [[5.5, 2.8], [11, 0.5], [6.5, -4.2], [8.5, -1.8], [16, 1.5]];  // near post, the spot, far post, six-yard line, the edge
+      const att = [9, 10, 7, 6, 8].map(i => team.players[i]).filter(p => p !== taker && !p.sentOff);
+      att.forEach((p, k) => { const B = BOX[k]; set(p, { x: X(B[0] + rnd(-0.6, 0.6)), y: Y(B[1] + rnd(-0.6, 0.6)) }); mk(p); });
+      const mks = [3, 2, 4, 6, 7].map(i => opp.players[i]).filter(p => !p.sentOff);
+      att.slice(0, 4).forEach((a, k) => { const p = mks[k], q = spots.get(a); if (!p || !q) return; set(p, { x: q.x + s * 0.9, y: q.y + c * 0.4 }); mk(p); });   // goal-side, on the ball side
+      if (set(opp.players[5], { x: X(0.9), y: Y(3.1) })) mk(opp.players[5]);                         // the near-post man
+      if (set(opp.players[1], { x: X(4.5), y: Y(-1) })) mk(opp.players[1]);                          // zonal, six-yard box
+      if (set(opp.players[8], { x: X(14), y: Y(-5) })) mk(opp.players[8]);                           // the edge, for the knock-down
+      if (set(opp.players[0], { x: X(0.7), y: Y(0.8) })) mk(opp.players[0]);                         // the keeper, set
+      set(opp.players[10], { x: X(19), y: Y(5) }); set(opp.players[9], { x: X(48), y: 34 - c * 6 });     // one on the edge, one up
+      set(team.players[2], { x: X(52), y: 26 }); set(team.players[3], { x: X(52), y: 42 });            // the corner side holds halfway
+      set(team.players[1], { x: X(38), y: 14 }); set(team.players[4], { x: X(38), y: 54 }); set(team.players[5], { x: X(24), y: Y(14) });
+    } else if (kind === 'THROW-IN') {
+      const inw = y < 34 ? 1 : -1, opts2 = [{ x: x - s * 6, y: y + inw * 5 }, { x: x + s * 9, y: y + inw * 8 }];
+      const mates = team.players.filter(p => !p.keeper && !p.sentOff && p !== taker).sort((a, c) => len(a.x - x, a.y - y) - len(c.x - x, c.y - y)).slice(0, 2);
+      mates.forEach((p, k) => { const o = opts2[k]; o.x = clamp(o.x, 2, PITCH_L - 2); set(p, o);
+        const mo = opp.players.filter(q => !q.keeper && !q.sentOff).sort((a, c) => len(a.x - o.x, a.y - o.y) - len(c.x - o.x, c.y - o.y))[0];
+        if (mo) set(mo, { x: o.x + (opp.ownGoalX > o.x ? 1 : -1), y: o.y + inw * 0.8 }); });   // (goal-side of him)
     }
-    for (const p of opp.players) { const q = spots.get(p); if (!q || p.keeper) continue; const d = len(q.x - x, q.y - y); if (d < 9.15) { q.x = x + (q.x - x) / (d || 1) * 9.15; q.y = y + (q.y - y) / (d || 1) * 9.15; } }
+    const r = kind === 'THROW-IN' ? 2.5 : 9.15;                                  // the distance (Law 13: 9.15 m; Law 15: 2 m on throws)
+    for (const p of opp.players) { const q = spots.get(p); if (!q || p.keeper) continue; const d = len(q.x - x, q.y - y); if (d < r) { q.x = x + (q.x - x) / (d || 1) * r; q.y = y + (q.y - y) / (d || 1) * r; } if (len(p.x - x, p.y - y) < r + 1) mk(p); }
     for (const p of team.players) { const q = spots.get(p); if (!q || p.keeper) continue; const d = len(q.x - x, q.y - y); if (d < 3) { q.x = x + (q.x - x) / (d || 1) * 3; q.y = y + (q.y - y) / (d || 1) * 3; } }
-    for (const [p, q] of spots) {
-      q.x = clamp(q.x, 0.5, PITCH_L - 0.5); q.y = clamp(q.y, 0.5, PITCH_W - 0.5);
-      let ox = p.x - q.x, oy = p.y - q.y;
-      if (len(q.x - x, q.y - y) < 13) { ox = q.x - x; oy = q.y - y; }            // near the ball: come in from further out, never from inside 9.15
-      const ol = len(ox, oy) || 1, m = p.keeper ? 0 : Math.min(2.6, len(p.x - q.x, p.y - q.y) + 0.6, 1.2 + Math.random() * 1.4);
-      p.x = q.x + ox / ol * m; p.y = q.y + oy / ol * m; p.vx = p.vy = 0; p.spot = q; p.face = dirIndex(x - p.x, y - p.y);
-      if (p.busy()) p.setState('idle', 0);
-    }
+    for (const q of spots.values()) { q.x = clamp(q.x, 0.5, PITCH_L - 0.5); q.y = clamp(q.y, 0.5, PITCH_W - 0.5); }
+    return { spots, must };
   },
-  settle(p, dt) {                                                                // jog the last metres onto a set-piece spot
+  settle(p, dt, v = 3.2) {                                                       // jog the last metres onto a set-piece spot
     const q = p.spot; if (!q || p.busy() || p.sentOff) return false;
-    const d = p.moveTo(q.x, q.y, 3.2, dt);
+    if (q.until && this.time.now > q.until) { p.spot = null; return false; }    // (t-029: a goal kick's spot doesn't outlive its setup)
+    const d = p.moveTo(q.x, q.y, v, dt);
     if (d < 0.3) { p.spot = null; p.face = dirIndex(this.ball.x - p.x, this.ball.y - p.y); }
     return true;
   },
   // aiming at a set piece: the stick moves the cursor; Z = pass along the grass, C = lofted / cross, X (hold) = shot or driven ball
   setPieceTick(dt) {
-    const sp = this.setPiece, b = this.ball, p = sp.taker;
+    const sp = this.setPiece, b = this.ball;
+    if (sp.su) return this.spSetupTick(dt);                                      // t-029: the setup first
+    const p = sp.taker;
     sp.t += dt;
     for (const q of this.all) { if (q !== p) { if (!this.settle(q, dt)) q.steer(0, 0, dt); q.step(dt); } }
     p.steer(0, 0, dt); p.step(dt);
@@ -205,11 +337,12 @@ hc2Mix(Match, {
       if (sp.kind !== 'PENALTY' && Input.pressed('pass')) return this.spKick('ground');
       if (sp.kind !== 'PENALTY' && (Input.pressed('lob') || Input.pressed('through'))) return this.spKick('lob');
       if (sp.kind === 'THROW-IN') { if (Input.pressed('shoot')) return this.spKick('lob'); return true; }
+      if (sp.gate) { if (!Input.held('shoot')) sp.gate = false; return true; }   // (t-029: the SHOOT that skipped the setup)
       if (Input.held('shoot')) this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / paceK().chargeT);
       if (Input.released('shoot') && this.charge >= 0) { const c = this.charge; this.charge = -1; return this.spKick(atGoal || sp.kind === 'PENALTY' ? 'shot' : 'lob', c); }
       return true;
     }
-    if (sp.t < paceK().aiTake) return true;                                      // AI takes a breath, then takes it (t-004: ARCADE quickly)
+    if (sp.t < (sp.setup ? paceK().setup.aiAfter : paceK().aiTake)) return true;   // (t-029: after a setup he has already placed it - a short breath)                                      // AI takes a breath, then takes it (t-004: ARCADE quickly)
     const mates = sp.team.players.filter(q => q !== p && !q.keeper && !q.sentOff);
     if (sp.kind === 'PENALTY' || (sp.kind === 'FREE KICK' && len(gx - b.x, 34 - b.y) < 28 && Math.random() < 0.7)) {
       Object.assign(A, { x: gx + s * 0.5, y: 34 + rnd(-1, 1) * 3 }); return this.spKick('shot', rnd(0.6, 0.85));
@@ -563,9 +696,9 @@ hc2Mix(Match, {
     this.offFlag = { p, until: this.time.now + OFFSIDE.FLAG * 1000 };             // (ui.js marks him)
     this.offLast = { p, team: S.team, x, y, from: S.men.get(p), past: this.aiFrame(S.team, S.men.get(p).x) - S.line, t: this.time.now };   // (the Test Lab and the soak read this)
     if (this.ref) this.ref.act('whistle', 0.6);
-    this.restart('FREE KICK', def, x, y);                                        // the quick free kick to the defenders, where he played it (its whistle)
-    const k = keyset();
-    this.say('OFFSIDE!', def === this.home ? `FREE KICK · ${k.pass} PASS  ${k.lob} LONG` : `#${p.num} WAS OFF · FREE KICK ${def.name}`, 1.4);
+    // the free kick to the defenders, where he played it (its whistle). t-029: no longer instant - its setup (spSetup):
+    // the side that was caught trots back onside, the defenders push up, a defender or the keeper places it
+    this.restart('FREE KICK', def, x, y, `#${p.num} WAS OFF · FREE KICK ${def.name}`, { offside: true });
     this.ramiSay('offside', {}, 2);
   },
   // a foul: free kick where it happened, or a penalty if it was in the fouler's own box.
@@ -702,6 +835,8 @@ hc2Mix(Match, {
   },
   rules() {
     const b = this.ball;
+    if (this.spCam && this.camTarget === this.spCam) this.camTarget = null;     // (t-029: a setup cut short - half time, a new test - never keeps the camera)
+    if (this.setPiece && this.setPiece.su) return;                               // (t-029: a corner's ball waits behind the line for its cut - it isn't going out again)
     if ((b.special || b.saveable) && (b.inNet || b.x < -0.5 || b.x > PITCH_L + 0.5 || b.y < -0.5 || b.y > PITCH_W + 0.5)) { b.special = 0; b.saveable = null; }   // v0.8.7: out / in the net = an ordinary ball again
     if (this.offWatch()) return;                                                 // t-024: a man who was offside when it was played has just played it
     if (b.inNet || (b.owner && b.owner.hands) || this.dead) return;
