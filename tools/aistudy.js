@@ -6,15 +6,16 @@
 // tiles preloaded, the same seeded dice, the computer on both sides), so any moment it finds replays as a GIF with
 //   MATCH=1 VS=<home>,<away> SEED=<seed> SKIP=<t> OUT=... node tools/preview.js
 //
-//   node tools/aistudy.js                        6 matches (seeds 1-6, rotating team pairs), full length
+//   node tools/aistudy.js                        6 matches (seeds 1-6, IS v IRO both ways), full length
 //   MATCHES=12 node tools/aistudy.js             more
 //   OUT=docs/ai/study.json node tools/aistudy.js also write every number and every candidate moment as JSON
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const E = process.env, PORT = E.PORT || 8765, N = +(E.MATCHES || 6);
-const TEAMS = ['IS', 'IRO', 'USCS', 'LUC', 'THUAS', 'AUC'];
-const setup = i => { const h = TEAMS[i % 6]; let a = TEAMS[(i * 5 + 1) % 6]; if (a === h) a = TEAMS[(i + 3) % 6]; return { seed: i + 1, home: h, away: a }; };
+// IS v IRO, home and away in turn: tools/preview.js MATCH=1 can only load the two kits the page boots with (another
+// pair waits forever for its kits while the game is paused), and every moment found here has to replay there as a GIF
+const setup = i => (i % 2 ? { seed: i + 1, home: 'IRO', away: 'IS' } : { seed: i + 1, home: 'IS', away: 'IRO' });
 
 // in the page: one match, sampled every 6 frames (0.1 s)
 function studyMatch() {
