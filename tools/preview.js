@@ -12,7 +12,8 @@
 //
 // Options: SECS=4 (length), SKIP=0 (seconds to skip before recording), FPS=12, WIDTH=480, ZOOM=1.6 (Lab camera),
 //   SEED=7 (the match's dice), VS=IS,IRO (the match's teams), SETUP='js run in the page just before recording'
-//   (window.__hc2 is the match, window.__lab the Lab), KEEP=1 keeps the PNG frames next to the GIF, PORT=8765.
+//   (window.__hc2 is the match, window.__lab the Lab), KEEP=1 keeps the PNG frames next to the GIF, PORT=8765,
+//   NOCUT=1 skips cut-ins and replays (a moment from tools/aistudy.js replays at the same SKIP).
 // Serve the game first: python3 -m http.server 8765 --directory game
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), os = require('os'), { execFileSync } = require('child_process');
@@ -60,8 +61,11 @@ const PORT = E.PORT || 8765, STEP = Math.max(1, Math.round(60 / FPS));
       m.demo = true; m.kickoff(m.home); }, +(E.SEED || 7));
   }
   // step the game by hand: n frames of 1/60 s (the Lab's debug marks are cleared so they never show)
-  const step = n => page.evaluate(n => { const m = window.__hc2, g = m.game; for (let k = 0; k < n; k++) { window.__T += 1000 / 60; g.step(window.__T, 1000 / 60);
-    if (window.__lab && window.__lab.run) window.__lab.run.marks = []; } }, n);
+  // NOCUT=1 (smarter-AI study, 27 Oct): cut-ins and replays are skipped the moment they start, as tools/aistudy.js and
+  // tools/soak.js play a match, so a moment they found at SKIP=<t> replays here at the same second
+  const step = n => page.evaluate(([n, nocut]) => { const m = window.__hc2, g = m.game; for (let k = 0; k < n; k++) { window.__T += 1000 / 60; g.step(window.__T, 1000 / 60);
+    if (nocut) { if (m.cutIn) m.cutInEnd(); if (m.replay) m.endReplay(); }
+    if (window.__lab && window.__lab.run) window.__lab.run.marks = []; } }, [n, !!E.NOCUT]);
   const dir = E.KEEP ? OUT.replace(/\.gif$/, '') + '-frames' : fs.mkdtempSync(path.join(os.tmpdir(), 'hc2prev-'));
   fs.mkdirSync(dir, { recursive: true });
   const n = Math.max(2, Math.round(SECS * FPS)); let fno = 0;

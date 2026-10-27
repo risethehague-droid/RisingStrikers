@@ -7,7 +7,9 @@
 //   MATCH=1 VS=<home>,<away> SEED=<seed> SKIP=<t> OUT=... node tools/preview.js
 //
 //   node tools/aistudy.js                        6 matches (seeds 1-6, IS v IRO both ways), full length
-//   MATCHES=12 node tools/aistudy.js             more
+//   MATCHES=12 node tools/aistudy.js             more (FROM=6 starts at the 7th set-up)
+//   DRAW=1 ...                                   draw every frame: ~10x slower, but only a drawn match replays in
+//                                                tools/preview.js (the drawing uses up some of the game's random numbers)
 //   OUT=docs/ai/study.json node tools/aistudy.js also write every number and every candidate moment as JSON
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
 const { chromium } = require('playwright');
@@ -119,7 +121,7 @@ function studyMatch() {
   const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const all = [];
   for (let i = 0; i < N; i++) {
-    const c = setup(i), page = await br.newPage({ viewport: { width: 1280, height: 720 } }); const errs = [];
+    const c = setup(i + +(E.FROM || 0)), page = await br.newPage({ viewport: { width: 1280, height: 720 } }); const errs = [];
     page.on('pageerror', e => errs.push(e.message));
     // exactly tools/preview.js MATCH=1's set-up (so a moment found here replays there)
     await page.goto(`http://localhost:${PORT}/test.html#flow`);
@@ -131,10 +133,11 @@ function studyMatch() {
     await page.evaluate(() => { const m = window.__hc2, st = m.stadium; for (const t of st.tiles) for (const k of t.uniq) if (!m.textures.exists(k)) st.queue.add(k); st.pump(); });
     for (let k = 0; k < 3000; k++) { const done = await page.evaluate(() => { const m = window.__hc2, st = m.stadium; window.__T += 1000 / 60; m.game.step(window.__T, 1000 / 60); return !st.loading && !st.queue.size; }); if (done) break; await new Promise(r => setTimeout(r, 20)); }
     await page.evaluate(studyMatch);
-    await page.evaluate(() => window.__hc2.cameras.main.setVisible(false));   // (no drawing: ~10x faster; the play itself doesn't change)
+    if (!E.DRAW) await page.evaluate(() => window.__hc2.cameras.main.setVisible(false));   // (no drawing: ~10x faster)
     await page.evaluate(seed => { const m = window.__hc2; let s = seed >>> 0;
       Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
       m.demo = true; m.kickoff(m.home); }, c.seed);
+    if (E.UNTIL) { const r = await page.evaluate(n => { window.__aiStep(n); const m = window.__hc2; return `clock ${m.clock.toFixed(1)} score ${m.home.score}-${m.away.score}`; }, Math.round(+E.UNTIL * 60)); console.log(`${c.home} v ${c.away} seed ${c.seed} at ${E.UNTIL} s: ${r}`); await page.close(); continue; }
     let s; for (let k = 0; k < 80; k++) { s = await page.evaluate(() => window.__aiStep(600)); if (E.VERBOSE) console.log(`  ${k}: clock ${Math.round(s.clock)} ${s.score}`); if (s.over) break; }
     const R = await page.evaluate(() => { const R = window.__ai, S = window.__hc2.mstats || {}; R.stats = JSON.parse(JSON.stringify(S)); return R; });
     R.setup = c; R.score = s.score; R.errors = errs; all.push(R);
