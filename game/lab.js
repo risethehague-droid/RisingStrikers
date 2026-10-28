@@ -2637,7 +2637,9 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   }
   function finish(res) { const r = LAB.run; r.result = res; r.endT = r.t + (res.hold ?? 0.9);
     if (/^(GH|GKX|KP|KC)$/.test(r.sc.group) && res.o) res.o += r.tilt ? ` · body at contact (${r.tilt.mv}): ${r.tilt.deg == null ? 'as PixelLab drew it' : r.tilt.deg + '° from flat'}` : ' · body upright, as PixelLab drew it (no side dive)';   // t-033 (90° = upright: the old handstand)
+    if (/^(KC|KS)$/.test(r.sc.group) && res.o) { res.oBase = res.o; res.o += flashTxt(r); }   // t-036 (kept up to date until the test ends: his landing comes after the outcome)
     render(); }
+  const flashTxt = r => r.flash ? ` · flash to gloves max ${Math.round(r.flash.d)} px (${r.flash.mv})` : ' · flash to gloves: no special-save move';
   // t-033: how his body is drawn on the frame his gloves meet the ball (GK_HAND_HIT) - the first dive / special save of the test
   function tiltTrack(r) {
     if (r.tilt) return;
@@ -2740,6 +2742,14 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       const c = LAB.reactK; if (c && c.src === K && c.d === LAB.react) return c.K;
       LAB.reactK = { src: K, d: LAB.react, K: Object.assign({}, K, { gkReact: K.gkReact + LAB.react }) }; return LAB.reactK.K; };
     m.dkY = function (team) { const r = LAB.run; return DIFF_YOU[r && r.sc.kind === 'free' && team === m.away ? LAB.fp.cpu : 'base']; };   // v0.9.3: its edges v you, same switch
+    // t-036 KC / KS: how far the special save's fist flash is from his gloves as drawn (rigGlovePt: turned + slid, the
+    // ball's point), every frame of his move from the contact to the landing - the point an effect at 'fist' gets now
+    const rigFx = m.rigFx.bind(m);
+    m.rigFx = function (p, P) { rigFx(p, P); const r = LAB.run, g = p.rig, R = g && RIGS[g.n];
+      if (!r || !/^(KC|KS)$/.test(r.sc.group) || !R || !R.gk || g.e0 == null || g.t < g.e0) return;
+      const hk = R.keys.find(q => q.hit), q = m.rigFxPt(p, R, P, 'fist'), G = rigGlovePt(p.spr, hk.fist, g.d === 'W');
+      if (q && G) { const d = len(q.x - G.x, q.y - G.y); if (!r.flash || d > r.flash.d) r.flash = { d, mv: g.n, f: frameNo(p.spr) }; }
+      if (r.result && r.result.oBase != null) r.result.o = r.result.oBase + flashTxt(r); };
     const gpPop = m.gpPop.bind(m);                                             // t-013 GP7-8: the pop-up made to happen, so it can be seen
     m.gpPop = function (gk, kind, spd) { const r = LAB.run; if (r && r.sc.noPop) return false;   // (t-028 KC: the clash's own outcome, no GOAL_PHYS pop-up on top)
       if (!(r && r.sc.forcePop)) return gpPop(gk, kind, spd); const R = Math.random; let first = true;
