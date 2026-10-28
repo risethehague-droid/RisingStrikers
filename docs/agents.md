@@ -39,7 +39,7 @@ clash. Every session prints a status line when it starts: open tasks per agent, 
 2. **Work** (the worker, `/work`): it reads the brief, works on `<agent>/t-NNN-<topic>`, tests, opens a pull request,
    then sends a report: `bash tools/agent.sh report <agent> t-NNN done <file>`.
    - Stuck: `blocked`. Needs an answer: `question`.
-3. **Review** (taskmaster, `/inbox`): every 2 hours, 09:00 to 23:00 Dutch time, the scheduled check on Luca's account
+3. **Review** (taskmaster, `/inbox`): 3 times a day (08:39, 13:39, 20:39 Dutch time; every 2 hours with HQ's ⚡ Turbo on), the scheduled check on Luca's account
    reviews new reports. Luca's main chat can also do it any time ("check the reports"). For each report it checks the
    branch against the brief (files, tests, PR) and posts a verdict:
    - `ok`: the card moves to **Needs OK** for Luca, with the review and the PR link

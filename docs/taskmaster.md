@@ -9,7 +9,7 @@ here, in the repo, on the Taskboard and in the agents folder; nothing depends on
 | --- | --- |
 | Official game (Luca's page) | https://claude.ai/artifact/AD1rvV13DR3nvQPzfsRojf (published from `game/index.html`) |
 | Official Test Lab | https://claude.ai/artifact/Goa4b8PepGxbqv9877pPCV (published from `game/lab.html`) |
-| HC2 HQ, the Taskboard (cards: collection `tasks`, each with `next` = who picks it up after Luca's OK; status lines: `meta/hq`; ↻ Check now = a quick run of the 2-hourly check, Luca only) | https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 |
+| HC2 HQ, the Taskboard (cards: collection `tasks`, each with `next` = who picks it up after Luca's OK; status lines: `meta/hq`; ↻ Check now = a quick run of the scheduled check, Luca only; ⚡ Turbo = the check every 2 hours instead of 3 times a day, Luca only) | https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 |
 | Test Lab classic (frozen at v0.9.7, a fallback) | https://claude.ai/artifact/UA1KSu38xBxmQe5eEBToTk |
 | PR previews | one "HC2 PR #N preview" page per PR, linked from its card (`preview.page`); see "Previews" below |
 | Team setup doc | https://claude.ai/artifact/8QEZs4UX4XEGYGWYdqPssF |
@@ -22,7 +22,7 @@ here, in the repo, on the Taskboard and in the agents folder; nothing depends on
 
 | Name | When | Does |
 | --- | --- | --- |
-| HC2 taskmaster check | every 2 hours, 09:00-23:00 Dutch time, and on HQ's ↻ Check now (a QUICK RUN: no test-running reviews) | Needs OK cards for `friend/` PRs; every PR card's preview (below); reviews new reports in the agents folder (`/inbox`); briefs OK'd cards whose `next` is a worker, when it's clear; HQ's status lines |
+| HC2 taskmaster check | 3 times a day (08:39, 13:39, 20:39 Dutch time; Luca, 29 Oct: to save usage); every 2 hours (08:39-22:39) while HQ's ⚡ Turbo is on (it changes this task's schedule, recorded in `meta/hq.turbo`); and on HQ's ↻ Check now (a QUICK RUN: no test-running reviews) | Needs OK cards for `friend/` PRs; every PR card's preview (below); reviews new reports in the agents folder (`/inbox`); briefs OK'd cards whose `next` is a worker, when it's clear; HQ's status lines |
 | HC2 overnight QA | 01:44 every night | 12 simulated matches (`tools/soak.js`) + all tests + Luca's watch-mode marks; at most 2 small fixes on `qa/` branches with `qa-*` cards; a report to the folder |
 
 **HQ's page** can also change from the co-designer's side (CLAUDE.md "HC2 HQ is the exception", PR #39): before
@@ -55,7 +55,7 @@ reported on yet.
    pushed after your test come in untested: it happened with PR #1.) Then check `main` again.
 6. `/publish`, then the card → done with one line of what went live.
 
-## Previews on Needs OK cards (the taskmaster and the 2-hourly check)
+## Previews on Needs OK cards (the taskmaster and the scheduled check)
 
 Every PR's card on HQ shows its preview (Luca + the co-designer, 24 Oct): the GIF playing, **Play it** and **Try it in
 the Test Lab**. The data sits on the card as `preview`; HQ only displays it. Build it for every open PR whose card

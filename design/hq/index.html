@@ -291,9 +291,13 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     <div class="prog">
       <div class="row"><span>Live game <b id="ver">…</b></span><span><b id="pct">…</b> of the roadmap done, by effort</span></div>
       <div class="bar" role="img" id="pctbar" aria-label="Roadmap progress"><i id="pctfill" style="width:0%"></i></div>
-      <div class="tools"><span class="status-line" id="sync">Connecting…</span><button class="btn small" id="checkBtn" type="button" hidden>↻ Check now</button><button class="btn primary small" id="addBtn" type="button">+ Add a card</button></div>
+      <div class="tools"><span class="status-line" id="sync">Connecting…</span><button class="btn small" id="checkBtn" type="button" hidden>↻ Check now</button><button class="btn small" id="turboBtn" type="button" hidden aria-pressed="false">⚡ Turbo: off</button><button class="btn primary small" id="addBtn" type="button">+ Add a card</button></div>
+      <div class="checkask box" id="turboAsk" hidden>
+        <p id="turboText">Turn TURBO on? The taskmaster check runs every 2 hours (08:39 to 22:39, 8 a day) instead of 3 times a day, so reports and new PRs get reviewed sooner. It uses more of your usage; turn it off again here.</p>
+        <div class="acts"><button class="btn small ok" id="turboGo" type="button">Turn it on</button><button class="btn small" id="turboNo" type="button">Cancel</button></div>
+      </div>
       <div class="checkask box" id="checkAsk" hidden>
-        <p>Run a quick taskmaster check now? It makes cards for new PRs and builds their previews (report reviews wait for the 2-hourly check). About 5-10 minutes; it uses one check's worth of your usage.</p>
+        <p>Run a quick taskmaster check now? It makes cards for new PRs and builds their previews (report reviews wait for the next scheduled check). About 5-10 minutes; it uses one check's worth of your usage.</p>
         <div class="acts"><button class="btn small ok" id="checkGo" type="button">Run it</button><button class="btn small" id="checkNo" type="button">Cancel</button></div>
       </div>
     </div>
@@ -333,7 +337,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
         <span><span class="sw" style="background:var(--green)"></span>Closed</span>
       </div>
     </div>
-    <p class="muted" style="margin:0;max-width:78ch">Work stuck between two stages: built but switched off, a decision nobody made, a PR or branch going nowhere. The co-designer picks his from his morning scan; the 2-hourly check adds Luca's side. Close one here when it's settled, and his next scan sees it closed.</p>
+    <p class="muted" style="margin:0;max-width:78ch">Work stuck between two stages: built but switched off, a decision nobody made, a PR or branch going nowhere. The co-designer picks his from his morning scan; the taskmaster check adds Luca's side. Close one here when it's settled, and his next scan sees it closed.</p>
     <div id="looseBox"><p class="loading">Loading…</p></div>
   </section>
 
@@ -352,11 +356,11 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     <summary>How HQ works</summary>
     <ol>
       <li>Add anything with <b>+ Add a card</b>: an idea, a bug, a task, a question. It lands in <b>To do</b> as New.</li>
-      <li>Claude (the taskmaster) sorts it, writes the brief and hands it to a worker: <b>worker-l</b> on Luca's account or <b>worker-f</b> on the friend's. Each worker reports into the agents folder on GitHub; the taskmaster reviews every report (every 2 hours, 09:00 to 23:00) before the card comes to you. The nightly QA run (01:44) plays simulated matches and puts any fixes here too.</li>
+      <li>Claude (the taskmaster) sorts it, writes the brief and hands it to a worker: <b>worker-l</b> on Luca's account or <b>worker-f</b> on the friend's. Each worker reports into the agents folder on GitHub; the taskmaster check reviews every report before the card comes to you. It runs 3 times a day (08:39, 13:39, 20:39); <b>⚡ Turbo</b> (Luca only) makes it every 2 hours (08:39 to 22:39) while you're actively working, at more usage. The nightly QA run (01:44) plays simulated matches and puts any fixes here too.</li>
       <li>The <b>Agents</b> row is worked out from the cards: a worker's card in progress = Working, waiting for your OK = Waiting, and so on.</li>
       <li><b>YOUR MOVE</b> lists what waits for you. Each card says <b>who picks it up if you OK it</b> (the taskmaster merges, or a worker builds the next step). <b>OK</b> = go ahead. <b>Not yet</b> = back with your note. <b>No</b> = dropped. An OK'd card shows on that agent in the Agents row.</li>
       <li>A pull request's card shows its <b>preview</b>: the GIF from the PR playing (click it to make it bigger), <b>▶ Play it</b> (that PR's code as a game, on a computer) and <b>Test Lab: CH1</b> (the test with that PR's code). <b>vs today</b> opens the same test in today's official Test Lab, so you can compare.</li>
-      <li><b>↻ Check now</b> (Luca only) runs a quick taskmaster check straight away instead of waiting for the next 2-hour slot: new PR cards and their previews land 5-10 minutes later (it starts a fresh cloud session each time, which takes a few minutes by itself). Report reviews, which run test matches, stay with the 2-hourly check. It costs one check's worth of usage each time.</li>
+      <li><b>↻ Check now</b> (Luca only) runs a quick taskmaster check straight away instead of waiting for the next scheduled check: new PR cards and their previews land 5-10 minutes later (it starts a fresh cloud session each time, which takes a few minutes by itself). Report reviews, which run test matches, stay with the scheduled check. It costs one check's worth of usage each time.</li>
       <li>The tags in square brackets say where the work happens: cloud, your laptop, PixelLab, Aseprite, claude.ai, GitHub.</li>
       <li><b>Loose Ends</b> lists work stuck between two stages, with what closes it and who it waits on. <b>Make a card</b> turns one into a card on the board (it shows as Sent); <b>Close</b> settles it, with a line saying how.</li>
       <li><b>Versions</b> lists every game version, newest first, with its PRs, whose OK, the changes and their preview GIFs. Search it ("keeper"), or show only what's new since you last looked (remembered in this browser).</li>
@@ -477,14 +481,20 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
         ...STEPS.map((s, i) => h('i', { class: i < step ? 'on' : '' }))), h('div', { class: 'foot', text: STEPS.join(' · ') })] : null,
       M.note ? h('div', { class: M.warn ? 'warn' : 'foot', text: M.note + (M.at ? ` (${ago(M.at)})` : '') }) : null);
   }
-  function nextChecks() {   // the scheduled tasks, in Dutch time: the check at 09-23 every 2 h, QA at 01:44
+  // (Luca, 29 Oct 00:35: "make it so it runs minimally like 2-3 times a day but also have a button where you can turn
+  // on turbo mode where it does a 2 hourly check like before") the check's two schedules, in Dutch time. TURBO switches
+  // the scheduled task's own schedule (update_trigger) and records it in meta/hq.turbo, which this page reads.
+  const SCHED = { normal: { cron: 'CRON_TZ=Europe/Berlin 39 8,13,20 * * *', slots: [8, 13, 20] },
+                  turbo: { cron: 'CRON_TZ=Europe/Berlin 39 8-22/2 * * *', slots: [8, 10, 12, 14, 16, 18, 20, 22] } };
+  const turboOn = () => !!(meta.turbo && meta.turbo.on);
+  function nextChecks() {   // the scheduled tasks, in Dutch time: the check 3 times a day (TURBO: every 2 h), QA at 01:44
     try {
       const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map(x => [x.type, x.value]));
-      const m = num(p.hour) * 60 + num(p.minute), slots = [9, 11, 13, 15, 17, 19, 21, 23].map(x => x * 60), nx = slots.find(s => s > m);
+      const S = SCHED[turboOn() ? 'turbo' : 'normal'], m = num(p.hour) * 60 + num(p.minute), slots = S.slots.map(x => x * 60 + 39), nx = slots.find(s => s > m);
       const hhmm = v => String(Math.floor(v / 60) % 24).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0');
       const run = checkRunning();
-      return (run ? `Check running (started ${ago(meta.manualCheck.at)}) · ` : '') + `Next taskmaster check ${nx != null ? hhmm(nx) : 'tomorrow 09:00'} · nightly QA ${m < 104 ? 'tonight' : 'next'} at 01:44` + (meta.lastCheck && meta.lastCheck.at ? ` · last check ${ago(meta.lastCheck.at)}${meta.lastCheck.summary ? ': ' + meta.lastCheck.summary : ''}` : '');
-    } catch (e) { return 'Taskmaster check every 2 hours, 09:00-23:00 · nightly QA at 01:44'; }
+      return (run ? `Check running (started ${ago(meta.manualCheck.at)}) · ` : '') + (turboOn() ? '⚡ TURBO · ' : '') + `Next taskmaster check ${nx != null ? hhmm(nx) : 'tomorrow ' + hhmm(slots[0])} · nightly QA ${m < 104 ? 'tonight' : 'next'} at 01:44` + (meta.lastCheck && meta.lastCheck.at ? ` · last check ${ago(meta.lastCheck.at)}${meta.lastCheck.summary ? ': ' + meta.lastCheck.summary : ''}` : '');
+    } catch (e) { return 'Taskmaster check 3 times a day (TURBO: every 2 hours) · nightly QA at 01:44'; }
   }
 
   // ---- your move + cards ----
@@ -967,21 +977,46 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
       $('#checkAsk').hidden = true; toast('Check started. Cards and previews update in a few minutes.');
       const mc = { at: Date.now(), by: me.id || null }; meta = { ...meta, manualCheck: mc }; $('#checks').textContent = nextChecks();
       try { await db.doc('meta/hq').update({ manualCheck: mc }); } catch (e) {}
-    } catch (e) {
-      const c = e && e.code, msg = {
-        approval_required: 'It needs your OK first: press Run it again and choose Allow when claude.ai asks.',
-        not_in_manifest: 'Check now is switched off for HQ. Turn Claude Code Remote back on in this page\'s Permissions menu.',
-        server_not_connected: 'Claude Code Remote isn\'t connected for you: add it in claude.ai Settings → Connectors.',
-        selection_required: 'Pick which Claude Code Remote connection to use when claude.ai asks, then press Run it again.',
-        needs_reauth: 'Your Claude Code Remote connection has lapsed: reconnect it in claude.ai Settings → Connectors.',
-        blocked_by_policy: 'Your organization doesn\'t allow this from a page. The check still runs every 2 hours.',
-        tool_error: 'The check couldn\'t start: ' + String((e && e.message) || 'no reason given').slice(0, 160),
-        server_unavailable: 'No answer from Claude Code. It may have started anyway: look at the check line in a few minutes before pressing again.',
-        upstream_error: 'Something went wrong on the way. It may have started anyway: look at the check line in a few minutes before pressing again.',
-      }[c] || 'Couldn\'t start the check (' + (c || 'error') + '). The 2-hourly check still runs.';
-      toast(msg);
-    } finally { go.disabled = false; go.textContent = 'Run it'; checkUI(); }
+    } catch (e) { toast(mcpMsg(e, 'start the check')); } finally { go.disabled = false; go.textContent = 'Run it'; checkUI(); }
   });
+  // what to tell Luca when a Claude Code call from this page fails (Check now and Turbo share it)
+  function mcpMsg(e, what) {
+    const c = e && e.code;
+    return {
+      approval_required: 'It needs your OK first: press it again and choose Allow when claude.ai asks.',
+      not_in_manifest: 'This button is switched off for HQ. Turn Claude Code Remote back on in this page\'s Permissions menu.',
+      server_not_connected: 'Claude Code Remote isn\'t connected for you: add it in claude.ai Settings → Connectors.',
+      selection_required: 'Pick which Claude Code Remote connection to use when claude.ai asks, then press it again.',
+      needs_reauth: 'Your Claude Code Remote connection has lapsed: reconnect it in claude.ai Settings → Connectors.',
+      blocked_by_policy: 'Your organization doesn\'t allow this from a page. The scheduled check still runs.',
+      tool_error: 'Couldn\'t ' + what + ': ' + String((e && e.message) || 'no reason given').slice(0, 160),
+      server_unavailable: 'No answer from Claude Code. It may have worked anyway: look at the check line in a few minutes before pressing again.',
+      upstream_error: 'Something went wrong on the way. It may have worked anyway: look at the check line in a few minutes before pressing again.',
+    }[c] || 'Couldn\'t ' + what + ' (' + (c || 'error') + '). The scheduled check still runs.';
+  }
+
+  // ---- TURBO (Luca, 29 Oct 00:35): the check normally runs 3 times a day to save usage; TURBO switches the scheduled
+  // task to every 2 hours (as before 29 Oct) while he's actively working, and back. Owner only, like Check now.
+  function turboUI() {
+    const b = $('#turboBtn'); if (!mcp || !canWrite) { b.hidden = true; return; }
+    const on = turboOn(); b.hidden = false; b.setAttribute('aria-pressed', String(on)); b.classList.toggle('ok', on);
+    b.textContent = on ? '⚡ Turbo: ON' : '⚡ Turbo: off';
+    b.title = on ? 'The check runs every 2 hours (08:39-22:39). Press to go back to 3 times a day.' : 'The check runs 3 times a day (08:39, 13:39, 20:39). Press for every 2 hours.';
+  }
+  async function setTurbo(on) {
+    const go = $('#turboGo'), b = $('#turboBtn'); go.disabled = b.disabled = true;
+    try {
+      await mcp.callTool('Claude Code Remote', 'update_trigger', { trigger_id: CHECK_ID, cron_expression: SCHED[on ? 'turbo' : 'normal'].cron }, { cache: false });
+      const tb = { on, at: Date.now(), by: me.id || null }; meta = { ...meta, turbo: tb };
+      try { await db.doc('meta/hq').update({ turbo: tb }); } catch (e) {}
+      $('#turboAsk').hidden = true; $('#checks').textContent = nextChecks();
+      toast(on ? 'TURBO on: the check now runs every 2 hours.' : 'TURBO off: the check runs 3 times a day again.');
+    } catch (e) { toast(mcpMsg(e, on ? 'turn TURBO on' : 'turn TURBO off')); }
+    finally { go.disabled = b.disabled = false; turboUI(); }
+  }
+  $('#turboBtn').addEventListener('click', () => { if (turboOn()) { setTurbo(false); return; } const a = $('#turboAsk'); a.hidden = !a.hidden; if (!a.hidden) $('#turboGo').focus(); });
+  $('#turboNo').addEventListener('click', () => { $('#turboAsk').hidden = true; $('#turboBtn').focus(); });
+  $('#turboGo').addEventListener('click', () => setTurbo(true));
 
   // ---- connect ----
   renderNav();
@@ -993,7 +1028,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
       $('#movetext').textContent = 'Open HQ on claude.ai, signed in.'; $('#addBtn').hidden = true; renderProject(); renderLoose(); renderVersions(); renderNav(); land(); return; }
     if (user) { try { me = await user.me(); } catch (e) {} try { const c = await user.can('data.write'); if (c === false) canWrite = false; } catch (e) {} }
     try { if (user && await user.isOwner()) mcp = await C.use('mcp'); } catch (e) { mcp = null; }   // Check now: Luca's page only
-    checkUI();
+    checkUI(); turboUI();
     let pend = 0; const soon = () => { if (pend) return; pend = requestAnimationFrame(() => { pend = 0; render(); }); };
     db.collection('tasks').onSnapshot(snap => {
       tasks = snap.docs.map(s => norm(s.id, s.data() || {}));
@@ -1004,8 +1039,8 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     db.collection('creative').onSnapshot(snap => { creative = snap.docs.map(s => ({ id: s.id, ...(s.data() || {}) })); soon(); }, () => {});
     db.collection('loose').onSnapshot(snap => { loose = snap.docs.map(s => normLoose(s.id, s.data() || {})); soon(); }, () => {});
     db.collection('versions').onSnapshot(snap => { versions = snap.docs.map(s => normVer(s.id, s.data() || {})); soon(); }, () => {});
-    db.doc('meta/hq').onSnapshot(s => { meta = (s && s.exists !== false && s.data && s.data()) || {}; checkUI(); soon(); }, () => {});
-    setInterval(() => { $('#checks').textContent = nextChecks(); checkUI(); }, 60000);
+    db.doc('meta/hq').onSnapshot(s => { meta = (s && s.exists !== false && s.data && s.data()) || {}; checkUI(); turboUI(); soon(); }, () => {});
+    setInterval(() => { $('#checks').textContent = nextChecks(); checkUI(); turboUI(); }, 60000);
   })();
 })();
 </script>

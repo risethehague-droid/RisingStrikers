@@ -16,7 +16,7 @@ These rules apply to every session on this repo, on either account. If you're on
 - **HC2 HQ is the exception** (Luca's OK, PR #39): the co-designer may publish HQ's page directly from his own
   account (his main session, or worker-f when he asks it to). The rules:
   - **HQ's page only:** its layout, sections and menus. Never the game or the Test Lab, and never HQ's card data by
-    hand (cards change through HQ's own buttons, the taskmaster and the 2-hourly check, as now).
+    hand (cards change through HQ's own buttons, the taskmaster and the scheduled check, as now).
   - **Start from the live HQ:** read the current version first (Artifact `read`) and build on that file, never on an
     older copy. Keep HQ's data model, capabilities and ↻ Check now working.
   - **Say what changed:** after each publish, a note through the folder (`bash tools/agent.sh report co-designer note
@@ -111,12 +111,12 @@ Tests use Node with Playwright and Chromium, run headless; time is stepped by ha
   - any PixelLab generations it used
   - a `## Preview` section (below)
 - Then put the PR link on the card and move the card to *Needs OK*.
-  - Exception: PRs from `friend/` branches get their Needs OK card automatically (the "HC2 taskmaster check" scheduled task on Luca's account, every 2 hours 09:00 to 23:00 Dutch time, which also reviews the agents' reports). The co-designer's account can't write to the board.
+  - Exception: PRs from `friend/` branches get their Needs OK card automatically (the "HC2 taskmaster check" scheduled task on Luca's account, 3 times a day at 08:39, 13:39 and 20:39 Dutch time, every 2 hours when Luca switches TURBO on in HQ; it also reviews the agents' reports). The co-designer's account can't write to the board.
 
 ### The `## Preview` section (every PR, every agent)
 
 HC2 HQ shows it on the PR's Needs OK card: the GIF playing, **Play it** (the PR's code as a game) and **Try it in
-the Test Lab** (the tests you name). The taskmaster and the 2-hourly check build those from this section, so keep its
+the Test Lab** (the tests you name). The taskmaster and the scheduled check build those from this section, so keep its
 shape exactly.
 
 1. **Open the PR first** to learn its number `<N>`.
