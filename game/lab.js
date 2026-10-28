@@ -1774,7 +1774,7 @@
       check(r) {
         const b = m.ball, sp = m.setPiece, cam = m.cameras.main, V = cam.worldView;
         const inView = (x, y) => V.contains(wx(x, y), wy(y) - 40);
-        const covering = !!(m.wipeG && m.wipeG.visible && m.tweens.isTweening(m.wipeG));
+        const covering = !!(m.wipeG && m.wipeG.visible && m.tweens.isTweening(m.wipeG)) || !!(m.boG && m.boG.visible && m.boG.alpha >= 0.999);   // (t-032: a corner's blackout covers only while fully black)
         if (r.pos) m.all.forEach((p, i) => { if (p.sentOff) return; const q = r.pos[i], d = len(p.x - q[0], p.y - q[1]);
           if (d > 0.6) { if (covering) r.jumps.wipe++; else if (inView(q[0], q[1]) || inView(p.x, p.y)) { r.jumps.view++; r.jumpWho = `#${p.num} ${d.toFixed(1)} m`; } else r.jumps.off++; }
           else if (!r.kickT) r.path.set(p, (r.path.get(p) || 0) + d); });
@@ -1788,7 +1788,10 @@
         if (r.t < r.kickT + 0.8) return null;
         const ds = [...r.path.values()].filter(d => d > 0.5), avg = ds.length ? ds.reduce((a, c) => a + c, 0) / ds.length : 0, mx = ds.length ? Math.max(...ds) : 0;
         const st = r.st || {}, f1 = v => (v ?? 0).toFixed(1), t0 = o.gk ? r.gkT : r.readyT - st.t;   // (times from the restart: the call's own dead-ball wait comes before it)
-        return { o: `${r.kind}${o.pace ? ' · ' + o.pace.toUpperCase() : ''} · setup ${f1(r.readyT - t0)} s${st.skip ? ' (SKIPPED by a press)' : ''} · jogged in: ${ds.length} men, avg ${avg.toFixed(1)} m, max ${mx.toFixed(1)} m · ${st.wiped || o.gk ? `wipe: ${r.jumps.wipe} moved under it` : 'no wipe'} · jumped in view without a wipe: ${r.jumps.view}${r.jumpWho ? ' (' + r.jumpWho + ')' : ''} · ball placed ${o.gk ? 'in his hands' : f1(st.placed) + ' s in'} · shape in ${Math.round((st.frac ?? 1) * 100)}% · control back ${f1(r.readyT - t0)} s, kicked ${f1(r.kickT - t0)} s after the restart`, hold: 0.4 };
+        const bo = st.bo, f2 = v => (v ?? 0).toFixed(2);                          // t-032: the corner's blackout, out / black / in (setup seconds)
+        const cutTxt = bo ? `blackout: out ${f2(bo.black)} s, black ${f2(bo.up - bo.black)} s, in ${f2(bo.clear - bo.up)} s${bo.clear == null ? ' (NOT CLEARED!)' : ''}, ${r.jumps.wipe} moved while black`
+          : st.wiped || o.gk ? `wipe: ${r.jumps.wipe} moved under it` : 'no wipe';
+        return { o: `${r.kind}${o.pace ? ' · ' + o.pace.toUpperCase() : ''} · setup ${f1(r.readyT - t0)} s${st.skip ? ' (SKIPPED by a press)' : ''} · jogged in: ${ds.length} men, avg ${avg.toFixed(1)} m, max ${mx.toFixed(1)} m · ${cutTxt} · jumped in view without a wipe: ${r.jumps.view}${r.jumpWho ? ' (' + r.jumpWho + ')' : ''} · ball placed ${o.gk ? 'in his hands' : f1(st.placed) + ' s in'} · shape in ${Math.round((st.frac ?? 1) * 100)}% · control back ${f1(r.readyT - t0)} s, kicked ${f1(r.kickT - t0)} s after the restart`, hold: 0.4 };
       } };
   }
   function rsTests() {
@@ -1811,6 +1814,10 @@
       rsTest('RS1-A', 'RS1 on ARCADE', 'the same offside free kick, ARCADE\'s quicker setup', { pace: 'arcade', att: 24, go(r) { const st = H()[9]; put(st, 89, 36, 0); atFeet(st); m.offCall(st, { team: m.home, men: new Map([[st, { x: st.x, y: st.y }]]), line: m.offLine(m.home), by: H()[6] }); } }),
       rsTest('RS2-A', 'RS2 on ARCADE', 'your corner with ARCADE\'s quicker setup (ARCADE plays off the boards today: corners come with PR #31\'s rule change or a Lab call)',
         { pace: 'arcade', you: true, att: 26, go(r) { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A()[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; } }),
+      // t-032: the same corner from the other flag (the far touchline at the top of the screen): the blackout, the cut and
+      // the taker's walk mirrored - nobody seen jumping, the camera on the right flag
+      rsTest('RS8', 'CORNER (yours) from the other flag', 'out off their #3 over the byline near the far touchline: the blackout, then the taker walking to the top flag, the box filling - then the Lab crosses (LOB)',
+        { you: true, att: 26, go(r) { ballAt(106.2, 10, 0.2); Object.assign(m.ball, { last: m.away, lastP: A()[3], vx: 2, vy: -1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: 0.4, t: 0.8 }; } }),
     ];
   }
   function ofTests() {
