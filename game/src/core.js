@@ -1,3 +1,4 @@
+// HELP OUT HAGUE CUP II - web game v0.13.0 (Luca OK'd PRs #43-#49, 27 + 29 Oct: AERIAL BATTLES only in the box, header v header or volley v volley, a win is a shot at goal and the defender goes down, a loss is cleared, an honest SPACE mash; LOB RECEIVES uncontested when the ball is clearly his, chest / thigh trap into his run; the CORNER BLACKOUT cut; KEEPER DIVES drawn sideways, the special save's flash on his gloves; a special save off his line still meets an angled special; the smarter-AI plan + tools)
 // HELP OUT HAGUE CUP II - web game v0.12.4 (Luca OK'd PRs #36, #37, #38, 25 Oct: THE SPECIAL-SAVE CLASH - a charged save covers the whole goal, then power against power: held / bounces off / hands blown away / the body; SET PIECES WITH A RHYTHM - players jog into shape before every restart, CLASSIC and ARCADE timings, a press skips; KEEPER HANDS - the dive grabs the ball into his gloves, he gets up with it and carries it (PixelLab batch 21 carry walk / jog), the computer's keeper walks a calm catch out)
 // HELP OUT HAGUE CUP II - web game v0.12.3 (Luca OK'd PR #35, 25 Oct: THE KEEPER'S RANGE - "gk needs to approach from further range to close in on attackers": on a breakaway he starts closing at 32 m, comes out to the edge of his box as the striker gets within ~20 m and attacks the ball from ~9 m away; dives with his hands only inside his box)
 // v0.12.2 (Luca OK'd PRs #34, #31, #33, 25 Oct ~15:30: THE LIVING NET in every match - it stretches by shot strength and special level, the ball rolls in it, an LV3 special rips through, shown in every replay; ARCADE throw-ins again (no touchline boards; the byline boards stay); the house rule 'Think like football')
@@ -475,7 +476,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.12.4';
+const GAME_VER = 'v0.13.0';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)
