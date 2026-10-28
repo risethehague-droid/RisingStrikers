@@ -15,6 +15,23 @@ and every agent reports back into one shared folder, which the taskmaster review
   the Taskboard or a report.
 - Two sessions on one account share that account's usage limits.
 
+### worker-f's helper (inside worker-f's session)
+
+The co-designer, 28 Oct: "a sort of secretary of worker-f that's under worker-f's control and can help it split tasks and
+finish work faster. It should report to and be managed by worker-f." It's not a fifth session: **worker-f-helper**
+(`.claude/agents/worker-f-helper.md`) is a sub-agent worker-f starts inside its own session for one piece of its current
+task at a time, and it answers to worker-f only.
+- **Use it for:** tests, soaks and Lab groups while worker-f codes; preview GIFs; reading and mapping code; drafting
+  a PR description or report; or one separate piece of code in its own worktree, on a branch worker-f names
+  (`worker-f/<task>-<part>`), which worker-f merges into its own branch.
+- **Start it:** the Agent tool with `subagent_type: "worker-f-helper"`, `isolation: "worktree"` for any piece that
+  writes code, and a self-contained prompt (the piece, its files, what "done" means). Several can run side by side on
+  pieces that don't touch the same files.
+- **It never** reports to the agents folder, the taskmaster or the board, opens or merges a PR, pushes to `main`,
+  publishes, or generates PixelLab art. worker-f stays responsible for the task: it checks the helper's work, opens
+  the one PR and sends the one report, as before (and says in the report what the helper did).
+- Same account, same usage limits: a helper spends worker-f's (the co-designer's) usage.
+
 ## The report folder
 
 It's the `agents` branch on GitHub. It holds only `agents/`, never game files, and is never merged into `main`.

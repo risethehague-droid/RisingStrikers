@@ -17,6 +17,10 @@ If it doesn't, ask once. `docs/agents.md` explains the whole setup; CLAUDE.md's 
    - New task: first `git ls-remote origin "refs/heads/<you>/<task>-*"`. A branch for it already there means another
      session took it (24 Oct: t-011 got built twice): don't start a second one; send a `question` report and stop.
 4. **Do it.**
+   - **worker-f only:** split the task where it helps and hand pieces to your helper, `worker-f-helper` (the Agent
+     tool, `subagent_type: "worker-f-helper"`; `isolation: "worktree"` for a piece that writes code). Tests, soaks,
+     GIFs, code reading, drafts, or one separate piece of code on a branch you name. You check its work and merge its
+     branch into yours; it never reports to the folder or opens a PR. docs/agents.md "worker-f's helper".
    - Touch only the files the brief lists. Something outside them needs changing? Ask (step 7, `question`) rather
      than doing it: another agent may be working there.
    - Art comes from PixelLab or Aseprite only (CLAUDE.md "Art"). A PixelLab key never goes in chat, the repo,
