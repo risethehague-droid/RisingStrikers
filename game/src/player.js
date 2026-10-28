@@ -35,6 +35,21 @@ function airPick(K, kind, d, h) {
 // t-031: which frame of its move a sprite is showing (frame names end in -<n>), or null
 function frameNo(spr) { const m = /-(\d+)$/.exec((spr.frame && spr.frame.name) || ''); return m ? +m[1] : null; }
 function airContact(K, a, d) { const c = K.contact; return c ? c[`${a}-${K.anims[`${a}-${d}`] ? d : 'S'}`] : undefined; }
+// t-033 THE DIVE'S ANGLE (Luca 25 Oct 17:52, PR #38's preview: "the dive animation is angled the wrong way"). PixelLab
+// drew these dives side-on, a full-length flying dive lying flat across the frame (like ksmother still is). The kit build
+// (tools/keeper_build.py dive_frames, batch 1 / 16 / 18) turned them a quarter so he'd fly along his goal line - which put
+// his head at the bottom of the frame and his boots straight up: a handstand (GH1 since v0.12.0, older than t-031). Real
+// keepers and FIFA / PES / Sensible Soccer: a dive across the goal is a sideways spring, body near-flat, hands and head
+// leading, legs trailing low. So the game turns those frames back to how PixelLab drew them (the same quarter, exact) and
+// keeps GK_LEAN of it, so the body tilts 20° in the dive's direction (head lower going towards the camera, higher going
+// away). Sign: +1 = the build turned it clockwise (Down), -1 anticlockwise (Up); -W frames are mirrors, so the turn flips.
+const GK_KNEEL = 10;                                                             // (kdivecatch: from this frame on he's on his knees with it)
+const GK_SLIDE_OUT = 3;                                                          // (diveTurn: the picture slides back to where he is over his last 3 frames, the landing)
+const GK_TURN = { kdivecatchDown: 1, kdivecatchUp: -1, kcollapseDown: 1, kcollapseUp: -1, diveDown: 1, diveUp: -1 }, GK_LEAN = 20;
+function gkTurn(move) {                                                          // move 'kdivecatchDown-W' -> the sprite's rotation (rad)
+  const mm = /^(\w+)-(E|W)$/.exec(move || ''), sg = mm && GK_TURN[mm[1]];
+  return sg ? -sg * (mm[2] === 'W' ? -1 : 1) * (90 - GK_LEAN) * Math.PI / 180 : 0;
+}
 class Player {
   constructor(m, team, i, kit) {
     this.m = m; this.team = team; this.i = i; this.kit = kit; this.keeper = i === 0;
@@ -83,6 +98,7 @@ class Player {
     this.bob = 0;                                                                // (t-031: carryPlay sets it while he walks with the ball)
     if (this.keeper && this.spSave && !this.sentOff && (this.m.ball.special || this.m.ball.saveable)) this.m.auraFx(this);   // v0.8.9 his special save is ready: he burns in its colour
     if (this.rig && !this.sentOff) { const P = this.m.rigAt(this, this.rig.n, this.rig.t, this.rig.d, this.rig); if (P) { this.rigShow(P); return; } this.rig = null; }
+    if (this._turned) { this._turned = false; this.spr.setRotation(0); }         // (t-033: a dive turned flat is turned again each frame it shows)
     if (this._rigged || this.spr.rotation || this.spr.scaleX !== 1 || this.spr.scaleY !== 1) { this._rigged = false; this.spr.setRotation(0).setScale(1); this._ox = this._oy = null; this.anim = ''; }   // (after a rig / a replay)
     const K = MAN.kits[this.kit];
     const d = DIRS[this.face];
@@ -103,7 +119,8 @@ class Player {
     else if (this.state === 'catch') { if (!(this.claimHigh && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); }
     else if (this.state === 'dive') { this.play(this.diveAnim, /^ksmother/.test(this.diveAnim || '') ? 20 : /^kcollapse/.test(this.diveAnim || '') ? 12 : 16, true);   // (t-017: the smother's hands land on frame 6 at ~0.3 s; the 4-frame collapse a little slower)
       if (this.hands && !this.handJump) { this.handJump = true; const c = GK_HAND_HIT[(this.diveAnim || '').replace(/-\w+$/, '')], i = frameNo(this.spr);   // t-031: caught before his gloves were out: on to the frame where they meet it
-        if (c != null && i != null && i < c && MAN.kits[this.kit].anims[this.diveAnim].length > c) this.spr.play({ key: this.anim, startFrame: c }); } }
+        if (c != null && i != null && i < c && MAN.kits[this.kit].anims[this.diveAnim].length > c) this.spr.play({ key: this.anim, startFrame: c }); }
+      this.diveTurn(this.diveAnim); }
     else if (this.state === 'slide') { if (!this.tacklePlay('slide', d, TACKLE.slideT)) { this.play(`run-${d}`, 13); this.spr.anims.timeScale = 0.01; } }
     else if (this.state === 'applaud') { if (!this.play(`applaud-${d}`, 9) && !this.play('applaud-S', 9)) this.play(`idle-${d}`, 5); }   // full time (loops)
     else if (this.state === 'trophy') {                                         // v0.7.4 cup ceremony: PixelLab trophy lift, then he keeps it up there
@@ -118,7 +135,7 @@ class Player {
       if (!k || !this.play(`${a}-${k}`, this.labFps || 12, true)) this.play(`idle-${d}`, 5);
     }
     else if (this.state === 'getup' && this.slideUp && this.tacklePlay('slideup', d, this.slideWon ? TACKLE.upWon : TACKLE.upMiss)) { }   // t-018: up off the grass after a slide
-    else if (this.state === 'getup' && this.getupAnim && this.play(this.getupAnim, 18, true)) { }   // t-017: the keeper back up off the grass after a dive (batch 18 kgetup)
+    else if (this.state === 'getup' && this.getupAnim && ((this._from = this.getupFrom || 0), this.play(this.getupAnim, 18, true))) { this._from = 0; }   // t-017: the keeper back up off the grass after a dive (batch 18 kgetup)
     else if (ONCE[this.state]) { const ap = (this.state === 'header' || this.state === 'dheader') && airPick(K, this.state, d, this.airHit);   // (t-022: the header / dive from AIR_PICKS)
       const [nm, fps] = ap ? [ap.a, ap.fps] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state];
       if (ap && this.state === 'header') this._from = airContact(K, nm, d) || 0;   // batch 20: the ball leaves his head the moment the header starts, so the move opens on the frame that meets it (the snap shows with the thump, flash and hit-stop; the take-off frames before it are skipped)
@@ -225,12 +242,32 @@ class Player {
       pt = [f.realWidth * s.originX + H[0] - 64, f.realHeight * s.originY + H[1] - 143]; behind = /N/.test(d);
     }
     const lx = (pt[0] - f.realWidth * s.originX) * s.scaleX, ly = (pt[1] - f.realHeight * s.originY) * s.scaleY, c = Math.cos(s.rotation), sn = Math.sin(s.rotation);
-    return { x: s.x + lx * c - ly * sn, y: s.y + lx * sn + ly * c, behind, move: mm ? mm[1] : '' };
+    const x = s.x + lx * c - ly * sn, y = s.y + lx * sn + ly * c, R = s.rotation ? Math.round : v => v;   // (t-033: a turned frame's gloves land between pixels: the ball goes on the nearest one, as it does for an upright frame)
+    return { x: R(x), y: R(y), behind, move: mm ? mm[1] : '' };
   }
-  rigShow(P) {                                                                   // v0.8.9 one frame of a rough rig
+  // t-033: a dive frame the kit build turned a quarter is drawn as PixelLab drew it, near-flat (gkTurn). Turned about the
+  // frame's centre, his gloves on the contact frame (GK_HAND_HIT) would land ~3 m from where the ball meets them, so the
+  // picture is slid to keep them there: in from nothing on his set frame to all of it on the contact frame, held while
+  // he can still catch it (the GH catches land on frames 6-7), and back out over the landing, so he leaves the dive (the
+  // get-up, drawn on his feet) where he really is. Where the gloves meet the ball on screen and when are as before:
+  // t-027 / t-028's reach and timing and t-031's ball in his gloves are untouched
+  diveTurn(move) {
+    const s = this.spr, rot = gkTurn(move), f = s.frame; if (!rot || !f) return false;
+    const T = GK_HANDS[move], c = GK_HAND_HIT[move.replace(/-\w+$/, '')], pt = T && c != null && T[c], i = frameNo(s) || 0, L = (T || []).length;
+    let k = 0;
+    if (pt) k = i <= c ? (c ? i / c : 1) : clamp((L - 1 - i) / GK_SLIDE_OUT, 0, 1);
+    if (k) { const hx = pt[0] - f.realWidth * s.originX, hy = pt[1] - f.realHeight * s.originY, C = Math.cos(rot), S = Math.sin(rot);
+      s.setPosition(s.x + Math.round((hx - (hx * C - hy * S)) * k), s.y + Math.round((hy - (hx * S + hy * C)) * k)); }
+    s.setRotation(rot); this._turned = true; return true;
+  }
+  // (the Test Lab's GH lines: how far his body is from lying flat on screen, ° - 90 = upright / a handstand)
+  bodyTilt() { const r = Math.abs(this.spr.rotation) * 180 / Math.PI, mv = ((this.spr.frame && this.spr.frame.name) || '').replace(/-\d+$/, ''), sg = GK_TURN[mv.replace(/-\w+$/, '')];
+    return sg ? Math.round(Math.abs(90 - r)) : null; }
+  rigShow(P) {                                                                // v0.8.9 one frame of a rough rig
     const s = this.spr; s.setVisible(!this.hide); s.anims.stop(); s.setFrame(P.fr); this.anim = 'rig:' + this.rig.n;
     if (this._ox !== P.ox || this._oy !== P.oy) { s.setOrigin(P.ox, P.oy); this._ox = P.ox; this._oy = P.oy; }   // (t-014: batch 16 frames hang from the manifest's origin)
     s.setPosition(Math.round(P.x), Math.round(P.y)).setRotation(P.rot).setScale(P.sx, P.sy).setDepth(wy(this.y));
+    this.diveTurn(P.fr.replace(/-\d+$/, ''));                                   // t-033: the special save's flying catch flat too (rigAt lined up his unturned gloves with the ball: diveTurn keeps them there)
     this._rigged = true; this.carrying = false; this.m.rigFx(this, P);
     this.handBall();                                                             // t-031: a special save he holds: the ball in his gloves too
   }
@@ -299,6 +336,9 @@ class Player {
           const b = this.m.ball; if (this.slideKeep && !b.owner && len(b.x - this.x, b.y - this.y) < 1.8 && b.z < 0.5) { this.cool = 0; this.m.gain(this, 0); }   // v0.8.2 the block tackle: yours
           this.slideKeep = false; }
         else if (this.keeper && this.state === 'dive' && /^(diveLow|dive|diveHigh|smother)$/.test(this.saveKind || '') && MAN.kits[this.kit].anims['kgetup-E']) {   // t-017: off the grass, not a pop-up (t-031: with the ball too - held at his chest as he gets up; it used to pop him up into the hold)
+          // t-033: drawn flat again, PixelLab's flying catch ends with him already up on his knees, the ball gathered in
+          // (frames 10-11): the get-up goes on from its crouch (frame 4), not back down onto his back first. Same 0.44 s
+          this.getupFrom = /^kdivecatch/.test(this.diveAnim || '') && (frameNo(this.spr) || 0) >= GK_KNEEL ? 4 : 0;
           this.getupAnim = `kgetup-${this.team.side > 0 ? 'E' : 'W'}`; this.setState('getup', 0.44); }   // (8 frames at 18 a second)
         else { this.state = 'idle'; this.getupAnim = null; this.slideUp = false; }
       }

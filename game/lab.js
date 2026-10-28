@@ -1023,6 +1023,19 @@
         if (b.save && b.save.gk === gk && r.u0 == null) { r.u0 = b.save.u; b.save.u = o.u ?? 0; }   // (the dice: held here; GH6 not)
         return o.end(r); } };
   }
+  // t-033: a GH shot the other way, at YOUR keeper (the left-hand goal, facing E): the computer's #9 shoots from 14 m out
+  function ghOther(id, name, sub, o) {
+    const T = ghShot(id, name, sub, o);
+    T.setup = r => { const s = m.away.players[9], gk = m.home.players[0], me = m.home.players[5]; cast([s, gk, me]);
+      const sx = 14, sy = 35, f = dirIndex(0 - sx, 34 - sy), dv = dirVec(f);
+      put(s, sx - dv.x * 0.5, sy - dv.y * 0.42, f); ballAt(sx, sy, 0, s); put(gk, PITCH_L - LINE_X, 34 + (sy - 34) * 0.3, 0); put(me, 40, 20, 0);
+      Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+      const ty = gk.y + o.tgt; Object.assign(r, { human: me, shooter: s, gk, you: false, marks: [{ x: 0, y: ty, r: 0.3 }], moves: [] });
+      r.action = { at: 0.6, fire: () => { const b = m.ball, tx = -2, aty = b.y + (ty - b.y) * (tx - b.x) / (0 - b.x);
+        m.kick(s, tx, aty, o.speed, 0.35, 0.13, { shot: true, power: 0.5 }); r.aim = { y: ty, z: 0 }; } };
+      r.cam = () => ({ x: gk.x + 3, y: gk.y }); ghHook(r); };
+    return T;
+  }
   function ghTests() {
     const up = r => r.heldT != null && r.gk.state === 'idle' && r.t - r.heldT > 0.3;     // on his feet again, holding it
     const heldEnd = r => { if (up(r) && (r.upT = r.upT ?? r.t) && r.t - r.upT > 0.4) return { o: `HELD · ${ghLine(r)} · up ${(r.upT - r.heldT).toFixed(2)} s after the catch`, hold: 0.8 };
@@ -1062,6 +1075,11 @@
           if (r.touchAt && r.t - r.touchAt.t > 0.25) { const A = r.touchAt, g = A.G ? len(A.S.x - A.G.x, A.S.y - A.G.y) : null;
             return { o: `${A.e} on ${A.fr} · the ball ${g != null ? g.toFixed(0) + ' px from his gloves' : '-'} at the touch, ${len(b.x - gk.x, b.y - gk.y).toFixed(1)} m away 0.25 s later at ${kmh(len(b.vx, b.vy))} km/h` }; }
           if (b.inNet) return { o: 'GOAL' }; return r.t - r.shotT > 3 ? { o: 'no touch' } : null; } }),
+      // t-033 (Luca 25 Oct 17:52, GH1's dive "angled the wrong way"): the other keeper and the other side, so every way the
+      // turned dive frames are drawn is seen once - GH1 their keeper (facing W) going down the screen, GH7 yours (facing E)
+      // going down the screen (to his right), GH8 theirs going up it, high (to his right)
+      ghOther('GH7', 'your keeper: a dive catch, low to his right', 'the computer shoots low 2.4 m to your keeper\'s right (towards the camera): he dives across, grabs it, lands and gets up with it - the other keeper, the mirrored frames', { tgt: 2.4, speed: 19, end: heldEnd }),
+      ghShot('GH8', 'a high dive catch to his right', 'a shot at head height 2.4 m to his right (away from the camera): a sideways spring, body near-flat, grabs it and lands holding it', { spot: { n: '14 m', x: 91, y: 33 }, tgt: { y: -2.4, z: 1.4 }, speed: 17, end: heldEnd }),
     ];
   }
   function gkxTests() {
@@ -2542,9 +2560,21 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     m.human = r.human; m.camX = m.camY = undefined;
     render();
   }
-  function finish(res) { const r = LAB.run; r.result = res; r.endT = r.t + (res.hold ?? 0.9); render(); }
+  function finish(res) { const r = LAB.run; r.result = res; r.endT = r.t + (res.hold ?? 0.9);
+    if (/^(GH|GKX|KP|KC)$/.test(r.sc.group) && res.o) res.o += r.tilt ? ` · body at contact (${r.tilt.mv}): ${r.tilt.deg == null ? 'as PixelLab drew it' : r.tilt.deg + '° from flat'}` : ' · body upright, as PixelLab drew it (no side dive)';   // t-033 (90° = upright: the old handstand)
+    render(); }
+  // t-033: how his body is drawn on the frame his gloves meet the ball (GK_HAND_HIT) - the first dive / special save of the test
+  function tiltTrack(r) {
+    if (r.tilt) return;
+    for (const k of [m.home.players[0], m.away.players[0]]) {
+      if (k.state !== 'dive' && !k._rigged) continue;
+      const nm = (k.spr.frame && k.spr.frame.name) || '', mv = nm.replace(/-\d+$/, ''), c = GK_HAND_HIT[mv.replace(/-\w+$/, '')], i = frameNo(k.spr);
+      if (c != null && i != null && i >= c) { r.tilt = { mv, deg: k.bodyTilt() }; return; }
+    }
+  }
   function sample() {
     const r = LAB.run, b = m.ball;
+    if (/^(GH|GKX|KP|KC)$/.test(r.sc.group)) tiltTrack(r);
     if (r.action && !r.fired && r.t >= r.action.at) { r.fired = true; r.action.fire(r); }
     if (r.shotT != null && !r.result) {
       r.maxZ = Math.max(r.maxZ, b.z);
