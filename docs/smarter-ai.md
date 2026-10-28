@@ -51,7 +51,32 @@ Also found:
 
 ## The 7 clunkiest moments
 
-(GIFs in `docs/ai/`, each with its cause - being recorded.)
+GIFs in `docs/ai/` (a yellow ring on the man it's about, drawn on the GIF only). Found by `tools/aistudy.js DRAW=1`
+(on camera only), replayed with `tools/preview.js NOCUT=1 MARK=...`. Each line: how to record it again.
+
+1. **Dithering beside a duel** (`1-dithering-beside-a-duel.gif`): IRO #5 hovers by a team-mate's duel, turning back
+   and forth. Cause: his target is recomputed every frame (the smoothed ball point + the push away from opponents) and
+   the support job is re-picked every 0.4 s, so the spot jumps from side to side; nothing makes him commit.
+   `VS=IRO,IS SEED=4 SKIP=43.9 MARK=home,5`
+2. **A runner who can't decide** (`2-dithering-runner.gif`): IRO #9 runs up, back, up again. Cause: the forward "run in
+   behind" goes to the forward nearest the ball every 1.5 s (`team.runner`) and the offside hold moves every 1.5-3 s,
+   so the run starts, is cancelled, starts again. `VS=IRO,IS SEED=4 SKIP=68.4 MARK=home,9`
+3. **Three on the ball** (`3-swarm-white.gif`): three IS men close the man on the ball. Cause: only the "zone" men are
+   kept 6.5 m off the ball; the cover man and the markers near the ball aren't, so the cover, a marker and the presser
+   all arrive. `VS=IRO,IS SEED=2 SKIP=17 MARK=ball,0`
+4. **Three on the ball, the other way** (`4-swarm-red.gif`): the same with IRO, one of them already on the floor from a
+   slide. `VS=IS,IRO SEED=3 SKIP=70 MARK=ball,0`
+5. **A lob into a mash it can't win** (`5-lob-into-a-mash.gif`): IS #6 lobs to a man with a defender on him; it becomes a
+   MASH battle in midfield and IS lose it. Cause: `passLook` rates a lob only by who reaches the drop (+0.25), not by a
+   defender already on the receiver, so a marked man looks fine. (The co-designer's lob-receive task for worker-f,
+   28 Oct, changes when a mash happens at all.) `VS=IRO,IS SEED=4 SKIP=19.5 SECS=5 MARK=away,6`
+6. **A lob given away** (`6-lob-given-away.gif`): IS #9's lob lands with IRO. Same cause; the computer's lobs keep
+   the ball only 41% of the time. `VS=IRO,IS SEED=4 SKIP=67.2 MARK=away,9`
+7. **A pass into a marked man** (`7-pass-into-a-marked-man.gif`): IRO #1 passes down the line to a man with a defender
+   on his back; lost. Cause: under pressure the carrier accepts a riskier pass (`risk < max(K.risk, 0.6)`, any score
+   above -0.4), even when carrying it or going back is safer. `VS=IRO,IS SEED=2 SKIP=38.9 SECS=3.5 MARK=home,1`
+
+All with `NOCUT=1 MATCH=1 SECS=4 node tools/preview.js` (game served on 8765).
 
 ## The plan: a team brain in four layers
 
