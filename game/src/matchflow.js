@@ -295,6 +295,9 @@ hc2Mix(Match, {
       if (set(opp.players[1], { x: X(4.5), y: Y(-1) })) mk(opp.players[1]);                          // zonal, six-yard box
       if (set(opp.players[8], { x: X(14), y: Y(-5) })) mk(opp.players[8]);                           // the edge, for the knock-down
       if (set(opp.players[0], { x: X(0.7), y: Y(0.8) })) mk(opp.players[0]);                         // the keeper, set
+      // smarter-ai step 3 (the co-designer: chasing late = bold): the last minutes, a goal down - their keeper comes up for it
+      // and waits by the far post (brain.js keeperUp: he attacks the ball, then sprints back)
+      const gk = team.players[0]; if (gk && !gk.sentOff && this.brainKeeperUp(team)) { set(gk, { x: X(7.5), y: Y(-3.5) }); mk(gk); gk.up = { t: this.time.now + 1e9 }; }
       set(opp.players[10], { x: X(19), y: Y(5) }); set(opp.players[9], { x: X(48), y: 34 - c * 6 });     // one on the edge, one up
       set(team.players[2], { x: X(52), y: 26 }); set(team.players[3], { x: X(52), y: 42 });            // the corner side holds halfway
       set(team.players[1], { x: X(38), y: 14 }); set(team.players[4], { x: X(38), y: 54 }); set(team.players[5], { x: X(24), y: Y(14) });
@@ -361,7 +364,7 @@ hc2Mix(Match, {
   spKick(mode, power = 0.7) {
     const sp = this.setPiece, p = sp.taker, A = this.aimPt;
     const target = this.spTarget();
-    sp.kicked = true; for (const q of this.all) q.spot = null;
+    sp.kicked = true; for (const q of this.all) { q.spot = null; if (q.up) q.up.t = this.time.now; }   // (smarter-ai: a keeper up for the corner attacks it from now)
     if (mode === 'shot') { this.penaltyKick = sp.kind === 'PENALTY'; this.doShot(p, power, clamp((A.y - 34) / 2.8, -1.2, 1.2)); }
     else if (sp.kind === 'THROW-IN') { const d = Math.min(len(A.x - p.x, A.y - p.y), 22); const dx = A.x - p.x, dy = A.y - p.y, l = len(dx, dy) || 1; this.kick(p, p.x + dx / l * d, p.y + dy / l * d, 0, 0, 0.18, { mode: 'lob', target }); }
     else if (mode === 'ground' && target) this.kick(p, target.x, target.y, 0, 0, 0.14, { mode, target });   // v0.8: a ground ball goes to the ringed man's feet

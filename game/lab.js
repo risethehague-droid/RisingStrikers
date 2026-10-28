@@ -1542,6 +1542,91 @@
       wgTest('WG2', 'YOUR winger crosses, your team-mates make the runs', 'you (scripted) go down the line and tap LOB at the near post: who is in the box, who attacks it?', { you: true }),
     ];
   }
+  // ======================================================================= smarter-ai stage 2: THE TEAM BRAIN (the co-designer, 24 Oct:
+  // "smarter. Running, positioning, better passes, less clunky. For both enemy teams and allied team"). Both full teams, the
+  // real team AI (the computer on both sides) and one measurement per test: AI1 a support man keeps his job, AI2 one
+  // presses + one covers (the rest screen), AI3 a lob to a marked man isn't the pick, AI4 a chasing team in the last
+  // minute (AI4-K: its keeper up for the corner), AI5 the four example styles, AI6 Rise Warrior reading your flank.
+  function aiFull(r, o = {}) {
+    cast(m.all.slice()); const att = o.att ?? 0;
+    for (const p of m.all) put(p, clamp(p.home.x + att, 2, PITCH_L - 2), p.home.y, p.team === m.home ? 0 : 4);
+    for (const k of [m.home.players[0], m.away.players[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, up: null });
+    const hp = o.poss ?? true;
+    for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: (t === m.home) === hp ? 1 : 0, inPoss: (t === m.home) === hp, airSpAt: null, offBy: null, mood: null });
+    for (const p of m.all) Object.assign(p, { aiTgt: null, openFrom: null, lastMove: null, goRun: null });
+    LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = !o.you; m.ball.crossBy = null;
+    window.__styles = o.styles || null; window.__readOn = o.read ?? null; m.read = null;
+    if (o.clock) { m.half = o.half || 2; r.clock = o.clock * 60; m.clock = r.clock; }
+    if (o.score) { m.home.score = o.score[0]; m.away.score = o.score[1]; }
+    Object.assign(r, { gk: m.away.players[0], marks: [], o });
+  }
+  const aiWho = p => p ? `${p.team === m.home ? '' : 'their '}#${p.num}` : 'nobody';
+  // a man's U-turns (heading swung > 135 deg within 0.4 s, moving): the dithering aistudy.js counts
+  function aiTurns(r, p) { const T = r.turnT || (r.turnT = new Map()), h = T.get(p) || { a: null, at: -9, n: 0 }; T.set(p, h);
+    if (p.speed > 1.2) { const a = Math.atan2(p.vy, p.vx); if (h.a != null) { let d = Math.abs(a - h.a); if (d > Math.PI) d = 2 * Math.PI - d; if (d > 2.35 && r.t - h.at > 0.4) { h.n++; h.at = r.t; } }
+      if (h.a == null || r.t - (h.st || 0) > 0.4) { h.a = a; h.st = r.t; } }
+    return h.n; }
+  function aiTests() {
+    const H = () => m.home.players, A = () => m.away.players;
+    return [
+      { id: 'AI1', group: 'AI', name: 'a support man holds his spot', sub: 'you (scripted) carry it up the middle at a walk: one computer team-mate takes the support job and keeps it - no swapping, no back-and-forth (clip 1)', kind: 'ai', realAi: true, demo: false, you: true, maxT: 8,
+        setup(r) { aiFull(r, { att: 4, you: true }); const c = H()[6]; put(c, 50, 34, 0); atFeet(c); r.human = c; r.bots.set(c, dribbleTo(64, 34, 2.2)); r.sup = []; },
+        check(r) { const t = m.home, s = t.support; if (r.t > 0.5 && s && s !== r.sup[r.sup.length - 1]) r.sup.push(s); if (s) aiTurns(r, s);   // (from 0.5 s: the first runner / support split settles)
+          if (r.t < 6) return null; const turns = r.sup.reduce((a, p) => a + ((r.turnT && r.turnT.get(p)) || { n: 0 }).n, 0);
+          return { o: `SUPPORT ${r.sup.map(aiWho).join(' → ') || 'nobody'} · ${Math.max(0, r.sup.length - 1)} swaps in 6 s · U-turns ${turns} · runner ${aiWho(t.runner)}` }; } },
+      { id: 'AI2', group: 'AI', name: 'one presses, one covers, the rest screen', sub: 'their #7 runs at your defence: one man presses, one covers behind him, everyone else stays 7.5 m off the ball (clips 3 + 4)', kind: 'ai', realAi: true, demo: true, maxT: 8,
+        setup(r) { aiFull(r, { att: -4, poss: false }); const c = A()[6]; put(c, 52, 34, 4); atFeet(c); r.human = H()[9]; r.bots.set(c, dribbleTo(22, 36, 3.6)); r.n = 0; r.max = 0; r.sum = 0; },
+        check(r) { const t = m.home, b = m.ball;
+          if (b.owner === A()[6]) { const near = t.players.filter(p => !p.keeper && !p.sentOff && p !== t.presser && p !== t.cover && len(p.x - b.x, p.y - b.y) < 7).length; r.n++; r.sum += near; r.max = Math.max(r.max, near); r.pc = [t.presser, t.cover]; if (t.cover) r.cv = t.cover; }
+          const end = r.t > 5 || (b.owner && b.owner.team === m.home);
+          return end ? { o: `PRESSER ${aiWho(r.pc && r.pc[0])} · COVER ${aiWho(r.cv)} · anyone else within 7 m of the ball: at most ${r.max}, on average ${(r.sum / (r.n || 1)).toFixed(2)}${b.owner && b.owner.team === m.home ? ` · won back by ${aiWho(b.owner)} at ${r.t.toFixed(1)} s` : ''}` } : null; } },
+      { id: 'AI3', group: 'AI', name: 'a lob to a marked man: not the pick', sub: 'your #7 is pressed; #9 is 28 m away with a defender on him, #8 is short and free - a lob into #9 should lose to the safe ball (clips 5-7)', kind: 'ai', realAi: true, demo: true, maxT: 7,
+        setup(r) { const h = H(), a = A(); aiFull(r); cast([h[0], h[6], h[9], h[7], a[0], a[3], a[6], a[7]]);
+          put(h[0], 3, 34, 0); put(h[6], 40, 34, 0); atFeet(h[6]); put(h[9], 68, 31, 0); put(h[7], 50, 46, 0); put(a[3], 69.4, 31.4, 4); put(a[6], 42.6, 34.6, 4); put(a[7], 60, 38, 4); put(a[0], LINE_X, 34, 4);
+          r.human = h[6]; r.c = h[6]; },
+        check(r) { const b = m.ball, c = r.c;
+          if (!r.play && m.pending && m.pending.p === c) r.play = { to: m.pending.info.target, mode: m.pending.info.mode || (m.pending.info.shot ? 'shot' : '?'), move: c.lastMove };
+          if (r.play && r.t > 0.3 && !m.pending) { const q = r.play.to, lob9 = r.play.mode === 'lob' && q === H()[9];
+            return { o: `${r.play.move ? r.play.move.toUpperCase() : 'KICK'}: ${r.play.mode} to ${aiWho(q)} · the lob into marked #9: ${lob9 ? 'CHOSEN (!)' : 'not chosen'}` }; }
+          if (b.owner && b.owner.team !== m.home) return { o: `LOST IT before a pass · ${aiWho(b.owner)} won it (moves: ${c.lastMove || 'none'})` };
+          return r.t > 5 ? { o: `KEPT IT for 5 s (carried / shielded, last move ${c.lastMove || 'none'}) · no lob into marked #9` } : null; } },
+      { id: 'AI4', group: 'AI', name: 'chasing late: a goal down in the last minute', sub: '89th minute, your side (the computer) 0-1 down with the ball: BOLD - the line steps up 7 m, both strikers run, shots from further out', kind: 'ai', realAi: true, demo: true, maxT: 10,
+        setup(r) { aiFull(r, { att: 14, clock: 88.6, score: [0, 1] }); const c = H()[6]; put(c, 60, 30, 0); atFeet(c); r.human = c; r.line = []; r.runs = 0; },
+        check(r) { const t = m.home, M = t.mood || {};
+          r.line.push(m.brainLine(t)); const st = [H()[9], H()[10]].filter(p => !p.sentOff), go = st.filter(p => p.vx > 1.5).length; r.runs = Math.max(r.runs, go);
+          if (!r.shot && m.ball.lastP && m.ball.lastP.team === t && m.ball.shotBy === m.ball.lastP && !m.ball.owner) r.shot = len(t.goalX - m.ball.lastP.x, 34 - m.ball.lastP.y);
+          if (r.t < 8 && !m.ball.inNet) return null;
+          return { o: `${M.chase ? 'CHASE ON' : 'no chase (!)'} · line ${(r.line.reduce((a, c) => a + c, 0) / r.line.length).toFixed(1)} m higher · strikers running at once: ${r.runs} of ${st.length}${r.shot ? ` · shot from ${r.shot.toFixed(0)} m` : ''}${m.ball.inNet ? ' · GOAL' : ''}` }; } },
+      { id: 'AI4-K', group: 'AI', name: 'chasing late: the keeper up for the last corner', sub: '89th minute, 0-1, a corner for your side (the computer): their keeper... your keeper jogs up to the far post, attacks the cross, then sprints back', kind: 'ai', realAi: true, demo: true, realRestart: true, maxT: 18,
+        setup(r) { aiFull(r, { att: 26, clock: 89, score: [0, 1] }); r.human = H()[9]; r.k = H()[0];
+          ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A()[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; },
+        check(r) { const sp = m.setPiece, k = r.k, fr = x => m.aiFrame(m.home, x).toFixed(0);
+          if (sp && sp.kicked && r.kick == null) { r.kick = r.t; r.atKick = fr(k.x); }
+          if (r.kick != null) r.maxF = Math.max(r.maxF ?? -99, m.aiFrame(m.home, k.x));
+          if (r.kick == null) return r.t > 15 ? { o: `NO CORNER TAKEN · keeper at ${fr(k.x)} m (frame)` } : null;
+          if (r.t - r.kick < 4) return null;
+          return { o: `KEEPER UP: ${m.aiFrame(m.home, k.x) > 20 || r.maxF > 30 ? 'yes' : 'no (!)'} · at the kick ${r.atKick} m from halfway (their goal line = 52) · furthest ${r.maxF.toFixed(0)} m · now ${fr(k.x)} m${k.up ? ', on his way back' : ', back home'}` }; } },
+      ...[['possession', 'PATIENT POSSESSION'], ['wide', 'DIRECT AND WIDE'], ['press', 'HIGH PRESS'], ['counter', 'COUNTER']].map(([id, nm], i) => ({
+        id: `AI5${'abcd'[i]}`, group: 'AI', name: `style: ${nm}`, sub: `your side plays the ${nm} card (brain.js STYLES), theirs NEUTRAL, 12 s from your half: passes, forward share, width, how high the line presses`, kind: 'ai', realAi: true, demo: true, maxT: 14,
+        setup(r) { aiFull(r, { att: -6, styles: { home: id, away: 'neutral' } }); const c = H()[6]; put(c, 40, 34, 0); atFeet(c); r.human = c; r.passes = 0; r.fwd = 0; r.w = [0, 0]; r.l = [0, 0]; r.lastK = null; r.shots = 0; r.sT = null; },
+        check(r) { const t = m.home, b = m.ball, o = b.owner;
+          if (o) r.lastK = o.team === t ? o : null; else if (r.lastK && !m.pending && b.lastP === r.lastK) { if (b.shotBy === r.lastK && b.shotT !== r.sT) { r.shots++; r.sT = b.shotT; } else if (b.target) { r.passes++; if (m.aiFrame(t, b.target.x) > m.aiFrame(t, r.lastK.x) + 2) r.fwd++; } r.lastK = null; }
+          const out = t.players.filter(p => !p.keeper && !p.sentOff); if (o && o.team === t) { const ys = out.map(p => p.y); r.w[0] += Math.max(...ys) - Math.min(...ys); r.w[1]++; }
+          else { const d = t.players.filter(p => p.i >= 1 && p.i <= 4 && !p.sentOff); r.l[0] += d.reduce((a, p) => a + m.aiFrame(t, p.x), 0) / (d.length || 1); r.l[1]++; }
+          if (r.t < 12) return null;
+          return { o: `${nm} · passes ${r.passes} (${r.passes ? Math.round(100 * r.fwd / r.passes) : 0}% forward) · shots ${r.shots} · width with the ball ${r.w[1] ? (r.w[0] / r.w[1]).toFixed(0) : '-'} m · back line without it ${r.l[1] ? (r.l[0] / r.l[1]).toFixed(0) : '-'} m from halfway` }; } })),
+      { id: 'AI6', group: 'AI', name: 'Rise Warrior reads your flank', sub: 'Rise Warrior only: you (scripted) keep going down the far side; after a while Rami says they\'ve read you and their block shifts over to that flank', kind: 'ai', realAi: true, demo: false, maxT: 12, you: true,
+        setup(r) { aiFull(r, { att: 10, you: true, read: true }); const c = H()[5]; put(c, 58, 10, 0); atFeet(c); r.human = c;
+          r.bots.set(c, (p, dt) => { if (m.ball.owner !== p) { p.steer(0, 0, dt); return; } if (p.x > 88) { put(p, 58, 10, 0); atFeet(p); } dribbleTo(95, 9, 5.5)(p, dt); });
+          m.readTick(0); m.read.a = 12; },
+        check(r) { const R = m.read; if (!R) return { o: 'NO READ (!) · readOn is off' };
+          if (r.t < 9) return null;
+          const fb = m.readFlank(), A4 = A().filter(p => p.i >= 1 && p.i <= 8 && !p.sentOff), was = m.read;
+          const on = A4.reduce((a, p) => a + m.aiZone(p, m.away).y, 0) / A4.length; m.read = null; const off = A4.reduce((a, p) => a + m.aiZone(p, m.away).y, 0) / A4.length; m.read = was;
+          return { o: `READ: ${fb < 0 ? 'the FAR side' : fb > 0 ? 'the NEAR side' : 'nothing yet (!)'} (${R.a.toFixed(0)} s far / ${R.b.toFixed(0)} s near) · Rami: ${R.said.flank ? 'said it' : 'quiet (!)'} · their block ${(on - off).toFixed(1)} m towards it` }; } },
+    ];
+  }
   // ======================================================================= t-020 ARCADE GETS INTENSE (Luca 25 Oct: "more rebounds that
   // lead into aerials, more energy sp, make the game feel incredibly intense"). Every AR test plays ARCADE (pace: 'arcade').
   // AR1-2 a loose ball driven at a line: what comes back (speed, height, where); AR3 the real team AI attacking a rebound
@@ -2463,6 +2548,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
+    add('AI', 'smarter-ai · THE TEAM BRAIN', 'The real team AI on both sides (smarter-ai stage 2, docs/smarter-ai.md): a support man who keeps his job, one presser + one cover, no lob into a marked man, chasing late (and the keeper up for the last corner), the four example styles, Rise Warrior reading your flank.', aiTests());
     add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
     add('RS', 't-029 · SET-PIECE SETUP', 'Every restart gets a short setup, as on TV: the whistle / flag and a caption, the players JOG into the restart\'s shape (anyone too far is moved under a quick TV wipe, never in plain sight), the taker walks up and places the ball, then you aim / the computer takes it. One time per kind, CLASSIC and ARCADE (quicker); your own set piece: PASS / SHOOT / LOB skips to aiming once the shape is mostly in.', rsTests());
@@ -2529,6 +2615,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null; Object.assign(m, { aerial: null, lobAim: null, slowMo: 0 }); Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
     if (LAB.undo) { for (const f of LAB.undo) f(); LAB.undo = null; }            // t-021: the BW cases break the game on purpose - put it back
     window.__labWatch = window.__bwNoStore = window.__labClock = false;         // (Bug Watch watches only in the BW cases)
+    window.__styles = window.__readOn = null; m.read = null;                    // (smarter-ai: the AI tests' style cards and Rise Warrior's read stay in those tests)
     window.HC2_NO_OFFSIDE = !(sc.group === 'OF' || sc.realAi);                 // t-024: offside in the OF group and the real-AI tests (the rest are half-team moments)
     Object.assign(m, { offSide: null, offFlag: null, offLast: null, offGK: null, passAim: null });
     sc.setup(r);
@@ -2589,7 +2676,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
         LAB.acc -= STEP;
         const real = Math.random; Math.random = LAB.rand;
         try { sim(STEP); } finally { Math.random = real; }
-        m.clock = 600; r.t += STEP; sample();
+        m.clock = r.clock ?? 600; r.t += STEP; sample();                         // (smarter-ai AI4: a test can set the minute)
         if (r.frozen) { LAB.acc = 0; break; }
       }
     };
