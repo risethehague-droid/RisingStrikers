@@ -1299,7 +1299,8 @@
       else return r.t > 7 ? done({ o: 'NO KICK' }) : null; }
     const ft = r.t - r.kickT; if (!r.land) r.maxZ = Math.max(r.maxZ, b.z);
     if (!r.land && !r.touch && (b.bounced || 0) > r.n0) r.land = { x: b.x, y: b.y, t: ft };
-    if (!r.touch && b.lastP && b.lastP !== K) r.touch = { p: b.lastP, how: b.how ? b.how.kind : 'touch', z: b.z, own: b.owner === b.lastP, at: { x: b.x, y: b.y }, v: len(b.lastP.vx, b.lastP.vy), t: ft };
+    const tp = b.owner && b.owner !== K ? b.owner : b.lastP;                     // (lob receives: a chest / thigh trap is a touch too - it leaves lastP alone)
+    if (!r.touch && tp && tp !== K) r.touch = { p: tp, how: b.owner === tp && tp.trapRun ? tp.trapRun.kind + ' trap' : b.owner === tp && b.lastP !== tp ? 'control' : b.how ? b.how.kind : 'touch', z: b.z, own: b.owner === tp, at: { x: b.x, y: b.y }, v: len(tp.vx, tp.vy), t: ft };
     if (!r.drop && r.tgt && !r.touch && b.vz < 0 && b.z < 2.6) r.drop = { d: len(r.tgt.x - b.x, r.tgt.y - b.y), x: b.x, y: b.y };   // (t-019: how far he was from it as it came down through head height)
     if (o.kind === 'pick' || o.kind === 'space' || o.kind === 'stride' || o.kind === 'cam') { const e = lvCheck(r, ft, done); if (e !== undefined) return e; }
     const shot = r.touch && (r.touch.how === 'header' || r.touch.how === 'volley' || r.touch.how === 'shot' || r.ev('AERIAL SPECIAL'));
@@ -2069,9 +2070,10 @@
         if (r.bat && !r.bat.over) { r.bat.over = true; abKey('keyup'); r.L = m.aerialLast; r.endT0 = r.t; r.loser = r.L && r.L.loser; }
         if (!r.bat) {                                                            // ---- no battle (AB4: outside the box)
           if (!r.fired) return null;
-          if (!r.touch && b.lastP && b.lastP !== r.striker.team.players[7] && b.lastP.team) r.touch = { p: b.lastP, how: b.how ? b.how.kind : (b.owner ? 'control' : 'touch'), at: { x: b.x, y: b.y }, z: b.z };
+          const tp = b.owner && b.owner !== r.striker.team.players[7] ? b.owner : b.lastP;   // (lob receives: a chest trap is a touch too - it leaves lastP alone)
+          if (!r.touch && tp && tp !== r.striker.team.players[7] && tp.team) r.touch = { p: tp, how: b.owner === tp ? (tp.trapRun ? tp.trapRun.kind + ' trap' : 'control') : b.how ? b.how.kind : 'touch', at: { x: b.x, y: b.y }, z: b.z };
           if (r.touch || r.t > 8) { const t = r.touch, box = t && Math.abs(t.at.x - PITCH_L) < AERIAL.boxX && Math.abs(t.at.y - 34) < AERIAL.boxY;
-            return { o: `NO BATTLE · met ${t ? `at ${f1(t.at.x)}, ${f1(t.at.y)} (${box ? 'IN' : 'outside'} their box), ${f1(t.z)} m up: ${t.p.team === m.home ? 'your' : 'their'} #${t.p.num} ${String(t.how).toUpperCase()} (the quick duel: lobDuel)` : 'nobody'}`, hold: 0.8 }; }
+            return { o: `NO BATTLE · met ${t ? `at ${f1(t.at.x)}, ${f1(t.at.y)} (${box ? 'IN' : 'outside'} their box), ${f1(t.z)} m up: ${t.p.team === m.home ? 'your' : 'their'} #${t.p.num} ${String(t.how).toUpperCase()} (no battle outside the box)` : 'nobody'}`, hold: 0.8 }; }
           return null;
         }
         const L = r.L; if (!L) return { o: 'BATTLE CALLED OFF' };
@@ -2096,9 +2098,68 @@
       abTest('AB1', 'a cross in the box at head height, you win it', 'HEADER v HEADER: MASH SPACE! (the Lab taps ~12 a second) - you win: a header at goal at a shot\'s pace, their man floored', { ...hdr, mash: 'fast' }),
       abTest('AB2', 'the same, the defender wins it', 'no presses: the computer\'s centre-back wins and clears it high and long, out of the box; you stumble', { ...hdr, mash: 'none' }),
       abTest('AB3', 'a waist-high ball in the box', 'a driven cross met at the waist: VOLLEY v VOLLEY, same mash - you win: a volley at goal', { from: [100, 14], z: 1.0, T: 0.8, mash: 'fast' }),
-      abTest('AB4', 'a contested lob OUTSIDE the box', 'a lob to your man and his marker at 24 m out: NO battle - the quick duel (lobDuel) as before', { from: [62, 40], at: [80, 31], lob: true, mash: 'fast' }),
+      abTest('AB4', 'a contested lob OUTSIDE the box', 'a lob to your man and his marker at 24 m out: NO battle (lob receives: his marker trails a beat behind, so it\'s clean - received, no duel; a dead-level race would be the quick duel: LR5)', { from: [62, 40], at: [80, 31], lob: true, mash: 'fast' }),
       abTest('AB5', 'the mash script: real key presses', '3 taps, 2 taps inside one frame, SPACE held with 4 OS key repeats (one press), 2 taps = 8 presses: the bar moves 8 steps your way, the computer\'s presses 1 each back', { ...hdr, mash: 'script' }),
       abTest('AB6', 'ARCADE: the same cross, a shorter mash', 'AB1 on ARCADE: the window ~1.0 s (CLASSIC 1.2 s)', { ...hdr, mash: 'fast', pace: 'arcade' }),
+    ];
+  }
+  // ======================================================================= LOB RECEIVES (LR). Co-designer 28 Oct: "In lob receives it's not
+  // a button mash every time. Only in very contested receives ... When it is clearly going to a certain receiver, it
+  // should be uncontested" + "chest trap and animate into running". A team-mate lobs (or crosses) to your striker (you);
+  // the race as it comes down (actions.js recvVerdict) says CLEAN / CONTEST / LOST, then what came of it. A trap: how
+  // long from the contact until he's running with it at his feet, his pace then, and which way he went.
+  // (their man in a dead-level race: flat out for the same point of the drop the receiver's run goes for - teamai.js lobRun's)
+  const lrRace = (d, dt) => { const b = m.ball, P = m.path; if (b.owner || !P || !b.lob) { d.steer(0, 0, dt); return; }
+    let hi = b.z > 2.0, pt = null; for (const q of P) { if (q.z > 2.0) hi = true; else if (hi) { pt = q; break; } }
+    if (pt) d.moveTo(pt.x, pt.y, d.top(true, false), dt); else d.steer(0, 0, dt); };
+  function lrTest(id, name, sub, o) {
+    return { id, group: 'LR', name, sub, kind: 'lr', you: true, lvl: 'normal', maxT: 12,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); abKey('keyup'); Input.mashTake();
+        const H = m.home.players, Aw = m.away.players, you = H[9], c = H[7], d = Aw[3], gk = Aw[0], at = o.at;
+        cast(o.def ? [you, c, d, gk] : [you, c, gk]); put(you, at[0], at[1], 0); put(c, o.from[0], o.from[1]); faceTo(c, o.to[0], o.to[1]); atFeet(c);
+        if (o.def) { put(d, at[0] + o.def[0], at[1] + o.def[1], 4); r.bots.set(d, o.race ? lrRace : (p, dt) => p.steer(0, 0, dt)); }
+        put(gk, LINE_X, 34, 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+        Object.assign(m, { aerial: null, aerialLast: null, aerialAt: -1e9, aerialKick: null, aerFx: null, slowMo: 0, camTarget: null, recvN: null });
+        LAB.aerialChance = LAB.aerialChance ?? AERIAL.chance; AERIAL.chance = 1;   // (the battle always happens when it can)
+        Object.assign(r, { human: you, striker: you, gk, gx: PITCH_L, marks: [{ x: o.to[0], y: o.to[1], r: 0.5 }], fired: false });
+        r.action = { at: 0.5, fire: () => { const b = m.ball;
+          if (o.drop) { b.owner = null; Object.assign(b, { x: you.x - 3.6, y: you.y, z: 1.55, vx: 8, vy: 0, vz: 0, target: you, last: you.team, lastP: c, crossBy: c, lob: false, skid: true, spT: m.time.now, how: { kind: 'pass' } }); }   // (LR6: dropping onto him at the waist)
+          else if (o.cross) { const a = aimAir(b.x, b.y, o.to[0], o.to[1], o.z, o.T); m.kick(c, o.to[0], o.to[1], a.speed, a.vz, 0.13, { target: you, cross: 'lab' }); }
+          else m.kick(c, o.to[0], o.to[1], 0, 0, 0.12, { mode: 'lob', target: you, loft: true }); } };
+      },
+      check(r) {
+        const b = m.ball, you = r.human, N = m.recvN || {}, f1 = v => v.toFixed(1), f2 = v => v.toFixed(2);
+        if (!r.fired) return null;
+        if (o.arrow && !r.arrowOn && !b.owner && b.target === you && len(b.x - you.x, b.y - you.y) < 3 && b.z < 2.6) { r.arrowOn = true; Input.touch.x = o.arrow[0]; Input.touch.y = o.arrow[1]; }   // (the arrow held as it arrives)
+        const V = b.recv && b.recv.q === you ? b.recv : r.V; if (V) r.V = V;
+        const A = m.aerial;
+        if (A && A.kind !== 'ground') { if (!r.bat) r.bat = { k: -1 }; const k = Math.floor(A.t / 0.085); if (k > r.bat.k && A.res == null) { r.bat.k = k; abTap(); } return null; }
+        const race = r.V ? `${r.V.kind.toUpperCase()} (you ${r.V.gap >= 0 ? 'first by' : 'second by'} ${f2(Math.abs(r.V.gap))} s)` : 'NO RACE';
+        if (r.bat) { abKey('keyup'); const L = m.aerialLast; return { o: `${race} · AERIAL BATTLE ${L ? `${L.move === 'volley' ? 'VOLLEY' : 'HEADER'} v ${L.move === 'volley' ? 'VOLLEY' : 'HEADER'} · ${L.res === 'att' ? 'you won it' : 'they won it'}` : ''} · MASH ✓ (only on a near tie)`, hold: 0.8 }; }
+        if (you.trapRun && b.owner === you && !r.trap) r.trap = { t: r.t, kind: you.trapRun.kind, v0: you.speed, z: b.z, u: you.trapRun.u };
+        if (r.trap && r.runT == null && b.owner === you && b.z <= 0.05 && you.speed > 2.5) { r.runT = r.t - r.trap.t; r.runV = you.speed; }
+        if (r.trap && r.runT != null && r.t - r.trap.t > 1.0) {
+          const dv = len(you.vx, you.vy) || 1, ang = o.arrow ? Math.round(Math.acos(clamp((you.vx * o.arrow[0] + you.vy * o.arrow[1]) / dv / (len(o.arrow[0], o.arrow[1]) || 1), -1, 1)) * 180 / Math.PI) : null;
+          return { o: `${race} · ${r.trap.kind.toUpperCase()} TRAP at ${f1(r.trap.z + 0.1)} m into the run · running with it ${f2(r.runT)} s after the contact (${r.runT <= 0.55 ? 'snappy ✓' : 'SLOW'}) · ${f1(r.trap.v0 * 3.6)} km/h at the touch → ${f1(r.runV * 3.6)} km/h with it at his feet${ang != null ? ` · ${ang}° off your arrow${ang < 25 ? ' ✓' : ''}` : ''} · ${b.owner === you ? 'still his ✓' : 'LOST IT'} · duels ${N.duel || 0} / battles ${N.battle || 0}`, hold: 0.6 };
+        }
+        if (!r.trap && b.lastP && b.lastP !== r.human.team.players[7] && (b.how && b.how.kind === 'header' || b.lastP.team !== you.team || (b.owner && b.owner !== you))) {
+          const who = b.lastP === you ? 'you' : b.lastP.team === you.team ? 'a team-mate' : `their #${b.lastP.num}`;
+          return { o: `${race} · ${who}: ${b.how ? String(b.how.kind).toUpperCase() : b.owner ? 'CONTROLLED' : 'TOUCH'} · duel ${N.duel ? 'YES' : 'no'} · battle ${N.battle ? 'YES' : 'no'}`, hold: 0.8 };
+        }
+        if (r.t > 9) return { o: `${race} · ${r.trap ? `${r.trap.kind} trap, never running with it` : 'nothing'} (${b.owner ? (b.owner === you ? 'yours' : 'theirs') : 'loose'})` };
+        return null;
+      } };
+  }
+  function lrTests() {
+    return [
+      lrTest('LR1', 'an UNMARKED receiver: chest trap into the run', 'nobody near: CLEAN, no mash, no duel - he takes it on the chest on the move and runs on with it (no arrow: where he was going)', { from: [52, 30], to: [76, 30], at: [70, 30] }),
+      lrTest('LR2', 'the same, ARROW held (up-right)', 'CLEAN - the first touch takes him the way you point, straight into the run', { from: [52, 30], to: [76, 30], at: [70, 30], arrow: [0.7, -0.7] }),
+      lrTest('LR3', 'MARKED, his man 1 m behind', 'the receiver is first to it by a clear margin: CLEAN - received, no mash', { from: [52, 30], to: [76, 30], at: [70, 30], def: [-1, 0] }),
+      lrTest('LR4', 'a DEAD-LEVEL race in their BOX', 'both get there together: CONTEST - the aerial battle, MASH SPACE! (the Lab taps ~12 a second)', { from: [74, 40], to: [93, 31], at: [92, 31], def: [0.45, 1.0], race: true }),
+      lrTest('LR5', 'a DEAD-LEVEL race OUTSIDE the box', 'both get there together, 24 m out: CONTEST - the quick duel (lobDuel), no mash', { from: [62, 40], to: [81, 31], at: [80, 31], def: [0.45, 1.0], race: true }),
+      lrTest('LR6', 'a THIGH trap: a ball dropping at the waist', 'a dipping ball meets him at ~0.8 m: CLEAN - thigh, pops up a touch, runs on with it', { from: [58, 22], to: [76, 30], at: [77, 30.3], drop: true }),
+      lrTest('LR7', 'their man WINS the race', 'a lob dropping onto their centre-back, your striker 15 m off it: LOST - their man heads it away, no duel, no mash', { from: [52, 30], to: [76, 30], at: [64, 44], def: [8.5, -14] }),
     ];
   }
   function ksOut(r) {
@@ -2592,6 +2653,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       asTest('AS6', 'LV3 · a sky-high loop → METEOR DRIVE', 'somersault axe kick', { lv: 3, from: [96, 8], z: 1.8, T: 2.4 }),
     ]);
     add('AB', 't-034 · AERIAL BATTLES', 'Only in their box (outside: the quick duel). The height it is met at picks it: HEADER v HEADER at head height, VOLLEY v VOLLEY at the waist. MASH SPACE! (or your SHOOT key): every press is one step of the bar your way, every one of the computer\'s one step back, from where the head start puts it; the end of the bar wins outright. Attacker wins: a header / volley at goal at a shot\'s pace, the defender floored ~1.3 s. Defender wins: cleared high and long.', abTests());
+    add('LR', 'LOB RECEIVES', 'One race as a high ball comes down: the man it\'s meant for v their quickest. Clearly his (first by 0.35 s, or nobody of theirs within 2 m): CLEAN - no mash, no duel; he heads it, volleys it or takes it on the chest / thigh straight into his run (the arrow picks the way). Clearly theirs: LOST. Only a near tie is a contest: the quick duel, or in their box the aerial battle with the mash.', lrTests());
     add('HV', 't-022 · CHARGED HEADERS + VOLLEYS', 'Hold SHOOT as the ball comes in, let go as it reaches you: the hold is the power (like a ground shot), the timing keeps it - just before the contact = full power and on target, early or late = weaker and wilder, too much = over the bar. A tap is today\'s header / volley. A well-timed one: a white flash, a few sparks, a tiny hit-stop.', hvTests());
     add('KS', 't-014 · KEEPER SPECIAL SAVES BY THE SHOT', 'Their keeper has a special save ready; the shot picks the move: a lob → kleap, straight → kblock, wide → kdivecatch, too strong to hold → ktip (a corner). Who wins stays as before.', ksTests());
     add('KC', 't-028 · THE KEEPER CLASH', 'With a special save on, the keeper gets to anything on target (a dash across his goal). A special shot against it is held on his gloves for a beat - sparks, slow-mo, POWER AGAINST POWER (ENTER skips) - then power decides: HELD, BOUNCES OFF (parried or tipped), HANDS BLOWN AWAY (goal), or THE BODY (blasted into the net with it).', kcTests());

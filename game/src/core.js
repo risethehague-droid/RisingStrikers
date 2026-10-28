@@ -280,6 +280,28 @@ const AERIAL = {
   clearV: 21, clearVz: 8,   // the defender's clearance: high and long, out of the box
   floorT: 0.85,        // the beaten defender on the ground (s), then his get-up (0.45 s): ~1.3 s out of it
 };
+// LOB RECEIVES (co-designer 28 Oct: "it's not a button mash every time. Only in very contested receives ... When it is
+// clearly going to a certain receiver, it should be uncontested" + "chest trap and animate into running"). As the high
+// ball comes down, one race decides it: when can the man it's meant for play it, when can their quickest man. Clearly his
+// = uncontested (no battle, no duel: he heads, volleys or chests it into his stride); clearly theirs = their man wins it
+// as before; only a near tie is the duel (in their box: t-034's battle with the mash). actions.js recvVerdict.
+const RECV = {
+  on: true,            // the Lab's switch (off = before: every contest a duel / battle)
+  margin: 0.35,        // clearly his / theirs: first to it by this many seconds
+  room: 2.0,           // ...or none of theirs can get within this of the ball by the time he plays it (m)
+  zHi: 2.4, zLo: 0.5,  // the heights it can be played at as it comes down (head .. thigh)
+  look: 0.8,           // decided this long before he can play it (s): the runs are made by then
+  react: 0.1,          // the race: a reaction, then flat out to where he meets it
+  reachR: 0.7,         // ...he plays it from this far away (m)
+  boxOut: 0.9, boxT: 0.25, // their man whose way to it goes through the receiver (within this, m) loses this much (s): he's behind him
+  shieldR: 1.8,        // clearly his: their men stay out of it while he's this close to the ball (m)
+  // the CHEST / THIGH TRAP INTO THE RUN (FIFA's directional first touch): taken on the move, it drops into his stride
+  chestZ: 1.1,         // chest 1.1-1.7 m, thigh 0.5-1.1 m
+  trapT: 0.22,         // the chest frames (s; the trap move's 4 frames at 18 a second); running all the while
+  dropVz: -1.5,        // the chest cushions it down in front of him (m/s): on the grass ~0.4 s after the contact
+  thighVz: 0.6,        // the thigh pops it up a touch, then it drops into his stride
+  runT: 0.45,          // contact to running with it at his feet (s): the touch can't be played on before that (or until it's down: 0.8 s at most)
+};
 // t-022 CHARGED HEADERS AND VOLLEYS (Luca 25 Oct 07:04: "headers and volleys can also be charged up and hit like a power
 // shot (from kicks) if timed properly ... make the animation feel impactful (add frames flashing sparks etc but still
 // subtle compared to special moves)"). Hold SHOOT as the ball comes in, let go as it reaches you: the hold sets the power

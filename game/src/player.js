@@ -355,6 +355,7 @@ class Player {
     this.cool = Math.max(0, this.cool - dt); this.stun = Math.max(0, this.stun - dt); if (this.touchAnimT > 0) this.touchAnimT -= dt;
     if (this.burst > 0) this.burst -= dt;
     if (this.keeper) { this.guardT = (this.guardT || 0) + dt; if (this.guardT > 2.5) this.guard = Math.min(1, (this.guard ?? 1) + GUARD_REGEN * dt); }   // v0.8 keeper guard refills
+    if (this.trapRun && (((this.trapRun.t -= dt) <= 0 && (this.m.ball.z <= 0.05 || this.trapRun.t < RECV.runT - 0.8)) || this.m.ball.owner !== this)) this.trapRun = null;   // (lob receives: the trap's run ends with the ball at his feet)
     if (this.state !== 'idle' && this.state !== 'run') {
       this.stateT -= dt;
       if (this.stateT <= 0) {                                       // after a slide or a fall you get up first
@@ -371,7 +372,7 @@ class Player {
       }
       if (this.state === 'dive') { const age = (this.diveLen || 0.85) - this.stateT, k = Math.exp(-dt * (age > (this.diveFly || 0.4) ? 16 : 0.4)); this.vx *= k; this.vy *= k; }
       else if (this.state === 'slide' || this.state === 'fall' || this.state === 'dheader' || this.state === 'blasted') { const k = Math.exp(-dt * (this.state === 'slide' ? TACKLE.slideK : 3.2)); this.vx *= k; this.vy *= k; }   // (t-018: the slide glides further)
-      else this.steer(0, 0, dt);
+      else if (!(this.state === 'trap' && this.trapRun)) this.steer(0, 0, dt);   // (lob receives: the chest trap doesn't stop him - he runs on through it)
     }
     if (this.stun > 0 && this.state !== 'slide') this.steer(0, 0, dt);
     // energy: sprinting drains it, everything else refills it (faster when walking or standing)
