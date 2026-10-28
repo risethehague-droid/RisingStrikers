@@ -1727,18 +1727,20 @@
       check(r) { if (!r.fired || r.t < 2.2) return null; return { o: `${r.c ? `COMBO LV${r.c.lv} (${r.c.kind}, partner #${r.c.partner && r.c.partner.num})` : 'NO COMBO'} · power ${Math.round(r.spP || 0)} · ${r.name || '-'} · ${m.ball.inNet ? 'GOAL' : 'no goal'}` }; } };
   }
   function sxAi() {
-    return { id: 'SX7', group: 'SX', name: 'the COMPUTER\'s special dribble', sub: 'their carrier with 1 bar, your man squares up in midfield: it should go past him within a few seconds (NORMAL)', kind: 'phys', pace: 'arcade', realAi: true,
+    return { id: 'SX7', group: 'SX', name: 'the COMPUTER\'s special dribble', sub: 'their carrier with 2 bars, your man squares up 45 m from goal: it goes past him (its chance forced high for the test; in a match ~1-2 a side)', kind: 'phys', pace: 'arcade', realAi: true,
       setup(r) {
         const c = m.away.players[9], you = m.home.players[4], gk = m.home.players[0]; cast([c, you, gk]);
-        put(c, 60, 34, 4); put(you, 56.8, 34.2, 0); put(gk, 105 - LINE_X, 34, 0); atFeet(c);
+        put(c, 45, 34, 4); put(you, 41.8, 34.2, 0); put(gk, 105 - LINE_X, 34, 0); atFeet(c);
         Object.assign(r, { human: you, marks: [], c }); r.n0 = (m.arcN && m.arcN.dribbles) || 0;
-        r.action = { at: 0.2, fire: () => { m.meters[1].e = 1; } };
+        r.action = { at: 0.2, fire: () => { m.meters[1].e = 2; } };
+        const R0 = ASP.dribble.aiRate; ASP.dribble.aiRate = 40; (LAB.undo = LAB.undo || []).push(() => { ASP.dribble.aiRate = R0; });   // (the chance forced: the move itself is what's tested)
+        m.away.sdribAt = -1e9;
       },
       check(r) {
         const n = ((m.arcN && m.arcN.dribbles) || 0) - r.n0;
         if (n > 0 && r.at == null) r.at = r.t;
         if (r.t < 6 && !(r.at != null && r.t > r.at + 1)) return null;
-        return { o: n > 0 ? `the computer's dribble after ${r.at.toFixed(1)} s · ${m.msg.text || '-'} · your man ${r.human.state}` : 'no dribble in 6 s' };
+        return { o: n > 0 ? `the computer's dribble after ${r.at.toFixed(1)} s · ${m.msg.text || '-'} · your man ${r.human.state}` : `no dribble in 6 s (carrier at ${r.c.x.toFixed(1)}, ${r.c.y.toFixed(1)}, ball ${m.ball.owner === r.c ? 'his' : 'not his'}, bars ${m.meters[1].e.toFixed(2)}, gap ${len(r.c.x - r.human.x, r.c.y - r.human.y).toFixed(1)} m)` };
       } };
   }
   function sxNames() {

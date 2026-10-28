@@ -16,8 +16,11 @@ const ASP = {
     look: 6.5,        // the man in front: within this, in a cone ahead of him
     far: 30,          // AUTO (by position): SPECIAL further than this from goal, with a man in front = the dribble
     stun: 1.0,        // the beaten man is down this long (on the floor), no more
-    aiCool: 25,       // the computer: at most one every 25 s a side...
-    aiRate: 0.9,      // ...about this often a second while a man squares up to its carrier in midfield (x its level's sp)
+    aiCool: 75,       // the computer: at most one every 75 s a side (soak 28 Oct: at 25 s it dribbled ~12 times a match and
+                      // never banked the bars for a special shot - 2.3 -> 0.3 a match)...
+    aiRate: 0.5,      // ...about this often a second while a man squares up to its carrier (x its level's sp)...
+    aiBars: 2,        // ...only with 2+ bars banked: one is always left for a special shot...
+    aiZone: [22, 50], // ...and only between 22 and 50 m from their goal (the attacking half, not its own)
   },
   combo: {
     oneTwo: 2.4,      // the 1-2: his pass and the return within this many seconds...
@@ -238,7 +241,7 @@ hc2Mix(Match, {
     if (p.sdrib) return;
     if (this.aspOn() && this.aspDribbleCan(p) && !(p.team === this.home && !this.demo && p === this.human)) {
       const front = this.aspFront(p), D = ASP.dribble, toGoal = len(p.team.goalX - p.x, 34 - p.y);
-      if (front && len(front.x - p.x, front.y - p.y) < 3.5 && toGoal > 22 && (p.team.sdribAt ?? -1e9) < this.time.now - D.aiCool * 1000
+      if (front && len(front.x - p.x, front.y - p.y) < 3.5 && toGoal > D.aiZone[0] && toGoal < D.aiZone[1] && this.meterOf(p.team).level() >= D.aiBars && (p.team.sdribAt ?? -1e9) < this.time.now - D.aiCool * 1000
         && Math.random() < dt * D.aiRate * this.dk(p.team).sp) { p.team.sdribAt = this.time.now; if (this.aspDribble(p, null)) return; }
     }
     return carrier0.call(this, p, dt);
