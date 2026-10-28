@@ -54,7 +54,11 @@ function studyMatch() {
       if (ok) n++; }
     return n;
   };
-  const cand = (kind, p, extra) => { const last = R.cand.filter(c => c.kind === kind).pop(); if (last && T() - last.t < 8) return;
+  // (on camera: in a drawn match (DRAW=1) only moments inside the camera's view are kept - the camera follows the ball,
+  // so most off-the-ball dithering happens off screen, where nobody sees it)
+  const onCam = p => { if (!window.__aiDraw || !p) return true; const v = m.cameras.main.worldView, X = wx(p.x, p.y), Y = wy(p.y);
+    return X > v.x + 40 && X < v.x + v.width - 40 && Y > v.y + 60 && Y < v.y + v.height - 20; };
+  const cand = (kind, p, extra) => { if (!onCam(p)) return; const last = R.cand.filter(c => c.kind === kind).pop(); if (last && T() - last.t < 8) return;
     R.cand.push(Object.assign({ kind, t: +T().toFixed(1), team: p ? p.team.name : null, man: p ? p.i : null, clock: Math.round(m.clock) }, extra || {})); };
   let lastOwner = null;
   const sample = () => {
@@ -66,7 +70,7 @@ function studyMatch() {
     else if (pend && owner) { const P = R.passes, bm = P.byMode[pend.mode] = P.byMode[pend.mode] || { n: 0, kept: 0 };
       P.n++; bm.n++; if (pend.fwd > 2) P.fwd++; if (pend.marked) P.marked++;
       if (owner.team === pend.team) { P.kept++; bm.kept++; if (owner === pend.q) P.man++; }
-      else { P.lost++; if (pend.marked) { P.markedLost++; cand('pass_into_marked_man', pend.p, { to: pend.q ? pend.q.i : null, mode: pend.mode, at: +pend.t.toFixed(1) }); } }
+      else { P.lost++; if (pend.mode === 'lob') cand('lob_given_away', pend.p, { to: pend.q ? pend.q.i : null, at: +pend.t.toFixed(1) }); if (pend.marked) { P.markedLost++; cand('pass_into_marked_man', pend.p, { to: pend.q ? pend.q.i : null, mode: pend.mode, at: +pend.t.toFixed(1) }); } }
       pend = null; }
     if (pend && T() - pend.t > 6) { R.passes.out++; pend = null; }
     if (owner && lastOwner && owner.team !== lastOwner.team && !pend && Math.hypot(owner.x - lastOwner.x, owner.y - lastOwner.y) < 3) R.losses.tackled++;
@@ -85,7 +89,7 @@ function studyMatch() {
       if (tri) { bunchRun.t += 0.1; if (bunchRun.t > 1.5) cand('three_bunched_off_the_ball', tri); } else bunchRun.t = 0;
       // swarm: men within 7 m of the ball when they don't have it
       if (!poss && owner) { const near = ps.filter(p => Math.hypot(p.x - ball.x, p.y - ball.y) < 7).length; R.swarm += near; R.swarmN++;
-        const s = (swarmRun.get(team) || 0) + 0.1; if (near >= 3) { swarmRun.set(team, s); if (s > 2) cand('swarm_on_the_ball', ps[0], { near }); } else swarmRun.set(team, 0); }
+        const s = (swarmRun.get(team) || 0) + 0.1; if (near >= 3) { swarmRun.set(team, s); if (s > 2) cand('swarm_on_the_ball', owner, { near, swarming: team.name }); } else swarmRun.set(team, 0); }
       for (const p of ps) {
         const human = p === m.human && !m.demo; if (human) continue;
         const v = Math.hypot(p.vx, p.vy), still = v < 0.3 && !p.busy() && p !== owner;
@@ -93,7 +97,7 @@ function studyMatch() {
         // a man standing still while his team attacks, ahead of the ball and near it (should offer or run)
         const ahead = frame(team, p.x) > frame(team, ball.x) - 2, near = Math.hypot(p.x - ball.x, p.y - ball.y) < 25;
         const ir = still && poss && ahead && near ? (idleRun.get(p) || 0) + 0.1 : 0; idleRun.set(p, ir);
-        if (ir > 3) cand('standing_still_in_attack', p, { secs: +ir.toFixed(1) });
+        if (ir > 2) cand('standing_still_in_attack', p, { secs: +ir.toFixed(1) });
         // turns and stutters
         let h = hist.get(p); if (!h) hist.set(p, h = []); h.push({ t: T(), v, a: Math.atan2(p.vy, p.vx) }); while (h.length && T() - h[0].t > 2) h.shift();
         if (v > 1.5) R.manSec += 0.1;
@@ -134,6 +138,7 @@ function studyMatch() {
     for (let k = 0; k < 3000; k++) { const done = await page.evaluate(() => { const m = window.__hc2, st = m.stadium; window.__T += 1000 / 60; m.game.step(window.__T, 1000 / 60); return !st.loading && !st.queue.size; }); if (done) break; await new Promise(r => setTimeout(r, 20)); }
     await page.evaluate(studyMatch);
     if (!E.DRAW) await page.evaluate(() => window.__hc2.cameras.main.setVisible(false));   // (no drawing: ~10x faster)
+    else await page.evaluate(() => { window.__aiDraw = true; });
     await page.evaluate(seed => { const m = window.__hc2; let s = seed >>> 0;
       Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
       m.demo = true; m.kickoff(m.home); }, c.seed);
