@@ -90,3 +90,26 @@ co-designer OKs the count. Until then the preview uses today's moves (volley2, p
 lob + volley combo, 2 and 3 bars, a combo v a special save, the computer's dribble); the AR, SM, KS, AS, AB groups
 unchanged; ARCADE soak before / after: goals, specials a match (target: special shots ~2 → ~3-4 a match, dribbles
 ~2), your win rate by level within a few points; CLASSIC soak identical.
+
+## Built (28-29 Oct, `friend/arcade-specials`): measured
+
+- **Test Lab SX1-SX8** `errors []`: both dribble triggers (3.4 m past the man, he goes down, the ball stays his, one
+  bar), SPECIAL in range is still the shot, the 1-2 combo (170 / through 3 on 2 bars, 240 / through 6 on 3), the
+  lob + volley combo, the computer's dribble, the six teams' names (CLASSIC keeps RISING PHOENIX). Smoke `errors []`.
+- **CLASSIC identical:** 8 seeded soak matches, main v this branch, the same score in every match.
+- **ARCADE soak, 12 matches (the same 12 set-ups), per match:**
+
+  | | main | first try | 2+ bars | final: full meter |
+  | --- | --- | --- | --- | --- |
+  | Goals | 4.6 | 4.3 | 4.1 | 4.0 |
+  | Special shots | 2.3 | 0.3 | 1.5 | 2.5 |
+  | Special dribbles | - | 11.6 | 2.3 | 0.8 |
+  | Combos | - | 0 | 0.1 | 0.2 |
+  | Page errors / real bugs | 0 | 0 | 0 | 0 |
+
+  The computer's dribble had to be held back: it costs a bar, and dribbling at will left it no bars for special shots.
+  Now: only from a full meter, 22-50 m from goal, once per 75 s a side (`ASP.dribble`).
+- **Not settled:** goals and win rates. 12 matches (3 a level) are too few: matches drift apart after the first
+  different dice, and 4.6 v 4.0 goals is inside the noise. Before the PR: 48 matches each way (12 a level).
+- **Art:** PixelLab batch 22, 15 generations: `combo`, `combo2`, `sdribble` in every outfield kit, added by
+  `tools/kit_add.py` (old frames pixel-identical, the manifest only gains).
