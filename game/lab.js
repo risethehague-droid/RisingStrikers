@@ -1727,12 +1727,12 @@
       check(r) { if (!r.fired || r.t < 2.2) return null; return { o: `${r.c ? `COMBO LV${r.c.lv} (${r.c.kind}, partner #${r.c.partner && r.c.partner.num})` : 'NO COMBO'} · power ${Math.round(r.spP || 0)} · ${r.name || '-'} · ${m.ball.inNet ? 'GOAL' : 'no goal'}` }; } };
   }
   function sxAi() {
-    return { id: 'SX7', group: 'SX', name: 'the COMPUTER\'s special dribble', sub: 'their carrier with 2 bars, your man squares up 45 m from goal: it goes past him (its chance forced high for the test; in a match ~1-2 a side)', kind: 'phys', pace: 'arcade', realAi: true,
+    return { id: 'SX7', group: 'SX', name: 'the COMPUTER\'s special dribble', sub: 'their carrier with a full meter, your man squares up 45 m from goal: it goes past him (its chance forced high for the test; in a match ~1-2 a side)', kind: 'phys', pace: 'arcade', realAi: true,
       setup(r) {
         const c = m.away.players[9], you = m.home.players[4], gk = m.home.players[0]; cast([c, you, gk]);
         put(c, 45, 34, 4); put(you, 41.8, 34.2, 0); put(gk, 105 - LINE_X, 34, 0); atFeet(c);
         Object.assign(r, { human: you, marks: [], c }); r.n0 = (m.arcN && m.arcN.dribbles) || 0;
-        r.action = { at: 0.2, fire: () => { m.meters[1].e = 2; } };
+        r.action = { at: 0.2, fire: () => { m.meters[1].e = 3; } };
         const R0 = ASP.dribble.aiRate; ASP.dribble.aiRate = 40; (LAB.undo = LAB.undo || []).push(() => { ASP.dribble.aiRate = R0; });   // (the chance forced: the move itself is what's tested)
         m.away.sdribAt = -1e9;
       },
