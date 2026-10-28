@@ -121,6 +121,20 @@ burst: they show you the other way). A Rami line when they've read you.
 
 - Before / after on the same seeds: goals a match **up**; your win rate at every level **within a few points** of today
   (`tools/soak.js` with your side at base v each level, plus `tools/proxy093.js` run / def).
+- **Today's baseline** (28 Oct, v0.12.4, `tools/soak.js`, the new AI; "your side" = the computer at base, the level =
+  the other side; 6 matches a level, 6 teams in turn - small samples: stage 2 runs 24 a level, before and after):
+
+  | Level | Your side won / drew / lost | Goals (yours - theirs) | Goals a match |
+  | --- | --- | --- | --- |
+  | Easy | 6 / 0 / 0 | 15 - 3 | 3.0 |
+  | Normal | 2 / 0 / 4 | 8 - 10 | 3.0 |
+  | Hard | 1 / 1 / 4 | 3 - 10 | 2.2 |
+  | Rise Warrior | 1 / 2 / 3 | 3 - 7 | 1.7 |
+
+  The harder the level, the fewer goals: that's where "more goals" matters most.
+- **Found:** `tools/soak.js` always plays Rise Warrior with the CLASSIC AI (its rotation gives `lvl` and `ai` the same
+  step: `i % 4`), so its Rise numbers never measured today's team AI. The Rise row above is 6 separate `ONE=` runs with
+  `ai=new`. Stage 2 should fix the rotation (or always use `ai=new`).
 - Easy stays easy: the brain's noise and reaction time still come from the level's knobs (`difficulty.js`).
 
 ## Decisions
