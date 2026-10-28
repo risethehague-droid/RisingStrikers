@@ -12,7 +12,9 @@
 //
 // Options: SECS=4 (length), SKIP=0 (seconds to skip before recording), FPS=12, WIDTH=480, ZOOM=1.6 (Lab camera),
 //   SEED=7 (the match's dice), VS=IS,IRO (the match's teams), SETUP='js run in the page just before recording'
-//   (window.__hc2 is the match, window.__lab the Lab), KEEP=1 keeps the PNG frames next to the GIF, PORT=8765.
+//   (window.__hc2 is the match, window.__lab the Lab), KEEP=1 keeps the PNG frames next to the GIF, PORT=8765,
+//   NOCUT=1 skips cut-ins and replays (a moment from tools/aistudy.js replays at the same SKIP),
+//   MARK=away,10 rings that man (MARK=ball,0: the man on the ball) on every frame of the GIF (drawn on the GIF only, not in the game).
 // Serve the game first: python3 -m http.server 8765 --directory game
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), os = require('os'), { execFileSync } = require('child_process');
@@ -60,11 +62,14 @@ const PORT = E.PORT || 8765, STEP = Math.max(1, Math.round(60 / FPS));
       m.demo = true; m.kickoff(m.home); }, +(E.SEED || 7));
   }
   // step the game by hand: n frames of 1/60 s (the Lab's debug marks are cleared so they never show)
-  const step = n => page.evaluate(n => { const m = window.__hc2, g = m.game; for (let k = 0; k < n; k++) { window.__T += 1000 / 60; g.step(window.__T, 1000 / 60);
-    if (window.__lab && window.__lab.run) window.__lab.run.marks = []; } }, n);
+  // NOCUT=1 (smarter-AI study, 27 Oct): cut-ins and replays are skipped the moment they start, as tools/aistudy.js and
+  // tools/soak.js play a match, so a moment they found at SKIP=<t> replays here at the same second
+  const step = n => page.evaluate(([n, nocut]) => { const m = window.__hc2, g = m.game; for (let k = 0; k < n; k++) { window.__T += 1000 / 60; g.step(window.__T, 1000 / 60);
+    if (nocut) { if (m.cutIn) m.cutInEnd(); if (m.replay) m.endReplay(); }
+    if (window.__lab && window.__lab.run) window.__lab.run.marks = []; } }, [n, !!E.NOCUT]);
   const dir = E.KEEP ? OUT.replace(/\.gif$/, '') + '-frames' : fs.mkdtempSync(path.join(os.tmpdir(), 'hc2prev-'));
   fs.mkdirSync(dir, { recursive: true });
-  const n = Math.max(2, Math.round(SECS * FPS)); let fno = 0;
+  const n = Math.max(2, Math.round(SECS * FPS)); let fno = 0; const marks = {};
   for (const id of TESTS) {                                                     // (one test, a match, or several tests in a row)
     if (id) await startTest(id);
     if (SKIP > 0) await step(Math.round(SKIP * 60));
@@ -72,6 +77,9 @@ const PORT = E.PORT || 8765, STEP = Math.max(1, Math.round(60 / FPS));
     await step(1);
     const box = await page.evaluate(() => { const r = document.querySelector('#game canvas').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
     for (let f = 0; f < n; f++) {
+      if (E.MARK) marks[fno] = await page.evaluate(([side, i, w, h]) => {          // MARK=away,10: where that man is on screen
+        const m = window.__hc2, p = side === 'ball' ? (m.ball.owner || m.ball) : m[side].players[+i], cam = m.cameras.main, v = cam.worldView, gw = m.scale.width, gh = m.scale.height;
+        return p ? { x: (wx(p.x, p.y) - v.x) * cam.zoom * w / gw, y: (wy(p.y) - v.y) * cam.zoom * h / gh } : null; }, [...E.MARK.split(','), box.width, box.height]);
       await page.screenshot({ path: path.join(dir, `${String(fno++).padStart(4, '0')}.png`), clip: box, timeout: 120000 });
       await step(STEP);
     }
@@ -85,6 +93,12 @@ import sys, glob, os
 from PIL import Image
 src, out, width, fps = sys.argv[1], sys.argv[2], int(sys.argv[3]), float(sys.argv[4])
 frames = [Image.open(p).convert('RGB') for p in sorted(glob.glob(os.path.join(src, '*.png')))]
+import json
+from PIL import ImageDraw
+mk = json.load(open(sys.argv[5])) if len(sys.argv) > 5 else {}
+for i, f in enumerate(frames):   # MARK: a yellow ring round the man the clip is about (on the GIF only, never in the game)
+    m = mk.get(str(i))
+    if m: d = ImageDraw.Draw(f); r = f.width / 40; d.ellipse((m['x'] - r * 1.6, m['y'] - r * 0.6, m['x'] + r * 1.6, m['y'] + r * 0.6), outline=(255, 222, 30), width=max(2, int(r / 4)))
 def make(colors, keep, w):
     fr = frames[::keep]; h = round(fr[0].height * w / fr[0].width)
     fr = [f.resize((w, h), Image.NEAREST) for f in fr]   # nearest keeps the pixel art crisp and halves the size (flat runs)
@@ -102,7 +116,8 @@ for colors, keep, wf in tries:
 print(f'{out}: {n} frames, {w2}x{h}, {colors} colours, {size / 1024:.0f} KB' + ('' if size <= 1000000 else ' - STILL OVER 1 MB: use a shorter SECS'))
 `;
   const pyFile = path.join(os.tmpdir(), `hc2prev-${process.pid}.py`); fs.writeFileSync(pyFile, py);
-  try { process.stdout.write(execFileSync('python3', ['-I', pyFile, dir, OUT, String(WIDTH), String(FPS)]).toString()); }
+  const markFile = path.join(dir, 'marks.json'); fs.writeFileSync(markFile, JSON.stringify(marks));
+  try { process.stdout.write(execFileSync('python3', ['-I', pyFile, dir, OUT, String(WIDTH), String(FPS), markFile]).toString()); }
   finally { fs.unlinkSync(pyFile); if (!E.KEEP) fs.rmSync(dir, { recursive: true, force: true }); }
   console.log('errors', JSON.stringify(errs.slice(0, 5)));
 })();
