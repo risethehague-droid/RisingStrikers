@@ -59,7 +59,7 @@ GIFs in `docs/ai/` (a yellow ring on the man it's about, drawn on the GIF only).
    the support job is re-picked every 0.4 s, so the spot jumps from side to side; nothing makes him commit.
    `VS=IRO,IS SEED=4 SKIP=43.9 MARK=home,5`
 2. **A runner who can't decide** (`2-dithering-runner.gif`): IRO #9 runs up, back, up again. Cause: the forward "run in
-   behind" goes to the forward nearest the ball every 1.5 s (`team.runner`) and the offside hold moves every 1.5-3 s,
+   behind" goes to the forward nearest the ball, re-picked every 3 s (`team.runner`) and the offside hold moves every 1.5-3 s,
    so the run starts, is cancelled, starts again. `VS=IRO,IS SEED=4 SKIP=68.4 MARK=home,9`
 3. **Three on the ball** (`3-swarm-white.gif`): three IS men close the man on the ball. Cause: only the "zone" men are
    kept 6.5 m off the ball; the cover man and the markers near the ball aren't, so the cover, a marker and the presser
