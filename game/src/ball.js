@@ -614,7 +614,7 @@ hc2Mix(Match, {
     if (b.owner && b.owner.hands) return;
     if (net && b.gpIn) { b.vx = b.gpIn.vx; b.vz = b.gpIn.vz; b.gpIn = null; }   // (t-013: the net takes the pace off now, not the goal line - netRipple)
     const owned = !!b.owner, sub = 3, h = dt / sub, ARC = paceK().arcade;
-    if (ARC) this.spArcadeWatch();                                              // t-020: ARCADE's SP for aerials won, rebound volleys (specials.js)
+    this.spArcadeWatch();                                                       // (29 Oct: both paces - the SP extras for an aerial battle won etc.)                                              // t-020: ARCADE's SP for aerials won, rebound volleys (specials.js)
     for (let i = 0; i < sub; i++) {
       const ox = b.x, oy = b.y, oz = b.z;
       ballStep(b, h, owned);

@@ -533,7 +533,7 @@ hc2Mix(Match, {
   // 1.75x). CLASSIC: nothing. spArcadeWatch runs every frame on ARCADE (ballPhysics) and only reads what the moves leave
   // behind (aerialLast, the ball's how / reb), so the moves themselves stay untouched.
   spBonus(team, kind) {
-    if (!paceK().arcade || !team || !ARCADE.sp[kind]) return;
+    if (!team || !ARCADE.sp[kind]) return;                                      // (29 Oct: both paces now - "special events more often")
     this.meterOf(team).add(ARCADE.sp[kind], kind);
     const N = this.arcN = this.arcN || { reb: 0, air: 0, rebShots: 0, sp: 0 }; N.sp++; N[kind] = (N[kind] || 0) + 1;
   },
@@ -570,14 +570,18 @@ hc2Mix(Match, {
     const add = x => { o.push(x); x.setScrollFactor(0); return x; };
     const veil = add(this.add.rectangle(0, 0, VIEW_W * 3, VIEW_H * 3, 0x0c0a0e, 1).setOrigin(0.5).setAlpha(0).setDepth(D));
     const band = add(this.add.graphics().setDepth(D + 1)), lines = add(this.add.graphics().setDepth(D + 2));
-    const fr = (K.anims['kroar-S'] && K.anims['kroar-S'][3]) || (K.anims['kset-S'] && K.anims['kset-S'][4]) || K.anims['idle-S'][0];
+    // 29 Oct (the co-designer: "special events more often" - the cut-ins too): a special SHOT gets its cut-in as well
+    // (q.kind 'shot': the shooter in his special move, its name; shorter than the keeper's - the shot is the moment)
+    const shot = q.kind === 'shot', SA = ['sp1', 'sp2', 'super'][lv - 1], sa = K.anims[`${SA}-E`] || K.anims['kick-E'];
+    const fr = shot ? ((sa && sa[Math.floor(sa.length * 0.6)]) || K.anims['idle-S'][0])
+      : (K.anims['kroar-S'] && K.anims['kroar-S'][3]) || (K.anims['kset-S'] && K.anims['kset-S'][4]) || K.anims['idle-S'][0];
     const fl = this.textures.exists('fx') ? [0, 1, 2].map(i => add(this.add.image(0, 0, 'fx', ['flame', 'flameBlue', 'flamePurple'][lv - 1]).setDepth(D + 3).setAlpha(0))) : [];
     const por = add(this.add.image(0, 0, gk.kit, fr).setOrigin(0.5, K.feetY / (K.frameH || 160)).setDepth(D + 4));
-    const name = add(this.add.text(0, 0, SAVE_NAMES[lv - 1] + '!', { fontFamily: F, fontSize: '34px', color: '#ffde1e', stroke: '#0c0a0e', strokeThickness: 8 }).setOrigin(0.5).setDepth(D + 5).setAlpha(0));
-    const sub = add(this.add.text(0, 0, `${gk.team.name} KEEPER · LV${lv} SPECIAL SAVE`, { fontFamily: F, fontSize: '12px', color: '#ffffff', stroke: '#0c0a0e', strokeThickness: 5 }).setOrigin(0.5).setDepth(D + 5).setAlpha(0));
+    const name = add(this.add.text(0, 0, (shot ? q.name || SP_NAMES[lv - 1] : SAVE_NAMES[lv - 1]) + '!', { fontFamily: F, fontSize: '34px', color: '#ffde1e', stroke: '#0c0a0e', strokeThickness: 8 }).setOrigin(0.5).setDepth(D + 5).setAlpha(0));
+    const sub = add(this.add.text(0, 0, shot ? `${gk.team.name} #${gk.num} · LV${lv} SPECIAL SHOT` : `${gk.team.name} KEEPER · LV${lv} SPECIAL SAVE`, { fontFamily: F, fontSize: '12px', color: '#ffffff', stroke: '#0c0a0e', strokeThickness: 5 }).setOrigin(0.5).setDepth(D + 5).setAlpha(0));
     SFX.special(lv); this.cameras.main.shake(160, 0.004);
-    const hush = SAVE_NAMES.some(n => (this.msg.text || '').includes(n)); if (hush) { this.msg.setText(''); this.sub.setText(''); }   // (the banner says it: no second caption)
-    return { ...q, lv, col, t: 0, dur: 1.5 * paceK().cutK, o, veil, band, lines, por, fl, name, sub, seed: Math.random() * 1000 };   // (t-020: dur - ARCADE ~1 s)
+    const hush = (shot ? SP_NAMES : SAVE_NAMES).some(n => (this.msg.text || '').includes(n)); if (hush) { this.msg.setText(''); this.sub.setText(''); }   // (the banner says it: no second caption)
+    return { ...q, lv, col, t: 0, dur: (shot ? 0.55 + 0.15 * lv : 1.5) * paceK().cutK, o, veil, band, lines, por, fl, name, sub, seed: Math.random() * 1000 };   // (t-020: dur - ARCADE ~1 s; a shot's 0.7-1 s, ARCADE ~0.45-0.65)
   },
   cutInTick(dt) {
     if (this.cutIn.kind === 'clash') { this.clashTick(dt); return; }              // t-028: the clash plays on the cut scene's path (play waits, ENTER cuts it)
@@ -805,6 +809,7 @@ hc2Mix(Match, {
     this.say(SP_NAMES[lv - 1] + '!', `${p.team.name} · LV${lv} SPECIAL`, 1.3); this.spName = { p, name: SP_NAMES[lv - 1] };
     this.ramiSay('skill', { text: [`A ${SP_NAMES[0]}!\nTHE BALL IS ON FIRE!`, `${SP_NAMES[1]}!\nYOU CAN HEAR IT CRACKLE!`, `THE ${SP_NAMES[2]}!!\nI HAVE NEVER SEEN THAT!`][lv - 1], expr: 'laugh' }, 2);
     SFX.special(lv); this.flagReplay(SP_NAMES[lv - 1] + '!');
+    if (!window.HC2_TEST_FAST && !this.replay && (!window.__lab || window.__labCut)) this.cutInQ = { kind: 'shot', who: p, lv, name: SP_NAMES[lv - 1] };   // 29 Oct: its cut-in (during the wind-up)
     return true;
   },
   // ======================================================================= t-011 THE CURVING SPECIAL PASS (Luca 24 Oct 05:57: "add a special
