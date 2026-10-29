@@ -1509,7 +1509,7 @@
       setup(r) {
         const H = m.home.players, A = m.away.players, w = H[8];
         cast([w, H[9], H[10], H[5], H[6], H[7], H[4], A[0], A[1], A[2], A[3], A[4], A[6], A[7]]);
-        put(w, 68, 59, 0); atFeet(w); put(H[9], 80, 37, 0); put(H[10], 78, 29, 0); put(H[5], 70, 17, 0); put(H[6], 64, 33, 0); put(H[7], 63, 43, 0); put(H[4], 58, 62, 0);
+        put(w, o.wx ?? 68, o.wy ?? 59, 0); atFeet(w); put(H[9], 80, 37, 0); put(H[10], 78, 29, 0); put(H[5], 70, 17, 0); put(H[6], 64, 33, 0); put(H[7], 63, 43, 0); put(H[4], 58, 62, 0);
         put(A[0], LINE_X, 36, 4); put(A[4], 88, 49, 4); put(A[3], 88, 41, 4); put(A[2], 88, 30, 4); put(A[1], 85, 17, 4); put(A[7], 78, 45, 4); put(A[6], 77, 32, 4);
         Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
@@ -1519,6 +1519,7 @@
         Object.assign(r, { human: w, shooter: w, gk: A[0], marks: [], o, touches: [] });
         if (o.you) r.bots.set(w, (p, dt) => {                                    // you: down the line, then a tap of LOB at the near post
           const b = m.ball; if (b.owner !== p || p.busy() || r.crossT != null) { p.steer(0, 0, dt); return; }
+          if (o.cross && p.x > 86 && m.crossYou(p)) { r.crossT = r.t; return; }   // (WG3, 29 Oct: your LOB from wide = the cross at your runners)
           if (p.x > 95 || r.t > 4.5) { r.crossT = r.t; m.doPass(p, { x: (99 - p.x) / len(99 - p.x, 37 - p.y), y: (37 - p.y) / len(99 - p.x, 37 - p.y) }, 'lob'); return; }
           const dx = 97 - p.x, dy = 56 - p.y, d = len(dx, dy) || 1; p.sprinting = true; p.wantDir = { x: dx / d, y: dy / d }; m.carrySteer(p, dx / d, dy / d, p.top(true, true) * 0.95, dt); });
       },
@@ -1560,6 +1561,11 @@
       wgTest('WG1', 'the computer\'s winger crosses, a runner attacks it', 'their wide man down the flank: near post / far post / spot / edge runs; does the man who meets it go for goal?', {}),
       wgTest('WG1-SP', 'the same, with 2 bars of SP banked', 'the man who meets it near goal may spend them on an AERIAL SPECIAL (AIR BLAZE / SKY THUNDER / PHOENIX)', { sp: 2 }),
       wgTest('WG2', 'YOUR winger crosses, your team-mates make the runs', 'you (scripted) go down the line and tap LOB at the near post: who is in the box, who attacks it?', { you: true }),
+      wgTest('WG3', 'YOUR cross (29 Oct): LOB from wide aims at your runners', 'as WG2, but the LOB is the cross your button now plays from wide in their third: near post / far post / the spot, whipped or floated, at the man who gets there first', { you: true, cross: true }),
+      wgTest('WG3-B', 'your cross, from deeper', 'WG3 with you starting 8 m further back (the runners have longer to get there)', { you: true, cross: true, wx: 60 }),
+      wgTest('WG3-C', 'your cross, from higher up', 'WG3 with you starting 6 m further on', { you: true, cross: true, wx: 74 }),
+      wgTest('WG3-D', 'your cross, from the touchline', 'WG3 with you starting right on the line', { you: true, cross: true, wy: 64 }),
+      wgTest('WG3-E', 'your cross, from a narrower start', 'WG3 with you starting 7 m further in', { you: true, cross: true, wy: 52 }),
     ];
   }
   // ======================================================================= t-020 ARCADE GETS INTENSE (Luca 25 Oct: "more rebounds that
