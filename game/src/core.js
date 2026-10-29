@@ -370,9 +370,10 @@ const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the w
 // t-013 GOAL PHYSICS (Luca 24 Oct 14:04: "a net through which the ball can interact with slight give ... more dynamic
 // feedback when the ball hits the post ... the keeper, when he blocks a lot of shots but can't grab it, but it breaks his
 // guard, a lot should go more up dramatically ... be moderate"): the net catches the ball like a spring, the posts and bar
-// are round with real rebounds, a parry or a broken guard can pop the ball up. All of it behind GOAL_PHYS:
-// null = ON in the Test Lab, OFF in matches (until Luca's OK); true / false forces it (tools/soak.js GOAL_PHYS=1).
-let GOAL_PHYS = null;
+// are round with real rebounds, a parry or a broken guard can pop the ball up. All of it behind GOAL_PHYS: ON in every
+// match (CLASSIC and ARCADE) and in the Test Lab since t-039 (Luca OK'd q-goal-phys, 27 Oct; Lab only from 24 Oct until
+// then). null = the old split (on in the Lab, off in matches); false = off everywhere (v0.13.0's posts and parries).
+let GOAL_PHYS = true;
 const gpOn = () => GOAL_PHYS ?? !!window.__lab;
 // t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule MANDATORY just make it smooth"): IFAB Law 11, simplified - the rule
 // is in matchflow.js (offKick / offWatch / offCall), the computer playing to it in teamai.js. ON by default and in every
