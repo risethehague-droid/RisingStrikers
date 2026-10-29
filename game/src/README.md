@@ -17,13 +17,14 @@ the class body. A new file goes into all three pages, after `match.js` if it add
 | 8 | `teamai.js` | Team AI: roles, shape, pressing, marking, support runs, the computer on the ball, Classic AI | Gameplay & AI |
 | 9 | `keeper.js` | Keeper AI: positioning plan, saves, dives, claims, distribution | Gameplay & AI |
 | 10 | `difficulty.js` | Difficulty levels: trained traits, knobs, the edges against you (`DIFF_YOU`), `dk` / `dkY` | Gameplay & AI |
-| 11 | `specials.js` | Special shots and special saves: meters, power, rigs, cut scenes, keeper guard | Gameplay & AI, Art |
-| 12 | `matchflow.js` | Referee and the laws: kick-off, restarts, set pieces, fouls, cards, injuries, subs, halves, extra time, coin toss | Gameplay & AI |
-| 13 | `penalties.js` | The penalty scene and shoot-outs | Gameplay & AI |
-| 14 | `cup.js` | Cup (tournament) mode: table, fixtures, simulated games, trophy ceremony | Design & Vision (friend) |
-| 15 | `ui.js` | Menus and HUD: setup, pause, team sheet, walk-out intro, Rami commentary, radar, on-screen feedback | Design & Vision (friend), Lead |
-| 16 | `replay.js` | Replays, highlights, BUG WATCH (the game checking its own footage) | QA overnight |
-| 17 | `watch.js` | WATCH mode: the computer plays both sides, pause, speed 0.5x-4x, N marks a moment, the review at full time | QA, Lead |
-| 18 | `resume.js` | RESUME: the snapshot of your match (saved while you play, cleared at full time) and putting it back from the start screen | Lead |
-| 19 | `boot.js` | Starts the game on page load (canvas size, scenes) | Lead |
-| 20 | `arcadesp.js` | ARCADE specials (the co-designer, 28 Oct): the special dribble, combo specials, team signature names, bigger leaps. Loaded after cup.js, before ui.js; it wraps the moves it needs, CLASSIC untouched | Design & Vision (friend) |
+| 11 | `brain.js` | The team brain (smarter-ai stage 2): the computer's move list on the ball (`AI_MOVES`: a new move joins with one entry), the match state (score + clock), team styles (`STYLES`, `TEAM_STYLE`), Rise Warrior reading your habits | Gameplay & AI |
+| 12 | `specials.js` | Special shots and special saves: meters, power, rigs, cut scenes, keeper guard | Gameplay & AI, Art |
+| 13 | `matchflow.js` | Referee and the laws: kick-off, restarts, set pieces, fouls, cards, injuries, subs, halves, extra time, coin toss | Gameplay & AI |
+| 14 | `penalties.js` | The penalty scene and shoot-outs | Gameplay & AI |
+| 15 | `cup.js` | Cup (tournament) mode: table, fixtures, simulated games, trophy ceremony | Design & Vision (friend) |
+| 16 | `ui.js` | Menus and HUD: setup, pause, team sheet, walk-out intro, Rami commentary, radar, on-screen feedback | Design & Vision (friend), Lead |
+| 17 | `replay.js` | Replays, highlights, BUG WATCH (the game checking its own footage) | QA overnight |
+| 18 | `watch.js` | WATCH mode: the computer plays both sides, pause, speed 0.5x-4x, N marks a moment, the review at full time | QA, Lead |
+| 19 | `resume.js` | RESUME: the snapshot of your match (saved while you play, cleared at full time) and putting it back from the start screen | Lead |
+| 20 | `boot.js` | Starts the game on page load (canvas size, scenes) | Lead |
+| 21 | `arcadesp.js` | ARCADE specials (the co-designer, 28 Oct): the special dribble, combo specials, team signature names, bigger leaps. Loaded after cup.js, before ui.js; it wraps the moves it needs, CLASSIC untouched | Design & Vision (friend) |

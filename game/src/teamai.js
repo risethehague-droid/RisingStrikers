@@ -12,7 +12,12 @@ const AI = { ROLE_DT: 0.4, RATIO: 0.8, PAD: 0.5, HOLD: 0.6, GOALSIDE: 0.95, COVE
            { def: 4, att: 27, ax: 0.55, ay: 0.28, behind: false, min: -12, max: 46 } ],    // two strikers   without it ~28 m compact)
   HOME_Y_DEF: [0, -18, -6, 6, 18, -19, -6, 6, 19, -4, 5],                                // across the pitch (centre = 0): narrow without the ball
   HOME_Y_ATT: [0, -27, -9, 9, 27, -26, -8, 8, 26, -7, 7],                                // wide with it
-  OPEN: 5, APART: 3 };                                                                  // ...and nobody stands on top of an opponent (3 m)                                                                             // with the ball: step away from markers inside 5 m (find space)
+  OPEN: 5, APART: 3,
+  // smarter-ai stage 2 (the co-designer: "less clunky"; Sensible Soccer's lesson: commit to a run, never dither). A man keeps
+  // his job and his target until another is CLEARLY better: the cover's and the support man's lead (s / m), the marker's
+  // pull to the man he had, the runner's lead (m), how long the offside read holds (s); every target is eased (TGT_T s)
+  STICK_COVER: 0.8, STICK_SUP: 4, STICK_SPOT: 1.0, STICK_MARK: 3, STICK_RUN: 6, OFF_HOLD_T: [6, 9], TGT_T: 0.3,
+  SCREEN: 7.5, LOB_READ: 0.6 };                                                    // (LOB_READ: how much the man on the receiver / on the passer counts against a lob)                                                                    // everyone but the presser and the cover screens this far off the ball                                                                  // ...and nobody stands on top of an opponent (3 m)                                                                             // with the ball: step away from markers inside 5 m (find space)
 // ------------------------------------------------------------------ players
 // t-012 WING PLAY (Luca 24 Oct 06:22, "VERY important": "make the attacking ai look for more wing plays where they play
 // lobs and try to get arial shot i think the game would feel more dynamic and inclusive of the whole arsenal of special
@@ -53,6 +58,7 @@ hc2Mix(Match, {
     const human = team === this.home && !this.demo ? this.human : null;
     const cand = team.players.filter(p => this.aiFree(p));
     const spot = p => owner ? owner : this.intercept(p, p.top(true, false));
+    const prevCover = team.cover, prevMarks = team.marks;                          // (smarter-ai: kept unless another is clearly better)
     team.cover = null; team.marks = new Map();
     const loose = !owner && !(b.target && !b.target.sentOff);                    // nobody's: BOTH sides send one man for it
     if (team.inPoss && !loose) { team.presser = null; return; }
@@ -66,7 +72,8 @@ hc2Mix(Match, {
     if (best !== cur) team.presserHeld = 0;
     // you're the one going to the ball: the computer doesn't double up on you
     if (human && best && !human.sentOff && this.aiTime(human, spot(human)) <= T.get(best) + 0.6) { team.cover = best; team.presser = human; }
-    else { team.presser = best; if (they) team.cover = pool.find(p => p !== best && p !== human && len(p.x - b.x, p.y - b.y) < AI.COVER_R) || null; }
+    else { team.presser = best; if (they) { const ok = p => p && p !== best && p !== human && pool.includes(p) && len(p.x - b.x, p.y - b.y) < AI.COVER_R;
+      team.cover = pool.find(ok) || null; if (ok(prevCover) && team.cover && T.get(prevCover) < T.get(team.cover) + AI.STICK_COVER) team.cover = prevCover; } }
     if (!they) team.cover = null;
     if (team.inPoss) return;                                                     // a loose ball we had: one man goes for it, the rest keep shape
     // markers: the most dangerous runners (closest to a point between our goal and the ball), goal-side of each
@@ -78,14 +85,16 @@ hc2Mix(Match, {
     for (const o of threats) {
       let pick = null, bq = 1e9;
       for (const p of free) { if (team.marks.has(p)) continue; const d = len(p.x - o.x, p.y - o.y); if (d > 18) continue;
-        const q = d - (len(p.x - gx, p.y - 34) < len(o.x - gx, o.y - 34) ? 4 : 0) - (p.i <= 4 ? 3 : 0); if (q < bq) { bq = q; pick = p; } }
+        const q = d - (len(p.x - gx, p.y - 34) < len(o.x - gx, o.y - 34) ? 4 : 0) - (p.i <= 4 ? 3 : 0) - (prevMarks && prevMarks.get(p) === o ? AI.STICK_MARK : 0); if (q < bq) { bq = q; pick = p; } }
       if (pick) team.marks.set(pick, o);
     }
   },
   aiZone(p, team) {                                                              // SBSP: formation spot + a share of the (smoothed) ball, per line
     const L = AI.LINES[p.i <= 4 ? 0 : p.i <= 8 ? 1 : 2], fx = team.fx, fy = team.fy;
-    const hy = AI.HOME_Y_DEF[p.i] + (AI.HOME_Y_ATT[p.i] - AI.HOME_Y_DEF[p.i]) * team.poss;
-    let X = L.def + (L.att - L.def) * team.poss + L.ax * fx, Y = hy + L.ay * fy * (1 - 0.4 * team.poss);
+    const S = this.brainStyle(team), wd = 1 + 0.15 * S.width * team.poss;        // (smarter-ai: the style's width with the ball)
+    const hy = (AI.HOME_Y_DEF[p.i] + (AI.HOME_Y_ATT[p.i] - AI.HOME_Y_DEF[p.i]) * team.poss) * wd;
+    let X = L.def + (L.att - L.def) * team.poss + L.ax * fx + this.brainLine(team), Y = hy + L.ay * fy * (1 - 0.4 * team.poss);   // (smarter-ai: the line by style and match state)
+    if (team !== this.home && this.read && !team.inPoss) Y += this.readFlank() * READ.SHIFT * (p.i <= 8 ? 1 : 0.5);   // (Rise Warrior has read your flank: the block shifts over)
     if (L.behind) X = Math.min(X, fx - 1.5);
     X = clamp(X, L.min, L.max);
     if (p.i >= 9 && team.offX != null) X = Math.min(X, Math.max(team.offX, fx) - 0.6);   // strikers stay onside
@@ -102,8 +111,10 @@ hc2Mix(Match, {
       if (gs < 1) { const px = -uy / ul, py = ux / ul, sd = Math.sign((p.x - carrier.x) * px + (p.y - carrier.y) * py) || 1, k = clamp((1 - gs) / 2, 0, 1) * 1.6; ox = px * sd * k; oy = py * sd * k; }
       // v0.8.2: he slows down -> step in; he stops / shields it -> go to the BALL (just goal-side of it), round him if need be
       // (it stood off 2 m forever: a dribbler standing still, or shielding it with his back to you, was never tackled)
-      const bl = this.ball, slow = carrier.speed < 1.5, cont = AI.CONTAIN * clamp(carrier.speed / 4, 0.45, 1);
+      const bl = this.ball, slow = carrier.speed < 1.5, rd = team !== this.home && this.read ? this.read : null;
+      const cont = AI.CONTAIN * clamp(carrier.speed / 4, 0.45, 1) + (rd && rd.burstN >= READ.BURST_MIN && d < rd.burstD + 1.5 ? 0.5 : 0);   // (Rise Warrior: you burst from about here - a little more room)
       tx = carrier.x + ux / ul * cont + carrier.vx * 0.15 + ox; ty = carrier.y + uy / ul * cont + carrier.vy * 0.15 + oy;
+      if (rd && carrier === this.human) { const cs = this.readCut(); if (cs) ty += cs * READ.SHOW; }   // (Rise Warrior: he stands on the side you like to go past him - showing you the other way)
       if (slow) {                                                               // v0.8.3: the ball's OPEN side (beyond it from him) -
         const bx = bl.x - carrier.x, by = bl.y - carrier.y, bd = len(bx, by) || 1, ubx = bx / bd, uby = by / bd;   // shielding it with his
         if ((p.x - carrier.x) * ubx + (p.y - carrier.y) * uby < 0.3) {          // back to you parked you on his flank for good
@@ -112,7 +123,8 @@ hc2Mix(Match, {
         } else { tx = bl.x + ubx * 0.6; ty = bl.y + uby * 0.6; }
       }
       v = Math.min(p.top(false, false) * 1.05, len(carrier.vx, carrier.vy) + 1.2 + d * 0.5); p.look(carrier.x - p.x, carrier.y - p.y); }
-    const PK = team === this.home && !this.demo ? 1 : Math.min(1.45, 1 + (paceK().pressK - 1) * this.dkY(team).cmt);   // (arcade-2: ARCADE the computer's side
+    const PK = (team === this.home && !this.demo ? 1 : Math.min(1.45, 1 + (paceK().pressK - 1) * this.dkY(team).cmt)) * (1 + 0.05 * this.brainStyle(team).press)
+      * (team !== this.home && this.readHot(carrier) ? 1.15 : 1);                // (smarter-ai: the style's pressing; Rise Warrior closes you down sooner on your shooting spots)   // (arcade-2: ARCADE the computer's side
     p.moveTo(tx, ty, v * this.dk(team).press * PK, dt);                        // closes down harder, more at the top levels: the dash mustn't make dribbling past it easier)
                                                                                    // (v0.9.2: how hard he closes down, by level)
     p.watch = d < AI.MIRROR ? carrier : null;                                    // close: jockey him, facing him
@@ -182,8 +194,10 @@ hc2Mix(Match, {
     for (const p of this.all) p.watch = null;                                   // (re-set by aiPress for the man containing the dribbler)
     if (AI_MODE === 'classic') return this.aiClassic(dt);
     const b = this.ball, owner = b.owner;
+    this.readTick(dt);                                                            // smarter-ai step 5: Rise Warrior reads your habits (brain.js)
     for (const team of [this.home, this.away]) {
-      team.drain = this.dkY(team).st;                                              // v0.9.3 stamina by level (base 1)
+      team.mood = this.brainMood(team);                                          // smarter-ai step 3: the score and the clock (brain.js)
+      team.drain = this.dkY(team).st * (1 + 0.25 * Math.max(0, this.brainStyle(team).press));   // (smarter-ai: a high press costs legs - styles.js had it winning 78%)                                              // v0.9.3 stamina by level (base 1)
       // possession: who has it, or whose pass is travelling; a loose ball keeps the last call (no flip-flopping)
       if (owner) team.inPoss = owner.team === team; else if (b.target && !b.target.sentOff) team.inPoss = b.target.team === team;
       team.poss = clamp((team.poss ?? (team.inPoss ? 1 : 0)) + (team.inPoss ? 1 : -1) * AI.POSS_RATE * dt, 0, 1);
@@ -194,7 +208,7 @@ hc2Mix(Match, {
       team.roleT = (team.roleT ?? (team === this.home ? 0 : AI.ROLE_DT / 2)) - dt; team.presserHeld = (team.presserHeld || 0) + dt;
       if (team.roleT <= 0 || (team.presser && !this.aiFree(team.presser) && team.presser !== this.human)) { team.roleT = AI.ROLE_DT * this.dk(team).role; this.aiRoles(team); }   // (v0.9.2: how quickly the team re-reads the play)
       if (owner && owner.team === team && !owner.keeper) { team.supT = (team.supT ?? 0) - dt; if (team.supT <= 0 || (team.support && !this.aiFree(team.support))) { team.supT = AI.ROLE_DT; this.aiSupport(team, owner); } }
-      else { team.support = null; team.supportPt = null; team.supT = 0; }
+      else { if (team.support) team.supMem = { p: team.support, pt: team.supportPt, t: this.time.now }; team.support = null; team.supportPt = null; team.supT = 0; }   // (smarter-ai: remembered a moment - a heavy touch or a one-two mustn't hand the job to someone else)
       // t-012 the runs for a wide man (kept while his cross is in the air, so the runners keep attacking it)
       if (owner && owner.team === team && !owner.keeper) { team.wingT = (team.wingT ?? 0) - dt; if (team.wingT <= 0) { team.wingT = AI.ROLE_DT; this.aiWingRuns(team, owner); } }
       else if (!this.crossLive(team)) { team.wing = null; team.wingBy = null; team.wingT = 0; }
@@ -214,14 +228,17 @@ hc2Mix(Match, {
           const o = team.marks.get(p), gx = team.ownGoalX, ux = gx - o.x, uy = 34 - o.y, ul = len(ux, uy) || 1, bx = b.x - o.x, by = b.y - o.y, bl = len(bx, by) || 1;
           const G = AI.MARK_GAP * this.dk(team).mark, m = { x: o.x + ux / ul * G + bx / bl * 0.5, y: o.y + uy / ul * G + by / bl * 0.5 }, w = p.i <= 4 ? 1 : 0.6;   // (v0.9.2: marking tightness by level)
           t = { x: t.x + (m.x - t.x) * w, y: t.y + (m.y - t.y) * w };
+        } else if (p.goRun && team.inPoss && p !== owner && this.time.now - p.goRun.t < 2500) {   // smarter-ai: pass and move - after his forward ball he goes
+          t = { x: p.goRun.x, y: p.goRun.y, go: true, goRun: true };                  // past the man he found (the one-two, the third man) instead of jogging back
         } else if (p === team.support && team.supportPt) {                       // v0.8.2 support: the best open spot near the ball
           t = { x: team.supportPt.x, y: team.supportPt.y };
         } else if (team.wing && team.wing.has(p)) {                               // t-012: a run for the cross (or an overlap)
           const w = team.wing.get(p); t = { x: w.x, y: w.y };
         } else if (team.inPoss && owner && owner.team === team && p.i >= 9) {     // with the ball: a forward offers a run in behind
           const runT = (team.runT = (team.runT ?? 0) - dt / 2);
-          if (runT <= 0) { team.runT = 1.5; team.runner = team.players.filter(q => q.i >= 9 && !q.sentOff).sort((u, v) => len(u.x - owner.x, u.y - owner.y) - len(v.x - owner.x, v.y - owner.y))[0]; }
-          if (team.runner === p) { const ox = this.aiFrame(team, owner.x), ln = (team.offX ?? 99) - 0.6;
+          if (runT <= 0) { team.runT = 1.5; const dO = q => len(q.x - owner.x, q.y - owner.y), cur = team.runner, nr = team.players.filter(q => q.i >= 9 && !q.sentOff).sort((u, v) => dO(u) - dO(v))[0];
+            team.runner = cur && cur !== nr && cur.team === team && !cur.sentOff && this.aiFree(cur) && dO(cur) < dO(nr) + AI.STICK_RUN ? cur : nr; }   // (smarter-ai: his run isn't cancelled for a man a step nearer)
+          if (team.runner === p || (team.mood && team.mood.chase)) { const ox = this.aiFrame(team, owner.x), ln = (team.offX ?? 99) - 0.6;   // (smarter-ai: chasing late, both strikers go)
             const sh = offsideOn() && ln - ox < 28 && ln > 0 ? (team.offX ?? 99) - (team.offHold ?? OFFSIDE.HOLD) : null;   // t-024: within reach of their line he plays on the last man's shoulder,
             t = sh != null ? { x: this.aiWorld(team, sh), y: clamp(owner.y + (34 - owner.y) * 0.5, 6, 62), go: true, shoulder: true }   // as tight as he reads it (team.offHold, below), getting there at a run
               : { x: this.aiWorld(team, Math.min(ox + 18, ln)), y: clamp(owner.y + (34 - owner.y) * 0.5, 6, 62) }; }
@@ -230,14 +247,21 @@ hc2Mix(Match, {
         tgt.set(p, t);
       }
       const zones = [...tgt.entries()].filter(([p]) => !(team.marks && team.marks.get(p)) && p !== team.cover && !(p === team.support && team.supportPt) && !(team.wing && team.wing.has(p)));
-      if (owner && owner.team !== team && team.presser) for (const [, t] of zones) {   // v0.8.2: one man presses - the rest screen the
-        const dx = t.x - b.x, dy = t.y - b.y, d = len(dx, dy), R = 6.5;          // space, they don't stand on the ball (no clutter)
+      // v0.8.2: one man presses - the rest screen the space, they don't stand on the ball (no clutter). smarter-ai (clips 3
+      // and 4, "three on the ball"): the markers near the ball screen too - real football's one presses, one covers, the
+      // rest screen; only the presser and the cover go near him
+      if (owner && owner.team !== team && team.presser) for (const [p, t] of tgt) {
+        if (p === team.cover || !(zones.some(z => z[0] === p) || (team.marks && team.marks.get(p)))) continue;
+        const dx = t.x - b.x, dy = t.y - b.y, d = len(dx, dy), R = AI.SCREEN;
         if (d < R) { const ux = d > 0.01 ? dx / d : -team.side, uy = d > 0.01 ? dy / d : 0; t.x = b.x + ux * R; t.y = clamp(b.y + uy * R, 3, PITCH_W - 3); }
       }
-      for (const [, t] of zones) for (const o of team.opp.players) {              // with the ball: get open (gfootball's repulsion);
+      for (const [p, t] of zones) for (const o of team.opp.players) {            // with the ball: get open (gfootball's repulsion);
         if (o.sentOff) continue; const R = team.inPoss ? AI.OPEN : AI.APART;         // without it: just don't stand on top of anyone
         const dx = t.x - o.x, dy = t.y - o.y, d = len(dx, dy); if (d >= R || d < 0.01) continue;
-        t.y = clamp(t.y + (dy === 0 ? 1 : Math.sign(dy)) * (R - d) * 0.9, 3, PITCH_W - 3);
+        // (smarter-ai, clip 1: the side he steps to flipped every time the man crossed his line - he swayed left, right,
+        // left beside a duel. He keeps the side he chose until the man is clearly on the other one)
+        let sd = dy === 0 ? 1 : Math.sign(dy); if (p.openFrom === o && Math.abs(dy) < 1.5) sd = p.openSd; p.openFrom = o; p.openSd = sd;
+        t.y = clamp(t.y + sd * (R - d) * 0.9, 3, PITCH_W - 3);
       }
       for (let pass = 0; pass < 2; pass++) {
         for (let i = 0; i < zones.length; i++) {
@@ -252,10 +276,18 @@ hc2Mix(Match, {
       // forwards they don't judge it to the centimetre: how tight they play it (team.offHold) changes every couple of
       // seconds, now and then a step too far - with the passer's misread (passLook) that's the odd flag (OFFSIDE.SLIP / READ)
       if (owner && owner.team === team && offsideOn() && !(this.pending && this.pending.p.team === team)) {
-        team.offT = (team.offT ?? 0) - dt; if (team.offT <= 0) { team.offT = rnd(1.5, 3); team.offHold = OFFSIDE.HOLD - rnd(0, OFFSIDE.SLIP); }
+        team.offT = (team.offT ?? 0) - dt; if (team.offT <= 0 || team.offBy !== owner) { team.offT = rnd(AI.OFF_HOLD_T[0], AI.OFF_HOLD_T[1]); team.offBy = owner; team.offHold = OFFSIDE.HOLD - rnd(0, OFFSIDE.SLIP); }   // (smarter-ai: one read per man on the ball, not every 1.5-3 s - the runs stopped and started)
         const lim = Math.max(this.offLine(team) - (team.offHold ?? OFFSIDE.HOLD), this.aiFrame(team, b.x) - OFFSIDE.HOLD, 0);
         for (const [, t] of tgt) if (this.aiFrame(team, t.x) > lim) t.x = this.aiWorld(team, lim);
-      }
+        team.offLim = lim;
+      } else team.offLim = null;
+      // smarter-ai (clips 1 and 2): the spot he runs to moves smoothly (~TGT_T s), not every frame - a target that jumped
+      // about with the ball and the men round him turned into back-and-forth running. A new job far away: straight there
+      { const k = 1 - Math.exp(-dt / (AI.TGT_T * this.dk(team).role));          // (by the level's reactions: Easy eases slower, Rise Warrior quicker)
+        for (const [p, t] of tgt) { const a = p.aiTgt;
+          if (!a || a.team !== team || len(a.x - t.x, a.y - t.y) > 20) p.aiTgt = { x: t.x, y: t.y, team }; else { a.x += (t.x - a.x) * k; a.y += (t.y - a.y) * k; }
+          t.x = p.aiTgt.x; t.y = p.aiTgt.y;
+          if (team.offLim != null && this.aiFrame(team, t.x) > team.offLim) t.x = this.aiWorld(team, team.offLim); } }
       for (const p of team.players) {
         if (p === this.human && team === this.home && !this.demo) continue;
         if (p.state === 'kick' || p.state === 'catch' || p.state === 'dive' || p.state === 'slide' || p.state === 'dheader' || p.state === 'chance' || p.state === 'celebrate' || p.state === 'tackle' || p.state === 'dejected' || p.state === 'roar' || p.state === 'beaten' || p.state === 'protest' || p.state === 'hurt' || p.state === 'blasted' || p.stun > 0) continue;
@@ -293,7 +325,7 @@ hc2Mix(Match, {
         const d = len(t.x - p.x, t.y - p.y), dead = Math.max(0.8, 0.06 * len(b.x - p.x, b.y - p.y));
         const settled = (p.settledAt ?? -1e9) > this.time.now - 60;                // v0.8.7: settled men only move again once the spot is well away
         if (d < (settled ? dead * 1.8 : dead)) { p.settledAt = this.time.now; p.steer(0, 0, dt); if (p.speed < 0.4) p.look(b.x - p.x, b.y - p.y); continue; }   // in position: stand and watch the ball (BUG WATCH: no more step-stop-step fidgeting at the edge)
-        const back = this.aiFrame(team, t.x) < this.aiFrame(team, p.x) - 4, hurry = back && d > 10, run = (team.wing && team.wing.get(p)) || (t.shoulder ? t : null);   // (t-024: the run to the last man's shoulder too)
+        const back = this.aiFrame(team, t.x) < this.aiFrame(team, p.x) - 4, hurry = back && d > 10, run = (team.wing && team.wing.get(p)) || (t.shoulder || t.goRun ? t : null);   // (t-024: the run to the last man's shoulder too)
         p.sprinting = (hurry && d > 18 && p.stamina > 0.5) || (!!run && run.go && d > 3 && p.stamina > 0.3);   // (t-012: a run into the box is made flat out)
         const cap = p.sprinting ? p.top(true, false) : hurry || run ? RUN : d > 14 ? RUN * 0.9 : JOG;
         p.moveTo(t.x, t.y, Math.min(cap, AI.ARRIVE * d + 0.4), dt);
@@ -379,23 +411,12 @@ hc2Mix(Match, {
     p.wantDir = { x: dx / dl, y: dy / dl };
     this.carrySteer(p, dx / dl, dy / dl, v, dt, p.burst > 0 ? ACC * 1.35 : ACC);
     if (p.think > 0) return;
-    const K = this.dk(team); p.think = rnd(0.2, 0.35) * K.think;                // v0.9.2 difficulty: how quickly he decides
-    const central = Math.abs(p.y - 34) < 16 + Math.max(0, 18 - toGoal) * 0.3;
-    if (central && toGoal < 24 && this.meterOf(team).level() >= (this.meterOf(team).level() === 3 ? 1 : 2) && Math.random() < 0.5 * K.sp && this.special(p)) return;   // v0.7: specials
-    { const gko = team.opp.players[0];                                           // v0.9.2: a keeper rushing out at him - chip him (a smart side does it more)
-      if (gko && !gko.sentOff && toGoal < 19) { const gH = (gko.x - team.opp.ownGoalX) * team.opp.side, gap = len(gko.x - p.x, gko.y - p.y);
-        if (gH > K.chipOff && gap > 3 && gap < 12 && this.chipCan(p, { x: gx - p.x, y: 34 - p.y }) && Math.random() < (gap < 7 || gH > 7 ? 0.55 : 0.3) * K.chip) { this.chipShot(p, clamp((gap - 3) / 8, 0, 1) * 0.6, 0); return; } } }   // (Easy chips too early and rarely; Rise only when he's well off his line)
-    const PR = paceK().shotRange;                                                // (arcade-2: ARCADE shoots from ~20% further, and sooner - both sides)
-    const sh = toGoal < 32 * PR ? this.shotLook(team, p.x, p.y) : { q: 0, aim: 0 }, Q = K.shotQ;   // (v0.9.2: a weaker side needs a better look before it shoots, and shoots less)
-    const want = (sh.q > 0.85 + Q ? 0.9 : sh.q > 0.6 + Q ? (toGoal < 20 * PR ? 0.6 : 0.3) : sh.q > 0.42 + Q ? (toGoal < 26 * PR ? 0.12 : 0.04) : 0) * K.shotWant * paceK().shotWant;
-    if (want && Math.random() < want) {
-      const pw = toGoal < 14 ? rnd(0.5, 0.72) : toGoal < 22 ? rnd(0.62, 0.84) : rnd(0.76, 0.9);
-      this.doShot(p, pw, clamp(sh.aim + rnd(-0.15, 0.15), -1, 1)); return;
-    }
-    if (this.aiCrossTry(p, K, front && fd < 3.2)) return;                        // t-012: from wide in the final third, a cross at a runner
-    if (p.crossOn && !(front && fd < 3.2) && Math.random() < 0.7 * Math.min(1, K.cross)) return;        // (...and while one's on, he keeps going to the line rather than giving it back)
-    const pressed = front && fd < 3.2, best = this.passLook(p);                // (only a pass a defender can't get to - Buckland)
-    if (best && best.risk < (pressed ? Math.max(K.risk, 0.6) : K.risk) && ((pressed && best.score > -0.4 && Math.random() < 0.8) || (best.shot > sh.q + 0.25 && best.score > 0.6 && Math.random() < 0.6) || (best.score > 1.4 && Math.random() < 0.3))) this.doPass(p, best.dir, best.mode, best.q);
+    // v0.9.2 difficulty: how quickly he decides (smarter-ai: and the team's tempo; a side keeping a lead slows it down)
+    const K = this.dk(team), S = this.brainStyle(team), M = team.mood || this.brainMood(team);
+    p.think = rnd(0.2, 0.35) * K.think * (1 - 0.25 * S.tempo) * (M.protect > 0.3 && S.protect === 'keep' ? 1.15 : 1);
+    // smarter-ai stage 2: the decision is the team brain's move list (brain.js AI_MOVES): special, chip, tap, shot,
+    // cross, pass, the safe ball, the curving pass, keep it - every judgement as before, the best of those that come up
+    this.brainChoose(p, { K, toGoal, front, fd, pressed: !!(front && fd < 3.2) });
   },
   // t-012 THE RUNS for a wide man in their half: the nearest striker to the near post, the other to the far post, the
   // far-side winger to the spot, a central midfielder to the edge of the box (the knock-down, the cut-back), and the
@@ -404,7 +425,8 @@ hc2Mix(Match, {
   // You're never sent: when you're the one out wide, your computer team-mates make the runs.
   aiWingRuns(team, owner) {
     team.wing = null; const fl = this.aiFrame(team, owner.x), off = owner.y - 34, sgn = Math.sign(off) || 1;
-    if (Math.abs(off) < WING.WIDE - 1 || fl < 10) return;
+    if (Math.abs(off) < WING.WIDE - 1) return this.aiBoxRuns(team, owner, fl, sgn);   // (smarter-ai: through the middle - late runs into the box)
+    if (fl < 10) return;
     const human = team === this.home && !this.demo ? this.human : null, W = new Map(), a = clamp((fl - 12) / 20, 0, 1);
     const free = team.players.filter(q => q !== owner && q !== human && !q.keeper && this.aiFree(q) && q !== team.support && q.stamina > 0.12);
     const homeSide = q => Math.sign(AI.HOME_Y_ATT[q.i] || 0);
@@ -418,6 +440,20 @@ hc2Mix(Match, {
       const fb = free.find(q => q.i >= 1 && q.i <= 4 && homeSide(q) === sgn && !W.has(q) && q.stamina > 0.4);
       if (fb && this.aiFrame(team, fb.x) > fl - 25) W.set(fb, { x: this.aiWorld(team, Math.min(fl + 10, 47)), y: clamp(34 + sgn * Math.min(Math.abs(off) + 5, 31), 3, PITCH_W - 3), run: 'overlap', go: true });
     }
+    team.wing = W.size ? W : null; team.wingBy = W.size ? owner : null;
+  },
+  // smarter-ai: THROUGH THE MIDDLE (real football's late runs: the second striker peels off to the far side of the box, a
+  // midfielder arrives at the edge - the third man). Before, only a wide man got runs; a central attack had the one runner in
+  // behind and everyone else in their zones, so the man on the ball had nobody in the box to find. Same spots and timing
+  // as the wing runs (WING.RUNS), mirrored away from the ball's side; the offside line still holds them (ai()).
+  aiBoxRuns(team, owner, fl, sgn) {
+    if (fl < 12) return;
+    const human = team === this.home && !this.demo ? this.human : null, W = new Map(), a = clamp((fl - 12) / 18, 0, 1);
+    const free = team.players.filter(q => q !== owner && q !== human && !q.keeper && this.aiFree(q) && q !== team.support && q !== team.runner && q.stamina > 0.12);
+    const run = (name, pool) => { const [X, o] = WING.RUNS[name], pt = { x: this.aiWorld(team, X - (1 - a) * WING.BACK), y: clamp(34 - sgn * Math.abs(o) - sgn * 2, 3, PITCH_W - 3), run: name, go: a > 0.45 };
+      const q = pool.filter(x => !W.has(x)).sort((u, v) => len(u.x - pt.x, u.y - pt.y) - len(v.x - pt.x, v.y - pt.y))[0]; if (q) W.set(q, pt); return q; };
+    run('far', free.filter(q => q.i >= 9));                                       // the other striker: the far side of the box
+    run('edge', free.filter(q => q.i === 6 || q.i === 7));                        // a central midfielder: late, to the edge
     team.wing = W.size ? W : null; team.wingBy = W.size ? owner : null;
   },
   // is our cross in the air? (nobody has touched it since he hit it). The computer's crosses are marked at the kick
@@ -439,13 +475,17 @@ hc2Mix(Match, {
   // to hit; he crosses when it's a good one (a smarter side waits for a better look: K.crossRead), always at the
   // byline or with a man in his face, and how often by level (K.cross: Easy crosses less)
   aiCrossTry(p, K, pressed) {
+    const r = this.aiCrossLook(p, K, pressed); if (!r || !(Math.random() < r.want * K.cross)) return false;
+    this.aiCross(p, r.c, K); return true;
+  },
+  // (smarter-ai: the judgement on its own, without the dice - the team brain's 'cross' move uses it too)
+  aiCrossLook(p, K, pressed) {
     const team = p.team, fl = this.aiFrame(team, p.x), off = Math.abs(p.y - 34);
-    p.crossOn = false; if (off < WING.WIDE - 1 || fl < 20 || (fl > 36 && off < 20)) return false;
-    const c = this.crossLook(p); p.crossOn = !!c && c.score > K.crossRead - 0.9; if (!c) return false;
+    p.crossOn = false; if (off < WING.WIDE - 1 || fl < 20 || (fl > 36 && off < 20)) return null;
+    const c = this.crossLook(p); p.crossOn = !!c && c.score > K.crossRead - 0.9; if (!c) return null;
     const early = fl < 28 ? 0.4 : 0;                                              // an early cross (25-32 m from the line) only for a good look
     const want = (fl > 46 || pressed) && c.score > K.crossRead - 1.2 ? 0.85 : c.score > K.crossRead + early ? 0.85 : c.score > K.crossRead + early - 1.0 ? 0.4 : 0;
-    if (!(Math.random() < want * K.cross)) return false;
-    this.aiCross(p, c, K); return true;
+    return want ? { c, want } : null;
   },
   // every team-mate in or running into the box as a cross: where he'll be (his run's spot), whipped or floated.
   // score = he gets there in time + the defenders don't + his shot from there - the keeper's reach - bodies in a low lane
@@ -507,7 +547,8 @@ hc2Mix(Match, {
   // risk = defenders who can reach the line before the ball (Buckland's isPassSafeFromAllOpponents) + defenders who win
   // the race to where it arrives. score = forward progress + his own shot from there - risk - distance
   passLook(p) {
-    const team = p.team, side = team.side, opp = team.opp.players.filter(o => !o.sentOff); let best = null;
+    const team = p.team, side = team.side, opp = team.opp.players.filter(o => !o.sentOff); let best = null; const all = [];
+    const ST = this.brainStyle(team), DIR = ST.direct, WID = ST.width;
     const race = (pt, Tb) => { let r = 0; for (const o of opp) { const to = 0.3 + Math.max(0, len(o.x - pt.x, o.y - pt.y) - 1.0) / 6.5; if (to < Tb + 0.2) r += clamp((Tb + 0.2 - to) / 0.5, 0, 1); } return r; };
     const lane = (pt, d, T) => { let r = 0; const dx = pt.x - p.x, dy = pt.y - p.y;
       for (const o of opp) { const t = ((o.x - p.x) * dx + (o.y - p.y) * dy) / (d * d); if (t < 0.02 || t > 1.0) continue;
@@ -519,36 +560,55 @@ hc2Mix(Match, {
       const d0 = len(q.x - p.x, q.y - p.y); if (d0 < 5 || d0 > 40) continue;
       const lt = d0 / 14 * 0.6, feet = { x: q.x + q.vx * lt, y: q.y + q.vy * lt }, opts = [];   // (doPass leads him a little)
       { const d = len(feet.x - p.x, feet.y - p.y), T = passTime(d) + 0.15; opts.push({ mode: 'ground', pt: feet, d, risk: lane(feet, d, T) + race(feet, T) * 0.5 }); }
-      if (q.speed > 2 && q.vx * side > 1) {                                       // through: into the space in front of a runner
+      // smarter-ai: a man waiting on the last defender's shoulder gets it in behind too (he goes as it's played - the
+      // receiver's run), not only one already running: holding the line (t-024) had stopped the through balls to him
+      const shoulder = q.i >= 5 && (offL != null ? this.aiFrame(team, q.x) > offL - 3.5 : team.offX != null && this.aiFrame(team, q.x) > team.offX - 3.5);
+      if ((q.speed > 2 && q.vx * side > 1) || shoulder) {                         // through: into the space in front of a runner
         const pt = { x: clamp(q.x + side * 8, 2, PITCH_L - 2), y: clamp(q.y + (34 - q.y) * 0.12 + q.vy * 0.6, 2, PITCH_W - 2) }, d = len(pt.x - p.x, pt.y - p.y);
         const T = passTime(d) * 1.3 + 0.15, tq = len(pt.x - q.x, pt.y - q.y) / Math.max(5, q.top(true, false));
         opts.push({ mode: 'through', pt, d, risk: lane(pt, d, T) + race(pt, Math.max(T, tq)) * 0.8 });
       }
-      if (d0 > 14) { const T = clamp(0.7 + d0 / 25, 0.9, 1.9) + 0.2; opts.push({ mode: 'lob', pt: feet, d: d0, risk: race(feet, T) + 0.25 }); }   // over a blocked lane (lob-mechanics: the AI's old judgement of WHEN to lob, kept on purpose)
+      // smarter-ai (clips 5 and 6, the computer kept only 41% of its lobs): a lob was rated by who reaches the drop at a
+      // jog, not by how the defenders really go: the man nearest the receiver sprints WITH him while it's up (ai():
+      // `aerial`), so anyone who gets there about when the receiver does makes it a 50-50 at best; and a man right on
+      // the passer, in front of the kick, charges it down before it's up (most of the lost ones never got above 2 m)
+      const lobRisk = (pt, T) => { const dq = len(q.x - pt.x, q.y - pt.y), dx = pt.x - p.x, dy = pt.y - p.y, dl = len(dx, dy) || 1; let r = race(pt, T) + 0.25, mk = 0;
+        for (const o of opp) { if (o.keeper) continue; const de = len(o.x - pt.x, o.y - pt.y); if (de < 12) mk = Math.max(mk, clamp((dq + 3.5 - de) / 3.5, 0, 1));
+          const rx = o.x - p.x, ry = o.y - p.y, rl = len(rx, ry); if (rl < 3.5 && (rx * dx + ry * dy) / (rl * dl) > 0.4) r += AI.LOB_READ; }
+        return r + mk * 0.8 * AI.LOB_READ; };
+      if (d0 > 14) { const T = clamp(0.7 + d0 / 25, 0.9, 1.9) + 0.2; opts.push({ mode: 'lob', pt: feet, d: d0, risk: lobRisk(feet, T) }); }   // over a blocked lane (lob-mechanics: the AI's old judgement of WHEN to lob, kept on purpose)
       const o = opts.sort((u, v) => u.risk - v.risk)[0];
       let open = 8; for (const e of opp) open = Math.min(open, len(e.x - o.pt.x, e.y - o.pt.y));
       const progress = (o.pt.x - p.x) * side, sh = len(team.goalX - o.pt.x, 34 - o.pt.y) < 30 ? this.shotLook(team, o.pt.x, o.pt.y).q : 0;
       const wide = Math.abs(o.pt.y - 34) > WING.WIDE + 1 && this.aiFrame(team, o.pt.x) > 14 && Math.abs(p.y - 34) < Math.abs(o.pt.y - 34) ? 0.8 * this.dk(team).cross : 0;   // t-012: out to a wide man in their half (wing play)
-      const score = progress / 14 + Math.min(open, 7) / 6 + sh * 1.2 - o.risk * 1.6 - o.d / 45 + wide;
-      if (!best || score > best.score) best = { q, score, mode: o.mode, shot: sh, risk: o.risk, dir: { x: (q.x - p.x) / d0, y: (q.y - p.y) / d0 } };
+      const score = progress / 14 * (1 + 0.4 * DIR) + Math.min(open, 7) / 6 + sh * 1.2 - o.risk * 1.6 - o.d / 45 + wide * (1 + 0.5 * WID);   // (smarter-ai: the style's directness and width)
+      let mk = 9; for (const e of opp) if (!e.keeper) mk = Math.min(mk, len(e.x - q.x, e.y - q.y));
+      const opt = { q, score, mode: o.mode, shot: sh, risk: o.risk, progress, marked: mk < 2, lane: o.mode === 'lob' ? 0 : lane(o.pt, o.d, passTime(o.d) + 0.15), dir: { x: (q.x - p.x) / d0, y: (q.y - p.y) / d0 } };
+      all.push(opt); if (!best || score > best.score) best = opt;
     }
+    if (best) best.all = all;                                                     // (smarter-ai: the move list also wants the safe ball and the curve)
     return best;
   },
   // Buckland's SUPPORT SPOT: one team-mate goes to the best spot near the ball - open, a safe pass away, and a shot from there
   aiSupport(team, owner) {
     const cand = team.players.filter(q => q.i >= 5 && q !== owner && q !== team.runner && this.aiFree(q) && q !== (team === this.home && !this.demo ? this.human : null));
-    const sup = cand.sort((u, v) => len(u.x - owner.x, u.y - owner.y) - len(v.x - owner.x, v.y - owner.y))[0];
+    const mem = team.supMem && this.time.now - team.supMem.t < 1500 ? team.supMem : null, dO = q => len(q.x - owner.x, q.y - owner.y);
+    const prev = team.support || (mem && mem.p), prevPt = team.support ? team.supportPt : mem && mem.pt;
+    let sup = cand.sort((u, v) => dO(u) - dO(v))[0];
+    if (sup && prev !== sup && cand.includes(prev) && dO(prev) < dO(sup) * 1.4 + AI.STICK_SUP) sup = prev;   // (smarter-ai: the man already going keeps the job)
     team.support = sup || null; team.supportPt = null; if (!sup) return;
     let best = null; const side = team.side, lim = team.offX != null ? this.aiWorld(team, Math.max(team.offX, this.aiFrame(team, owner.x)) - 0.6) : null;
-    for (const r of [10, 14, 19]) for (let a = -100; a <= 100; a += 25) {
-      const ra = a * Math.PI / 180, x = owner.x + side * Math.cos(ra) * r, y = owner.y + Math.sin(ra) * r;
+    const spots = []; for (const r of [10, 14, 19]) for (let a = -100; a <= 100; a += 25) { const ra = a * Math.PI / 180; spots.push({ x: owner.x + side * Math.cos(ra) * r, y: owner.y + Math.sin(ra) * r }); }
+    const keep = prev === sup && prevPt && len(prevPt.x - owner.x, prevPt.y - owner.y) > 8 && len(prevPt.x - owner.x, prevPt.y - owner.y) < 22 ? prevPt : null;
+    if (keep) spots.push({ x: keep.x, y: keep.y, keep: true });                    // (smarter-ai: his spot, scored the same way)
+    for (const { x, y, keep: kept } of spots) { const r = len(x - owner.x, y - owner.y);
       if (x < 3 || x > PITCH_L - 3 || y < 3 || y > PITCH_W - 3 || (lim != null && (x - lim) * side > 0)) continue;
       let open = 8, safe = 1;
       for (const o of team.opp.players) { if (o.sentOff) continue; open = Math.min(open, len(o.x - x, o.y - y));
         const t = ((o.x - owner.x) * (x - owner.x) + (o.y - owner.y) * (y - owner.y)) / (r * r);
         if (t > 0.05 && t < 1) { const lat = Math.abs((o.x - owner.x) * (y - owner.y) - (o.y - owner.y) * (x - owner.x)) / r; if (lat < 1.5 + t * 2) safe = 0; } }
       const sh = len(team.goalX - x, 34 - y) < 28 ? this.shotLook(team, x, y).q : 0;
-      const sc = Math.min(open, 7) / 2.5 + safe * 2 + sh * 2 + (x - owner.x) * side * 0.04 - len(x - sup.x, y - sup.y) * 0.03;
+      const sc = Math.min(open, 7) / 2.5 + safe * 2 + sh * 2 + (x - owner.x) * side * 0.04 - len(x - sup.x, y - sup.y) * 0.03 + (kept ? AI.STICK_SPOT : 0);
       if (!best || sc > best.sc) best = { x, y, sc };
     }
     if (best) team.supportPt = { x: best.x, y: best.y };

@@ -15,6 +15,9 @@
 //   PACE=arcade node tools/soak.js                      t-020: the matches on ARCADE (default: the page's own, CLASSIC); the summary adds
 //                                                        board rebounds, those that went up for a header, headers / volleys off them,
 //                                                        special shots, special saves, the ARCADE SP extras
+//   LVL=rise AI=new MATCHES=24 node tools/soak.js         smarter-ai: one level, one AI for every match (the before / after by level)
+//   STYLE=press,counter node tools/soak.js               smarter-ai: the home / away style cards (brain.js STYLES; tools/styles.js plays them all)
+//   (every soak ends with the team brain's MOVES line; 12+ matches: MOVE CHECK - fails if a move that was available was never played)
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
 //
 // The set-ups rotate with different strides, so pairs of factors (teams x level, level x weather, AI x light...)
@@ -25,7 +28,10 @@ const TEAMS = ['IS', 'IRO', 'USCS', 'LUC', 'THUAS', 'AUC'], LVLS = ['easy', 'nor
 const WX = ['clear', 'rain', 'snow'], TOD = ['day', 'sunset', 'night'];
 const setup = i => {
   const home = TEAMS[i % 6]; let away = TEAMS[(i * 5 + 1) % 6]; if (away === home) away = TEAMS[(i + 3) % 6];
-  return { seed: 1000 + i * 7919, home, away, lvl: LVLS[i % 4], ai: i % 4 === 3 ? 'classic' : 'new', weather: WX[Math.floor(i / 2) % 3], tod: TOD[Math.floor(i / 3) % 3] };
+  // (smarter-ai stage 2: the CLASSIC AI used to come on i % 4 === 3 - the same step as Rise Warrior, so Rise was never
+  // played with the new team AI. Now every 7th match, which walks through all four levels; AI=new / LVL=<level> force one)
+  const lvl = process.env.LVL || LVLS[i % 4], ai = process.env.AI || (i % 7 === 6 ? 'classic' : 'new');
+  return { seed: 1000 + i * 7919, home, away, lvl, ai, weather: WX[Math.floor(i / 2) % 3], tod: TOD[Math.floor(i / 3) % 3] };
 };
 const parseOne = s => Object.fromEntries(s.trim().split(/\s+/).map(kv => kv.split('=')).map(([k, v]) => [k, k === 'seed' ? +v : v]));
 const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=${c.ai} weather=${c.weather} tod=${c.tod}`;
@@ -118,6 +124,9 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     const cl = m.clash; window.__clashN = {}; m.clash = function (...a) { const r = cl.apply(this, a), k = r === true ? 'saved' : r === false ? 'beaten' : String(r);
       window.__clashN[k] = (window.__clashN[k] || 0) + 1; return r; }; });
   const out = { game: ver, at: new Date().toISOString(), matches: [], errors: errs };
+  if (process.env.SETUP) await page.evaluate(process.env.SETUP);                  // smarter-ai: SETUP='<js>' runs first (a tunable to try)
+  if (process.env.STYLE) await page.evaluate(v => { const [h, a] = v.split(','); window.__styles = { home: h, away: a || 'neutral' }; }, process.env.STYLE);   // smarter-ai: STYLE=press,counter (tools/styles.js)
+  await page.evaluate(() => { if (typeof BRAIN_N !== 'undefined') BRAIN_N.reset(); });   // smarter-ai: the team brain's moves, counted over the whole soak
   for (let i = 0; i < list.length; i++) {
     const c = list[i]; cur = i; const t0 = Date.now();
     await page.evaluate(c => { window.__ready = false; window.__hc2.setTeams(c.home, c.away, () => { window.__ready = true; }); }, c);
@@ -167,6 +176,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       console.log(`   specials (t-028): special shots ${st.wing.spShot || 0} · special saves ${st.wing.spSave || 0} · at his line: ${f(st.clash)}${Object.keys(st.clashOut).length ? ` · clash outcomes: ${f(st.clashOut)}` : ''}`); }
     console.log(`   offsides ${st.offsides || 0} · time in play ${st.play.inPlay}% · set pieces ${st.play.setPieces}, ${st.play.spWait} s each before the kick`);   // t-024 (aim: 1-3 a match) · t-029
   }
+  const BN = await page.evaluate(() => typeof BRAIN_N === 'undefined' ? null : { seen: BRAIN_N.seen, used: BRAIN_N.used, ids: AI_MOVES.map(m => m.id) });
   await br.close();
   // summary: every Bug Watch code across all matches, errors and bugs first (t-021: the 'look' ones apart, counts only)
   const by = {};
@@ -208,6 +218,14 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     '| # | Set-up | Result | Shots | On target | Corners | Held / parried | Possession (home) | Repro |', '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
     ...out.matches.map(m => `| ${m.n} | ${m.setup.home} v ${m.setup.away}, ${m.setup.lvl}, ${m.setup.ai} AI, ${m.setup.weather}/${m.setup.tod} | ${m.finished ? m.score : 'not finished'} | ${m.shots} | ${m.onT} | ${m.corners} | ${m.held} / ${m.parried} | ${m.possHome}% | \`${m.repro}\` |`)].join('\n');
   console.log('\n' + md + '\n');
+  // smarter-ai stage 2 THE MOVE CHECK (the co-designer: "incorporates future additional gameplay features added"): every
+  // move on the team brain's list (brain.js AI_MOVES) that was available to the computer must have been played at least
+  // once in 12+ matches - a new move that's switched on but never chosen fails the soak, so nothing gets forgotten again
+  if (BN) { const per = id => ['home', 'away'].reduce((a, s) => a + (BN.used[s + '.' + id] || 0), 0), seen = id => ['home', 'away'].reduce((a, s) => a + (BN.seen[s + '.' + id] || 0), 0);
+    const never = BN.ids.filter(id => seen(id) > 0 && !per(id)); out.moves = Object.fromEntries(BN.ids.map(id => [id, { played: per(id), available: seen(id) }]));
+    console.log(`MOVES (team brain): ${BN.ids.map(id => seen(id) ? `${id} ${per(id)}` : `${id} off`).join(' · ')}`);
+    if (never.length && out.matches.length >= 12) { console.log(`MOVE CHECK FAILED: available but never played by the computer in ${out.matches.length} matches: ${never.join(', ')}`); process.exitCode = 1; }
+    else if (out.matches.length >= 12) console.log(`MOVE CHECK OK: every available move was played`); }
   if (process.env.OUT) { fs.mkdirSync(process.env.OUT, { recursive: true }); const f = `${process.env.OUT}/soak-${out.at.replace(/[:.]/g, '-').slice(0, 19)}`;
     fs.writeFileSync(f + '.json', JSON.stringify(out, null, 1)); fs.writeFileSync(f + '.md', md); console.log('wrote', f + '.json', f + '.md'); }
   console.log('errors', JSON.stringify(errs.slice(0, 4).map(e => e.msg)));

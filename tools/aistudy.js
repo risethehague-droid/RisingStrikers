@@ -11,6 +11,7 @@
 //   DRAW=1 ...                                   draw every frame: ~10x slower, but only a drawn match replays in
 //                                                tools/preview.js (the drawing uses up some of the game's random numbers)
 //   OUT=docs/ai/study.json node tools/aistudy.js also write every number and every candidate moment as JSON
+//   SETUP='AI.TGT_T = 0.01' node tools/aistudy.js run some js in the page first (a tunable, window.__styles...)
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
@@ -130,6 +131,7 @@ function studyMatch() {
     // exactly tools/preview.js MATCH=1's set-up (so a moment found here replays there)
     await page.goto(`http://localhost:${PORT}/test.html#flow`);
     await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
+    if (E.SETUP) await page.evaluate(E.SETUP);                         // (smarter-ai stage 2: SETUP='<js>' first, e.g. a tunable or window.__styles)
     await page.evaluate(() => { const m = window.__hc2; m.game.loop.sleep(); window.__T = 1e6; window.HC2_NO_DEMO = true; window.HC2_STARTED = true;
       for (const id of ['start', 'flow']) { const e = document.getElementById(id); if (e) e.remove(); } });
     await page.evaluate(([h, a]) => { window.__ready = false; window.__hc2.setTeams(h, a, () => { window.__ready = true; }); }, [c.home, c.away]);

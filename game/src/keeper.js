@@ -245,7 +245,7 @@ hc2Mix(Match, {
   // t-016 (worker-f, PR #20) held a keeper under 2.9 m/s near a loose ball so player.js kept him watching it. t-017 does
   // the facing in player.js at any speed instead (gkFace, set in keeperPlan): the cap also slowed him going across with
   // a dribbler - the 1v1 mirroring needs his full speed. keeperPlan is t-016's name for the keeper's brain, kept.
-  keeperAI(k, dt) { this.keeperPlan(k, dt); },
+  keeperAI(k, dt) { if (k.up && this.keeperUp(k, dt)) return; this.keeperPlan(k, dt); },   // (smarter-ai: up for a last corner - brain.js)
   keeperPlan(k, dt) {
     const b = this.ball, side = k.team.side, gx = k.team.ownGoalX, lineX = gx + side * 1.3;
     k.gkSet = false;
