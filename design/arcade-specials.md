@@ -113,3 +113,18 @@ unchanged; ARCADE soak before / after: goals, specials a match (target: special 
   different dice, and 4.6 v 4.0 goals is inside the noise. Before the PR: 48 matches each way (12 a level).
 - **Art:** PixelLab batch 22, 15 generations: `combo`, `combo2`, `sdribble` in every outfield kit, added by
   `tools/kit_add.py` (old frames pixel-identical, the manifest only gains).
+
+### 24-match comparison (29 Oct, ARCADE, the same 24 set-ups, 6 a level; "your side" = the computer at base)
+
+| | main | first version | level-neutral (now) |
+| --- | --- | --- | --- |
+| Goals a match | 4.29 | 4.46 | 4.00 |
+| Special shots / dribbles / combos | 1.96 / 0 / 0 | 2.17 / 0.75 / 0.04 | 2.25 / 0.79 / 0.17 |
+| Your side W-D-L, all levels | 11-7-6 | 7-6-11 | 8-8-8 |
+| Easy / Normal / Hard / Rise | 5-1-0 / 3-2-1 / 0-1-5 / 3-3-0 | 4-1-1 / 1-2-3 / 0-0-6 / 2-3-1 | 4-0-2 / 2-3-1 / 0-2-4 / 2-3-1 |
+
+- The first version's computer dribble scaled with the level (Hard / Rise dribbled more): results tilted against
+  you (7-6-11). Now the chance is the same at every level (`ASP.dribble.aiRate`, no level factor): 8-8-8.
+- Goals: 4.0-4.5 either way, inside the noise of 24 matches (matches drift apart after the first different dice).
+  The specials don't change the goal count by themselves; "more goals" is the smarter-AI work's target.
+- 0 page errors, no real bugs in all three runs.
