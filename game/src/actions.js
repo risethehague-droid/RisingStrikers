@@ -436,10 +436,24 @@ hc2Mix(Match, {
   lobPress(p, dir) {
     this.lobCharge = -1; this.lobAim = null;
     if (p.keeper || this.chipCan(p, dir)) { this.lobCharge = 0; return; }       // the chip in their box, the keeper's throw / punt: as they were
+    if (LOB_AIM_MODE === 'auto' && this.crossYou(p)) return;                     // (29 Oct: out wide in their third = a cross at your runners)
     if (LOB_AIM_MODE === 'auto') { this.lobAim = { auto: true, t: 0, mate: null }; this.lobAutoPick(p, dir); this.passAim = this.lobAim.mate; return; }   // t-019 AUTO: no ring
     const s = this.lobAimStart(p, dir);
     this.lobAim = { t: 0, rx: s.x, ry: s.y, x: s.x, y: s.y, q: null, k: 0, vx: 0, vy: 0 };
     this.lobAimMagnet(p);
+  },
+  // YOUR CROSS (the co-designer, 29 Oct: running down the wing and lobbing it for a header was "vastly inferior" -
+  // tools/strategy.js: every cross from the wing went over the byline for a goal kick, because the AUTO lob only looks
+  // for a team-mate inside the arrow's cone, and from out wide nobody was in it). Real football / FIFA / PES: from wide in
+  // the final third, the cross button aims at the runners in the box. So LOB there (AUTO) = the computer's own cross
+  // (t-012 crossLook: near post / far post / the spot / the edge, whipped or floated, the man who gets there first), at
+  // the base accuracy of your team-mates (no level edge either way). Nobody there yet: the AUTO lob as before.
+  crossYou(p) {
+    const team = p.team, X = this.aiFrame(team, p.x), off = Math.abs(p.y - 34);
+    if (p.keeper || this.setPiece || X < 26 || off < 12) return false;          // wide (12 m+ off the middle), in their last ~26 m
+    const c = this.crossLook(p); if (!c || c.score < -0.6) return false;
+    this.aiCross(p, c, { crossErr: 0.9 }); this.passAim = c.q;                  // (K.crossErr at base is ~1.4 m: yours a little truer)
+    return !!(this.pending && this.pending.p === p);
   },
   lobAimTick(p, ax, dir, dt) {
     const A = this.lobAim; A.t += dt;
@@ -810,8 +824,13 @@ hc2Mix(Match, {
     if (db < 0.9) pWin += 0.08;                                                  // right on the ball
     if (human) { const Y = this.dkY(carrier.team), P = paceK(); pWin += Y.yb - (Y.sh * P.shK + (Y.sh > 0 ? P.shAdd : 0)); }   // (v0.9.3: by level, was always +0.08; the top levels shield it;
                                                                                    // arcade-2: on ARCADE more, so the quicker game isn't easier to defend)
+    // the co-designer, 29 Oct: "the best strategy is sprinting down the middle at the goal and other strategies are all
+    // vastly inferior" (tools/strategy.js: half the centre runs ended in a penalty or a free kick on the edge of the box).
+    // A sprint protected you from its tackles MORE than close control did (-0.2 v -0.12). Real football (and FIFA / PES)
+    // is the other way round: close control shields the ball, a sprint's long knock-ons can be nicked. Now: close control
+    // still protects (-0.12), a plain sprint doesn't (+0.04: the heavy touch), the burst (a take-on) still does, a little less
     if (vsHuman) { const Y = this.dkY(p.team); pWin -= carrier.burst > paceK().burstT - 0.55 ?   // (arcade-2: ARCADE's longer dash protects you only its first 0.55 s, as on CLASSIC)
-      Math.max(0.2, 0.3 * Y.tk) : (carrier.sprinting ? 0.2 : 0.12) * Y.tk; }   // you can beat the computer with a burst (v0.9.3: by how much, by level)
+      Math.max(0.15, 0.24 * Y.tk) : (carrier.sprinting ? -0.04 : 0.12 * Y.tk); }   // you can beat the computer with a burst (v0.9.3: by how much, by level)
     else if (carrier.burst > 0) pWin -= 0.25;                                     // v0.8.2: the computer's take-on burst too
     if (paceK().duels && front > -0.3 && Math.abs(pWin - 0.5) < 0.22 && !carrier.keeper && this.duelReady() && Math.random() < 0.35) {   // arcade-2: a CONTESTED tackle (not a clear
       const h = clamp((pWin - 0.5) * 7, -AERIAL.hsMax, AERIAL.hsMax); this.aerialStart(carrier, p, { x: b.x, y: b.y }, { kind: 'ground', hs: [-h, h] }); return; }   // win or loss) becomes a MASH duel; the better tackle is a head start
@@ -858,7 +877,9 @@ hc2Mix(Match, {
       const rx = p.x - c.x, ry = p.y - c.y, rl = len(rx, ry); if (rl > 1.8) continue;
       if ((dir.x * rx + dir.y * ry) / (rl || 1) < 0.35) continue;               // not in his way
       const human = p === this.human && !this.demo, vsHuman = c === this.human && !this.demo;
-      const rate = human ? (c.burst > 0 ? 1.6 : 3.2) * this.dkY(c.team).mine : vsHuman ? (c.burst > 0 ? 0.3 : c.sprinting ? 0.7 : 1.3) * this.dkY(p.team).blk : (c.burst > 0 ? 0.5 : 1.6);   // per second in his path (v0.9.3: v you, by level)
+      // (29 Oct: a man in your path took it off a sprinting you half as often as off a jogging you - 0.7 v 1.3. Now the
+      // sprint is the easier one to block, 1.5, and the burst 0.5 (was 0.3): sprinting down the middle stops paying)
+      const rate = human ? (c.burst > 0 ? 1.6 : 3.2) * this.dkY(c.team).mine : vsHuman ? (c.burst > 0 ? 0.5 : c.sprinting ? 1.5 : 1.3) * this.dkY(p.team).blk : (c.burst > 0 ? 0.5 : 1.6);   // per second in his path (v0.9.3: v you, by level)
       if (Math.random() < rate * (still ? 0.5 : 1) * dt) { this.steal(p, c, true); return; }
     }
   },

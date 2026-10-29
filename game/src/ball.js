@@ -242,7 +242,7 @@ hc2Mix(Match, {
     if (go) this.releaseKick(k);
   },
   releaseKick(k) {
-    const b = this.ball, whiff = why => { if (/^(fall|hit|blasted|getup|slide)$/.test(k.p.state) || (b.lastP && b.lastP.team !== k.p.team)) return;   // (tackled / knocked down in the wind-up: fair, not a bug - the overnight soak's one WHIFF was that)
+    const b = this.ball, whiff = why => { if (/^(fall|hit|blasted|getup|slide)$/.test(k.p.state) || (b.lastP && b.lastP.team !== k.p.team) || (b.last && b.last !== k.p.team)) return;   // (tackled / knocked down in the wind-up: fair, not a bug - the overnight soak's one WHIFF was that. 29 Oct: a slide that pokes it off him mid-wind-up (knock() sets b.last, not b.lastP) is fair too - seed 8919's WHIFF)
       if (k.info.special && this.bw) this.bw.flag('WHIFF', `${this.bw.who(k.p)}'s LV${k.info.special} ${k.p.kickAnim || 'special'} never touched the ball (${why}) - the bars were spent`, { p: k.p }); };   // v0.8.7 BUG WATCH
     if (b.owner !== k.p) return b.owner ? undefined : whiff('it got away');     // (someone took it off him in the wind-up: fair)
     if (!k.p.hands && len(b.x - k.p.x, b.y - k.p.y) > 2.0) return whiff(`it was ${len(b.x - k.p.x, b.y - k.p.y).toFixed(1)} m away`);   // the ball ran away from him: air kick
@@ -646,7 +646,7 @@ hc2Mix(Match, {
     if (b.owner && b.owner.hands) return;
     if (net && b.gpIn) { b.vx = b.gpIn.vx; b.vz = b.gpIn.vz; b.gpIn = null; }   // (t-013: the net takes the pace off now, not the goal line - netRipple)
     const owned = !!b.owner, sub = 3, h = dt / sub, ARC = paceK().arcade;
-    if (ARC) this.spArcadeWatch();                                              // t-020: ARCADE's SP for aerials won, rebound volleys (specials.js)
+    this.spArcadeWatch();                                                       // (29 Oct: both paces - the SP extras for an aerial battle won etc.)                                              // t-020: ARCADE's SP for aerials won, rebound volleys (specials.js)
     for (let i = 0; i < sub; i++) {
       const ox = b.x, oy = b.y, oz = b.z;
       ballStep(b, h, owned);
