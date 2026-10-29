@@ -57,6 +57,10 @@ const AI_MOVES = [
     available: (m, p, c) => p.crossOn && !c.pressed,
     look: (m, p, c) => ({ value: 2.4, want: 0.7 * Math.min(1, c.K.cross) }),
     play: () => true },
+  { id: 'wall',                                                                  // smarter-ai (the co-designer, 29 Oct: "doing a 1-2 is impractical"): the man who just
+    available: (m, p) => p.wallAt !== p.gotAt && !!m.wallRunner(p),              // passed to him is running on past his marker - first time, back into his path
+    look: (m, p, c) => { const w = m.wallLook(p); if (!w) return null; p.wallAt = p.gotAt; return { value: 3.4, want: WALL.WANT * clamp(0.5 + 0.5 * c.K.sp, 0.5, 1), how: w }; },   // (one go per touch)
+    play: (m, p, w) => { m.doPass(p, w.dir, w.mode, w.r); } },
   { id: 'pass',                                                                  // v0.8.2 the best pass (passLook): to feet, through, lobbed
     available: () => true,
     look: (m, p, c) => { const b = c.pass(); if (!b || b.risk >= c.riskMax) return null;
@@ -87,6 +91,9 @@ const AI_MOVES = [
 // clip 7's rule: pressed, a ball to a marked man this risky loses to the safe one (RISK) or to keeping it (KEEP). Looser
 // than it could be on purpose: tighter (0.3 / 0.45) made the top levels so careful they scored less
 const SAFE = { RISK: 0.45, KEEP: 0.6 };
+// the 1-2 (wall pass): how long after he got it he still plays it first time (s), the passer's run (m/s forward, how far
+// level with or past the wall man), the lane (a defender this close to the line shuts it), how often it's taken
+const WALL = { FIRST: 0.9, RUN_V: 2.4, PAST: -3, LANE: 1.4, LEAD: 0.7, WANT: 0.85, TRACK: 2.5 };
 // how often each move was looked at (available) and played, by side: tools/soak.js reads it (the "never used" check)
 const BRAIN_N = { seen: {}, used: {}, reset() { this.seen = {}; this.used = {}; } };
 
@@ -160,6 +167,33 @@ hc2Mix(Match, {
     picks.sort((u, v) => v.r.value - u.r.value);
     for (const { mv, r } of picks) if (mv.play(this, p, r.how, c) !== false) { const k = side + '.' + mv.id; N.used[k] = (N.used[k] || 0) + 1; p.lastMove = mv.id; return mv.id; }
     return null;
+  },
+  // between his thinks: only the 1-2 is looked at (first time - he can't wait to think), once per touch
+  brainWall(p, K) {
+    const mv = AI_MOVES.find(x => x.id === 'wall'), c = { K, S: this.brainStyle(p.team), M: p.team.mood || this.brainMood(p.team) };
+    if (!mv.available(this, p, c)) return false; const r = mv.look(this, p, c); if (!r || !(Math.random() < r.want)) return false;
+    mv.play(this, p, r.how, c); const k = (p.team === this.home ? 'home' : 'away') + '.wall'; BRAIN_N.used[k] = (BRAIN_N.used[k] || 0) + 1; BRAIN_N.seen[k] = (BRAIN_N.seen[k] || 0) + 1; p.lastMove = 'wall'; return true;
+  },
+  // THE 1-2: who passed to him a moment ago and is now running on (ai() notes p.gotFrom / p.gotAt when the ball arrives).
+  // Your own run counts the same as a computer team-mate's: the receiver looks for it first (it outranks a normal pass)
+  wallRunner(p) {
+    const r = p.gotFrom; if (!r || r.sentOff || r.team !== p.team || r.keeper || this.time.now - (p.gotAt || 0) > WALL.FIRST * 1000) return null;
+    const side = p.team.side, vf = r.vx * side; if (vf < WALL.RUN_V || r.busy() || r.stun > 0) return null;
+    if (this.aiFrame(p.team, r.x) < this.aiFrame(p.team, p.x) + WALL.PAST) return null;   // (he has to be getting level with / past the wall man)
+    if (offsideOn() && this.offPos(r, this.offLine(p.team))) return null;
+    return r;
+  },
+  // the return ball: into his path (where he'll be ~LEAD s on), along the grass, only if the lane is open and no defender
+  // gets there first - so a well-timed 1-2 works and a covered one isn't tried
+  wallLook(p) {
+    const r = this.wallRunner(p); if (!r) return null;
+    const tx = clamp(r.x + r.vx * WALL.LEAD * 1.4, 2, PITCH_L - 2), ty = clamp(r.y + r.vy * WALL.LEAD * 1.4, 2, PITCH_W - 2), dx = tx - p.x, dy = ty - p.y, d = len(dx, dy);
+    if (d < 4 || d > 30) return null;
+    const Tb = passTime(d) + 0.15, tr = len(tx - r.x, ty - r.y) / Math.max(4, r.speed);
+    for (const o of p.team.opp.players) { if (o.sentOff || o.keeper) continue;
+      const t = ((o.x - p.x) * dx + (o.y - p.y) * dy) / (d * d); if (t > 0.05 && t < 1) { const lat = Math.abs((o.x - p.x) * dy - (o.y - p.y) * dx) / d; if (lat < WALL.LANE) return null; }
+      if (0.3 + Math.max(0, len(o.x - tx, o.y - ty) - 1) / 6.5 < Math.max(Tb, tr) - 0.1) return null; }
+    return { r, dir: { x: (r.x - p.x) / (len(r.x - p.x, r.y - p.y) || 1), y: (r.y - p.y) / (len(r.x - p.x, r.y - p.y) || 1) }, mode: 'through' };
   },
   // PASS AND MOVE (real football's one-two and third-man run; the co-designer: "running, positioning"): a midfielder or
   // forward who plays a forward ground ball in their half goes on past the man he found, on the other side of him, for

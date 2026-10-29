@@ -1616,6 +1616,23 @@
           else { const d = t.players.filter(p => p.i >= 1 && p.i <= 4 && !p.sentOff); r.l[0] += d.reduce((a, p) => a + m.aiFrame(t, p.x), 0) / (d.length || 1); r.l[1]++; }
           if (r.t < 12) return null;
           return { o: `${nm} · passes ${r.passes} (${r.passes ? Math.round(100 * r.fwd / r.passes) : 0}% forward) · shots ${r.shots} · width with the ball ${r.w[1] ? (r.w[0] / r.w[1]).toFixed(0) : '-'} m · back line without it ${r.l[1] ? (r.l[0] / r.l[1]).toFixed(0) : '-'} m from halfway` }; } })),
+      ...[['AI7', 'the 1-2: you pass and go, it comes straight back', 'you (scripted) pass to your #10 and sprint on past his marker: the lane is open - he plays it back first time into your path (the co-designer, 29 Oct: "doing a 1-2 is impractical")', null],
+          ['AI7b', 'the 1-2 covered: a man in the lane', 'the same, but their #6 stands on the return line: he should NOT give it back (a well-timed 1-2 works, not every one)', [53.5, 36.6]]].map(([id, name, sub, blk]) => ({
+        id, group: 'AI', name, sub, kind: 'ai', realAi: true, demo: false, you: true, maxT: 6,
+        setup(r) { const h = H(), a = A(); aiFull(r, { you: true }); cast([h[0], h[6], h[9], a[0], a[3], a[2], ...(blk ? [a[5]] : [])]);
+          put(h[0], 3, 34, 0); put(h[6], 46, 38, 0); atFeet(h[6]); put(h[9], 56, 33, 0); put(a[3], 57.6, 33.2, 4); put(a[2], 76, 30, 4); put(a[0], LINE_X, 34, 4); if (blk) put(a[5], blk[0], blk[1], 4);
+          r.human = h[6]; r.me = h[6]; r.mate = h[9];
+          r.bots.set(h[6], (p, dt) => { const b = m.ball;
+            if (!r.passed && b.owner === p && r.t > 0.2) { r.passed = r.t; m.doPass(p, { x: (r.mate.x - p.x) / len(r.mate.x - p.x, r.mate.y - p.y), y: (r.mate.y - p.y) / len(r.mate.x - p.x, r.mate.y - p.y) }, 'ground', r.mate); return; }
+            if (b.owner === p && r.passed) { p.steer(0, 0, dt); return; }
+            if (r.passed) { p.sprinting = true; p.moveTo(72, 37, p.top(true, false), dt); } else p.steer(0, 0, dt); }); },
+        check(r) { const b = m.ball;
+          if (b.owner === r.mate && r.got == null) r.got = r.t;
+          if (r.got != null && r.back == null && m.pending && m.pending.p === r.mate) r.back = { t: r.t, to: m.pending.info.target, move: r.mate.lastMove };
+          if (r.back && b.owner === r.me) return { o: `RETURNED first time (${(r.back.t - r.got).toFixed(2)} s after he got it, move ${r.back.move}) · you have it back at ${r.t.toFixed(1)} s` };
+          if (b.owner && b.owner.team !== m.home) return { o: `${r.back ? 'RETURNED but cut out' : 'NO 1-2'} · their #${b.owner.num} has it${r.back ? '' : ` (your #10: ${r.mate.lastMove || 'held it'})`}` };
+          if (r.t > 4.5) return { o: r.back ? `RETURNED (to ${aiWho(r.back.to)}) · ball loose` : `NO 1-2 in 4 s · your #10 ${b.owner === r.mate ? 'kept it' : 'played ' + (r.mate.lastMove || 'something else')}` };
+          return null; } })),
       { id: 'AI6', group: 'AI', name: 'Rise Warrior reads your flank', sub: 'Rise Warrior only: you (scripted) keep going down the far side; after a while Rami says they\'ve read you and their block shifts over to that flank', kind: 'ai', realAi: true, demo: false, maxT: 12, you: true,
         setup(r) { aiFull(r, { att: 10, you: true, read: true }); const c = H()[5]; put(c, 58, 10, 0); atFeet(c); r.human = c;
           r.bots.set(c, (p, dt) => { if (m.ball.owner !== p) { p.steer(0, 0, dt); return; } if (p.x > 88) { put(p, 58, 10, 0); atFeet(p); } dribbleTo(95, 9, 5.5)(p, dt); });
@@ -2548,7 +2565,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       force === 'lose' ? `a LV${shot} special beats his LV${lv} save: the cut scene, then he's blasted` : `a LV${shot} special at him: the cut scene, then his save (made to win here)`, { lv: shot, from, block: [], save: lv }), { group: 'SM', force });
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
-    add('AI', 'smarter-ai · THE TEAM BRAIN', 'The real team AI on both sides (smarter-ai stage 2, docs/smarter-ai.md): a support man who keeps his job, one presser + one cover, no lob into a marked man, chasing late (and the keeper up for the last corner), the four example styles, Rise Warrior reading your flank.', aiTests());
+    add('AI', 'smarter-ai · THE TEAM BRAIN', 'The real team AI on both sides (smarter-ai stage 2, docs/smarter-ai.md): a support man who keeps his job, one presser + one cover, no lob into a marked man, chasing late (and the keeper up for the last corner), the four example styles, Rise Warrior reading your flank, the 1-2 (open and covered).', aiTests());
     add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
     add('RS', 't-029 · SET-PIECE SETUP', 'Every restart gets a short setup, as on TV: the whistle / flag and a caption, the players JOG into the restart\'s shape (anyone too far is moved under a quick TV wipe, never in plain sight), the taker walks up and places the ball, then you aim / the computer takes it. One time per kind, CLASSIC and ARCADE (quicker); your own set piece: PASS / SHOOT / LOB skips to aiming once the shape is mostly in.', rsTests());
