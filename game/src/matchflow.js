@@ -128,11 +128,14 @@ hc2Mix(Match, {
     for (const [p, q] of spots) p.spot = q;
     const reach = S.v * (T + 0.5), far = p => p === taker ? len(stand.x - p.x, stand.y - p.y) > reach : !!p.spot && len(p.spot.x - p.x, p.spot.y - p.y) > reach;
     const wipe = !opts.cut && (kind === 'CORNER' || [taker, ...must].some(far));   // (a foul's free kick: the foul scene's wipe is covering it right now)
-    if (wipe) this.wipe();
+    // t-032: a corner's cut is a BLACKOUT (ui.js blackout, times in PACE setup bo*), not the TV wipe: an eased fade out,
+    // everyone moved while it is fully black, then it fades in on the taker walking to the flag and the box filling
+    const bo = wipe && kind === 'CORNER' ? { t: 0, o: S.boOut, h: S.boHold, i: S.boIn, a: 0, at: {} } : null;
+    if (wipe && !bo) this.wipe();
     this.aimPt = null;                                                           // (no aim cursor yet: the camera follows the ball, ui.js draws nothing)
     if (team === this.home) this.human = taker;
     this.setPiece = { kind, team, taker: null, t: 0, kicked: false,
-      su: { key, t: 0, T, Tmax: T * 1.5 + 0.6, taker, must, stand, ball: { x, y }, toward, cutAt: wipe ? 0.24 : opts.cut ? 0 : -1, cut: false, placed: null, skip: false, wiped: wipe || !!opts.cut, moved: 0 } };
+      su: { key, t: 0, T, Tmax: T * 1.5 + 0.6, taker, must, stand, ball: { x, y }, toward, cutAt: bo ? 1e9 : wipe ? 0.24 : opts.cut ? 0 : -1, cut: false, placed: null, skip: false, wiped: wipe || !!opts.cut, moved: 0, bo } };
     if (!wipe && !opts.cut) this.setPiece.su.cut = true;                         // (nothing to cut: they all jog)
     const cap = opts.offside ? ['OFFSIDE!', note || `FREE KICK · ${team.name}`] : [kind, note || team.name];
     this.say(cap[0], cap[1], Math.min(2.2, T + 0.4));
@@ -162,11 +165,27 @@ hc2Mix(Match, {
     this.camX = this.camY = undefined;                                           // a cut, not a pan
     U.cutMoved = U.moved - n0;
   },
+  // t-032 the corner's BLACKOUT, on the setup's own clock (game time: a pause holds it, the Test Lab steps it): out (eased),
+  // held black - the cut half-way through it, so nobody is ever seen jumping - then in (eased) on the corner being set up.
+  // A press to skip runs the rest boSkip x faster; at most out + hold + in after the restart it is gone, never a hang.
+  spBlackout(U, dt) {
+    const B = U.bo, ease = x => 0.5 - 0.5 * Math.cos(Math.PI * clamp(x, 0, 1));
+    if (B.done) return;
+    B.t += dt * (U.skip ? paceK().setup.boSkip : 1);
+    if (!U.cut && B.t >= B.o + B.h * 0.5) this.spCut();
+    B.a = B.t < B.o ? ease(B.t / B.o) : B.t < B.o + B.h ? 1 : 1 - ease((B.t - B.o - B.h) / B.i);
+    const at = B.at;                                                             // (when each stage was reached, setup seconds: the Test Lab reports them)
+    if (at.black == null && B.a >= 1) at.black = U.t;
+    if (at.black != null && at.up == null && B.a < 1) at.up = U.t;
+    if (B.t >= B.o + B.h + B.i) { B.a = 0; B.done = true; at.clear = U.t; }
+    this.blackout(B.a);
+  },
   // one frame of the setup (true: still setting up). The taker walks to the ball (a corner's carries it), places it,
   // waits for the shape; your set piece: a press of PASS / SHOOT / LOB / THROUGH takes you to aiming once it is mostly in
   spSetupTick(dt) {
     const sp = this.setPiece, U = sp.su, b = this.ball, tk = U.taker, S = paceK().setup;
     U.t += dt;
+    if (U.bo) this.spBlackout(U, dt);                                            // t-032: the corner's fade (it makes the cut while black)
     if (!U.cut && U.t >= U.cutAt) this.spCut();
     for (const q of this.all) { if (q.sentOff || q === tk) continue;
       if (!U.cut || !this.settle(q, dt, q.keeper ? S.v * 0.8 : S.v)) q.steer(0, 0, dt);
@@ -195,7 +214,8 @@ hc2Mix(Match, {
     if (U.placed == null || !((U.frac >= 0.8 && (U.t >= U.T || U.skip)) || U.t >= U.Tmax)) return true;
     // ready: aim / the computer takes it (anyone not quite in keeps jogging in - settle() - until it is kicked)
     if (this.spCam && this.camTarget === this.spCam) this.camTarget = null;     // (your aim's framing / the ball from here)
-    sp.su = null; sp.setup = { t: U.t, key: U.key, frac: U.frac, skip: U.skip, wiped: U.wiped, moved: U.moved, placed: U.placed };
+    if (U.bo) this.blackout(0);                                                  // (never carry the black into the aim)
+    sp.su = null; sp.setup = { t: U.t, key: U.key, frac: U.frac, skip: U.skip, wiped: U.wiped, moved: U.moved, placed: U.placed, bo: U.bo && U.bo.at };
     sp.t = 0; sp.gate = Input.held('shoot');                                     // (a SHOOT that skipped: let go before it charges a shot)
     this.aimPt = this.defaultAim(sp.kind, sp.team, tk, U.ball.x, U.ball.y);
     if (sp.kind !== 'THROW-IN') tk.face = dirIndex(this.aimPt.x - tk.x, this.aimPt.y - tk.y);

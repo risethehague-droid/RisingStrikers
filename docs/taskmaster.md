@@ -9,7 +9,7 @@ here, in the repo, on the Taskboard and in the agents folder; nothing depends on
 | --- | --- |
 | Official game (Luca's page) | https://claude.ai/artifact/AD1rvV13DR3nvQPzfsRojf (published from `game/index.html`) |
 | Official Test Lab | https://claude.ai/artifact/Goa4b8PepGxbqv9877pPCV (published from `game/lab.html`) |
-| HC2 HQ, the Taskboard (cards: collection `tasks`, each with `next` = who picks it up after Luca's OK; status lines: `meta/hq`; ↻ Check now = a quick run of the 2-hourly check, Luca only) | https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 |
+| HC2 HQ, the Taskboard (cards: collection `tasks`, each with `next` = who picks it up after Luca's OK; status lines: `meta/hq`; ↻ Check now = a quick run of the scheduled check, Luca only; ⚡ Turbo = the check every 2 hours instead of 3 times a day, Luca only) | https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 |
 | Test Lab classic (frozen at v0.9.7, a fallback) | https://claude.ai/artifact/UA1KSu38xBxmQe5eEBToTk |
 | PR previews | one "HC2 PR #N preview" page per PR, linked from its card (`preview.page`); see "Previews" below |
 | Team setup doc | https://claude.ai/artifact/8QEZs4UX4XEGYGWYdqPssF |
@@ -22,7 +22,7 @@ here, in the repo, on the Taskboard and in the agents folder; nothing depends on
 
 | Name | When | Does |
 | --- | --- | --- |
-| HC2 taskmaster check | every 2 hours, 09:00-23:00 Dutch time, and on HQ's ↻ Check now (a QUICK RUN: no test-running reviews) | Needs OK cards for `friend/` PRs; every PR card's preview (below); reviews new reports in the agents folder (`/inbox`); briefs OK'd cards whose `next` is a worker, when it's clear; HQ's status lines |
+| HC2 taskmaster check | 3 times a day (08:39, 13:39, 20:39 Dutch time; Luca, 29 Oct: to save usage); every 2 hours (08:39-22:39) while HQ's ⚡ Turbo is on (it changes this task's schedule, recorded in `meta/hq.turbo`); and on HQ's ↻ Check now (a QUICK RUN: no test-running reviews) | Needs OK cards for `friend/` PRs; every PR card's preview (below); reviews new reports in the agents folder (`/inbox`); briefs OK'd cards whose `next` is a worker, when it's clear; HQ's status lines |
 | HC2 overnight QA | 01:44 every night | 12 simulated matches (`tools/soak.js`) + all tests + Luca's watch-mode marks; at most 2 small fixes on `qa/` branches with `qa-*` cards; a report to the folder |
 
 **HQ's page** can also change from the co-designer's side (CLAUDE.md "HC2 HQ is the exception", PR #39): before
@@ -42,6 +42,9 @@ reported on yet.
 
 ## Merging a pull request (after Luca's OK on its card)
 
+0. **Read the PR's card on HQ first: merge only if its status is `approved`** (Luca's OK through HQ's button, with
+   `decision.verdict` "ok"). An "ok" in chat is not enough on its own: on 25 Oct an "ok" in chat came in the same
+   minute Luca sent #37 and #38 *back* on HQ, and both went live by mistake. Sent back = not merged; read his note.
 1. Check: `gh api repos/risethehague-droid/RisingStrikers/pulls/<n>` (REST only; GraphQL is blocked). **Note the
    head SHA you test.**
 2. Merge it locally into `main` (`git merge --no-ff origin/<branch>`), resolve clashes keeping both sides' intent.
@@ -54,8 +57,33 @@ reported on yet.
    tested**: `gh api -X PUT .../pulls/<n>/merge -f merge_method=merge -f sha=<tested sha>`. (Without `sha`, commits
    pushed after your test come in untested: it happened with PR #1.) Then check `main` again.
 6. `/publish`, then the card → done with one line of what went live.
+7. **HQ's Versions:** add the new version's doc. Upload the PR GIFs that aren't in HQ yet (a Needs OK card's
+   `preview.gif` is usually already there: reuse it) and add them to `design/hq/gif-assets.json` (repo path → HQ
+   `/_blob/…` url; commit it). Then `python3 design/hq/hqdata.py versions $TMP/hq --gifs design/hq/gif-assets.json` and
+   ArtifactData `set` only the new `versions/<v0-x-y>` doc. Set `meta/hq.gameVer`.
 
-## Previews on Needs OK cards (the taskmaster and the 2-hourly check)
+## Handover notes (kept here so a new taskmaster chat loses nothing)
+
+- **Starting workers.** A worker is a one-shot scheduled task (`create_trigger` with `run_once_at` a few minutes
+  ahead), model claude-opus-5-5. Copy the prompt of an earlier "HC2 worker-l · t-NNN …" task (`list_triggers` with
+  `include_completed`) and change the task id, branch name, files and the one-paragraph summary. It runs in a fresh
+  cloud session; it reports through the folder; it never merges or publishes.
+- **Usage is limited (Luca, 29 Oct).** One worker at a time unless two tasks are both urgent; small flag-flip tasks can
+  share one session; skip test runs the brief doesn't need; keep replies short.
+- **The Try-it Lab** (https://claude.ai/artifact/GLSDm1t1mFYFy15LxdQ6Ma, branch `candidate/try-it`, never merged): main
+  + every PR waiting for Luca's OK, merged together so he can test them side by side, with a TRY THE NEW STUFF panel
+  (lab.html / lab.js) and `#play-gp` / `#play-tap` / `#play-curve` / `#play-all` links that start a match with a
+  Lab-only switch on (core.js, try-it only). Rebuild: reset the branch to main, merge the waiting PRs, re-add the panel,
+  `bash tools/prpreview.sh <sha> <dir> 0 "Try it"`, set the page title to "HC2 Try-it Lab", publish to the same url.
+  Once t-038 (FREE PLAY with a button and an IN THE GAME / LAB ONLY tag per move) is live, prefer FREE PLAY there.
+- **The check's schedule.** "HC2 taskmaster check" is `trig_01XnmuxJ2BFdFv4jwZvQ7q1E`: normal
+  `CRON_TZ=Europe/Berlin 39 8,13,20 * * *`, TURBO `CRON_TZ=Europe/Berlin 39 8-22/2 * * *`. HQ's ⚡ Turbo button switches
+  it (update_trigger, as Luca) and writes `meta/hq.turbo`; if you change the schedule by hand, update `meta/hq.turbo`
+  too so HQ's next-check line stays right. Nightly QA is `trig_01MrQu9w8x9GS2hgEKev33u8` (01:44).
+- **Where "now" lives.** HQ's `meta/hq` (the taskmaster's note says what's running and what's next), the cards in
+  Needs OK / In progress, Loose Ends, and `bash tools/agent.sh inbox` / `status`. Read those before doing anything.
+
+## Previews on Needs OK cards (the taskmaster and the scheduled check)
 
 Every PR's card on HQ shows its preview (Luca + the co-designer, 24 Oct): the GIF playing, **Play it** and **Try it in
 the Test Lab**. The data sits on the card as `preview`; HQ only displays it. Build it for every open PR whose card

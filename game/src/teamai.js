@@ -158,7 +158,7 @@ hc2Mix(Match, {
         if (p === this.human && team === this.home && !this.demo) continue;
         if (p.state === 'kick' || p.state === 'catch' || p.state === 'dive' || p.state === 'slide' || p.state === 'dheader' || p.state === 'chance' || p.state === 'celebrate' || p.state === 'tackle' || p.state === 'dejected' || p.state === 'roar' || p.state === 'beaten' || p.state === 'protest' || p.state === 'hurt' || p.state === 'blasted' || p.stun > 0) continue;
         if (p.keeper) { this.keeperAI(p, dt); continue; }
-        if (owner === p) { this.carrierAI(p, dt); continue; }
+        if (owner === p) { if (this.trapRunStep(p, dt)) continue; this.carrierAI(p, dt); continue; }
         if (p === marker && len(p.x - rcv.x, p.y - rcv.y) < 12) {                // stay touch-tight, goal side
           const pt = b.lob ? { x: rcv.x + rcv.vx * 0.25, y: rcv.y + rcv.vy * 0.25 } : this.intercept(rcv, rcv.top(true, false)),   // lob-mechanics: he goes with the man (he can't read the drop before the receiver does)
             gs = Math.sign(team.ownGoalX - pt.x) || 1;
@@ -298,7 +298,7 @@ hc2Mix(Match, {
         if (p === this.human && team === this.home && !this.demo) continue;
         if (p.state === 'kick' || p.state === 'catch' || p.state === 'dive' || p.state === 'slide' || p.state === 'dheader' || p.state === 'chance' || p.state === 'celebrate' || p.state === 'tackle' || p.state === 'dejected' || p.state === 'roar' || p.state === 'beaten' || p.state === 'protest' || p.state === 'hurt' || p.state === 'blasted' || p.stun > 0) continue;
         if (p.keeper) { this.keeperAI(p, dt); continue; }
-        if (owner === p) { this.carrierAI2(p, dt); continue; }
+        if (owner === p) { if (this.trapRunStep(p, dt)) continue; this.carrierAI2(p, dt); continue; }
         if (this.lobAimMate(p, dt)) continue;                                    // t-008: you're aiming a lob at him - he walks to the ring
         if (p === aerial && len(p.x - rcv.x, p.y - rcv.y) < 12 && !this.lobMarkLate(p)) {   // stay touch-tight, goal side, to contest it (t-008: a beat after the receiver)
           const pt = b.lob ? { x: rcv.x + rcv.vx * 0.25, y: rcv.y + rcv.vy * 0.25 } : this.intercept(rcv, rcv.top(true, false)),   // lob-mechanics: he goes with the man (he can't read the drop before the receiver does)

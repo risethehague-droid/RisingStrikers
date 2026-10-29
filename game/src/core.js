@@ -1,3 +1,6 @@
+// HELP OUT HAGUE CUP II - web game v0.14.0 (Luca OK'd PRs #51-#54, 29 Oct: the TAP KICK in every match (t-037); GOAL PHYSICS in every match - round posts and bar with real rebounds, parries that loop up (t-039); ARCADE SPECIALS part 2 - a special dribble, combo specials, team signature moves, higher leaps (the co-designer, ARCADE only); a failed audio start no longer counts as a crash (QA))
+// HELP OUT HAGUE CUP II - web game v0.13.1 (Luca OK'd PR #50, 29 Oct - his 00:38 "the test lab must be completely fixed, I cannot navigate it, it's missing moves": THE TEST LAB REWORK - a clickable BACK / NEXT / ALL TESTS / FREE PLAY bar, a scrolling searchable ALL TESTS menu in sections, the Lab opens on FREE PLAY with RESUME, 58 FREE PLAY move buttons tagged IN THE GAME / LAB ONLY; Lab files only, matches unchanged)
+// HELP OUT HAGUE CUP II - web game v0.13.0 (Luca OK'd PRs #43-#49, 27 + 29 Oct: AERIAL BATTLES only in the box, header v header or volley v volley, a win is a shot at goal and the defender goes down, a loss is cleared, an honest SPACE mash; LOB RECEIVES uncontested when the ball is clearly his, chest / thigh trap into his run; the CORNER BLACKOUT cut; KEEPER DIVES drawn sideways, the special save's flash on his gloves; a special save off his line still meets an angled special; the smarter-AI plan + tools)
 // HELP OUT HAGUE CUP II - web game v0.12.4 (Luca OK'd PRs #36, #37, #38, 25 Oct: THE SPECIAL-SAVE CLASH - a charged save covers the whole goal, then power against power: held / bounces off / hands blown away / the body; SET PIECES WITH A RHYTHM - players jog into shape before every restart, CLASSIC and ARCADE timings, a press skips; KEEPER HANDS - the dive grabs the ball into his gloves, he gets up with it and carries it (PixelLab batch 21 carry walk / jog), the computer's keeper walks a calm catch out)
 // HELP OUT HAGUE CUP II - web game v0.12.3 (Luca OK'd PR #35, 25 Oct: THE KEEPER'S RANGE - "gk needs to approach from further range to close in on attackers": on a breakaway he starts closing at 32 m, comes out to the edge of his box as the striker gets within ~20 m and attacks the ball from ~9 m away; dives with his hands only inside his box)
 // v0.12.2 (Luca OK'd PRs #34, #31, #33, 25 Oct ~15:30: THE LIVING NET in every match - it stretches by shot strength and special level, the ball rolls in it, an LV3 special rips through, shown in every replay; ARCADE throw-ins again (no touchline boards; the byline boards stay); the house rule 'Think like football')
@@ -113,8 +116,12 @@ PACE.arcade.arcade = true;
 // you aim / the computer takes it (matchflow.js spSetup: the players jog into the shape, the taker places the ball).
 // Seconds; v = the jog into the shape (m/s), walk = the taker's last steps, aiAfter = the computer's breath once it is set
 // (it was aiTake from the teleport), gk = the goal kick's jog-in after its wipe. Your own set piece skips once it is mostly in.
-PACE.classic.setup = { throw: 1.5, offside: 2.5, fk: 2.5, fkNear: 4, corner: 4, gk: 1.0, v: 3.8, walk: 1.9, aiAfter: 0.5 };
-PACE.arcade.setup = { throw: 0.8, offside: 1.5, fk: 1.5, fkNear: 2.5, corner: 2.5, gk: 0.6, v: 4.8, walk: 2.4, aiAfter: 0.15 };
+// t-032 (Luca 25 Oct 17:53: "a black out cut that smoothly transitions to corner kick"): a corner's cut is a fade to
+// black instead of the TV wipe - boOut = the eased fade out, boHold = fully black (the men are placed half-way through),
+// boIn = the fade back in on the taker at the flag. Well under a second, as FIFA / PES do it; ARCADE about half
+// (Sensible Soccer barely cuts at all). boSkip: how much faster the fade runs once you press to skip.
+PACE.classic.setup = { throw: 1.5, offside: 2.5, fk: 2.5, fkNear: 4, corner: 4, gk: 1.0, v: 3.8, walk: 1.9, aiAfter: 0.5, boOut: 0.35, boHold: 0.15, boIn: 0.35, boSkip: 3 };
+PACE.arcade.setup = { throw: 0.8, offside: 1.5, fk: 1.5, fkNear: 2.5, corner: 2.5, gk: 0.6, v: 4.8, walk: 2.4, aiAfter: 0.15, boOut: 0.18, boHold: 0.08, boIn: 0.18, boSkip: 3 };
 PACE.arcade.cutK = 0.65;            // the special-save cut scene 1.5 s -> ~1 s: the bang without the wait (design E)
 const ARCADE = {
   // 1 REBOUNDS: invisible boards along the touchlines and the bylines (not the goal mouth under the bar), so the ball never
@@ -244,8 +251,8 @@ const AERIAL = {
   reach: 3.0,          // (measured just before the drop: either may still be closing in, so this is a little wider)
   chance: 0.9,         // not every contest becomes a battle: the rest are the quick duel (lobDuel)
   cool: 5,             // never two within this many seconds of play
-  mashT: 1.2,          // how long you mash (s, real time)
-  introT: 0.25,        // the slow-motion lead-in before MASH! (s)
+  mashT: 1.2,          // how long you mash (s, real time; t-034: from the MASH SPACE! prompt, presses count from then)
+  introT: 0.25,        // the slow-motion lead-in before MASH! (s; t-034: in the aerial battle, the rise to the contact - presses already count)
   outroT: 0.2,         // the result frozen a beat before play goes on (s)
   holdZ: 2.15,         // the ball hangs at this height while they fight for it
   cpuRate: 6.5,        // the computer's presses per second at base (NORMAL); its level scales it (difficulty.js `mash`)
@@ -256,6 +263,47 @@ const AERIAL = {
   hsSpring: 0.6,       // ...for fresh legs (stamina: a higher jump)
   hsMax: 3,
   clearRand: 0.5,      // the loser clears it: this much random direction, the rest by position (up the pitch, to the near touchline)
+  // t-034 (Luca 25 Oct 19:14: "aerial battles only within gk box ... header on header or volley on volley ... if you win
+  // as attack ball goes like a shot towards the goal and defender thrown to ground ... if defender wins it gets cleared
+  // out ... make it feel impactful ... when you press is not consistent with click output")
+  boxX: 16.5, boxY: 20.16, // the battle only when the drop is inside the defending side's penalty area (outside: lobDuel)
+  volleyZ: 1.45,       // the contest point under this height = VOLLEY v VOLLEY, over it = HEADER v HEADER
+  lowZ: 0.8,           // ...and nobody contests it under this (it's a ball at his feet)
+  holdZv: 1.0,         // a volley battle: the ball hangs at waist height (a header battle: holdZ)
+  mashTArc: 1.0,       // ARCADE's mash window (s, real time; CLASSIC: mashT)
+  cpuReact: 0.12,      // the computer starts pressing this long after the prompt (s)
+  barR: 12,            // the bar: this many presses from the middle to either end; one press = one step, and the end = won outright
+  hsBar: 4,            // the head start, in whole steps, at most (it is where the bar starts)
+  stopPress: 0.035,    // hit-stop on each of YOUR presses (s, real time)
+  stopEnd: 0.13,       // ...and at the finish
+  hdrV: [19, 25],      // the winning header at goal, m/s (a narrow win .. won outright): ~68-90 km/h
+  volV: [23, 30],      // the winning volley at goal, m/s: ~83-108 km/h
+  shotAim: 2.6,        // aimed this far off the middle of the goal, away from the keeper (posts at 3.66)
+  shotSpread: 0.8,     // ...give or take this much (x the computer's finishing by level)
+  clearV: 21, clearVz: 8,   // the defender's clearance: high and long, out of the box
+  floorT: 0.85,        // the beaten defender on the ground (s), then his get-up (0.45 s): ~1.3 s out of it
+};
+// LOB RECEIVES (co-designer 28 Oct: "it's not a button mash every time. Only in very contested receives ... When it is
+// clearly going to a certain receiver, it should be uncontested" + "chest trap and animate into running"). As the high
+// ball comes down, one race decides it: when can the man it's meant for play it, when can their quickest man. Clearly his
+// = uncontested (no battle, no duel: he heads, volleys or chests it into his stride); clearly theirs = their man wins it
+// as before; only a near tie is the duel (in their box: t-034's battle with the mash). actions.js recvVerdict.
+const RECV = {
+  on: true,            // the Lab's switch (off = before: every contest a duel / battle)
+  margin: 0.35,        // clearly his / theirs: first to it by this many seconds
+  room: 2.0,           // ...or none of theirs can get within this of the ball by the time he plays it (m)
+  zHi: 2.4, zLo: 0.5,  // the heights it can be played at as it comes down (head .. thigh)
+  look: 0.8,           // decided this long before he can play it (s): the runs are made by then
+  react: 0.1,          // the race: a reaction, then flat out to where he meets it
+  reachR: 0.7,         // ...he plays it from this far away (m)
+  boxOut: 0.9, boxT: 0.25, // their man whose way to it goes through the receiver (within this, m) loses this much (s): he's behind him
+  shieldR: 1.8,        // clearly his: their men stay out of it while he's this close to the ball (m)
+  // the CHEST / THIGH TRAP INTO THE RUN (FIFA's directional first touch): taken on the move, it drops into his stride
+  chestZ: 1.1,         // chest 1.1-1.7 m, thigh 0.5-1.1 m
+  trapT: 0.22,         // the chest frames (s; the trap move's 4 frames at 18 a second); running all the while
+  dropVz: -1.5,        // the chest cushions it down in front of him (m/s): on the grass ~0.4 s after the contact
+  thighVz: 0.6,        // the thigh pops it up a touch, then it drops into his stride
+  runT: 0.45,          // contact to running with it at his feet (s): the touch can't be played on before that (or until it's down: 0.8 s at most)
 };
 // t-022 CHARGED HEADERS AND VOLLEYS (Luca 25 Oct 07:04: "headers and volleys can also be charged up and hit like a power
 // shot (from kicks) if timed properly ... make the animation feel impactful (add frames flashing sparks etc but still
@@ -285,9 +333,10 @@ const AIR_CHARGE = {
 };
 // t-010 TAP KICK (Luca 24 Oct 05:57: "the kick if just pressed quickly once so not held should be a snappier kick from
 // up close and it drops off [...] it follows a predictable path which just faces the direction of the arrow"): SHOOT
-// tapped = a low stab along your arrow that dies on the grass; held = the power shot as before. OFF in matches until
-// Luca's OK (the Test Lab turns it on; ADD TO GAME there says what flipping it changes) - with it off nothing differs.
-let TAP_KICK = false;
+// tapped = a low stab along your arrow that dies on the grass; held = the power shot as before. ON in every match since
+// t-037 (Luca OK'd q-tap-kick, 26 Oct; Test Lab only from 24 Oct until then). The Lab still sets it per test
+// (lab.js: the TK tests and FREE PLAY's switch), so its other tests play with it off; false = v0.13.0's shooting.
+let TAP_KICK = true;
 const TAP = {
   tapT: 0.15,          // SHOOT let go sooner than this (s) = the tap kick; held longer = the power shot
   speed: 18,           // off the boot, m/s (~65 km/h; ~55 km/h by 6 m, ~38 by 10 m: soft enough at a set keeper's body that he holds most)
@@ -322,9 +371,10 @@ const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the w
 // t-013 GOAL PHYSICS (Luca 24 Oct 14:04: "a net through which the ball can interact with slight give ... more dynamic
 // feedback when the ball hits the post ... the keeper, when he blocks a lot of shots but can't grab it, but it breaks his
 // guard, a lot should go more up dramatically ... be moderate"): the net catches the ball like a spring, the posts and bar
-// are round with real rebounds, a parry or a broken guard can pop the ball up. All of it behind GOAL_PHYS:
-// null = ON in the Test Lab, OFF in matches (until Luca's OK); true / false forces it (tools/soak.js GOAL_PHYS=1).
-let GOAL_PHYS = null;
+// are round with real rebounds, a parry or a broken guard can pop the ball up. All of it behind GOAL_PHYS: ON in every
+// match (CLASSIC and ARCADE) and in the Test Lab since t-039 (Luca OK'd q-goal-phys, 27 Oct; Lab only from 24 Oct until
+// then). null = the old split (on in the Lab, off in matches); false = off everywhere (v0.13.0's posts and parries).
+let GOAL_PHYS = true;
 const gpOn = () => GOAL_PHYS ?? !!window.__lab;
 // t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule MANDATORY just make it smooth"): IFAB Law 11, simplified - the rule
 // is in matchflow.js (offKick / offWatch / offCall), the computer playing to it in teamai.js. ON by default and in every
@@ -430,7 +480,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.12.4';
+const GAME_VER = 'v0.14.0';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)

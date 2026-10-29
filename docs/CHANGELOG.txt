@@ -1,3 +1,48 @@
+HC2 WEB GAME - v0.14.0 (29 Oct) - TAP KICK + GOAL PHYSICS IN MATCHES + ARCADE SPECIALS (PRs #51-#54, Luca's OK)
+- THE TAP KICK IN EVERY MATCH (#53, t-037). Luca OK'd q-tap-kick (26 Oct): SHOOT tapped (let go within 0.15 s) = a low,
+  quick stab along your arrow that dies by about 15 m; held = the power shot as before. Test Lab TK, FREE PLAY TAP KICK.
+- GOAL PHYSICS IN EVERY MATCH (#54, t-039). Luca OK'd q-goal-phys (27 Oct): round posts and bar with real rebounds, and a
+  parry or a broken guard can loop the ball up for a man following in. CLASSIC goals per match 1.7 -> 2.2 in the soak
+  (second chances). One IN_THE_NET flag in 24 test matches didn't repeat; the nightly QA keeps watching. Test Lab GP.
+- ARCADE SPECIALS, part 2 (#52, the co-designer): a special dribble, combo specials, team signature moves, higher leaps.
+  ARCADE only; CLASSIC plays as before. The special dribble has two triggers for now; the co-designer keeps one after
+  playing. Design: design/arcade-specials.md.
+- AUDIO HICCUPS ARE NOT CRASHES (#51, QA, from Luca's Bug Watch 28 Oct): a failed audio start is caught and retried on the
+  next key / click, instead of counting as a game crash.
+- Test Lab: GOAL PHYSICS in FREE PLAY now tagged IN THE GAME.
+
+HC2 WEB GAME - v0.13.1 (29 Oct) - THE TEST LAB REWORK (PR #50, t-038, Luca's OK)
+- THE TEST LAB, FIXED (#50, t-038, worker-l). Luca 29 Oct 00:38: "the test lab must be completely fixed, as of now I
+  cannot actually navigate it, it's missing moves etc". Now: a clickable bar on top of the panel (BACK / NEXT / ALL TESTS /
+  FREE PLAY, plus where you are); ALL TESTS scrolls on any screen, has a search box and sections, every test opens from
+  it; the Lab opens on FREE PLAY (RESUME takes you back to your last test). FREE PLAY has 58 move buttons that set the
+  moment up and play the move for real (special passes, charged headers / volleys, every keeper move and the clash,
+  tackles, crosses, the aerial battle, set pieces), each tagged IN THE GAME or LAB ONLY. New rule: every new move gets its FREE PLAY button.
+  Lab files only: matches play exactly as v0.13.0.
+
+HC2 WEB GAME - v0.13.0 (29 Oct) - AERIAL BATTLES IN THE BOX + LOB RECEIVES + CORNER BLACKOUT + SIDEWAYS DIVES (PRs #43-#49, Luca's OK)
+- AERIAL BATTLES REWORKED (#46, t-034). Luca 25 Oct 19:14: battles only in the keeper's box, header v header or volley
+  v volley; attacker wins = the ball goes like a shot at goal and the defender is thrown to the ground; defender wins =
+  cleared; the mash on SPACE, impactful and consistent. Now: only when the drop is in their penalty box (outside: the
+  quick duel); head height = both head it, waist height = both volley it; a win is a 68-108 km/h shot (the keeper can
+  save it) and the defender is down ~1.4 s; a loss is cleared ~40 m. MASH SPACE: one press = one bar step (key repeat and
+  holding never count), the head start is where the bar starts, your presses get the hit-stop / sparks / thump. Test Lab AB.
+- LOB RECEIVES (#49, worker-f, the co-designer 28 Oct: "only in very contested receives should there be a button mash").
+  One race per high ball: clearly his = uncontested (the others leave it), clearly theirs = theirs, only a near tie is a
+  duel (in their box: the battle). A defender has to be goal-side to contest it (PES's box-out). The chest / thigh trap
+  now takes the ball into his run, turned the way you hold.
+- THE CORNER BLACKOUT (#43, t-032). Luca: "add a black out cut that smoothly transitions to corner kick". Ball out ->
+  whistle -> an eased fade to black (0.35 s), everyone placed while it's black, fade in on the taker walking to the
+  flag; ARCADE half as long; a press runs it 3x faster, never stuck on black. Test Lab RS2 / RS8.
+- KEEPER DIVES SIDEWAYS (#44, t-033). Luca: "the dive animation is angled the wrong way". The kit build had turned
+  PixelLab's flat dives a quarter (head down, feet up); now drawn as made with a 20 deg lean into the dive, the ball still
+  in his gloves. The special save's fist flash follows the same angle (#47, t-036). Test Lab GH1-GH8, KS3.
+- SPECIAL SAVE OFF HIS LINE (#45, QA, Luca's INSTA FLAG "gk lvl 3 move still let lvl 3 shot through"): out on the angle he
+  still meets an angled special (on target is judged at the goal line too).
+- SMARTER TEAM AI, stage 1 (#48, the co-designer): the plan (docs/smarter-ai.md), the 7 clunkiest moments as GIFs,
+  tools/aistudy.js. No game change yet.
+- Tests on the merged build: smoke clean; Test Lab AB, GH, KC, RS, LV errors []; soak 0 page errors, Real bugs none.
+
 HC2 WEB GAME - v0.12.4 (25 Oct) - SPECIAL-SAVE CLASH + SET-PIECE RHYTHM + KEEPER HANDS (PRs #36, #37, #38, Luca's OK)
 - THE SPECIAL-SAVE CLASH (#36, t-028). Luca 14:59: "the keeper can cover the whole goal when using a special save, but a
   special shot can still go through the hands if it's stronger, or bounce off". Pressing a special save CHARGES his

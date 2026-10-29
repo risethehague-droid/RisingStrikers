@@ -7,7 +7,7 @@
   const GX = PITCH_L, LINE_X = PITCH_L - 1.3;
   const LAB = { groups: [], g: 0, i: 0, run: null, slow: 1, boxes: true, rated: {}, log: [], db: null, reasons: null,
     menu: false, acc: 0, rand: Math.random, active: false, zoom: (() => { try { return clamp(+localStorage.getItem('hc2-lab-zoom') || 1, 0.5, 2); } catch (e) { return 1; } })(),
-    fp: { tap: true, sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', loop: false, anim: '' }, tune: null, base: null };
+    fp: { tap: true, gp: true, curve: true, sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', loop: false, anim: '' }, tune: null, base: null };
   let m = null;
   const $ = id => document.getElementById(id);
 
@@ -244,7 +244,7 @@
       setup(r) {
         const s = m.home.players[9], gk = m.away.players[0]; cast([s, gk]);
         put(s, 86, 34, 0); atFeet(s); put(gk, LINE_X, 34, 4); gk.guard = 1;
-        Object.assign(r, { human: s, shooter: s, gk, fired: true, stats: { kicks: 0, shots: 0, goals: 0, held: 0 }, nogk: false });
+        Object.assign(r, { human: s, human0: s, sc0: r.sc, shooter: s, gk, fired: true, stats: { kicks: 0, shots: 0, goals: 0, held: 0 }, nogk: false });   // (t-038: human0 / sc0 = the plain scene fpBase goes back to)
         r.cam = () => { const b = m.ball, q = gk.state === 'labanim' ? gk : b.owner === s || !b.owner && len(b.x - s.x, b.y - s.y) < 4 ? s : b; return { x: q.x + (q === b ? clamp(b.vx * 0.35, -10, 10) : 0), y: q.y, sx: fpShift() }; };
       },
       check(r) { fpTick(r); return null; } };
@@ -255,13 +255,15 @@
     if (F.stam) { p.stamina = 1; p.tired = false; }
     if (!!p.injury !== F.inj) p.injury = F.inj ? { k: 0.75 } : null;              // v0.8.8 INJURED: he limps (75% speed)
     if (r.air) airTick(r, p, b, mt);
-    if (F.nogk !== r.nogk) { r.nogk = F.nogk; if (F.nogk) { gk.sentOff = true; put(gk, -60, -60); } else { Object.assign(gk, { sentOff: false, cool: 0, stun: 0, hands: false, state: 'idle' }); put(gk, LINE_X, 34, 4); } }
+    if (r.fx) { const X = r.fx; X.t = (X.t || 0) + STEP; if (!X.step(r, p, X) && r.fx === X) { r.fx = null; r.noAuto = false; Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); } }   // t-038: a FREE PLAY move playing out
+    if (F.nogk !== r.nogk && !r.real) { r.nogk = F.nogk; if (F.nogk) { gk.sentOff = true; put(gk, -60, -60); } else { Object.assign(gk, { sentOff: false, cool: 0, stun: 0, hands: false, state: 'idle' }); put(gk, LINE_X, 34, 4); } }
     if (r.prevOwner === p && b.owner !== p) {                                    // it left your foot: measure this one
       Object.assign(r, { shotT: r.t, v0: null, maxZ: 0, line: null, plan: null, prevBX: null, peaks: null }); r.stats.kicks++;
     }
     r.prevOwner = b.owner;
     if (b.shotT && b.shotT !== r.lastShot) { r.lastShot = b.shotT; r.stats.shots++; }
-    if (!r.resetAt) {
+    if (r.noAuto) { r.held = 0; }
+    else if (!r.resetAt) {
       let why = null;
       if (b.inNet) why = 'goal';
       else if (r.out) why = 'out';
@@ -303,6 +305,7 @@
   }
   function fpReset(r) {                                                          // the ball comes back to you where you are (E)
     r = r || LAB.run; if (!r || r.sc.kind !== 'free') return;
+    if (r.extra || r.real || r.fx) fpBase(r);                                    // (t-038: a move's men / set piece / script go first)
     const p = r.human, gk = r.gk, b = m.ball;
     Object.assign(m, { setPiece: null, pending: null, diving: null, freeze: 0, hitStop: 0, path: null, passRing: null, nextHuman: null, charge: -1, penaltyKick: false, dead: null });
     m.msg.setText(''); m.sub.setText('');
@@ -345,6 +348,16 @@
   }
   function fpMove(kind) {
     const r = LAB.run; if (!r || r.sc.kind !== 'free') return;
+    const M = FP_BY[kind];
+    if (M && M.go) {                                                             // t-038: a move from the list - a clean start, then its set-up and script
+      if (M.gk && LAB.fp.nogk) { LAB.fp.nogk = false; syncTog(); }               // (a keeper move needs their keeper)
+      csClean(); if (m.cutIn) m.cutInEnd(); m.cutInQ = null;
+      if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null;
+      Object.assign(m, { aerial: null, lobAim: null, slowMo: 0, camTarget: null, cvFx: null, clashLast: null, gkSpLast: null, acLast: null, airCh: null, headBuf: 0 });
+      fpBase(r); fpReset(r); r.air = null; r.marks = []; r.why = null; LAB.cx = null;
+      M.go(r, r.human); return;
+    }
+    if (r.extra || r.real || r.fx) { fpBase(r); fpReset(r); }                   // (after a t-038 move: the plain scene again)
     const p = r.human, b = m.ball, dv = dirVec(p.face);
     if (m.pending || p.state === 'kick' || p.state === 'slide' || p.state === 'dheader') return;
     if (p.busy()) { p.setState('idle', 0); p.stun = 0; }                        // a reaction or a lab animation: cut it short
@@ -368,6 +381,346 @@
       const { fx, fy } = inFrom(p, 16), d = len(p.x - fx, p.y - fy) || 1;
       ballAt(fx, fy, 0); Object.assign(b, { vx: (p.x - fx) / d * 13, vy: (p.y - fy) / d * 13, last: m.home, target: p });
     }
+  }
+  // ---------- t-038 FREE PLAY'S MOVE LIST (Luca 29 Oct 00:44: "the special passes etc, don't have buttons I can press to
+  // do freely ... add all the moves that we work on as they are finished, once we like them we OK to add to the final
+  // game"). Modelled on the training modes of FIFA / EA FC (the Practice Arena), PES and the fighting / Rocket League free
+  // plays: a move list where every entry can be performed on the spot against a dummy that reacts. One line per move: its
+  // section, its label, IN THE GAME (game: true, in matches now) or LAB ONLY (waiting for Luca's OK), and what it does.
+  // A line with `go` sets up what the move needs (a team-mate, a defender, a cross, a shot at the keeper, both whole teams
+  // for a set piece) and plays it through the game's own code - the functions your keys or the computer run; a line
+  // without `go` is one of v0.8-v0.9's moves (fpMove below). A NEW MOVE GETS ITS LINE HERE (CLAUDE.md "Testing").
+  // v0.13.0 (merged with this): the aerial battle's MASH has its two lines (battle-h / battle-v); the corner blackout
+  // plays inside set-corner. Every later move adds its own line here.
+  const FP_SECS = [
+    ['pass', 'PASSING'], ['shoot', 'SHOOTING'], ['air', 'IN THE AIR · a ball comes in, he does it'],
+    ['gk', 'THEIR KEEPER · a shot or a ball at him, he does it'], ['def', 'DEFENDING · a dribbler comes at you'],
+    ['set', 'SET PIECES · both teams, the setup runs, then you take it'], ['you', 'BALL TO YOU · then you press the key'],
+  ];
+  const FP_MOVES = [
+    { mv: 'pass', sec: 'pass', n: 'PASS', game: true },
+    { mv: 'through', sec: 'pass', n: 'THROUGH', game: true },
+    { mv: 'lob', sec: 'pass', n: 'LOB', game: true },
+    { mv: 'plob30', sec: 'pass', n: 'POWER LOB 30%', game: true, tip: 'LOB held: 30% of the way' },
+    { mv: 'plob60', sec: 'pass', n: 'POWER LOB 60%', game: true },
+    { mv: 'plob100', sec: 'pass', n: 'POWER LOB 100%', game: true },
+    { mv: 'curler', sec: 'pass', n: 'CURLER!', hot: true, tip: 't-011: SPECIAL + PASS - bends round the man on the line to your team-mate\'s feet (fills a bar of SP first)', go: r => fpCurve(r, 'ground') },
+    { mv: 'outcurl', sec: 'pass', n: 'OUTSIDE CURL!', hot: true, tip: 't-011: SPECIAL + THROUGH - outside of the boot, curls into your runner\'s path', go: r => fpCurve(r, 'through') },
+    { mv: 'banana', sec: 'pass', n: 'BANANA LOB!', hot: true, tip: 't-011: SPECIAL + LOB - the scoop over a defender, bending down into the run', go: r => fpCurve(r, 'lob') },
+    { mv: 'shot', sec: 'shoot', n: 'SHOT', game: true },
+    { mv: 'power', sec: 'shoot', n: 'POWER SHOT', game: true },
+    { mv: 'tap', sec: 'shoot', n: 'TAP KICK', game: true, tip: 't-010: SHOOT tapped - OK\'d by Luca on 26 Oct, going into matches (t-037)' },
+    { mv: 'chip', sec: 'shoot', n: 'CHIP', game: true, tip: 'in a match: LOB in their box while facing goal' },
+    { mv: 'sp1', sec: 'shoot', n: 'LV1 BLAZE', game: true, hot: true },
+    { mv: 'sp2', sec: 'shoot', n: 'LV2 THUNDER', game: true, hot: true },
+    { mv: 'sp3', sec: 'shoot', n: 'LV3 PHOENIX', game: true, hot: true },
+    { mv: 'air-head', sec: 'air', n: 'HEADER', game: true },
+    { mv: 'air-volley', sec: 'air', n: 'VOLLEY', game: true },
+    { mv: 'air-dive', sec: 'air', n: 'DIVE HEADER', game: true },
+    { mv: 'air-bike', sec: 'air', n: 'OVERHEAD', game: true, tip: 'overhead / bicycle kick' },
+    { mv: 'air-chest', sec: 'air', n: 'CHEST TRAP', game: true },
+    { mv: 'chhead', sec: 'air', n: 'CHARGED HEADER', game: true, tip: 't-022: a cross comes in; SHOOT held as it comes and let go just before it arrives = full power', go: r => fpCharged(r, false) },
+    { mv: 'chvol', sec: 'air', n: 'CHARGED VOLLEY', game: true, tip: 't-022: a low driven cross; SHOOT held, let go just before it reaches you', go: r => fpCharged(r, true) },
+    { mv: 'air-sp1', sec: 'air', n: 'AIR LV1', game: true, hot: true, air: true },
+    { mv: 'air-sp2', sec: 'air', n: 'AIR LV2', game: true, hot: true, air: true },
+    { mv: 'air-sp3', sec: 'air', n: 'AIR LV3', game: true, hot: true, air: true },
+    { mv: 'cross', sec: 'air', n: 'CROSS IN · you attack it', game: true, wide: true, tip: 'a team-mate crosses from the byline to you: X header / volley, Shift + X overhead, B an aerial special', go: fpCross },
+    { mv: 'battle-h', sec: 'air', n: 'AERIAL BATTLE · HEADER', game: true, hot: true, wide: true, tip: 't-034 (v0.13.0): a cross into their box with their centre-back on you - HEADER v HEADER, MASH SPACE: win = a header at goal + he goes down, lose = he clears it', go: r => fpBattle(r, false) },
+    { mv: 'battle-v', sec: 'air', n: 'AERIAL BATTLE · VOLLEY', game: true, hot: true, wide: true, tip: 't-034 (v0.13.0): a driven waist-high cross with their man on you - VOLLEY v VOLLEY, MASH SPACE', go: r => fpBattle(r, true) },
+    { mv: 'gk-lowl', sec: 'gk', n: 'LOW DIVE CATCH ◀', game: true, gk: true, tip: 't-031: a low shot 2.4 m to his left - he dives, grabs it, lands and gets up holding it',
+      go: r => fpShotAt(r, 'LOW DIVE CATCH (his left)', { spot: [91, 35], dy: 2.4, speed: 19, u: 0 }) },
+    { mv: 'gk-lowr', sec: 'gk', n: 'LOW DIVE CATCH ▶', game: true, gk: true, tip: 't-031: the same to his right',
+      go: r => fpShotAt(r, 'LOW DIVE CATCH (his right)', { spot: [91, 33], dy: -2.4, speed: 19, u: 0 }) },
+    { mv: 'gk-high', sec: 'gk', n: 'HIGH DIVE CATCH', game: true, gk: true, tip: 'a shot 2.4 m to his side, above his waist: he flies up and across and holds it (faster or higher, he tips it over or round)',
+      go: r => fpShotAt(r, 'HIGH DIVE CATCH', { spot: [91, 34], dy: 2.4, z: 1.2, speed: 17, u: 0 }) },
+    { mv: 'gk-leap', sec: 'gk', n: 'LEAP AND GRAB', game: true, gk: true, tip: 'a ball dropping just under the bar - he goes up and snatches it',
+      go: r => fpShotAt(r, 'LEAP AND GRAB', { spot: [89, 34], dy: 0.3, z: 2.15, speed: 20, u: 0 }) },
+    { mv: 'gk-smother', sec: 'gk', n: 'SMOTHER', game: true, gk: true, tip: 'you run at him and take a heavy touch: he goes down at your feet and gathers it', go: fpSmother },
+    { mv: 'gk-parry', sec: 'gk', n: 'PARRY', game: true, gk: true, tip: 'a hard low shot to his side he can\'t hold: parried away',
+      go: r => fpShotAt(r, 'PARRY', { spot: [88, 34], dy: -2.3, speed: 24, power: 0.8, u: 0.999 }) },
+    { mv: 'gk-tip', sec: 'gk', n: 'TIP OVER', game: true, gk: true, tip: 'a hard shot under the bar: he jumps and tips it over',
+      go: r => fpShotAt(r, 'TIP OVER', { spot: [87, 34], dy: 0, z: 2.3, speed: 25, power: 0.8 }) },
+    { mv: 'gk-punch', sec: 'gk', n: 'PUNCH', game: true, gk: true, tip: 'your lob into a crowded six-yard box: he punches it clear', go: fpPunch },
+    { mv: 'gk-walk', sec: 'gk', n: 'CATCH + WALK OUT', game: true, gk: true, tip: 't-031: a soft shot, nobody near him: he holds it, carries it a few steps out, then plays it', go: fpWalkOut },
+    { mv: 'gk-roll', sec: 'gk', n: 'ROLL OUT', game: true, gk: true, tip: 'the ball in his hands, a team-mate 15 m away: underarm roll', go: r => fpRelease(r, 'roll') },
+    { mv: 'gk-throw', sec: 'gk', n: 'THROW OUT', game: true, gk: true, tip: 'a team-mate 23 m away: overarm throw', go: r => fpRelease(r, 'throw') },
+    { mv: 'gk-punt', sec: 'gk', n: 'PUNT', game: true, gk: true, tip: 'a team-mate 48 m away: the drop-kick', go: r => fpRelease(r, 'punt') },
+    { mv: 'gk-sv1', sec: 'gk', n: 'SPECIAL SAVE LV1', game: true, gk: true, hot: true, tip: 'his LV1 special save v your normal shot into the top corner', go: r => fpSpSave(r, 1) },
+    { mv: 'gk-sv2', sec: 'gk', n: 'SPECIAL SAVE LV2', game: true, gk: true, hot: true, tip: 'his LV2 special save v your normal shot', go: r => fpSpSave(r, 2) },
+    { mv: 'gk-sv3', sec: 'gk', n: 'SPECIAL SAVE LV3', game: true, gk: true, hot: true, tip: 'his LV3 special save v your normal shot', go: r => fpSpSave(r, 3) },
+    { mv: 'gk-cl1', sec: 'gk', n: 'CLASH · v SAVE LV1', game: true, gk: true, hot: true, tip: 't-028: your LV2 special v his LV1 special save - power against power', go: r => fpClash(r, 1) },
+    { mv: 'gk-cl2', sec: 'gk', n: 'CLASH · v SAVE LV2', game: true, gk: true, hot: true, tip: 't-028: your LV2 special v his LV2 special save', go: r => fpClash(r, 2) },
+    { mv: 'gk-cl3', sec: 'gk', n: 'CLASH · v SAVE LV3', game: true, gk: true, hot: true, tip: 't-028: your LV2 special v his LV3 special save', go: r => fpClash(r, 3) },
+    { mv: 'def-slide', sec: 'def', n: 'SLIDE TACKLE', game: true, tip: 't-018: he comes at you with the ball; you slide in (the shoot key)', go: r => fpDuel(r, 'slide') },
+    { mv: 'def-stand', sec: 'def', n: 'STANDING TACKLE', game: true, tip: 't-018: the challenge (the pass key) as he reaches you', go: r => fpDuel(r, 'stand') },
+    { mv: 'def-jockey', sec: 'def', n: 'JOCKEY', game: true, tip: 'side-on, backing off as he dribbles at you', go: r => fpDuel(r, 'jockey') },
+    { mv: 'slide', sec: 'def', n: 'SLIDE AT A LOOSE BALL', game: true },
+    { mv: 'set-corner', sec: 'set', n: 'CORNER', game: true, gk: true, tip: 't-029: your corner - the setup runs, then C crosses / Z passes / X shoots', go: r => fpSet(r, 'corner') },
+    { mv: 'set-fk', sec: 'set', n: 'FREE KICK + WALL', game: true, gk: true, tip: 't-029: your free kick 23 m out - their wall forms on 9.15 m, then you take it', go: r => fpSet(r, 'fk') },
+    { mv: 'set-throw', sec: 'set', n: 'THROW-IN', game: true, gk: true, tip: 't-029: your throw-in - Z short, C long', go: r => fpSet(r, 'throw') },
+    { mv: 'set-off', sec: 'set', n: 'OFFSIDE → FREE KICK', game: true, gk: true, tip: 't-024 / t-029: their striker is flagged offside - your free kick where he played it', go: r => fpSet(r, 'off') },
+    { mv: 'head', sec: 'you', n: 'HEAD', game: true },
+    { mv: 'waist', sec: 'you', n: 'WAIST', game: true },
+    { mv: 'feet', sec: 'you', n: 'FEET', game: true },
+  ];
+  const FP_BY = Object.fromEntries(FP_MOVES.map(x => [x.mv, x]));
+  // the move buttons, built from the list (so a new move is one line above)
+  function fpMovesUI() {
+    $('fp-moves').innerHTML = FP_SECS.map(([sec, title]) => `<div class="fp-sec"><div class="fp-lab">${title}</div><div class="fp-grid">${FP_MOVES.filter(x => x.sec === sec).map(x =>
+      `<button type="button" class="mv${x.hot ? ' hot' : ''}${x.air ? ' air' : ''}${x.wide ? ' wide' : ''}" data-mv="${x.mv}"${x.tip ? ` title="${x.tip.replace(/"/g, '&quot;')}"` : ''}>${x.n}<i class="tg ${x.game ? 'in' : 'lab'}">${x.game ? 'IN THE GAME' : 'LAB ONLY'}</i></button>`).join('')}</div></div>`).join('');
+  }
+
+  // ---- the helpers the moves share
+  function fpKeeper(gk, x = LINE_X, y = 34) {                                   // their keeper on his line, fresh (no save, no ball, no walk)
+    if (!gk || gk.sentOff) return; put(gk, x, y, 4);
+    Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0, spSave: 0, rig: null, hands: false, walk: undefined, hold: 0, smAt: 0 });
+  }
+  function fpCast(r, extra) { cast([r.human, ...(r.nogk ? [] : [r.gk]), ...extra]); r.extra = true; }   // you, their keeper and the men this move needs
+  function fpSpot(r, x, y) {                                                    // you on the ball at (x, y), facing the goal; their keeper on the angle
+    const p = r.human, f = dirIndex(GX - x, 34 - y), dv = dirVec(f);
+    put(p, x - dv.x * 0.5, y - dv.y * 0.42, f); ballAt(x, y, 0, p); fpKeeper(r.gk, LINE_X, 34 + (y - 34) * 0.3);
+  }
+  // back to plain FREE PLAY: you and their keeper, nothing left over from the last move (its men, its set piece, its script)
+  function fpBase(r) {
+    const s = r.human0 || r.human, gk = r.gk;
+    if (r.real) { r.sc = r.sc0; r.real = false; if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; } window.HC2_NO_OFFSIDE = true;
+      Object.assign(m, { offSide: null, offFlag: null, offLast: null, offGK: null, passAim: null, gkSetup: null }); }
+    r.human = s; m.human = s; r.nogk = !!LAB.fp.nogk;
+    cast(r.nogk ? [s] : [s, gk]); if (!r.nogk) fpKeeper(gk);
+    r.bots.clear(); r.extra = false; r.fx = null; r.noAuto = false; s.watch = null;
+    Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+  }
+  // what their keeper did, for the readout: the move he picked (dive low / high, leap, smother ...) and what came of it
+  function fpGk(r, F, gk) {
+    const b = m.ball, st = gk.saveKind || (/^(idle|run|walk|jog)$/.test(gk.state) ? '' : gk.state);
+    if (st && !F.mv) F.mv = st;
+    const ev = r.events.slice(F.e0 || 0).filter(e => /PARR|POST|TIPPED|PUNCH|SAVE|HAND|CLEAR|CORNER/i.test(e)).pop();
+    return `${F.mv ? F.mv.replace(/([a-z])([A-Z])/g, '$1 $2').toUpperCase() : 'reading it'}${gk.hands ? ' · HELD' : ''}${b.inNet ? ' · GOAL' : ''}${ev ? ' · ' + ev : ''}`;
+  }
+
+  // ---- PASSING: the curving special passes (t-011, CP1-3's set-ups 12-20 m further up the pitch)
+  const FP_CURVE = { ground: { n: 'CURLER!', from: [60, 34], mate: [78, 34], opp: [69, 33.6] },
+                     through: { n: 'OUTSIDE CURL!', from: [62, 26], mate: [78, 38, 6, 0], opp: [73, 30.6] },
+                     lob: { n: 'BANANA LOB!', from: [57, 34], mate: [82, 29, 3, 0], opp: [67, 32] } };
+  function fpCurve(r, mode) {
+    const S = FP_CURVE[mode], p = r.human, q = m.home.players[8], o = m.away.players[3];
+    fpCast(r, [q, o]); put(p, S.from[0], S.from[1], 0); atFeet(p); put(q, S.mate[0], S.mate[1], 0); put(o, S.opp[0], S.opp[1], 4);
+    r.bots.set(q, cpRun(S.mate[2] || 0, S.mate[3] || 0));
+    Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0 });
+    if (m.meters[0].e < 1) m.meters[0].e = 1;                                 // it costs a bar: the button fills one first
+    r.last = `${S.n} · a bar of SP in the bank`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.kicked) {
+        if (F.t < 0.45) return true; F.kicked = true;
+        const c0 = CURVE_PASS; CURVE_PASS = true;                                // (the button works with the CURVE PASS switch off too, like TAP KICK's)
+        try { const d = len(q.x - p.x, q.y - p.y) || 1; F.ok = m.curvePass(p, mode, { x: (q.x - p.x) / d, y: (q.y - p.y) / d }); } finally { CURVE_PASS = c0; }
+        if (!F.ok) { r.last = `${S.n} · not played (no SP?)`; return false; }
+        return true;
+      }
+      if (!F.start) { if (b.owner || m.pending) return F.t < 3; F.start = { x: b.x, y: b.y }; F.v = len(b.vx, b.vy, b.vz); F.C = m.curveLast; F.bend = 0; }
+      const A = F.C ? { x: F.C.tx, y: F.C.ty } : { x: q.x, y: q.y }, dx = A.x - F.start.x, dy = A.y - F.start.y, d = len(dx, dy) || 1;
+      if (!F.touch) { const lat = ((b.x - F.start.x) * dy - (b.y - F.start.y) * dx) / d; if (Math.abs(lat) > Math.abs(F.bend)) F.bend = lat; }
+      const tp = b.owner && b.owner !== p ? b.owner : b.lastP && b.lastP !== p ? b.lastP : null; if (tp && !F.touch) F.touch = tp;
+      r.last = `${S.n} · bend ${Math.abs(F.bend).toFixed(1)} m · ${kmh(F.v)} km/h${F.touch ? ' · ' + (F.touch === q ? `to your #${q.num}` : F.touch.team === p.team ? `your #${F.touch.num}` : `cut out by their #${F.touch.num}`) : ''}`;
+      return !F.touch && F.t < 5;
+    } };
+  }
+
+  // ---- IN THE AIR: the charged header / volley (t-022, HV1 / HV3's cross; the Lab holds SHOOT and lets go in the sweet window)
+  function fpCharged(r, vol) {
+    const p = r.human, c = m.home.players[7], n = vol ? 'CHARGED VOLLEY' : 'CHARGED HEADER';
+    const from = vol ? [100, 14] : [99, 6], z = vol ? 0.6 : 1.8, T = vol ? 0.75 : 1.35;
+    fpCast(r, [c]); put(p, 92, 31, 0); put(c, from[0], from[1]); faceTo(c, 92, 31); atFeet(c); fpKeeper(r.gk, LINE_X, 33);
+    Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); m.acLast = null; m.airCh = null;
+    r.last = `${n} · a cross comes in`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball, Tc = Input.touch;
+      if (!F.crossed) { if (F.t < 0.5) return true; F.crossed = true; const a = aimAir(b.x, b.y, 92, 31, z, T); m.kick(c, 92, 31, a.speed, a.vz, 0.13, {}); return true; }
+      if (!F.hit) {
+        const tc = b.owner || m.pending ? null : hvContactIn(p, vol);
+        if (F.down == null) { if (tc != null && tc <= 0.75) { Tc.btn.shoot = true; F.down = F.t; r.last = `${n} · SHOOT held …`; } }
+        else if (F.up == null && tc != null && tc <= 0.05) { Tc.btn.shoot = false; F.up = F.t; }
+        const L = m.acLast; if (L && L.by === p) { F.hit = L; Tc.btn = {}; } else if (F.t > 5) { r.last = `${n} · missed it`; return false; }
+        return true;
+      }
+      if (!F.v && !m.pending && !b.owner && b.lastP === p) F.v = kmh(len(b.vx, b.vy, b.vz));
+      const H = F.hit, pc = v => Math.round(v * 100) + '%';
+      r.last = H.tap ? `${H.kind.toUpperCase()} (a tap)` : `CHARGED ${H.kind.toUpperCase()} · ${pc(H.raw)} power → ${pc(H.pw)} kept · timing ${H.sweet ? 'RIGHT' : H.late ? 'LATE' : 'off ' + H.off.toFixed(2) + ' s'}${F.v ? ` · ${F.v} km/h` : ''}`;
+      return !F.v && F.t < 6;
+    } };
+  }
+  // a cross into the box for you to attack (you press the keys)
+  function fpCross(r) {
+    const p = r.human, c = m.home.players[7];
+    fpCast(r, [c]); if (!(p.x > 86 && p.x < 102 && Math.abs(p.y - 34) < 14)) put(p, 92, 31, 0);
+    put(c, 99, 6); faceTo(c, p.x, p.y); atFeet(c); fpKeeper(r.gk, LINE_X, 33);
+    r.last = 'CROSS · get ready';
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.c) { if (F.t < 0.6) return true; F.c = true; const a = aimAir(b.x, b.y, p.x + 1, p.y, 1.7, 1.35); m.kick(c, p.x + 1, p.y, a.speed, a.vz, 0.13, {});
+        r.last = 'CROSS · YOUR TURN: X header / volley · Shift + X overhead · B aerial special'; return true; }
+      if (b.lastP && b.lastP !== c && !F.met) { F.met = true; r.last = `CROSS · ${b.lastP === p ? 'you met it' : b.lastP.keeper ? 'the keeper took it' : 'cleared'}`; }
+      return F.t < 4;
+    } };
+  }
+
+  // t-034's AERIAL BATTLE in FREE PLAY (Luca, 29 Oct: "add all the moves we work on as they are finished"): the AB
+  // tests' moment - a team-mate crosses into their box, their centre-back right on you - and you MASH SPACE yourself.
+  // The battle's chance is 1 for this move only (as in AB), put back when the move ends.
+  function fpBattle(r, volley) {
+    const p = r.human, c = m.home.players[7], d = m.away.players[3], at = [92, 31];
+    fpCast(r, [c, d]); put(p, at[0], at[1], 0); put(d, at[0] + 0.7, at[1] + 0.6, 4);
+    put(c, volley ? 100 : 99, volley ? 14 : 6); faceTo(c, at[0], at[1]); atFeet(c); fpKeeper(r.gk, LINE_X, 33);
+    Object.assign(m, { aerial: null, aerialLast: null, aerialAt: -1e9, aerialKick: null, aerFx: null, slowMo: 0, camTarget: null });
+    LAB.aerialChance = LAB.aerialChance ?? AERIAL.chance; AERIAL.chance = 1;
+    r.last = `AERIAL BATTLE (${volley ? 'VOLLEY' : 'HEADER'}) · get ready to MASH SPACE`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.c) { if (F.t < 0.6) return true; F.c = true; const a = aimAir(b.x, b.y, at[0], at[1], volley ? 1.0 : 1.9, volley ? 0.8 : 1.3);
+        m.kick(c, at[0], at[1], a.speed, a.vz, 0.13, { target: p, cross: 'lab' }); r.last = 'AERIAL BATTLE · MASH SPACE when it says MASH!'; return true; }
+      if (m.aerial) F.seen = true;
+      if (F.seen && !m.aerial && !F.done) { F.done = true; const L = m.aerialLast; r.last = `AERIAL BATTLE · ${L && L.res === 'att' ? 'you won it' : L ? 'their man won it' : 'over'}`; }
+      const more = F.t < 6; if (!more && LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; }
+      return more;
+    } };
+  }
+
+  // ---- THEIR KEEPER: a shot at him from you, the ball where it makes him do the move (the GH / GKX / KC tests' shots)
+  function fpShotAt(r, n, o) {
+    const gk = r.gk; fpSpot(r, o.spot[0], o.spot[1]);
+    const ty = o.y != null ? o.y : gk.y + (o.dy || 0); r.marks = [{ x: GX, y: ty, r: 0.3 }];
+    r.last = `${n} · watch the keeper`;
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      const b = m.ball;
+      if (!F.shot) { if (F.t < 0.6) return true; F.shot = true; fireShot(r, { y: ty, z: o.z, low: !o.z }, o.speed, o.power || 0.5); return true; }
+      if (b.save && b.save.gk === gk && !F.u) { F.u = true; if (o.u != null) b.save.u = o.u; }     // (the dice: a catch is held, a parry isn't - as GH1 / GH6)
+      if (o.launch && !F.l && !b.owner && !m.pending && b.lastP === p) { F.l = true; o.launch(r, gk); }
+      r.last = `${n} · ${o.read ? o.read(r, F, gk) : fpGk(r, F, gk)}`;
+      if (r.marks.length && F.t > 2.5) r.marks = [];
+      return F.t < (o.T || 4);
+    } };
+  }
+  function fpSpSave(r, lv) {                                                    // his special save v a normal shot (KC1 / KS)
+    m.gkSpLast = null;
+    fpShotAt(r, `SPECIAL SAVE LV${lv}`, { spot: [89, 33], y: GOAL_Y1 - 0.35, z: 2.15, speed: 25, power: 0.6, T: 5,
+      launch: (r, gk) => { m.ball.saveable = m.home; gk.spSave = lv; m.saveFx(gk); },
+      read: (r, F, gk) => { const S = m.gkSpLast; return S ? `${S.n} (${(RIGS[S.n] || {}).name || ''})${gk.hands ? ' · HELD' : m.ball.inNet ? ' · GOAL' : S.res === 'hand' ? ' · a hand to it' : ' · saved'}` : fpGk(r, F, gk); } });
+    fpKeeper(r.gk, LINE_X, 34);
+  }
+  function fpClash(r, sv) {                                                     // your LV2 special v his special save (t-028, the KC tests)
+    const gk = r.gk; fpSpot(r, 86, 33); fpKeeper(gk, LINE_X, 34); Object.assign(m, { clashLast: null, gkSpLast: null });
+    r.last = `CLASH · your LV2 v his LV${sv} save`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.shot) { if (F.t < 0.6) return true; F.shot = true; m.meters[0].e = 2; m.special(p); if (m.pending && m.pending.p === p) m.pending.ty = 34.6; return true; }   // (just off his middle, as KC2-6)
+      if (!F.l) { if (b.owner || m.pending || b.lastP !== p) return F.t < 5; F.l = true; gk.spSave = sv; m.saveFx(gk); }
+      const L = m.clashLast;
+      r.last = L ? `CLASH · ${L.sn} ${L.P} v ${L.K} ${L.sv} · ${KC_OUT[L.out] || L.out}${b.inNet ? ' · GOAL' : ''}` : `CLASH · your LV2 v his LV${sv} save …`;
+      return F.t < 8;
+    } };
+  }
+  function fpSmother(r) {                                                       // you run at him and knock it too far (GH3): he smothers it
+    const p = r.human, gk = r.gk; fpKeeper(gk, LINE_X - 4, 34); put(p, 88, 35, 0); atFeet(p);
+    r.last = 'SMOTHER · you run at him';
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      const b = m.ball, T = Input.touch;
+      if (!F.knock) {
+        if (b.owner === p && p.x > 93.5) { F.knock = true; b.owner = null; b.vx = 7.5; b.vy = -0.4; p.cool = 0.4; T.x = 0.6; T.y = 0; }   // the heavy touch
+        else if (F.t > 0.3) { T.x = 1; T.y = -0.08; }
+        if (gk.state === 'dive' && gk.saveKind === 'smother' && !F.forced) { F.forced = true; gk.smU = 0; }   // (he can come before the knock too)
+        r.last = 'SMOTHER · ' + (F.forced || gk.hands ? fpGk(r, F, gk) : 'you run at him');
+        return F.t < 4 || !!F.forced && F.t < 6;
+      }
+      if (F.t - (F.kt = F.kt ?? F.t) > 0.5) T.x = 0;
+      if (gk.state === 'dive' && gk.saveKind === 'smother' && !F.forced) { F.forced = true; gk.smU = 0; }   // (the gather made to happen, as GH3)
+      r.last = 'SMOTHER · ' + fpGk(r, F, gk);
+      return F.t < 6;
+    } };
+  }
+  function fpPunch(r) {                                                         // your lob into a crowded six-yard box (GKX7): he punches it
+    const p = r.human, gk = r.gk, H = m.home.players, men = [[H[8], 98.2, 31.6], [H[6], 98.8, 33.0], [H[5], 99.8, 32.4]];
+    fpCast(r, men.map(x => x[0])); for (const [q, x, y] of men) { put(q, x, y, 0); r.bots.set(q, sit()); }
+    put(p, 80, 24, dirIndex(22.4, 10)); atFeet(p); fpKeeper(gk, 103.6, 34);
+    r.last = 'PUNCH · your lob into the crowd';
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      if (!F.k) { if (F.t < 0.6) return true; F.k = true; m.kick(p, 102.4, 34, 0, 0, 0.12, { mode: 'lob', lobPow: 0.6 }); return true; }
+      r.last = 'PUNCH · ' + fpGk(r, F, gk); return F.t < 4.5;
+    } };
+  }
+  function fpWalkOut(r) {                                                       // a calm catch, then he carries it out (t-031, GH4)
+    const gk = r.gk, A = m.away.players, mates = [[A[2], 84, 18], [A[3], 86, 50], [A[6], 72, 30]];
+    fpCast(r, mates.map(x => x[0])); for (const [q, x, y] of mates) put(q, x, y, 4);
+    fpShotAt(r, 'CATCH + WALK OUT', { spot: [88, 34], dy: 0.3, speed: 17, u: 0, T: 11,
+      read: (r, F, gk) => { const T = Input.touch, p = r.human;
+        if (F.t > 1.2 && F.t < 2.4) T.x = -0.6; else T.x = 0;                    // (you jog back: nobody presses him, so he walks it)
+        if (gk.hands && F.held == null) F.held = F.t;
+        if (gk.gkMode === 'WALK OUT') F.walked = (F.walked || 0) + STEP;
+        if (F.held != null && !gk.hands && !F.rel) F.rel = gk.kickAnim || 'played';
+        if (F.rel && (F.relT = F.relT ?? F.t) && F.t - F.relT > 0.8) F.t = 99;   // (done: the script ends)
+        return F.rel ? `held, walked it out ${(F.walked || 0).toFixed(1)} s, then ${String(F.rel).toUpperCase()}` : gk.hands ? (gk.gkMode === 'WALK OUT' ? 'HELD · walking it out' : 'HELD') : fpGk(r, F, gk); } });
+    r.noAuto = true;                                                            // (no ball-back while he has it: this one takes a few seconds)
+  }
+  function fpRelease(r, how) {                                                  // the ball in his hands, a team-mate free: roll / throw / punt
+    const gk = r.gk, q = m.away.players[3], at = { roll: [90, 41], throw: [82, 25], punt: [56, 30] }[how];
+    fpCast(r, [q]); put(q, at[0], at[1], 4); put(r.human, 84, 56, 2); fpKeeper(gk, LINE_X - 2, 34); gk.walk = null;
+    ballAt(gk.x - 0.25, gk.y, 1.1, gk); gk.hands = true; gk.handFrom = null; r.noAuto = true;
+    const n = { roll: 'ROLL OUT', throw: 'THROW OUT', punt: 'PUNT' }[how]; r.last = `${n} · in his hands`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.k) { if (F.t < 0.6) return true; F.k = true; const d = len(q.x - gk.x, q.y - gk.y) || 1; m.doPass(gk, { x: (q.x - gk.x) / d, y: (q.y - gk.y) / d }, how === 'roll' ? 'ground' : 'lob'); return true; }
+      if (!F.a && gk.kickAnim) F.a = gk.kickAnim;
+      r.last = `${n} · ${F.a ? F.a.toUpperCase() : '…'}${!m.pending && !b.owner && b.lastP === gk ? ` · ${kmh(len(b.vx, b.vy, b.vz))} km/h` : b.owner === q ? ' · to his team-mate' : ''}`;
+      return F.t < 3.5;
+    } };
+  }
+
+  // ---- DEFENDING: their man dribbles at you (t-018's slide / challenge, v0.8.2's jockey)
+  function fpDuel(r, kind) {
+    const p = r.human, c = m.away.players[9]; fpCast(r, [c]);
+    put(p, 70, 34, 0); put(c, 79, 34.4, 4); atFeet(c); r.bots.set(c, dribbleTo(40, 34.4, kind === 'jockey' ? 3.2 : 4.6));
+    const n = { slide: 'SLIDE TACKLE', stand: 'STANDING TACKLE', jockey: 'JOCKEY' }[kind]; r.last = `${n} · here he comes`;
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      const b = m.ball, d = len(c.x - p.x, c.y - p.y), T = Input.touch;
+      if (kind === 'jockey') { p.watch = c; T.x = F.t > 0.4 && F.t < 2.6 ? -0.42 : 0; if (p.jockeyOn) F.jk = (F.jk || 0) + STEP;
+        r.last = `JOCKEY · ${p.jockeyOn ? 'side-on, backing off' : F.jk ? `side-on for ${F.jk.toFixed(1)} s` : 'closing him down'}`; if (F.t >= 2.6) p.watch = null; return F.t < 3; }
+      if (!F.go) {
+        if (kind === 'slide' && d < 3.2 && b.owner === c) { F.go = true; const bd = len(b.x - p.x, b.y - p.y) || 1; m.slideTackle(p, { x: (b.x - p.x) / bd, y: (b.y - p.y) / bd }); }
+        else if (kind === 'stand' && d < 1.25 && b.owner === c) { F.go = true; m.challenge(p, c); }
+        if (F.go) F.at = F.t; else return F.t < 4;
+      }
+      const foul = r.events.slice(F.e0).some(e => /FOUL|FREE KICK|YELLOW/i.test(e));
+      if (F.t - F.at > 0.35) r.last = `${n} · ${foul ? 'FOUL' : b.owner === p ? 'WON IT' : b.owner === c ? 'MISSED' : 'knocked it loose'}${p.state === 'getup' ? ' · getting up' : ''}`;
+      return F.t - F.at < 2;
+    } };
+  }
+
+  // ---- SET PIECES: both full teams, the game's own restart (its t-029 setup) and team AI - as the RS tests play them -
+  // then the kick is yours. Back to plain FREE PLAY when the ball goes out, in, or to their keeper (or E).
+  function fpSet(r, kind) {
+    const H = m.home.players, A = m.away.players, att = { corner: 26, fk: 24, throw: 18, off: -24 }[kind];
+    r.sc = Object.assign({}, r.sc0, { realAi: true, realRestart: true }); r.real = true; r.extra = true; r.noAuto = true;
+    cast(m.all.slice());
+    for (const p of m.all) put(p, clamp(p.home.x + att, 2, PITCH_L - 2), p.home.y, p.team === m.home ? 0 : 4);
+    for (const k of [H[0], A[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, walk: undefined });
+    for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+    LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = false; m.ball.crossBy = null; window.HC2_NO_OFFSIDE = false;
+    const n = { corner: 'CORNER', fk: 'FREE KICK', throw: 'THROW-IN', off: 'OFFSIDE' }[kind];
+    if (kind === 'corner') { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; }
+    else if (kind === 'fk') { put(H[9], 81.2, 30.8, 0); ballAt(82, 30, 0); m.restart('FREE KICK', m.home, 82, 30); }
+    else if (kind === 'throw') { put(H[7], 66, 62, 0); put(A[4], 70, 61, 4); ballAt(68, 68.4, 0.1); Object.assign(m.ball, { last: m.away, lastP: A[7], vy: 1.5 }); m.dead = { kind: 'THROW-IN', team: m.home, x: 68, y: PITCH_W - 0.2, t: 0.6 }; }
+    else { const st = A[9]; put(st, 15, 32, 4); atFeet(st); m.offCall(st, { team: m.away, men: new Map([[st, { x: st.x, y: st.y }]]), line: m.offLine(m.away), by: A[6] }); }   // (RS1 the other way round: theirs is flagged, the free kick is yours)
+    r.last = `${n} · the whistle`;
+    r.fx = { step(r, p, F) {
+      const sp = m.setPiece;
+      if (sp) { F.seen = true; F.kind = sp.kind || F.kind;
+        const ready = sp.setup && !sp.su, mine = sp.team === m.home;
+        r.last = `${F.kind || n} · ${!mine ? 'theirs' : !ready ? `the players get into shape${sp.su && sp.su.frac != null ? ` (${Math.round(sp.su.frac * 100)}%)` : ''} …` : sp.kind === 'THROW-IN' ? 'YOUR THROW: Z short · C long (arrows aim)' : 'YOUR KICK: C cross / lob · Z pass · X shoot (arrows aim)'}`; }
+      else if (F.seen && !F.done) { F.done = true; F.doneT = F.t; r.out = null; r.noAuto = false; r.last = `${F.kind || n} · taken`; }   // (in play: the usual ball-back from here)
+      r.out = r.noAuto ? null : r.out;                                          // (the call itself goes through restart: not an "out" yet)
+      return F.done ? F.t - F.doneT < 6 : F.t < 30;
+    } };
   }
   // tuning (lab only - the real game keeps its values until we copy yours over)
   // v0.9.9 (Luca 02:50: "add the sliders from the training ground to the classic version"): the knobs of the Test Lab v3
@@ -459,6 +812,7 @@
     $('fp-tnote').placeholder = c.length ? `You changed ${c[c.length - 1].name.toLowerCase()}. How does it feel now?` : 'How does it feel? e.g. sprinting feels floaty';
   }
   let syncCyc = () => {};                                                        // (set by fpUI: redraws the CPU LEVEL switch)
+  let syncTog = () => {};                                                        // (set by fpUI: redraws the on / off settings - t-038's keeper moves switch NO KEEPER off)
   function fpUI() {
     LAB.base = { skid: SKID_DEC, roll: ROLL_DEC, bounce: BOUNCE_Z, sprint: SPRINT, shot: SHOT_K, recover: REST_GAIN, runGain: RUN_GAIN };
     LAB.def = { grip: 1, bounce: BOUNCE_Z, sprint: SPRINT, shot: 1, run: RUN, drain: SPRINT_DRAIN, recover: REST_GAIN, mag: BALL_MAG, lobh: LOB_H, lobd: LOB_MAX,
@@ -478,11 +832,15 @@
       flash('use COPY'); status('no lab database here: COPY and paste it to Claude');
     });
     for (const b of document.querySelectorAll('#fp [data-tog]')) b.addEventListener('click', () => { const k = b.dataset.tog; LAB.fp[k] = !LAB.fp[k]; b.setAttribute('aria-pressed', LAB.fp[k]); b.blur(); });
+    syncTog = () => { for (const b of document.querySelectorAll('#fp [data-tog]')) b.setAttribute('aria-pressed', !!LAB.fp[b.dataset.tog]); };
+    fpMovesUI();                                                                 // t-038: one button per move in FP_MOVES
     for (const b of document.querySelectorAll('#fp [data-mv]')) b.addEventListener('click', () => { fpMove(b.dataset.mv); b.blur(); });
     // v0.8.8 cycling switches: WEATHER (dry / rain / snow - the ball physics and the look) and KEEPER SAVE (off / LV1-3)
     const CYC = { wx: { vals: ['clear', 'rain', 'snow'], label: v => `WEATHER: ${{ clear: 'DRY', rain: 'RAIN', snow: 'SNOW' }[v]}`,
                         set: v => { setWx(v); if (LAB.tune) applyTune(LAB.tune, v === 'clear'); } },
                   tap: { vals: [false, true], label: v => `TAP KICK: ${v ? 'ON' : 'OFF'}`, set: v => { TAP_KICK = v; } },   // t-010
+                  gp: { vals: [false, true], label: v => `GOAL PHYSICS: ${v ? 'ON' : 'OFF'}`, set: v => { GOAL_PHYS = v; } },   // t-038: t-013's posts + pop-ups, FREE PLAY only
+                  curve: { vals: [false, true], label: v => `CURVE PASS: ${v ? 'ON' : 'OFF'}`, set: v => { CURVE_PASS = v; } },   // t-038: t-011's SPECIAL + pass chord, FREE PLAY only
                   save: { vals: [0, 1, 2, 3], label: v => `KEEPER SAVE: ${v ? 'LV' + v : 'OFF'}`, set: () => {} },
                   cpu: { vals: ['normal', 'hard', 'rise', 'easy'], label: v => `CPU LEVEL: ${{ easy: 'EASY', normal: 'NORMAL', hard: 'HARD', rise: 'RISE WARRIOR' }[v]}`, set: () => {} } };   // v0.9.2 their keeper at each difficulty
     const cycShow = [];
@@ -504,7 +862,6 @@
     $('fp-play').addEventListener('click', () => { playAnim(LAB.fp.anim); $('fp-play').blur(); });
     $('fp-loop').addEventListener('click', () => { LAB.fp.loop = !LAB.fp.loop; $('fp-loop').setAttribute('aria-pressed', LAB.fp.loop); $('fp-loop').blur(); });
     $('fp-reset').addEventListener('click', () => { fpReset(); $('fp-reset').blur(); });
-    $('fp-tapadd').addEventListener('click', () => { const i = $('fp-tapinfo'), on = i.hidden; i.hidden = !on; $('fp-tapadd').setAttribute('aria-expanded', on); $('fp-tapadd').blur(); });   // t-010: explains only
     $('fp-mini').addEventListener('click', () => { fpMini(); $('fp-mini').blur(); });
   }
 
@@ -1023,6 +1380,19 @@
         if (b.save && b.save.gk === gk && r.u0 == null) { r.u0 = b.save.u; b.save.u = o.u ?? 0; }   // (the dice: held here; GH6 not)
         return o.end(r); } };
   }
+  // t-033: a GH shot the other way, at YOUR keeper (the left-hand goal, facing E): the computer's #9 shoots from 14 m out
+  function ghOther(id, name, sub, o) {
+    const T = ghShot(id, name, sub, o);
+    T.setup = r => { const s = m.away.players[9], gk = m.home.players[0], me = m.home.players[5]; cast([s, gk, me]);
+      const sx = 14, sy = 35, f = dirIndex(0 - sx, 34 - sy), dv = dirVec(f);
+      put(s, sx - dv.x * 0.5, sy - dv.y * 0.42, f); ballAt(sx, sy, 0, s); put(gk, PITCH_L - LINE_X, 34 + (sy - 34) * 0.3, 0); put(me, 40, 20, 0);
+      Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+      const ty = gk.y + o.tgt; Object.assign(r, { human: me, shooter: s, gk, you: false, marks: [{ x: 0, y: ty, r: 0.3 }], moves: [] });
+      r.action = { at: 0.6, fire: () => { const b = m.ball, tx = -2, aty = b.y + (ty - b.y) * (tx - b.x) / (0 - b.x);
+        m.kick(s, tx, aty, o.speed, 0.35, 0.13, { shot: true, power: 0.5 }); r.aim = { y: ty, z: 0 }; } };
+      r.cam = () => ({ x: gk.x + 3, y: gk.y }); ghHook(r); };
+    return T;
+  }
   function ghTests() {
     const up = r => r.heldT != null && r.gk.state === 'idle' && r.t - r.heldT > 0.3;     // on his feet again, holding it
     const heldEnd = r => { if (up(r) && (r.upT = r.upT ?? r.t) && r.t - r.upT > 0.4) return { o: `HELD · ${ghLine(r)} · up ${(r.upT - r.heldT).toFixed(2)} s after the catch`, hold: 0.8 };
@@ -1062,6 +1432,11 @@
           if (r.touchAt && r.t - r.touchAt.t > 0.25) { const A = r.touchAt, g = A.G ? len(A.S.x - A.G.x, A.S.y - A.G.y) : null;
             return { o: `${A.e} on ${A.fr} · the ball ${g != null ? g.toFixed(0) + ' px from his gloves' : '-'} at the touch, ${len(b.x - gk.x, b.y - gk.y).toFixed(1)} m away 0.25 s later at ${kmh(len(b.vx, b.vy))} km/h` }; }
           if (b.inNet) return { o: 'GOAL' }; return r.t - r.shotT > 3 ? { o: 'no touch' } : null; } }),
+      // t-033 (Luca 25 Oct 17:52, GH1's dive "angled the wrong way"): the other keeper and the other side, so every way the
+      // turned dive frames are drawn is seen once - GH1 their keeper (facing W) going down the screen, GH7 yours (facing E)
+      // going down the screen (to his right), GH8 theirs going up it, high (to his right)
+      ghOther('GH7', 'your keeper: a dive catch, low to his right', 'the computer shoots low 2.4 m to your keeper\'s right (towards the camera): he dives across, grabs it, lands and gets up with it - the other keeper, the mirrored frames', { tgt: 2.4, speed: 19, end: heldEnd }),
+      ghShot('GH8', 'a high dive catch to his right', 'a shot at head height 2.4 m to his right (away from the camera): a sideways spring, body near-flat, grabs it and lands holding it', { spot: { n: '14 m', x: 91, y: 33 }, tgt: { y: -2.4, z: 1.4 }, speed: 17, end: heldEnd }),
     ];
   }
   function gkxTests() {
@@ -1214,6 +1589,7 @@
   // land on the ring? LB4 a quick tap (the instant lob, as before). LB5 the ring settles on a team-mate, he walks to it,
   // then times his run and goes for goal. LB6 / LB7 an AERIAL BATTLE you win (the Lab mashes) / lose (no mash). LB8 the
   // computer's lob into a contest with your defender. (AERIAL.chance is 1 in LB6-LB8, so the battle always happens.)
+  // (t-034: the battle only comes in the defending box now - LB6-LB8's drops moved ~4 m in so they stay battles.)
   const lbBot = (q, dt) => { if (m.lobAimMate(q, dt) || m.lobRun(q, dt)) return; const b = m.ball;   // a team-mate: the game's own receiving run
     if (!b.owner && b.target === q) { const pt = m.intercept(q, q.top(true, false), 0.12, 1.9); q.moveTo(pt.x, pt.y, q.top(true, false), dt); } else q.steer(0, 0, dt); };
   const lbMark = (man, side) => (d, dt) => { const b = m.ball;                    // a defender on him: goal side, a beat after he moves (as the game's marker)
@@ -1280,7 +1656,8 @@
       else return r.t > 7 ? done({ o: 'NO KICK' }) : null; }
     const ft = r.t - r.kickT; if (!r.land) r.maxZ = Math.max(r.maxZ, b.z);
     if (!r.land && !r.touch && (b.bounced || 0) > r.n0) r.land = { x: b.x, y: b.y, t: ft };
-    if (!r.touch && b.lastP && b.lastP !== K) r.touch = { p: b.lastP, how: b.how ? b.how.kind : 'touch', z: b.z, own: b.owner === b.lastP, at: { x: b.x, y: b.y }, v: len(b.lastP.vx, b.lastP.vy), t: ft };
+    const tp = b.owner && b.owner !== K ? b.owner : b.lastP;                     // (lob receives: a chest / thigh trap is a touch too - it leaves lastP alone)
+    if (!r.touch && tp && tp !== K) r.touch = { p: tp, how: b.owner === tp && tp.trapRun ? tp.trapRun.kind + ' trap' : b.owner === tp && b.lastP !== tp ? 'control' : b.how ? b.how.kind : 'touch', z: b.z, own: b.owner === tp, at: { x: b.x, y: b.y }, v: len(tp.vx, tp.vy), t: ft };
     if (!r.drop && r.tgt && !r.touch && b.vz < 0 && b.z < 2.6) r.drop = { d: len(r.tgt.x - b.x, r.tgt.y - b.y), x: b.x, y: b.y };   // (t-019: how far he was from it as it came down through head height)
     if (o.kind === 'pick' || o.kind === 'space' || o.kind === 'stride' || o.kind === 'cam') { const e = lvCheck(r, ft, done); if (e !== undefined) return e; }
     const shot = r.touch && (r.touch.how === 'header' || r.touch.how === 'volley' || r.touch.how === 'shot' || r.ev('AERIAL SPECIAL'));
@@ -1330,11 +1707,11 @@
       lbTest('LB5', 'the ring settles on a team-mate, he goes for goal', 'aim near your striker: the ring settles on the spot he\'ll reach, he walks there, then times his run and heads / volleys at goal',
         { kind: 'magnet', from: [62, 40], mates: [[9, 89, 29]], drag: [0, -1, 0.25], holdT: 0.6, gk: true }),
       lbTest('LB6', 'AERIAL BATTLE: you win it (the Lab mashes fast)', 'your lob drops between your striker and his marker: MASH! - mash SHOOT, win it, head it at goal',
-        { kind: 'battle', battle: true, mash: 1, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 1.1, gk: true }),
+        { kind: 'battle', battle: true, mash: 1, from: [62, 40], mates: [[9, 93, 30]], opps: [[3, 94.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 1.1, gk: true }),
       lbTest('LB7', 'AERIAL BATTLE: you lose it (no mash)', 'the same drop; you don\'t press: their man wins and clears it - which way?',
-        { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 89, 30]], opps: [[3, 90.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 0.5, gk: true }),
+        { kind: 'battle', battle: true, mash: 0, from: [62, 40], mates: [[9, 93, 30]], opps: [[3, 94.2, 30.4]], mark: [0, 0], drag: [0, -1, 0.15], holdT: 0.5, gk: true }),
       lbTest('LB8', 'AERIAL BATTLE the other way: their lob, your defender', 'the computer lobs to its striker, your defender is on him: PRESS! (the Lab mashes every other step)',
-        { kind: 'battle', battle: true, cpu: true, mash: 2, from: [45, 30], mates: [[9, 17, 35]], opps: [[3, 20.2, 34.6]], gk: true, lvl: 'normal' }),
+        { kind: 'battle', battle: true, cpu: true, mash: 2, from: [45, 30], mates: [[9, 12, 35]], opps: [[3, 15.2, 34.6]], gk: true, lvl: 'normal' }),
       // t-019: the same in AUTO (the arrow held at the man: no ring to walk)
       lbTest('LB4-A', 'AUTO · a quick TAP of LOB to a team-mate', 'the quick AUTO lob to the man ahead, landing a step ahead of him', { kind: 'tap', tap: true, from: [30, 34], mates: [[9, 52, 34]], lobAim: 'auto' }),
       lbTest('LB6-A', 'AUTO · AERIAL BATTLE: you win it', 'arrow at your striker, hold, let go: it drops on him and his marker - MASH!',
@@ -1770,6 +2147,96 @@
       arGoal('AR5', 'arcade'), arGoal('AR5-C', 'classic'),
     ];
   }
+  // ======================================================================= ARCADE SPECIALS (the co-designer, 28 Oct, arcadesp.js /
+  // design/arcade-specials.md): the special dribble (its own button and SPECIAL by position), combo specials (the 1-2 and
+  // the lob + volley, 2 and 3 bars), the team signature names, the computer's dribble. All ARCADE (sc.pace).
+  function sxDrib(id, name, sub, how) {
+    return { id, group: 'SX', name, sub, kind: 'phys', pace: 'arcade',
+      setup(r) {
+        const you = m.home.players[9], d = m.away.players[4]; cast([you, d]);
+        put(you, 50, 34, 0); put(d, 53.2, 34.4, 4); atFeet(you);
+        Object.assign(r, { human: you, marks: [], d });
+        r.action = { at: 0.5, fire: () => { m.meters[0].e = 1; r.x0 = you.x; r.ok = how === 'button' ? m.aspDribble(you, null) : m.special(you); } };
+      },
+      check(r) {
+        if (!r.fired || r.t < 1.6) return null;
+        const you = r.human, d = r.d;
+        return { o: `${how === 'button' ? 'BUTTON' : 'SPECIAL far from goal (AUTO)'} · ${r.ok ? 'went' : 'NOTHING'} · ${(you.x - r.x0).toFixed(1)} m on, ${you.x > d.x ? 'PAST' : 'not past'} #${d.num} (${d.state}) · ball ${m.ball.owner === you ? 'still his' : 'LOST'} · bars left ${m.meters[0].e.toFixed(2)} · ${m.msg.text || '-'}` };
+      } };
+  }
+  function sxRange() {
+    return { id: 'SX3', group: 'SX', name: 'SPECIAL in shooting range (AUTO): the shot, not the dribble', sub: '18 m out, a man in front, 1 bar', kind: 'phys', pace: 'arcade',
+      setup(r) {
+        const you = m.home.players[9], d = m.away.players[4], gk = m.away.players[0]; cast([you, d, gk]);
+        put(you, 87, 34, 0); put(d, 90, 34.6, 4); put(gk, LINE_X, 34, 4); atFeet(you);
+        Object.assign(r, { human: you, marks: [] });
+        r.action = { at: 0.5, fire: () => { m.meters[0].e = 1; m.special(you); r.k = m.pending && m.pending.info.special; r.dr = !!you.sdrib; } };
+      },
+      check(r) { if (!r.fired || r.t < 0.8) return null; return { o: `${r.k ? `a LV${r.k} special shot` : 'NO SHOT'} · dribble ${r.dr ? 'YES (wrong)' : 'no'} · ${m.msg.text || '-'}` }; } };
+  }
+  // the 1-2: he played it to a team-mate, got it straight back (the pass history the combo reads), then SPECIAL
+  function sxCombo(id, bars) {
+    return { id, group: 'SX', name: `the 1-2 COMBO, ${bars} bars`, sub: `${bars === 3 ? '240 power, through 6 men' : '170 power, through 3 men'} (solo LV${bars}: ${SP_POWER[bars - 1]} / ${SP_PIERCE[bars - 1]})`, kind: 'phys', pace: 'arcade',
+      setup(r) {
+        const you = m.home.players[9], mate = m.home.players[7], gk = m.away.players[0], d1 = m.away.players[3], d2 = m.away.players[4];
+        cast([you, mate, gk, d1, d2]); put(you, 80, 30, 0); put(mate, 76, 37, 0); put(gk, LINE_X, 34, 4); put(d1, 90, 32, 4); put(d2, 94, 35, 4); atFeet(you);
+        Object.assign(r, { human: you, marks: [], mate });
+        window.__labCutOff = false;
+        r.action = { at: 0.5, fire: () => {
+          const now = m.time.now; m.aspPasses = [{ p: you, q: mate, mode: 'ground', t: now - 1200 }, { p: mate, q: you, mode: 'ground', t: now - 500 }];
+          m.aspOwn = you; m.aspOwnT = now - 300; m.meters[0].e = bars; m.special(you); const k = m.pending;
+          r.c = k && k.info.combo; r.spP = k && k.info.spP; r.anim = you.kickAnim; r.cut = !!(m.cutIn && m.cutIn.kind === 'combo'); r.name = m.msg.text; } };
+      },
+      check(r) {
+        if (!r.fired) return null;
+        if (r.pierce == null && m.ball.special) r.pierce = m.ball.pierce;
+        if (r.t < 2.4) return null;
+        return { o: `${r.c ? `COMBO LV${r.c.lv} (${r.c.kind})` : 'NO COMBO'} · power ${Math.round(r.spP || 0)} · through ${r.pierce ?? '?'} men · move ${r.anim} · partner #${r.mate.num} ${r.mate.kickAnim || '-'} · cut-in ${r.cut ? 'yes' : 'no'} · ${r.name || '-'} · ${m.ball.inNet ? 'GOAL' : 'no goal'}` };
+      } };
+  }
+  function sxLob() {
+    return { id: 'SX6', group: 'SX', name: 'the LOB + VOLLEY COMBO, 2 bars', sub: 'a team-mate\'s lob drops to him, SPECIAL as it comes: the aerial special becomes the combo', kind: 'phys', pace: 'arcade',
+      setup(r) {
+        const you = m.home.players[9], mate = m.home.players[6], gk = m.away.players[0]; cast([you, mate, gk]);
+        put(you, 88, 30, 0); put(mate, 70, 20, 0); put(gk, LINE_X, 34, 4); ballAt(87.6, 30, 1.0, null); m.ball.vx = 2; m.ball.vz = -2;
+        Object.assign(r, { human: you, marks: [], mate });
+        r.action = { at: 0.2, fire: () => { const now = m.time.now; m.aspPasses = [{ p: mate, q: you, mode: 'lob', t: now - 1500 }]; m.meters[0].e = 2;
+          m.airSpecial(you); const k = m.pending; r.c = k && k.info.combo; r.spP = k && k.info.spP; r.name = m.msg.text; } };
+      },
+      check(r) { if (!r.fired || r.t < 2.2) return null; return { o: `${r.c ? `COMBO LV${r.c.lv} (${r.c.kind}, partner #${r.c.partner && r.c.partner.num})` : 'NO COMBO'} · power ${Math.round(r.spP || 0)} · ${r.name || '-'} · ${m.ball.inNet ? 'GOAL' : 'no goal'}` }; } };
+  }
+  function sxAi() {
+    return { id: 'SX7', group: 'SX', name: 'the COMPUTER\'s special dribble', sub: 'their carrier with a full meter, your man squares up 45 m from goal: it goes past him (its chance forced high for the test; in a match ~1-2 a side)', kind: 'phys', pace: 'arcade', realAi: true,
+      setup(r) {
+        const c = m.away.players[9], you = m.home.players[4], gk = m.home.players[0]; cast([c, you, gk]);
+        put(c, 45, 34, 4); put(you, 41.8, 34.2, 0); put(gk, 105 - LINE_X, 34, 0); atFeet(c);
+        Object.assign(r, { human: you, marks: [], c }); r.n0 = (m.arcN && m.arcN.dribbles) || 0;
+        r.action = { at: 0.2, fire: () => { m.meters[1].e = 3; } };
+        const R0 = ASP.dribble.aiRate; ASP.dribble.aiRate = 40; (LAB.undo = LAB.undo || []).push(() => { ASP.dribble.aiRate = R0; });   // (the chance forced: the move itself is what's tested)
+        m.away.sdribAt = -1e9;
+      },
+      check(r) {
+        const n = ((m.arcN && m.arcN.dribbles) || 0) - r.n0;
+        if (n > 0 && r.at == null) r.at = r.t;
+        if (r.t < 6 && !(r.at != null && r.t > r.at + 1)) return null;
+        return { o: n > 0 ? `the computer's dribble after ${r.at.toFixed(1)} s · ${m.msg.text || '-'} · your man ${r.human.state}` : `no dribble in 6 s (carrier at ${r.c.x.toFixed(1)}, ${r.c.y.toFixed(1)}, ball ${m.ball.owner === r.c ? 'his' : 'not his'}, bars ${m.meters[1].e.toFixed(2)}, gap ${len(r.c.x - r.human.x, r.c.y - r.human.y).toFixed(1)} m)` };
+      } };
+  }
+  function sxNames() {
+    return { id: 'SX8', group: 'SX', name: 'team signature names (LV3, combo, dribble)', sub: 'theme A, colours & elements - for Luca\'s final OK; CLASSIC keeps RISING PHOENIX', kind: 'phys', pace: 'arcade',
+      setup(r) { cast([m.home.players[9]]); Object.assign(r, { human: m.home.players[9], marks: [] }); ballAt(52.5, 34); },
+      check(r) {
+        if (r.t < 0.2) return null;
+        const L = Object.keys(TEAM_SP).map(t => `${t}: ${TEAM_SP[t].shot} / ${TEAM_SP[t].combo} / ${TEAM_SP[t].dribble}`);
+        const lp = window.__labPace; window.__labPace = 'classic'; const cl = m.spNameFor(m.home, 3); window.__labPace = lp;
+        return { o: `${L.join(' · ')} · CLASSIC LV3: ${cl}` };
+      } };
+  }
+  function sxTests() {
+    return [sxDrib('SX1', 'the SPECIAL DRIBBLE, its own button (N / O, pad LT)', 'one bar: the spin, the burst past the man in front, he goes down', 'button'),
+      sxDrib('SX2', 'SPECIAL far from goal = the dribble (AUTO, by position)', 'the same moment with SPECIAL: 50 m out with a man in front', 'auto'),
+      sxRange(), sxCombo('SX4', 2), sxCombo('SX5', 3), sxLob(), sxAi(), sxNames()];
+  }
   // ======================================================================= t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule MANDATORY
   // just make it smooth"). You attack the right-hand goal; their back line stands on x = 85 unless a test says otherwise.
   // OF1-OF5 and OF7: Lab bots (the passer plays it at 0.6 s, the receiver runs onto it). OF6: the real team AI on both sides.
@@ -1876,7 +2343,7 @@
       check(r) {
         const b = m.ball, sp = m.setPiece, cam = m.cameras.main, V = cam.worldView;
         const inView = (x, y) => V.contains(wx(x, y), wy(y) - 40);
-        const covering = !!(m.wipeG && m.wipeG.visible && m.tweens.isTweening(m.wipeG));
+        const covering = !!(m.wipeG && m.wipeG.visible && m.tweens.isTweening(m.wipeG)) || !!(m.boG && m.boG.visible && m.boG.alpha >= 0.999);   // (t-032: a corner's blackout covers only while fully black)
         if (r.pos) m.all.forEach((p, i) => { if (p.sentOff) return; const q = r.pos[i], d = len(p.x - q[0], p.y - q[1]);
           if (d > 0.6) { if (covering) r.jumps.wipe++; else if (inView(q[0], q[1]) || inView(p.x, p.y)) { r.jumps.view++; r.jumpWho = `#${p.num} ${d.toFixed(1)} m`; } else r.jumps.off++; }
           else if (!r.kickT) r.path.set(p, (r.path.get(p) || 0) + d); });
@@ -1890,7 +2357,10 @@
         if (r.t < r.kickT + 0.8) return null;
         const ds = [...r.path.values()].filter(d => d > 0.5), avg = ds.length ? ds.reduce((a, c) => a + c, 0) / ds.length : 0, mx = ds.length ? Math.max(...ds) : 0;
         const st = r.st || {}, f1 = v => (v ?? 0).toFixed(1), t0 = o.gk ? r.gkT : r.readyT - st.t;   // (times from the restart: the call's own dead-ball wait comes before it)
-        return { o: `${r.kind}${o.pace ? ' · ' + o.pace.toUpperCase() : ''} · setup ${f1(r.readyT - t0)} s${st.skip ? ' (SKIPPED by a press)' : ''} · jogged in: ${ds.length} men, avg ${avg.toFixed(1)} m, max ${mx.toFixed(1)} m · ${st.wiped || o.gk ? `wipe: ${r.jumps.wipe} moved under it` : 'no wipe'} · jumped in view without a wipe: ${r.jumps.view}${r.jumpWho ? ' (' + r.jumpWho + ')' : ''} · ball placed ${o.gk ? 'in his hands' : f1(st.placed) + ' s in'} · shape in ${Math.round((st.frac ?? 1) * 100)}% · control back ${f1(r.readyT - t0)} s, kicked ${f1(r.kickT - t0)} s after the restart`, hold: 0.4 };
+        const bo = st.bo, f2 = v => (v ?? 0).toFixed(2);                          // t-032: the corner's blackout, out / black / in (setup seconds)
+        const cutTxt = bo ? `blackout: out ${f2(bo.black)} s, black ${f2(bo.up - bo.black)} s, in ${f2(bo.clear - bo.up)} s${bo.clear == null ? ' (NOT CLEARED!)' : ''}, ${r.jumps.wipe} moved while black`
+          : st.wiped || o.gk ? `wipe: ${r.jumps.wipe} moved under it` : 'no wipe';
+        return { o: `${r.kind}${o.pace ? ' · ' + o.pace.toUpperCase() : ''} · setup ${f1(r.readyT - t0)} s${st.skip ? ' (SKIPPED by a press)' : ''} · jogged in: ${ds.length} men, avg ${avg.toFixed(1)} m, max ${mx.toFixed(1)} m · ${cutTxt} · jumped in view without a wipe: ${r.jumps.view}${r.jumpWho ? ' (' + r.jumpWho + ')' : ''} · ball placed ${o.gk ? 'in his hands' : f1(st.placed) + ' s in'} · shape in ${Math.round((st.frac ?? 1) * 100)}% · control back ${f1(r.readyT - t0)} s, kicked ${f1(r.kickT - t0)} s after the restart`, hold: 0.4 };
       } };
   }
   function rsTests() {
@@ -1913,6 +2383,10 @@
       rsTest('RS1-A', 'RS1 on ARCADE', 'the same offside free kick, ARCADE\'s quicker setup', { pace: 'arcade', att: 24, go(r) { const st = H()[9]; put(st, 89, 36, 0); atFeet(st); m.offCall(st, { team: m.home, men: new Map([[st, { x: st.x, y: st.y }]]), line: m.offLine(m.home), by: H()[6] }); } }),
       rsTest('RS2-A', 'RS2 on ARCADE', 'your corner with ARCADE\'s quicker setup (ARCADE plays off the boards today: corners come with PR #31\'s rule change or a Lab call)',
         { pace: 'arcade', you: true, att: 26, go(r) { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A()[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; } }),
+      // t-032: the same corner from the other flag (the far touchline at the top of the screen): the blackout, the cut and
+      // the taker's walk mirrored - nobody seen jumping, the camera on the right flag
+      rsTest('RS8', 'CORNER (yours) from the other flag', 'out off their #3 over the byline near the far touchline: the blackout, then the taker walking to the top flag, the box filling - then the Lab crosses (LOB)',
+        { you: true, att: 26, go(r) { ballAt(106.2, 10, 0.2); Object.assign(m.ball, { last: m.away, lastP: A()[3], vx: 2, vy: -1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: 0.4, t: 0.8 }; } }),
     ];
   }
   function ofTests() {
@@ -2102,6 +2576,139 @@
       hvTest('HV5', 'the computer\'s header by level (NORMAL)', 'their striker meets a cross: it charges about 3 in 10, its timing a dice by level', { ...hdr, cpu: true, lvl: 'normal' }),
       hvTest('HV6', 'a charged header straight at their keeper', 'timed right, aimed at him: does the pace beat his hold (held / parried)?', { ...hdr, press: 0.75, rel: 0.05, gkY: 33.1, stick: [0, -0.4] }),
       hvTest('HV7', 'a header held through the contact (LATE)', 'still holding SHOOT as it reaches you: struck late - weaker and wilder', { ...hdr, press: 0.75, rel: null }),
+    ];
+  }
+  // ======================================================================= t-034 AERIAL BATTLES (AB). Luca 25 Oct 19:14: "aerial battles only
+  // within gk box ... header on header or volley on volley ... if you win as attack ball goes like a shot towards the
+  // goal and defender thrown to ground ... if defender wins it gets cleared out ... use space bar ... when you press is
+  // not consistent with click output". A team-mate crosses to your striker (you), their centre-back on him goal side,
+  // their keeper on his line. The Lab presses REAL KEYS (keydown / keyup on the page, SPACE) by the battle's own clock:
+  // o.mash 'fast' a tap every 0.085 s, 'none' nothing, 'script' AB5's list - single taps, two taps inside one frame, a
+  // held key with the OS key repeat (repeat: true) - so the line can say the bar moved exactly as many steps as presses.
+  // Each line: in their box or not, header / volley, presses each side, the bar's start and end, who won and how fast,
+  // the shot (km/h, where it crossed the line) and what came of it, the beaten man on the ground for how long.
+  const abKey = (type, repeat) => window.dispatchEvent(new KeyboardEvent(type, { code: 'Space', key: ' ', repeat: !!repeat }));
+  const abTap = () => { abKey('keydown'); abKey('keyup'); };
+  const AB_SCRIPT = [[0.05, 'tap'], [0.15, 'tap'], [0.25, 'tap'], [0.35, 'tap2'], [0.5, 'down'], [0.55, 'rep'], [0.6, 'rep'], [0.65, 'rep'], [0.7, 'rep'], [0.75, 'up'], [0.85, 'tap'], [0.95, 'tap']];
+  const AB_SCRIPT_N = 8;                                                         // 3 taps + 2 in one frame + 1 held (4 repeats) + 2 taps
+  function abTest(id, name, sub, o) {
+    return { id, group: 'AB', name, sub, kind: 'ab', you: true, lvl: o.lvl || 'normal', pace: o.pace, maxT: 16,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); abKey('keyup'); Input.mashTake();
+        const H = m.home.players, Aw = m.away.players, you = H[9], c = H[7], d = Aw[3], gk = Aw[0], at = o.at || [92, 31];
+        cast([you, c, d, gk]); put(you, at[0], at[1], 0); put(d, at[0] + 0.7, at[1] + 0.6, 4); put(c, o.from[0], o.from[1]); faceTo(c, at[0], at[1]); atFeet(c);
+        put(gk, LINE_X, 33, 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+        for (const mt of m.meters || []) mt.e = 0;
+        Object.assign(m, { aerial: null, aerialLast: null, aerialAt: -1e9, aerialKick: null, aerFx: null, slowMo: 0, camTarget: null });
+        LAB.aerialChance = LAB.aerialChance ?? AERIAL.chance; AERIAL.chance = 1;   // (the battle always happens when it can; start() puts the chance back)
+        Object.assign(r, { human: you, striker: you, shooter: you, gk, gx: PITCH_L, marks: [{ x: at[0], y: at[1], r: 0.5 }], fired: false });
+        if (o.lob) { r.human = c; r.bots.set(you, lbBot); r.bots.set(d, lbMark(you, 1)); }   // (AB4: you lob it; your striker times his run, his marker goes with him - LB's bots)
+        r.action = { at: 0.6, fire: () => { const b = m.ball;
+          if (o.lob) m.kick(c, at[0], at[1], 0, 0, 0.12, { mode: 'lob', target: you, loft: true });
+          else { const a = aimAir(b.x, b.y, at[0], at[1], o.z, o.T); m.kick(c, at[0], at[1], a.speed, a.vz, 0.13, { target: you, cross: 'lab' }); } } };
+      },
+      check(r) {
+        const b = m.ball, A = m.aerial, f1 = v => v.toFixed(1), sg = v => (v > 0 ? '+' : '') + v;
+        if (A && A.kind !== 'ground') {                                          // ---- the battle: the Lab's presses on its clock
+          if (!r.bat) r.bat = { t0: r.t, done: new Set() };
+          if (o.mash === 'fast') { const k = Math.floor(A.t / 0.085); if (k > (r.bat.k ?? -1) && A.res == null) { r.bat.k = k; abTap(); } }
+          if (o.mash === 'script') AB_SCRIPT.forEach(([t, a], i) => { if (A.t >= t && !r.bat.done.has(i)) { r.bat.done.add(i);
+            if (a === 'tap') abTap(); else if (a === 'tap2') { abTap(); abTap(); } else if (a === 'down') abKey('keydown'); else if (a === 'rep') abKey('keydown', true); else abKey('keyup'); } });
+          return null;
+        }
+        if (r.bat && !r.bat.over) { r.bat.over = true; abKey('keyup'); r.L = m.aerialLast; r.endT0 = r.t; r.loser = r.L && r.L.loser; }
+        if (!r.bat) {                                                            // ---- no battle (AB4: outside the box)
+          if (!r.fired) return null;
+          const tp = b.owner && b.owner !== r.striker.team.players[7] ? b.owner : b.lastP;   // (lob receives: a chest trap is a touch too - it leaves lastP alone)
+          if (!r.touch && tp && tp !== r.striker.team.players[7] && tp.team) r.touch = { p: tp, how: b.owner === tp ? (tp.trapRun ? tp.trapRun.kind + ' trap' : 'control') : b.how ? b.how.kind : 'touch', at: { x: b.x, y: b.y }, z: b.z };
+          if (r.touch || r.t > 8) { const t = r.touch, box = t && Math.abs(t.at.x - PITCH_L) < AERIAL.boxX && Math.abs(t.at.y - 34) < AERIAL.boxY;
+            return { o: `NO BATTLE · met ${t ? `at ${f1(t.at.x)}, ${f1(t.at.y)} (${box ? 'IN' : 'outside'} their box), ${f1(t.z)} m up: ${t.p.team === m.home ? 'your' : 'their'} #${t.p.num} ${String(t.how).toUpperCase()} (no battle outside the box)` : 'nobody'}`, hold: 0.8 }; }
+          return null;
+        }
+        const L = r.L; if (!L) return { o: 'BATTLE CALLED OFF' };
+        if (r.loser && r.floorT == null && r.loser.state !== 'fall' && r.loser.state !== 'getup' && r.loser.state !== 'hit') r.floorT = r.t - r.endT0;
+        if (r.shot == null && L.how === 'shot') r.shot = hvOnTarget(PITCH_L);
+        const box = Math.abs(L.at.x - PITCH_L) < AERIAL.boxX && Math.abs(L.at.y - 34) < AERIAL.boxY, mv = L.move === 'volley' ? 'VOLLEY v VOLLEY' : 'HEADER v HEADER';
+        const yn = L.n[0], cn = L.n[1], moved = L.pos - L.pos0, honest = L.ko ? Math.abs(L.pos) === L.R && moved === yn - cn : moved === yn - cn;
+        let head = `in box ${box ? 'Y' : 'N'} · ${mv} at ${f1(L.move === 'volley' ? AERIAL.holdZv : AERIAL.holdZ)} m · you ${yn} v CPU ${cn} presses${o.mash === 'script' ? ` (script: ${AB_SCRIPT_N} real presses, ${yn === AB_SCRIPT_N ? 'all counted, no repeats' : 'COUNT OFF'})` : ''} · bar ${sg(L.pos0)} → ${sg(L.pos)} of ±${L.R} (${honest ? `moved ${sg(moved)} = ${yn} − ${cn}: 1 step a press` : 'NOT 1:1'})${L.ko ? ' · WON OUTRIGHT' : ''} in ${f1(L.T)} s · ${L.res === 'att' ? 'ATTACKER (you)' : 'DEFENDER (CPU)'} WON → `;
+        if (L.res === 'def') { const a = L.dir ? Math.round(Math.atan2(L.dir.y, L.dir.x * -1) * 180 / Math.PI) : 0;
+          head += `CLEARED ${L.spd} km/h, ${Math.abs(a) < 25 ? 'up the pitch' : L.dir.y < 0 ? 'to the top touchline' : 'to the bottom touchline'}`;
+          if (!r.clr && (b.z <= 0.05 || b.owner || r.out)) r.clr = { x: b.x, y: b.y };
+          if (r.clr && r.floorT != null) return { o: head + ` · came down ${f1(Math.abs(PITCH_L - r.clr.x))} m from the goal line (${Math.abs(PITCH_L - r.clr.x) > AERIAL.boxX ? 'out of the box' : 'STILL IN THE BOX'}) · you stumbled ${f1(r.floorT)} s`, hold: 0.6 };
+          return r.t - r.endT0 > 5 ? { o: head + ' · ?' } : null; }
+        head += L.how === 'special' ? 'AERIAL SPECIAL' : `${L.move === 'volley' ? 'VOLLEY' : 'HEADER'} AT GOAL ${L.spd} km/h (${r.shot}) · their #${r.loser ? r.loser.num : '?'} on the ground ${r.floorT != null ? f1(r.floorT) + ' s' : '…'} → `;
+        const res = r.floorT != null ? gkxOut(r) : null; if (res) return { ...res, o: head + res.o };
+        return r.t - r.endT0 > 6 ? { o: head + (b.owner ? `${b.owner.team === m.home ? 'your side' : 'their side'} has it` : 'loose') } : null;
+      } };
+  }
+  function abTests() {
+    const hdr = { from: [99, 6], z: 1.9, T: 1.3 };
+    return [
+      abTest('AB1', 'a cross in the box at head height, you win it', 'HEADER v HEADER: MASH SPACE! (the Lab taps ~12 a second) - you win: a header at goal at a shot\'s pace, their man floored', { ...hdr, mash: 'fast' }),
+      abTest('AB2', 'the same, the defender wins it', 'no presses: the computer\'s centre-back wins and clears it high and long, out of the box; you stumble', { ...hdr, mash: 'none' }),
+      abTest('AB3', 'a waist-high ball in the box', 'a driven cross met at the waist: VOLLEY v VOLLEY, same mash - you win: a volley at goal', { from: [100, 14], z: 1.0, T: 0.8, mash: 'fast' }),
+      abTest('AB4', 'a contested lob OUTSIDE the box', 'a lob to your man and his marker at 24 m out: NO battle (lob receives: his marker trails a beat behind, so it\'s clean - received, no duel; a dead-level race would be the quick duel: LR5)', { from: [62, 40], at: [80, 31], lob: true, mash: 'fast' }),
+      abTest('AB5', 'the mash script: real key presses', '3 taps, 2 taps inside one frame, SPACE held with 4 OS key repeats (one press), 2 taps = 8 presses: the bar moves 8 steps your way, the computer\'s presses 1 each back', { ...hdr, mash: 'script' }),
+      abTest('AB6', 'ARCADE: the same cross, a shorter mash', 'AB1 on ARCADE: the window ~1.0 s (CLASSIC 1.2 s)', { ...hdr, mash: 'fast', pace: 'arcade' }),
+    ];
+  }
+  // ======================================================================= LOB RECEIVES (LR). Co-designer 28 Oct: "In lob receives it's not
+  // a button mash every time. Only in very contested receives ... When it is clearly going to a certain receiver, it
+  // should be uncontested" + "chest trap and animate into running". A team-mate lobs (or crosses) to your striker (you);
+  // the race as it comes down (actions.js recvVerdict) says CLEAN / CONTEST / LOST, then what came of it. A trap: how
+  // long from the contact until he's running with it at his feet, his pace then, and which way he went.
+  // (their man in a dead-level race: flat out for the same point of the drop the receiver's run goes for - teamai.js lobRun's)
+  const lrRace = (d, dt) => { const b = m.ball, P = m.path; if (b.owner || !P || !b.lob) { d.steer(0, 0, dt); return; }
+    let hi = b.z > 2.0, pt = null; for (const q of P) { if (q.z > 2.0) hi = true; else if (hi) { pt = q; break; } }
+    if (pt) d.moveTo(pt.x, pt.y, d.top(true, false), dt); else d.steer(0, 0, dt); };
+  function lrTest(id, name, sub, o) {
+    return { id, group: 'LR', name, sub, kind: 'lr', you: true, lvl: 'normal', maxT: 12,
+      setup(r) {
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); abKey('keyup'); Input.mashTake();
+        const H = m.home.players, Aw = m.away.players, you = H[9], c = H[7], d = Aw[3], gk = Aw[0], at = o.at;
+        cast(o.def ? [you, c, d, gk] : [you, c, gk]); put(you, at[0], at[1], 0); put(c, o.from[0], o.from[1]); faceTo(c, o.to[0], o.to[1]); atFeet(c);
+        if (o.def) { put(d, at[0] + o.def[0], at[1] + o.def[1], 4); r.bots.set(d, o.race ? lrRace : (p, dt) => p.steer(0, 0, dt)); }
+        put(gk, LINE_X, 34, 4); Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0 });
+        Object.assign(m, { aerial: null, aerialLast: null, aerialAt: -1e9, aerialKick: null, aerFx: null, slowMo: 0, camTarget: null, recvN: null });
+        LAB.aerialChance = LAB.aerialChance ?? AERIAL.chance; AERIAL.chance = 1;   // (the battle always happens when it can)
+        Object.assign(r, { human: you, striker: you, gk, gx: PITCH_L, marks: [{ x: o.to[0], y: o.to[1], r: 0.5 }], fired: false });
+        r.action = { at: 0.5, fire: () => { const b = m.ball;
+          if (o.drop) { b.owner = null; Object.assign(b, { x: you.x - 3.6, y: you.y, z: 1.55, vx: 8, vy: 0, vz: 0, target: you, last: you.team, lastP: c, crossBy: c, lob: false, skid: true, spT: m.time.now, how: { kind: 'pass' } }); }   // (LR6: dropping onto him at the waist)
+          else if (o.cross) { const a = aimAir(b.x, b.y, o.to[0], o.to[1], o.z, o.T); m.kick(c, o.to[0], o.to[1], a.speed, a.vz, 0.13, { target: you, cross: 'lab' }); }
+          else m.kick(c, o.to[0], o.to[1], 0, 0, 0.12, { mode: 'lob', target: you, loft: true }); } };
+      },
+      check(r) {
+        const b = m.ball, you = r.human, N = m.recvN || {}, f1 = v => v.toFixed(1), f2 = v => v.toFixed(2);
+        if (!r.fired) return null;
+        if (o.arrow && !r.arrowOn && !b.owner && b.target === you && len(b.x - you.x, b.y - you.y) < 3 && b.z < 2.6) { r.arrowOn = true; Input.touch.x = o.arrow[0]; Input.touch.y = o.arrow[1]; }   // (the arrow held as it arrives)
+        const V = b.recv && b.recv.q === you ? b.recv : r.V; if (V) r.V = V;
+        const A = m.aerial;
+        if (A && A.kind !== 'ground') { if (!r.bat) r.bat = { k: -1 }; const k = Math.floor(A.t / 0.085); if (k > r.bat.k && A.res == null) { r.bat.k = k; abTap(); } return null; }
+        const race = r.V ? `${r.V.kind.toUpperCase()} (you ${r.V.gap >= 0 ? 'first by' : 'second by'} ${f2(Math.abs(r.V.gap))} s)` : 'NO RACE';
+        if (r.bat) { abKey('keyup'); const L = m.aerialLast; return { o: `${race} · AERIAL BATTLE ${L ? `${L.move === 'volley' ? 'VOLLEY' : 'HEADER'} v ${L.move === 'volley' ? 'VOLLEY' : 'HEADER'} · ${L.res === 'att' ? 'you won it' : 'they won it'}` : ''} · MASH ✓ (only on a near tie)`, hold: 0.8 }; }
+        if (you.trapRun && b.owner === you && !r.trap) r.trap = { t: r.t, kind: you.trapRun.kind, v0: you.speed, z: b.z, u: you.trapRun.u };
+        if (r.trap && r.runT == null && b.owner === you && b.z <= 0.05 && you.speed > 2.5) { r.runT = r.t - r.trap.t; r.runV = you.speed; }
+        if (r.trap && r.runT != null && r.t - r.trap.t > 1.0) {
+          const dv = len(you.vx, you.vy) || 1, ang = o.arrow ? Math.round(Math.acos(clamp((you.vx * o.arrow[0] + you.vy * o.arrow[1]) / dv / (len(o.arrow[0], o.arrow[1]) || 1), -1, 1)) * 180 / Math.PI) : null;
+          return { o: `${race} · ${r.trap.kind.toUpperCase()} TRAP at ${f1(r.trap.z + 0.1)} m into the run · running with it ${f2(r.runT)} s after the contact (${r.runT <= 0.55 ? 'snappy ✓' : 'SLOW'}) · ${f1(r.trap.v0 * 3.6)} km/h at the touch → ${f1(r.runV * 3.6)} km/h with it at his feet${ang != null ? ` · ${ang}° off your arrow${ang < 25 ? ' ✓' : ''}` : ''} · ${b.owner === you ? 'still his ✓' : 'LOST IT'} · duels ${N.duel || 0} / battles ${N.battle || 0}`, hold: 0.6 };
+        }
+        if (!r.trap && b.lastP && b.lastP !== r.human.team.players[7] && (b.how && b.how.kind === 'header' || b.lastP.team !== you.team || (b.owner && b.owner !== you))) {
+          const who = b.lastP === you ? 'you' : b.lastP.team === you.team ? 'a team-mate' : `their #${b.lastP.num}`;
+          return { o: `${race} · ${who}: ${b.how ? String(b.how.kind).toUpperCase() : b.owner ? 'CONTROLLED' : 'TOUCH'} · duel ${N.duel ? 'YES' : 'no'} · battle ${N.battle ? 'YES' : 'no'}`, hold: 0.8 };
+        }
+        if (r.t > 9) return { o: `${race} · ${r.trap ? `${r.trap.kind} trap, never running with it` : 'nothing'} (${b.owner ? (b.owner === you ? 'yours' : 'theirs') : 'loose'})` };
+        return null;
+      } };
+  }
+  function lrTests() {
+    return [
+      lrTest('LR1', 'an UNMARKED receiver: chest trap into the run', 'nobody near: CLEAN, no mash, no duel - he takes it on the chest on the move and runs on with it (no arrow: where he was going)', { from: [52, 30], to: [76, 30], at: [70, 30] }),
+      lrTest('LR2', 'the same, ARROW held (up-right)', 'CLEAN - the first touch takes him the way you point, straight into the run', { from: [52, 30], to: [76, 30], at: [70, 30], arrow: [0.7, -0.7] }),
+      lrTest('LR3', 'MARKED, his man 1 m behind', 'the receiver is first to it by a clear margin: CLEAN - received, no mash', { from: [52, 30], to: [76, 30], at: [70, 30], def: [-1, 0] }),
+      lrTest('LR4', 'a DEAD-LEVEL race in their BOX', 'both get there together: CONTEST - the aerial battle, MASH SPACE! (the Lab taps ~12 a second)', { from: [74, 40], to: [93, 31], at: [92, 31], def: [0.45, 1.0], race: true }),
+      lrTest('LR5', 'a DEAD-LEVEL race OUTSIDE the box', 'both get there together, 24 m out: CONTEST - the quick duel (lobDuel), no mash', { from: [62, 40], to: [81, 31], at: [80, 31], def: [0.45, 1.0], race: true }),
+      lrTest('LR6', 'a THIGH trap: a ball dropping at the waist', 'a dipping ball meets him at ~0.8 m: CLEAN - thigh, pops up a touch, runs on with it', { from: [58, 22], to: [76, 30], at: [77, 30.3], drop: true }),
+      lrTest('LR7', 'their man WINS the race', 'a lob dropping onto their centre-back, your striker 15 m off it: LOST - their man heads it away, no duel, no mash', { from: [52, 30], to: [76, 30], at: [64, 44], def: [8.5, -14] }),
     ];
   }
   function ksOut(r) {
@@ -2467,7 +3074,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   function buildTests() {
     const G = [];
     const add = (id, name, blurb, tests) => G.push({ id, name, blurb, tests });
-    add('FP', 'FREE PLAY', 'Play however you like. The panel on the left: toggles, every move on a button, any animation, tuning sliders.', [freePlay()]);
+    add('FP', 'FREE PLAY', 'The playground: you, the ball and a keeper. Every move we have built is a button in the panel (the Lab sets it up, the game plays it), plus switches, settings, knobs and any animation.', [freePlay()]);
     const k = [];
     SPOTS.forEach((s, i) => TGT.forEach((t, j) => k.push(shotTest(`K${String(i * 5 + j + 1).padStart(2, '0')}`, 'K', s, t, 25.6, 0.6))));
     add('K', 'KEEPER · SHOTS', 'A striker shoots from 6 spots to 5 places at 92 km/h. Is the keeper believable?', k);
@@ -2567,6 +3174,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
     add('AI', 'smarter-ai · THE TEAM BRAIN', 'The real team AI on both sides (smarter-ai stage 2, docs/smarter-ai.md): a support man who keeps his job, one presser + one cover, no lob into a marked man, chasing late (and the keeper up for the last corner), the four example styles, Rise Warrior reading your flank, the 1-2 (open and covered).', aiTests());
     add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
+    add('SX', 'ARCADE SPECIALS (co-designer, 28 Oct)', 'ARCADE only: the special dribble (its own button N / O / pad LT, or SPECIAL far from goal), combo specials (the 1-2 and the lob + volley, 2 or 3 bars, two portraits), the team signature names, the computer\'s dribble.', sxTests());
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
     add('RS', 't-029 · SET-PIECE SETUP', 'Every restart gets a short setup, as on TV: the whistle / flag and a caption, the players JOG into the restart\'s shape (anyone too far is moved under a quick TV wipe, never in plain sight), the taker walks up and places the ball, then you aim / the computer takes it. One time per kind, CLASSIC and ARCADE (quicker); your own set piece: PASS / SHOOT / LOB skips to aiming once the shape is mostly in.', rsTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
@@ -2595,6 +3203,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       asTest('AS5', 'LV3 · a very high ball → PHOENIX', 'the leap and dive', { lv: 3, from: [99, 6], z: 1.8, T: 1.5 }),
       asTest('AS6', 'LV3 · a sky-high loop → METEOR DRIVE', 'somersault axe kick', { lv: 3, from: [96, 8], z: 1.8, T: 2.4 }),
     ]);
+    add('AB', 't-034 · AERIAL BATTLES', 'Only in their box (outside: the quick duel). The height it is met at picks it: HEADER v HEADER at head height, VOLLEY v VOLLEY at the waist. MASH SPACE! (or your SHOOT key): every press is one step of the bar your way, every one of the computer\'s one step back, from where the head start puts it; the end of the bar wins outright. Attacker wins: a header / volley at goal at a shot\'s pace, the defender floored ~1.3 s. Defender wins: cleared high and long.', abTests());
+    add('LR', 'LOB RECEIVES', 'One race as a high ball comes down: the man it\'s meant for v their quickest. Clearly his (first by 0.35 s, or nobody of theirs within 2 m): CLEAN - no mash, no duel; he heads it, volleys it or takes it on the chest / thigh straight into his run (the arrow picks the way). Clearly theirs: LOST. Only a near tie is a contest: the quick duel, or in their box the aerial battle with the mash.', lrTests());
     add('HV', 't-022 · CHARGED HEADERS + VOLLEYS', 'Hold SHOOT as the ball comes in, let go as it reaches you: the hold is the power (like a ground shot), the timing keeps it - just before the contact = full power and on target, early or late = weaker and wilder, too much = over the bar. A tap is today\'s header / volley. A well-timed one: a white flash, a few sparks, a tiny hit-stop.', hvTests());
     add('KS', 't-014 · KEEPER SPECIAL SAVES BY THE SHOT', 'Their keeper has a special save ready; the shot picks the move: a lob → kleap, straight → kblock, wide → kdivecatch, too strong to hold → ktip (a corner). Who wins stays as before.', ksTests());
     add('KC', 't-028 · THE KEEPER CLASH', 'With a special save on, the keeper gets to anything on target (a dash across his goal). A special shot against it is held on his gloves for a beat - sparks, slow-mo, POWER AGAINST POWER (ENTER skips) - then power decides: HELD, BOUNCES OFF (parried or tipped), HANDS BLOWN AWAY (goal), or THE BODY (blasted into the net with it).', kcTests());
@@ -2625,6 +3235,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     for (const mt of m.meters || []) mt.e = 0;
     if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; }           // (t-012: a WG test plays the computer on both sides)
     TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
+    GOAL_PHYS = sc.kind === 'free' ? !!LAB.fp.gp : null;                        // t-038: FREE PLAY's GOAL PHYSICS / CURVE PASS switches; the tests as before
+    CURVE_PASS = sc.kind === 'free' ? !!LAB.fp.curve : true;                    //   (GOAL_PHYS null = on in the Lab; the curving pass on since t-011)
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
     if (LAB.lobAim0 == null) LAB.lobAim0 = LOB_AIM_MODE;                        // t-019: LB / LV set LOB AIM per test; every other test plays the picked one
     LOB_AIM_MODE = LAB.lobAim0; LOB_AIM.camOld = LOB_AIM.ringOld = false; Object.assign(m, { lobCamBlend: null, camLead: undefined, camLeadOn: false });
@@ -2639,9 +3251,23 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     m.human = r.human; m.camX = m.camY = undefined;
     render();
   }
-  function finish(res) { const r = LAB.run; r.result = res; r.endT = r.t + (res.hold ?? 0.9); render(); }
+  function finish(res) { const r = LAB.run; r.result = res; r.endT = r.t + (res.hold ?? 0.9);
+    if (/^(GH|GKX|KP|KC)$/.test(r.sc.group) && res.o) res.o += r.tilt ? ` · body at contact (${r.tilt.mv}): ${r.tilt.deg == null ? 'as PixelLab drew it' : r.tilt.deg + '° from flat'}` : ' · body upright, as PixelLab drew it (no side dive)';   // t-033 (90° = upright: the old handstand)
+    if (/^(KC|KS)$/.test(r.sc.group) && res.o) { res.oBase = res.o; res.o += flashTxt(r); }   // t-036 (kept up to date until the test ends: his landing comes after the outcome)
+    render(); }
+  const flashTxt = r => r.flash ? ` · flash to gloves max ${Math.round(r.flash.d)} px (${r.flash.mv})` : ' · flash to gloves: no special-save move';
+  // t-033: how his body is drawn on the frame his gloves meet the ball (GK_HAND_HIT) - the first dive / special save of the test
+  function tiltTrack(r) {
+    if (r.tilt) return;
+    for (const k of [m.home.players[0], m.away.players[0]]) {
+      if (k.state !== 'dive' && !k._rigged) continue;
+      const nm = (k.spr.frame && k.spr.frame.name) || '', mv = nm.replace(/-\d+$/, ''), c = GK_HAND_HIT[mv.replace(/-\w+$/, '')], i = frameNo(k.spr);
+      if (c != null && i != null && i >= c) { r.tilt = { mv, deg: k.bodyTilt() }; return; }
+    }
+  }
   function sample() {
     const r = LAB.run, b = m.ball;
+    if (/^(GH|GKX|KP|KC)$/.test(r.sc.group)) tiltTrack(r);
     if (r.action && !r.fired && r.t >= r.action.at) { r.fired = true; r.action.fire(r); }
     if (r.shotT != null && !r.result) {
       r.maxZ = Math.max(r.maxZ, b.z);
@@ -2732,6 +3358,14 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       const c = LAB.reactK; if (c && c.src === K && c.d === LAB.react) return c.K;
       LAB.reactK = { src: K, d: LAB.react, K: Object.assign({}, K, { gkReact: K.gkReact + LAB.react }) }; return LAB.reactK.K; };
     m.dkY = function (team) { const r = LAB.run; return DIFF_YOU[r && r.sc.kind === 'free' && team === m.away ? LAB.fp.cpu : 'base']; };   // v0.9.3: its edges v you, same switch
+    // t-036 KC / KS: how far the special save's fist flash is from his gloves as drawn (rigGlovePt: turned + slid, the
+    // ball's point), every frame of his move from the contact to the landing - the point an effect at 'fist' gets now
+    const rigFx = m.rigFx.bind(m);
+    m.rigFx = function (p, P) { rigFx(p, P); const r = LAB.run, g = p.rig, R = g && RIGS[g.n];
+      if (!r || !/^(KC|KS)$/.test(r.sc.group) || !R || !R.gk || g.e0 == null || g.t < g.e0) return;
+      const hk = R.keys.find(q => q.hit), q = m.rigFxPt(p, R, P, 'fist'), G = rigGlovePt(p.spr, hk.fist, g.d === 'W');
+      if (q && G) { const d = len(q.x - G.x, q.y - G.y); if (!r.flash || d > r.flash.d) r.flash = { d, mv: g.n, f: frameNo(p.spr) }; }
+      if (r.result && r.result.oBase != null) r.result.o = r.result.oBase + flashTxt(r); };
     const gpPop = m.gpPop.bind(m);                                             // t-013 GP7-8: the pop-up made to happen, so it can be seen
     m.gpPop = function (gk, kind, spd) { const r = LAB.run; if (r && r.sc.noPop) return false;   // (t-028 KC: the clash's own outcome, no GOAL_PHYS pop-up on top)
       if (!(r && r.sc.forcePop)) return gpPop(gk, kind, spd); const R = Math.random; let first = true;
@@ -2841,6 +3475,11 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     $('flags').hidden = LAB.slow === 1 && LAB.boxes;                            // v0.8.8: only when something is switched away from normal
     $('id').textContent = sc.id;
     $('fp').hidden = sc.kind !== 'free'; document.body.classList.toggle('free', sc.kind === 'free');
+    $('nav-where').textContent = `${grp.name} · ${LAB.i + 1} / ${grp.tests.length}`;                  // t-038 the nav bar
+    const R = LAB.resume, rg = R && LAB.groups[R[0]], rt = rg && rg.tests[R[1]];
+    $('nav-resume').hidden = !(rt && sc.kind === 'free'); if (rt) $('nav-resume').textContent = `RESUME ▶ ${rt.id} · ${rg.name}`;
+    $('keyhint').textContent = sc.kind === 'free' ? 'FREE PLAY: the keys play the game (B = SPECIAL). BACK / NEXT: the buttons at the top, or [ and ]. R, F, H, T, G work as usual.'
+      : 'B / N also go back / next. G or M: all tests (Esc closes it).';
     const clip = sc.kind === 'clip'; $('bwc').hidden = !clip || !sc.doc;                                  // v0.8.7 BUG WATCH clip card
     $('r1').textContent = clip ? 'game was right' : 'looks right'; $('r2').textContent = clip ? "it's a bug" : 'looks wrong';
     $('rate-h').textContent = clip ? 'RATE THIS CLIP' : 'RATE THIS TEST';
@@ -2854,6 +3493,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       const S = r.stats, gk = r.gk, mt = m.meters && m.meters[0];
       $('result').textContent = { goal: 'GOAL!', held: 'KEEPER HOLDS IT', out: 'OUT', far: 'BALL GONE' }[r.why] || r.last || 'READY · E = BALL BACK';
       $('result').className = r.why === 'goal' ? 'goal' : r.why ? 'done' : '';
+      $('fp-last').textContent = (r.why ? { goal: 'GOAL!', held: 'KEEPER HOLDS IT', out: 'OUT', far: 'BALL GONE' }[r.why] + ' · ' : '') + (r.last || 'READY · pick a move');   // t-038
       L.push(['ball', `${kmh(len(b.vx, b.vy, b.vz))} km/h · ${b.z.toFixed(1)} m up`]);
       if (r.v0 != null) L.push(['struck at', `${kmh(r.v0)} km/h · top ${r.maxZ.toFixed(1)} m`]);
       if (gk && !r.nogk) L.push(['keeper', `${gk.hands ? 'holding it' : gk.state} · guard ${Math.round((gk.guard ?? 1) * 100)}%${LAB.fp.save ? ` · LV${LAB.fp.save} save ready` : ''}`]);
@@ -2914,22 +3554,94 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   function next(d = 1) { const grp = LAB.groups[LAB.g]; LAB.i += d;
     if (LAB.i >= grp.tests.length) { LAB.g = (LAB.g + 1) % LAB.groups.length; LAB.i = 0; }
     if (LAB.i < 0) { LAB.g = (LAB.g - 1 + LAB.groups.length) % LAB.groups.length; LAB.i = LAB.groups[LAB.g].tests.length - 1; }
-    try { localStorage.setItem('hc2-lab-at2', JSON.stringify([LAB.g, LAB.i])); } catch (e) {}
-    start(false); }
+    remember(); start(false); }
+  // t-038 (Luca: "there is no free play or can't access it"): the Lab used to reopen wherever you left off, so FREE PLAY was
+  // easy to lose. It opens on FREE PLAY now; the last test you were on (not FREE PLAY) is kept for the RESUME button.
+  function remember() { const g = LAB.groups[LAB.g], t = g && g.tests[LAB.i]; if (!t || g.id === 'FP') return;
+    LAB.resume = [LAB.g, LAB.i]; try { localStorage.setItem('hc2-lab-at3', t.id); localStorage.setItem('hc2-lab-at2', JSON.stringify([LAB.g, LAB.i])); } catch (e) {} }
+  function savedSpot() {
+    try { const id = localStorage.getItem('hc2-lab-at3'); if (id) for (let g = 1; g < LAB.groups.length; g++) { const i = LAB.groups[g].tests.findIndex(t => t.id === id); if (i >= 0) return [g, i]; } } catch (e) {}
+    try { const at = JSON.parse(localStorage.getItem('hc2-lab-at2') || 'null'); if (at && at[0] > 0 && LAB.groups[at[0]] && LAB.groups[at[0]].tests[at[1]]) return at; } catch (e) {}
+    return null; }
+  function goTo(g, i) { if (!LAB.groups[g] || !LAB.groups[g].tests[i]) return; LAB.g = g; LAB.i = i; menu(false); remember(); start(false); }
+  function goFree() { const j = LAB.groups.findIndex(g => g.id === 'FP'); const r = LAB.run;
+    if (LAB.g === j && r && r.sc.kind === 'free') { menu(false); fpReset(r); r.last = ''; return; }        // (already there: a clean start)
+    goTo(j, 0); }
   function rateRight() { save('right', null); flash('✓ saved'); setTimeout(() => next(1), 250); }
   function flash(t) { const f = $('flash'); f.textContent = t; f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
+  // ---------- t-038 ALL TESTS: sections, a search box, every test of a group behind ▸, and it scrolls on any screen
+  // (it was one centred box of 39 groups with no scroll: the top and bottom were cut off at 1366x768, and the number keys
+  // ran out after 10). FIFA / EA FC's Skill Games and PES's training menu: categories, then the drills inside each.
+  const MENU_SECS = [['free', 'FREE PLAY'], ['new', 'NEWEST · the last 8 tasks'], ['gk', 'KEEPER'], ['shoot', 'SHOOTING & SPECIALS'], ['pass', 'PASSING & LOBS'],
+    ['air', 'AIR BALLS'], ['set', 'SET PIECES & RULES'], ['move', 'MOVEMENT & TACKLES'], ['phys', 'PHYSICS & NET'], ['tools', 'TOOLS · cut scenes, Bug Watch'], ['more', 'MORE']];
+  const MENU_OF = { FP: 'free', K: 'gk', KH: 'gk', C: 'gk', GKX: 'gk', KP: 'gk', GK: 'gk', KF: 'gk', GH: 'gk', KS: 'gk', KC: 'gk',
+    YS: 'shoot', PW: 'shoot', SM: 'shoot', CH: 'shoot', TK: 'shoot', CP: 'pass', LB: 'pass', LV: 'pass', LC: 'pass', WG: 'pass',
+    A: 'air', HV: 'air', AS: 'air', PK: 'set', OF: 'set', RS: 'set', AR: 'set', M: 'move', D: 'move', T: 'move', TT: 'move',
+    P: 'phys', N5: 'phys', GP: 'phys', NT: 'phys', CS: 'tools', BW: 'tools', CL: 'tools' };
+  function menuSec(g) {                                                          // (a group added later without a line above: by the words in its name)
+    if (MENU_OF[g.id]) return MENU_OF[g.id]; const n = g.name.toUpperCase();
+    return /KEEPER|SAVE|\bGK\b/.test(n) ? 'gk' : /SHOT|SPECIAL|SHOOT/.test(n) ? 'shoot' : /PASS|LOB|CROSS|WING/.test(n) ? 'pass' : /HEAD|VOLLEY|AERIAL|\bAIR\b/.test(n) ? 'air'
+      : /CORNER|FREE KICK|OFFSIDE|PENALT|SET.PIECE|THROW|RULE/.test(n) ? 'set' : /TACKLE|MOVE|DRIBBL/.test(n) ? 'move' : /NET|PHYSICS|BALL|GOAL/.test(n) ? 'phys' : 'more'; }
+  // NEWEST: the groups of the last 8 tasks, by the t-number in their names ("t-023 / t-025" counts as 25)
+  function menuNewest() { return LAB.groups.map((g, j) => ({ j, t: Math.max(0, ...(g.name.match(/t-(\d+)/g) || []).map(x => +x.slice(2))) })).filter(x => x.t).sort((a, b) => b.t - a.t || a.j - b.j).slice(0, 8).map(x => x.j); }
+  const escH = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function menu(open) {
     LAB.menu = open; $('menu').hidden = !open; if (!open) return;
-    $('menu-list').innerHTML = LAB.groups.map((g, j) => { const done = g.tests.filter(t => LAB.rated[t.id]).length;
-      return `<li${j === LAB.g ? ' class="cur"' : ''}><button type="button" data-g="${j}"><b>${(j + 1) % 10}</b> ${g.name}<span>${done} / ${g.tests.length} rated</span></button></li>`; }).join('');
-    for (const b of document.querySelectorAll('#menu-list button')) b.addEventListener('click', () => jump(+b.dataset.g));
+    LAB.menuOpen = new Set([LAB.g]); $('menu-q').value = ''; menuDraw(true);
+    setTimeout(() => { try { $('menu-q').focus({ preventScroll: true }); } catch (e) {} }, 0);   // type to search straight away
+  }
+  function menuDraw(scroll) {
+    const q = $('menu-q').value.trim().toLowerCase(), G = LAB.groups, has = v => String(v || '').toLowerCase().includes(q);
+    LAB.menuKeys = [];
+    const row = j => {
+      const g = G[j], gHit = !q || has(g.id) || has(g.name) || has(g.blurb);
+      const tHit = q ? g.tests.map((t, i) => has(t.id) || has(t.name) || has(t.sub) ? i : -1).filter(i => i >= 0) : [];
+      if (!gHit && !tHit.length) return '';
+      const key = !q && LAB.menuKeys.length < 10 ? (LAB.menuKeys.push(j), LAB.menuKeys.length % 10) : null;   // 1-9, 0: the first ten, only while there's no search (then they type)
+      const exp = LAB.menuOpen.has(j) || (!!q && !gHit), list = q && !gHit ? tHit : g.tests.map((_, i) => i);
+      const done = g.tests.filter(t => LAB.rated[t.id]).length;
+      return `<div class="mg${j === LAB.g ? ' cur' : ''}"><div class="mg-r"><button type="button" class="mg-x" data-x="${j}" aria-expanded="${exp}" aria-label="${exp ? 'hide' : 'show'} the tests of ${escH(g.name)}">${exp ? '▾' : '▸'}</button>` +
+        `<button type="button" class="mg-open" data-g="${j}">${key != null ? `<b>${key}</b>` : ''}<em>${escH(g.name)}</em><span>${g.tests.length > 1 ? `${done} / ${g.tests.length} rated` : '1 test'}</span></button></div>` +
+        (exp ? `<ol class="mg-t">${list.map(i => { const t = g.tests[i], v = LAB.rated[t.id];
+          return `<li><button type="button" data-g="${j}" data-i="${i}"${j === LAB.g && i === LAB.i ? ' class="cur"' : ''}><code>${escH(t.id)}</code>${escH(t.name)}<i${v ? ` class="${v}"` : ''}></i></button></li>`; }).join('')}</ol>` : '') + '</div>';
+    };
+    const html = MENU_SECS.map(([id, title]) => {
+      const js = id === 'new' ? (q ? [] : menuNewest()) : G.map((g, j) => menuSec(g) === id ? j : -1).filter(j => j >= 0);   // (searching: each group once, in its own section)
+      const h = js.map(row).join(''); return h ? `<h3>${title}</h3>${h}` : '';
+    }).join('');
+    const body = $('menu-body');
+    body.innerHTML = html || `<p id="menu-none">Nothing matches "${escH(q)}". Try keeper, lob, header, corner, or a test id like GH3.</p>`;
+    if (scroll) { const c = body.querySelector('.mg-t button.cur') || body.querySelector('.mg.cur'); if (c) c.scrollIntoView({ block: 'center' }); else body.scrollTop = 0; }
+  }
+  function menuKey(d) { const j = (LAB.menuKeys || [])[d === '0' ? 9 : +d - 1]; if (j != null) goTo(j, 0); }
+  function menuUI() {
+    $('menu-body').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.x != null) { const j = +b.dataset.x, y = $('menu-body').scrollTop; LAB.menuOpen.has(j) ? LAB.menuOpen.delete(j) : LAB.menuOpen.add(j);
+        menuDraw(false); $('menu-body').scrollTop = y; const nb = $('menu-body').querySelector(`.mg-x[data-x="${j}"]`); if (nb) nb.focus({ preventScroll: true }); return; }
+      if (b.dataset.i != null) goTo(+b.dataset.g, +b.dataset.i); else if (b.dataset.g != null) goTo(+b.dataset.g, 0);
+    });
+    const q = $('menu-q');
+    q.addEventListener('input', () => { menuDraw(false); $('menu-body').scrollTop = 0; });
+    q.addEventListener('keydown', e => {
+      e.stopPropagation();                                                       // (typing here never moves your player)
+      if (e.key === 'Escape') { e.preventDefault(); menu(false); }
+      else if (e.key === 'Enter') {                                              // a test named exactly, else the first test found, else the first group
+        const v = q.value.trim().toLowerCase(), B = $('menu-body'), ts = [...B.querySelectorAll('.mg-t button')];
+        const b = !v ? B.querySelector('.mg.cur .mg-open') : ts.find(x => x.querySelector('code').textContent.toLowerCase() === v) || ts[0] || B.querySelector('.mg-open'); if (b) b.click(); }
+      else if (/^[0-9]$/.test(e.key) && !q.value) { e.preventDefault(); menuKey(e.key); }
+      else if (e.key === 'ArrowDown') { const b = $('menu-body').querySelector('button'); if (b) { e.preventDefault(); b.focus(); } }
+    });
+    $('menu-body').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); menu(false); } });
+    $('menu').addEventListener('click', e => { if (e.target === $('menu')) menu(false); });   // (a click beside the list closes it)
+    $('menu-x').addEventListener('click', () => menu(false));
   }
   function setZoom(z, fromSlider) {
     LAB.zoom = Math.round(clamp(z, 0.5, 2) * 100) / 100; LAB.cx = null;
     if (!fromSlider && $('zoom')) $('zoom').value = LAB.zoom; if ($('zoomv')) $('zoomv').textContent = LAB.zoom.toFixed(2) + '×';
     try { localStorage.setItem('hc2-lab-zoom', String(LAB.zoom)); } catch (e) {}
   }
-  function jump(j) { if (j < 0 || j >= LAB.groups.length) return; LAB.g = j; LAB.i = 0; menu(false); start(false); }
+  function jump(j) { if (j < 0 || j >= LAB.groups.length) return; goTo(j, 0); }
   // (Luca + the co-designer, 24 Oct: "Try it in the Test Lab" on every Needs OK card) a link ending in a test's id opens
   // that test and starts it: …#CH1, also #lab-CH1 (from a PR preview page), or a whole group: #CH. Ids ignore case.
   function fromHash() {
@@ -2948,14 +3660,15 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       if (free && e.isTrusted && (k === 'b' || k === 'u')) return;                  // B / U = SPECIAL in the game (the BACK button still works)
       if (free && k === 'e' && !LAB.menu) { fpReset(); return; }
       if (free && k === 'q' && !LAB.menu) { fpMini(); return; }
-      if (LAB.menu) { if (/^[0-9]$/.test(k)) jump(k === '0' ? 9 : +k - 1); else if (k === 'g' || k === 'm') menu(false); return; }
+      if (LAB.menu) { if (/^[0-9]$/.test(k)) menuKey(k); else if (k === 'escape' || k === 'g' || k === 'm') menu(false); return; }
       if (k === '-' || k === '_') return setZoom(LAB.zoom - 0.1);
       if (k === '=' || k === '+') return setZoom(LAB.zoom + 0.1);
       if (k === '\\') return setZoom(1);
       if (k === 'r') start(false);
       else if (k === 'f') start(true);
       else if (k === 'n') { if (LAB.reasons) { save('wrong', LAB.reasons); flash('✗ saved'); } next(1); }
-      else if (k === 'b') next(-1);
+      else if (k === 'b' || k === '[') next(-1);                                // (t-038: [ / ] everywhere - in FREE PLAY B is the game's SPECIAL)
+      else if (k === ']') next(1);
       else if (k === '1') rateRight();
       else if (k === '2') { LAB.reasons = new Set(); render(); }
       else if (LAB.reasons && REASONS[k]) { LAB.reasons.has(k) ? LAB.reasons.delete(k) : LAB.reasons.add(k); render(); }
@@ -2967,6 +3680,11 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       const ev = new KeyboardEvent('keydown', { key: b.dataset.key }); dispatchEvent(ev);
     });
     $('note').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); });
+    // t-038 the nav bar (each button lets go of the focus, so the keys go back to the game)
+    const nb = (id, f) => $(id).addEventListener('click', e => { f(); e.currentTarget.blur(); });
+    nb('nav-back', () => next(-1)); nb('nav-next', () => next(1)); nb('nav-all', () => menu(!LAB.menu)); nb('nav-fp', goFree);
+    nb('nav-resume', () => { const R = LAB.resume; if (R) goTo(R[0], R[1]); });
+    menuUI();
     // v0.8.5 camera zoom: slider + buttons (the slider lets go of the keys again, so the arrows move your player)
     const zs = $('zoom'); if (zs) {
     zs.addEventListener('input', () => setZoom(+zs.value, true));
@@ -2992,8 +3710,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     m.setTeams('IS', 'IRO', () => {
       window.HC2_STARTED = true; CURVE_PASS = true; hook();   // (t-011: the curving special pass is Test Lab only for now - Luca)
       LAB.groups = buildTests(); LAB.active = true;
-      try { const at = JSON.parse(localStorage.getItem('hc2-lab-at2') || 'null'); if (at && LAB.groups[at[0]] && LAB.groups[at[0]].tests[at[1]]) { LAB.g = at[0]; LAB.i = at[1]; } } catch (e) {}
-      fromHash();                                                                  // a test named in the link wins over where you left off
+      LAB.resume = savedSpot(); LAB.g = 0; LAB.i = 0;                              // t-038: open on FREE PLAY; where you left off = the RESUME button
+      fromHash();                                                                  // a test named in the link opens that test
       addEventListener('hashchange', () => { if (fromHash()) { menu(false); start(false); } });
       $('loading').hidden = true; keys(); fpUI(); start(false);
       $('bw-ask').addEventListener('click', e => { askClaude(); e.currentTarget.blur(); });
@@ -3003,7 +3721,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     });
   }
   window.__lab = LAB;                                   // for automated checks
-  LAB.api = { start, next, jump, current, summary, buildTests, clipTest };
+  LAB.api = { start, next, jump, goTo, goFree, menu, fpMove, fpReset, current, summary, buildTests, clipTest, FP_MOVES };
   (async () => {
     try { LAB.db = (window.claude && window.claude.use) ? await window.claude.use('db') : null; } catch (e) { LAB.db = null; }
     if (LAB.db) {

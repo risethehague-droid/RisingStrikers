@@ -39,7 +39,7 @@ clash. Every session prints a status line when it starts: open tasks per agent, 
 2. **Work** (the worker, `/work`): it reads the brief, works on `<agent>/t-NNN-<topic>`, tests, opens a pull request,
    then sends a report: `bash tools/agent.sh report <agent> t-NNN done <file>`.
    - Stuck: `blocked`. Needs an answer: `question`.
-3. **Review** (taskmaster, `/inbox`): every 2 hours, 09:00 to 23:00 Dutch time, the scheduled check on Luca's account
+3. **Review** (taskmaster, `/inbox`): 3 times a day (08:39, 13:39, 20:39 Dutch time; every 2 hours with HQ's ⚡ Turbo on), the scheduled check on Luca's account
    reviews new reports. Luca's main chat can also do it any time ("check the reports"). For each report it checks the
    branch against the brief (files, tests, PR) and posts a verdict:
    - `ok`: the card moves to **Needs OK** for Luca, with the review and the PR link
@@ -70,6 +70,7 @@ What to make or fix, and why (the request behind it, in the requester's words wh
 ## Done means
 - the tests to run and what they must show (smoke "errors []", Test Lab group X, ...)
 - the PR has its `## Preview` section: the GIF of <what to show> and `Test Lab: <ids>` (CLAUDE.md "Pull requests")
+- a new or changed move: its FREE PLAY button in `FP_MOVES` (game/lab.js), tagged IN THE GAME / LAB ONLY, named in "How to try it" (CLAUDE.md "Testing" 6)
 
 ## Notes
 Anything that saves time: where the code lives, what was tried, what to avoid.
