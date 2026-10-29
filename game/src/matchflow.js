@@ -399,6 +399,21 @@ hc2Mix(Match, {
   flowFast() { return !!window.HC2_TEST_FAST || this.demo || (!!window.__lab && !window.__labCut); },   // (v0.8.7: the Lab's CUT SCENES play the full versions)
   stat(team) { const S = (this.mstats = this.mstats || {}); return S[team.name] || (S[team.name] = { shots: 0, fouls: 0, yellows: 0, reds: 0, corners: 0, poss: 0 }); },
   loseTime(sec) { this.lost = (this.lost || 0) + sec; },
+  // t-035 (QA 25 Oct: a soak repro line didn't replay its match on its own, and a second match on the same page could
+  // start with a special "cooling down"): a new match is a clean slate, as kick-off of a new match is in every football
+  // game. setTeams (match.js) already resets the clock, score, half, stats, meters, teams and players (new objects),
+  // the referee, Bug Watch and the replays; this is the rest a match owns - left over from the last one it changed
+  // what the next did (the ball's spin / special / last player, a cooldown, a hit-stop or slow motion, a half-made move)
+  resetMatchState() {
+    const b = this.ball; for (const k of Object.keys(b)) delete b[k];           // the ball as create() makes it (no spin, special, ring, last player...)
+    Object.assign(b, { x: 52.5, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: null, last: null, roll: 0, inNet: false, skid: false, rollV: 0, target: null });
+    if (this.cutIn) this.cutInEnd(); if (this.rise) { this.rise.c.destroy(); this.rise = null; }
+    Object.assign(this, { hitStop: 0, slowMo: 0, flashT: 0, trailT: 0, trailSp: 0, trailHot: 0, saveAsk: null, cutInQ: null,   // effects / prompts in flight
+      dead: null, offSide: null, offGK: null, offFlag: null, penaltyKick: false, goalAt: 0, lastScorer: null,                    // the rules' memory
+      nextHuman: null, passRing: null, passAim: null, passStick: null, spHeld: 0, charge: -1, lobCharge: -1, lobAim: null, headBuf: 0, airSp: null, airCh: null,   // your half-made moves
+      aerial: null, aerialClock: 0, aerialAt: undefined, duelAt: undefined, aerialKick: undefined, aerialLast: undefined, spAerialSeen: undefined,   // the aerial battle / grass duel cooldowns
+      savedFor: undefined, ghost: null, camX: undefined, camY: undefined, kickCapN: null });   // (ghost: the demo's stand-in "you" held the last match's team)
+  },
   resetHalfTime() { this.lost = 0; this.added = null; this.timeUp = null; if (this.addedTxt) this.addedTxt.setVisible(false); },
   announceAdded() {
     if (this.flowFast() && window.HC2_TEST_FAST) { this.added = 0; return; }   // the old tests end halves on the minute

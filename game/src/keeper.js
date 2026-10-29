@@ -118,7 +118,7 @@ hc2Mix(Match, {
   // a shot: the keeper reads it - a reaction delay and a small misread that grow with the pace - then really moves.
   // No dice: whether he saves it is decided when the ball meets (or misses) his body and gloves (pickups).
   planSave(gk) {
-    const b = this.ball, c = { ...b }, h = 1 / 120, px = gk.x;
+    const b = this.ball, c = { ...b }, h = 1 / 120, px = gk.x, pen = this.penShot();   // (t-035: read before the old penalty flag is cleared below)
     let t = 0; while (t < 2.5) { const ox = c.x; ballStep(c, h, false); t += h; if ((ox - px) * (c.x - px) <= 0) break; }
     const sp = len(b.vx, b.vy, b.vz);
     const KK = this.dk(gk.team); let react = rnd(0.12, 0.2) + sp / 400 + KK.gkReact, y = c.y + rnd(-1, 1) * (0.1 + sp / 100) * KK.gkRead;   // (v0.9.2: the keeper's read by level)
@@ -135,7 +135,7 @@ hc2Mix(Match, {
     // t-007 ("the gk should try catch more if the kick is weaker"): one dice for the whole shot, u; whether he holds it
     // is u against gkHoldChance when the ball meets his gloves (by its pace there, his level and the kind of save)
     b.save = { gk, y, z: c.z, t: t + 0.6, t0: t, react, act: null, off, close, dy: Math.abs(c.y - gk.y), cover: this.keeperCover(t - react, c.z), sp, u: Math.random() };
-    if (!off) this.gkCount(gk.team.opp, 'onT');
+    if (!off && !pen) this.gkCount(gk.team.opp, 'onT');                         // t-035: a penalty is not a shot, so not on target either (on target <= shots)
   },
   // t-007: match counts for the soak (tools/soak.js: shots on target, saves held v parried) - counting only, no dice
   gkCount(team, key) { if (!team || !this.stat) return; const S = this.stat(team); S[key] = (S[key] || 0) + 1; },

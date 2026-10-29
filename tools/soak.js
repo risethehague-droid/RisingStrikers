@@ -130,6 +130,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       window.__diffTeams = { home: Object.assign({}, DIFF_TRAITS.base, { lvl: 'base' }), away: Object.assign({}, DIFF_TRAITS[c.lvl] || DIFF_TRAITS.normal, { lvl: c.lvl }) };
       m.mset = { arena: 'loo', tod: c.tod, weather: c.weather, ending: 'none' }; m.applyRules();
       window.__play = { run: 0, live: 0, sp: 0, n: 0, last: null };            // (t-029)
+      window.__kw = { k: null, n: 0, max: 0 }; m.kickCapN = null;                // (t-035: the longest a kick waited for its contact frame, in steps; kicks the cap let go / called off)
       m.demo = true; m.kickoff(m.home); }, c);
     let res = null, lastClock = -1, still = 0, stall = null;
     for (let chunk = 0; chunk < 60 && !res; chunk++) {                  // 600 steps (10 game-seconds at 1x) a chunk, at most ~1.3 matches long
@@ -138,7 +139,8 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
           // t-029 TIME IN PLAY: of the steps where the match clock ran, how many were live play (Bug Watch's live()) and how
           // many sat in a set piece before the kick (its setup + the aim). Counted the same way on any version (before / after)
           const P = window.__play; if (m.clock > c0) { P.run++; if (m.bw && m.bw.live()) P.live++; if (m.setPiece && !m.setPiece.kicked) P.sp++; }
-          const sp = m.setPiece; if (sp && !sp.kicked && sp !== P.last) { P.last = sp; P.n++; } }
+          const sp = m.setPiece; if (sp && !sp.kicked && sp !== P.last) { P.last = sp; P.n++; }
+          const KW = window.__kw; if (m.pending) { if (m.pending !== KW.k) { KW.k = m.pending; KW.n = 0; } KW.max = Math.max(KW.max, ++KW.n); } else KW.k = null; }
         return { over: m.over, clock: m.clock, half: m.half }; });
       if (s.clock === lastClock && !s.over) { if (++still >= 3) { stall = `the clock stood at ${Math.round(s.clock)} s (half ${s.half}) for 30 game-seconds`; break; } } else still = 0;
       lastClock = s.clock;
@@ -149,7 +151,8 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       const sum = k => (H[k] || 0) + (A[k] || 0);                       // t-007: the keeper numbers (both sides together)
       // merge of t-007 + t-012 (t-008): both sets of numbers, the keeper's and the wing play's
       return { score: `${m.home.score}-${m.away.score}`, shots: `${H.shots || 0}-${A.shots || 0}`, goals: m.home.score + m.away.score,
-        corners: sum('corners'), onT: sum('onT'), held: sum('held'), parried: sum('parried'), kOut: sum('kOut'), kIn: sum('kIn'), fouls: `${H.fouls || 0}-${A.fouls || 0}`, offsides: sum('offsides'),   // (t-024)
+        corners: sum('corners'), onT: sum('onT'), onTs: `${H.onT || 0}-${A.onT || 0}`,   // (t-035: per side, to check on target <= shots)
+        kickWait: +(window.__kw.max / 60).toFixed(2), kickCap: m.kickCapN ? { off: m.kickCapN.off, gone: m.kickCapN.gone, log: m.kickCapN.log } : null, held: sum('held'), parried: sum('parried'), kOut: sum('kOut'), kIn: sum('kIn'), fouls: `${H.fouls || 0}-${A.fouls || 0}`, offsides: sum('offsides'),   // (t-024)
         play: (P => ({ inPlay: P.run ? +(100 * P.live / P.run).toFixed(1) : 0, spWait: P.n ? +(P.sp / 60 / P.n).toFixed(2) : 0, setPieces: P.n }))(window.__play),   // (t-029)
         possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), arc: Object.assign({}, m.arcN || {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null,
         recv: Object.assign({}, m.recvN || {}), clash: Object.assign({}, window.__clashN), clashOut: Object.assign({}, m.clashN || {}), wing: Object.fromEntries(Object.entries(window.__wing).filter(([k, v]) => (typeof v === 'number' && k !== 'wideT') || k === 'goalLog')) }; });
@@ -165,6 +168,8 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${process.env.TAP ? `tap kicks ${st.wing.taps} · ` : ''}${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
     { const f = o => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(', ') || 'none';   // t-028: special shots / saves and what came of the saves
       console.log(`   specials (t-028): special shots ${st.wing.spShot || 0} · special saves ${st.wing.spSave || 0} · at his line: ${f(st.clash)}${Object.keys(st.clashOut).length ? ` · clash outcomes: ${f(st.clashOut)}` : ''}`); }
+    { const [a, b] = st.shots.split('-').map(Number), [c, d] = st.onTs.split('-').map(Number); st.shotsOk = out.matches[i].shotsOk = c <= a && d <= b;   // t-035
+      console.log(`   shots ${st.shots} · on target ${st.onTs} · ${st.shotsOk ? 'on target <= shots' : 'MORE ON TARGET THAN SHOTS'} · longest kick wait ${st.kickWait} s${st.kickCap ? ` · KICK CAP: went off ${st.kickCap.off}, called off ${st.kickCap.gone} (${st.kickCap.log.join('; ')})` : ' · no kick hit its cap'}`); }
     console.log(`   offsides ${st.offsides || 0} · time in play ${st.play.inPlay}% · set pieces ${st.play.setPieces}, ${st.play.spWait} s each before the kick`);   // t-024 (aim: 1-3 a match) · t-029
   }
   await br.close();
@@ -192,6 +197,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     for (const mt of nw) { for (const k of ['cross', 'aerial', 'airSp', 'airSpGoals', 'aerialGoals', 'goals']) N[k] = (N[k] || 0) + mt.wing[k]; const [a, b] = mt.shots.split('-').map(Number); N.shots = (N.shots || 0) + a + b; N.corners = (N.corners || 0) + mt.corners; }
     if (nw.length) console.log(`  new AI only (${nw.length}): ` + Object.entries(N).map(([k, v]) => `${k} ${(v / nw.length).toFixed(2)}`).join(' · ')); }
   const fin = out.matches.filter(m => m.finished).length, stalls = out.matches.filter(m => m.stall);
+  const tot2 = f => out.matches.reduce((a, m) => a + f(m), 0);                // (t-035)
   const tot = k => out.matches.reduce((a, m) => a + (m[k] || 0), 0), per = k => (tot(k) / (out.matches.length || 1)).toFixed(1);   // t-007: per-match keeper numbers
   const md = [`# Soak ${out.game} · ${out.matches.length} matches · ${out.at.slice(0, 16).replace('T', ' ')} UTC`, '',
     `- Finished: ${fin} of ${out.matches.length}${stalls.length ? ` · STALLS: ${stalls.map(m => `#${m.n}`).join(', ')}` : ''}`,
@@ -201,6 +207,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       return `- Specials (t-028), totals: special shots ${out.matches.reduce((a, mt) => a + (mt.wing.spShot || 0), 0)} · special saves ${out.matches.reduce((a, mt) => a + (mt.wing.spSave || 0), 0)} · at his line: ${f(add('clash'))} · clash outcomes: ${f(add('clashOut'))}`; })(),
     (n => `- Time in play (t-029): ${(out.matches.reduce((a, m) => a + m.play.inPlay, 0) / n).toFixed(1)}% of the running clock · set pieces ${(out.matches.reduce((a, m) => a + m.play.setPieces, 0) / n).toFixed(1)} a match, ${(out.matches.reduce((a, m) => a + m.play.spWait * m.play.setPieces, 0) / Math.max(1, out.matches.reduce((a, m) => a + m.play.setPieces, 0))).toFixed(2)} s each before the kick`)(out.matches.length || 1),
     `- Per match: goals ${per('goals')} · shots on target ${per('onT')} · corners ${per('corners')} · saves held ${per('held')} · parried ${per('parried')} · keeper touches out ${per('kOut')} / in play ${per('kIn')} (totals ${tot('goals')} / ${tot('onT')} / ${tot('corners')} / ${tot('held')} / ${tot('parried')})`, ...errs.slice(0, 5).map(e => `  - #${e.match + 1}: ${e.msg} ${e.stack}`),
+    `- Shots (t-035): on target <= shots in ${out.matches.filter(m => m.shotsOk).length} of ${out.matches.length} matches · longest kick wait ${Math.max(0, ...out.matches.map(m => m.kickWait))} s · kicks the cap let go / called off: ${tot2(m => m.kickCap ? m.kickCap.off : 0)} / ${tot2(m => m.kickCap ? m.kickCap.gone : 0)}`,
     `- Real bugs: ${bugs.length ? bugs.map(e => `${e.code} ${e.trips}`).join(' · ') : 'none'}`, ...bugs.flatMap(e => e.examples.map(x => `  - ${e.code}: ${x}`)),
     `- Looks (cosmetic: counted, no clips): ${looks.map(e => `${e.code} ${e.trips}${e.matches ? ` in ${e.matches} matches` : ''}`).join(' · ')}`, '',
     '| Code | Kind | Trips | In matches | Example |', '| --- | --- | --- | --- | --- |',

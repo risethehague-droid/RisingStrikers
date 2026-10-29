@@ -53,7 +53,7 @@ class Match extends Phaser.Scene {
       if (this.rami) { this.rami.line = null; this.rami.c.setVisible(false); }
       this.buildTeams(h, a, clash); this.applyLineup(this.home); this.home.score = this.away.score = 0; this.clock = 0; this.half = 1; this.over = false;   // (new Player objects: no injuries carried over)
       for (const mt of this.meters || []) mt.reset(); this.riseQ = null;
-      this.setPiece = null; this.pending = null; this.diving = null; this.kickoff(this.home);
+      this.resetMatchState(); this.setPiece = null; this.pending = null; this.diving = null; this.kickoff(this.home);   // (t-035: the rest a match owns)
       this.help.setText(this.helpText()).setVisible(!window.HC2_TOUCH); this.helpUntil = this.time.now + 10000;   // the keys you picked
       if (done) done();
     };
