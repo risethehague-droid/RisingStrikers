@@ -26,7 +26,8 @@ const ASP = {
     fallR: 1.4,
     aiCool: 75,       // the computer: at most one every 75 s a side (soak 28 Oct: at 25 s it dribbled ~12 times a match and
                       // never banked the bars for a special shot - 2.3 -> 0.3 a match)...
-    aiRate: 0.5,      // ...about this often a second while a man squares up to its carrier (x its level's sp)...
+    aiRate: 0.5,      // ...about this often a second while a man squares up to its carrier - the same at every level (29 Oct:
+                      // x the level's sp tilted Hard / Rise against you in the 24-match soak)...
     aiBars: 3,        // ...only from a full meter: 2 bars are left, enough for its special shot (it fires those from 2;
                       // soak 28 Oct: dribbling at 2 left 1, special shots 2.3 -> 1.5 a match)...
     aiZone: [22, 50], // ...and only between 22 and 50 m from their goal (the attacking half, not its own)
@@ -276,7 +277,7 @@ hc2Mix(Match, {
     if (this.aspOn() && this.aspDribbleCan(p) && !(p.team === this.home && !this.demo && p === this.human)) {
       const front = this.aspFront(p), D = ASP.dribble, toGoal = len(p.team.goalX - p.x, 34 - p.y);
       if (front && len(front.x - p.x, front.y - p.y) < 3.5 && toGoal > D.aiZone[0] && toGoal < D.aiZone[1] && this.meterOf(p.team).level() >= D.aiBars && (p.team.sdribAt ?? -1e9) < this.time.now - D.aiCool * 1000
-        && Math.random() < dt * D.aiRate * this.dk(p.team).sp) { p.team.sdribAt = this.time.now; if (this.aspDribble(p, null)) return; }
+        && Math.random() < dt * D.aiRate) { p.team.sdribAt = this.time.now; if (this.aspDribble(p, null)) return; }
     }
     return carrier0.call(this, p, dt);
   };
