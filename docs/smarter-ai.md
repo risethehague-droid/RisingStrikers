@@ -97,6 +97,19 @@ plan) and puts them behind one way of choosing.
   line. Jobs are given out every ~0.4 s, and a man **keeps his job and his target until it's clearly worse**
   (hysteresis): this is the fix for the dithering.
 
+- **The 1-2 has to be playable (the co-designer, 29 Oct, after playing the Arcade specials preview):** "The 1-2 is
+  pretty hard to use as the team AI are so evenly matched, doing a 1-2 is impractical." Today a team-mate rarely
+  gives it straight back: after your pass he's marked as tightly as anyone, and nothing in his job says "return it
+  first time when the passer runs on". The combo specials (`friend/arcade-specials`: SPECIAL as a 1-2 comes back = a
+  2 / 3-bar combo shot) need it. So, in the off-ball jobs:
+  - a **wall-pass job:** the man you pass to, with you running on past his marker, plays it back first time into your
+    path when the lane is open (real football's give-and-go / one-two; FIFA / PES's one-touch return) - for your
+    team-mates and the computer's alike;
+  - **your run is read:** after a pass, the passer's run in behind is something the receiver looks for first;
+  - **defenders track the runner, not only the ball** - a 1-2 should work when it's well timed, not every time
+    (not easier: the defending side's job list gets "follow the runner" too);
+  - measure it: 1-2s attempted / completed a match (`tools/aistudy.js`), before and after.
+
 ### 2. The match state (the "reads the scoreline" rule)
 
 One number from the score and the clock, -1 (protect) ... +1 (chase):
