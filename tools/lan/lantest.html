@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HC2 LAN Test</title>
+<!-- t-041, LAN step 1 (Luca, 29 Oct: "We dont have controllers so lets do real LAN"). One question before any LAN
+     match work: can two PCs open a direct WebRTC data channel from a claude.ai page? No signalling server: the join
+     codes are copied by hand (WhatsApp / Discord), like typing the host's IP in an old LAN game. Plain JS, no
+     libraries, so the page can be published on its own. -->
+<style>
+:root{ --bg:#e9e4d6; --ink:#0c0a0e; --paper:#f4f0e4; --pink:#ff2878; --yellow:#ffde1e; --cyan:#28c8e6; --green:#4cff7a; --dot:#d6cfbd; }
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){ --bg:#0c0a0e; --dot:#1d1a22; } }
+:root[data-theme="dark"]{ --bg:#0c0a0e; --dot:#1d1a22; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);background-image:radial-gradient(var(--dot) 1px,transparent 1.2px);background-size:12px 12px;
+  color:var(--ink);font:18px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:16px}
+main{max-width:900px;margin:0 auto}
+.box{background:var(--paper);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);padding:16px 18px;margin:0 0 22px}
+h1{margin:0 0 6px;font-size:28px} h2{margin:0 0 10px;font-size:20px}
+button{font:bold 18px ui-monospace,Menlo,Consolas,monospace;padding:12px 18px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);
+  background:var(--yellow);color:var(--ink);cursor:pointer;margin:4px 10px 4px 0}
+button:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
+button:disabled{opacity:.4;cursor:not-allowed}
+#host{background:var(--pink);color:#fff} #join{background:var(--cyan)}
+textarea,input[type=text]{width:100%;font:14px ui-monospace,Menlo,Consolas,monospace;border:3px solid var(--ink);padding:8px;background:#fff;color:#0c0a0e}
+textarea{height:96px;word-break:break-all}
+label{display:block;margin:8px 0}
+.hide{display:none}
+#status{font-size:22px;font-weight:bold;padding:10px 14px;border:3px solid var(--ink);background:#fff;color:#0c0a0e}
+#status.ok{background:var(--green)} #status.bad{background:var(--pink);color:#fff} #status.wait{background:var(--yellow)}
+#err{font-weight:bold;color:#fff;background:var(--pink);border:3px solid var(--ink);padding:10px 14px;margin:10px 0 0}
+#err:empty{display:none}
+#log{height:150px;overflow:auto;background:#fff;color:#0c0a0e;border:3px solid var(--ink);padding:8px;font-size:15px;margin:0 0 8px}
+#rtt{font-size:22px;font-weight:bold}
+small{opacity:.8}
+.row{display:flex;gap:10px} .row input{flex:1}
+</style>
+</head>
+<body>
+<main>
+  <div class="box">
+    <h1>HC2 LAN test</h1>
+    <div>Can two PCs talk straight to each other from this page? One PC presses <b>HOST</b>, the other <b>JOIN</b>.</div>
+    <div id="env"><small>checking the browser…</small></div>
+    <div id="err"></div>
+  </div>
+
+  <div class="box" id="pick">
+    <h2>1. Pick a side</h2>
+    <button id="host">HOST (PC 1)</button><button id="join">JOIN (PC 2)</button>
+    <label><input type="checkbox" id="stun"> use a public STUN server (try this only if the first go fails)</label>
+  </div>
+
+  <div class="box hide" id="hostbox">
+    <h2>HOST</h2>
+    <div>Send this <b>join code</b> to PC 2:</div>
+    <textarea id="offer" readonly placeholder="making the join code…"></textarea>
+    <button id="copyoffer">COPY</button>
+    <div style="margin-top:10px">Paste PC 2's <b>answer code</b> here:</div>
+    <textarea id="answerin"></textarea>
+    <button id="connect">CONNECT</button>
+  </div>
+
+  <div class="box hide" id="joinbox">
+    <h2>JOIN</h2>
+    <div>Paste PC 1's <b>join code</b> here:</div>
+    <textarea id="offerin"></textarea>
+    <button id="mkanswer">MAKE ANSWER</button>
+    <div style="margin-top:10px">Send this <b>answer code</b> back to PC 1:</div>
+    <textarea id="answer" readonly></textarea>
+    <button id="copyanswer">COPY</button>
+  </div>
+
+  <div class="box">
+    <h2>2. Connection</h2>
+    <div id="status">not started</div>
+    <div><small id="ice">ICE: -</small></div>
+  </div>
+
+  <div class="box" id="talk">
+    <h2>3. Lag and chat</h2>
+    <button id="ping" disabled>PING x20</button> <span id="rtt">round trip: -</span>
+    <div id="log"></div>
+    <div class="row"><input type="text" id="msg" placeholder="type a message" disabled><button id="send" disabled>SEND</button></div>
+  </div>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+// The headless check (tools/lantest.js) reads this instead of scraping the screen.
+const lan = window.__lan = { role: null, state: 'idle', ice: '-', chats: [], rtts: [], error: '' };
+let pc = null, dc = null;
+
+function setStatus(text, cls) { $('status').textContent = text; $('status').className = cls || ''; }
+function fail(text) { lan.error = text; $('err').textContent = text; }
+function log(line) { const d = document.createElement('div'); d.textContent = line; $('log').appendChild(d); $('log').scrollTop = 1e9; }
+
+// What Luca reads off the page first: the browser and whether WebRTC exists at all here.
+const hasRTC = typeof window.RTCPeerConnection === 'function';
+$('env').innerHTML = '';
+$('env').append(Object.assign(document.createElement('small'), { textContent: 'Browser: ' + navigator.userAgent }),
+  document.createElement('br'),
+  Object.assign(document.createElement('b'), { textContent: 'RTCPeerConnection: ' + (hasRTC ? 'yes' : 'NO') }));
+if (!hasRTC) {
+  fail('RTCPeerConnection is blocked here (it does not exist on this page), so a direct PC-to-PC link cannot work. ' +
+       'Plan B: the small server on the laptop.');
+  $('host').disabled = $('join').disabled = true; setStatus('no WebRTC on this page', 'bad'); lan.state = 'no-rtc';
+}
+
+// Codes: the SDP once ICE gathering is done, so one copy-paste each way is enough (no trickle, no server).
+// Deflated when the browser has CompressionStream (Chrome / Edge / Firefox all do now): it roughly halves the
+// code, which matters when it goes through a chat app. 'Z' / 'B' at the front says which.
+const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function pipe(u8, stream) { return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(stream)).arrayBuffer()); }
+async function encode(desc) {
+  const raw = new TextEncoder().encode(JSON.stringify({ t: desc.type, s: desc.sdp }));
+  if (typeof CompressionStream === 'function') return 'Z' + b64(await pipe(raw, new CompressionStream('deflate-raw')));
+  return 'B' + b64(raw);
+}
+async function decode(code) {
+  code = code.replace(/\s+/g, '');
+  if (!/^[ZB][A-Za-z0-9+/=]+$/.test(code)) throw new Error('that does not look like an HC2 code (copy the whole box)');
+  let raw = unb64(code.slice(1));
+  if (code[0] === 'Z') {
+    if (typeof DecompressionStream !== 'function') throw new Error('this browser cannot unpack the code (no DecompressionStream)');
+    raw = await pipe(raw, new DecompressionStream('deflate-raw'));
+  }
+  const o = JSON.parse(new TextDecoder().decode(raw)); return { type: o.t, sdp: o.s };
+}
+
+function makePC() {
+  // Same Wi-Fi: host / mDNS candidates are enough, so no servers by default. STUN is the second try for routers that
+  // drop mDNS (the page then also asks Google's STUN for the public address).
+  const cfg = { iceServers: $('stun').checked ? [{ urls: 'stun:stun.l.google.com:19302' }] : [] };
+  try { pc = new RTCPeerConnection(cfg); }
+  catch (e) { fail('RTCPeerConnection is blocked here: ' + e.message); setStatus('blocked', 'bad'); lan.state = 'blocked'; return false; }
+  pc.oniceconnectionstatechange = () => {
+    lan.ice = pc.iceConnectionState; $('ice').textContent = 'ICE: ' + pc.iceConnectionState + ' · connection: ' + pc.connectionState;
+    if (pc.iceConnectionState === 'failed') { setStatus('FAILED: the two PCs could not reach each other', 'bad'); lan.state = 'failed';
+      fail('ICE failed. Same Wi-Fi? Then try again with the STUN box ticked on both PCs. Still failing: plan B.'); }
+    if (pc.iceConnectionState === 'disconnected') setStatus('disconnected (the other PC went away?)', 'bad');
+  };
+  pc.onconnectionstatechange = pc.oniceconnectionstatechange;
+  return true;
+}
+
+// Waits until the browser has listed every way to reach this PC. With no candidates at all the other side has
+// nothing to dial, so say that plainly instead of handing over a dead code.
+function gathered() {
+  return new Promise(res => {
+    if (pc.iceGatheringState === 'complete') return res();
+    const t = setTimeout(res, 8000);   // (a stuck STUN lookup shouldn't hang the page; send what we have)
+    pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+  });
+}
+function checkCandidates(sdp) {
+  if (!/a=candidate:/.test(sdp)) { fail('No connection candidates were gathered: this page is not allowed to use the network for WebRTC.'); return false; }
+  return true;
+}
+
+function wire(channel) {
+  dc = channel;
+  dc.onopen = () => { setStatus('CONNECTED', 'ok'); lan.state = 'connected'; $('err').textContent = '';
+    $('ping').disabled = $('msg').disabled = $('send').disabled = false; log('* connected as ' + lan.role); };
+  dc.onclose = () => { setStatus('closed', 'bad'); lan.state = 'closed'; $('ping').disabled = $('send').disabled = true; };
+  dc.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.k === 'ping') dc.send(JSON.stringify({ k: 'pong', id: m.id, t: m.t }));   // (echo the sender's clock back)
+    else if (m.k === 'pong') onPong(m);
+    else if (m.k === 'chat') { lan.chats.push(m.text); log('them: ' + m.text); }
+  };
+}
+
+$('host').onclick = async () => {
+  lan.role = 'host'; $('pick').classList.add('hide'); $('hostbox').classList.remove('hide');
+  if (!makePC()) return;
+  // ordered + reliable: right for a first test; the match itself may want unordered for snapshots (step 2).
+  wire(pc.createDataChannel('hc2'));
+  setStatus('making the join code…', 'wait');
+  try { await pc.setLocalDescription(await pc.createOffer()); await gathered(); }
+  catch (e) { return fail('Could not make the join code: ' + e.message); }
+  if (!checkCandidates(pc.localDescription.sdp)) return setStatus('no candidates', 'bad');
+  $('offer').value = await encode(pc.localDescription); lan.state = 'offer';
+  setStatus('send the join code to PC 2, then paste its answer', 'wait');
+};
+
+$('connect').onclick = async () => {
+  try { const d = await decode($('answerin').value); if (d.type !== 'answer') throw new Error('that is a join code, not an answer code');
+    await pc.setRemoteDescription(d); setStatus('connecting…', 'wait'); lan.state = 'connecting'; }
+  catch (e) { fail('Answer code problem: ' + e.message); }
+};
+
+$('join').onclick = () => { lan.role = 'guest'; $('pick').classList.add('hide'); $('joinbox').classList.remove('hide'); setStatus('paste the join code', 'wait'); };
+
+$('mkanswer').onclick = async () => {
+  if (!pc && !makePC()) return;
+  pc.ondatachannel = e => wire(e.channel);
+  try { const d = await decode($('offerin').value); if (d.type !== 'offer') throw new Error('that is an answer code, not a join code');
+    await pc.setRemoteDescription(d); await pc.setLocalDescription(await pc.createAnswer()); await gathered(); }
+  catch (e) { return fail('Join code problem: ' + e.message); }
+  if (!checkCandidates(pc.localDescription.sdp)) return setStatus('no candidates', 'bad');
+  $('answer').value = await encode(pc.localDescription); lan.state = 'answer';
+  setStatus('send the answer code back to PC 1', 'wait');
+};
+
+const copy = id => () => { $(id).select(); (navigator.clipboard ? navigator.clipboard.writeText($(id).value) : Promise.reject()).catch(() => document.execCommand('copy')); };
+$('copyoffer').onclick = copy('offer'); $('copyanswer').onclick = copy('answer');
+
+// 20 pings, one every 50 ms: a burst like a match would send, and enough for a fair min / avg / max.
+let pend = 0;
+$('ping').onclick = () => {
+  lan.rtts = []; pend = 20; $('rtt').textContent = 'pinging…';
+  for (let i = 0; i < 20; i++) setTimeout(() => dc && dc.readyState === 'open' && dc.send(JSON.stringify({ k: 'ping', id: i, t: performance.now() })), i * 50);
+  setTimeout(() => { if (pend > 0) $('rtt').textContent = `only ${20 - pend}/20 pings came back`; }, 5000);
+};
+function onPong(m) {
+  lan.rtts.push(performance.now() - m.t); pend--;
+  if (pend === 0) { const r = lan.rtts, avg = r.reduce((a, b) => a + b, 0) / r.length;
+    $('rtt').textContent = `round trip: min ${Math.min(...r).toFixed(1)} · avg ${avg.toFixed(1)} · max ${Math.max(...r).toFixed(1)} ms (20/20)`;
+    log(`* ping 20/20, avg ${avg.toFixed(1)} ms`); }
+}
+
+function sendChat() { const t = $('msg').value.trim(); if (!t || !dc || dc.readyState !== 'open') return;
+  dc.send(JSON.stringify({ k: 'chat', text: t })); log('me: ' + t); $('msg').value = ''; }
+$('send').onclick = sendChat; $('msg').onkeydown = e => { if (e.key === 'Enter') sendChat(); };
+</script>
+</body>
+</html>
