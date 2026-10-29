@@ -1,3 +1,12 @@
+HC2 WEB GAME - v0.13.1 (29 Oct) - THE TEST LAB REWORK (PR #50, t-038, Luca's OK)
+- THE TEST LAB, FIXED (#50, t-038, worker-l). Luca 29 Oct 00:38: "the test lab must be completely fixed, as of now I
+  cannot actually navigate it, it's missing moves etc". Now: a clickable bar on top of the panel (BACK / NEXT / ALL TESTS /
+  FREE PLAY, plus where you are); ALL TESTS scrolls on any screen, has a search box and sections, every test opens from
+  it; the Lab opens on FREE PLAY (RESUME takes you back to your last test). FREE PLAY has 58 move buttons that set the
+  moment up and play the move for real (special passes, charged headers / volleys, every keeper move and the clash,
+  tackles, crosses, the aerial battle, set pieces), each tagged IN THE GAME or LAB ONLY. New rule: every new move gets its FREE PLAY button.
+  Lab files only: matches play exactly as v0.13.0.
+
 HC2 WEB GAME - v0.13.0 (29 Oct) - AERIAL BATTLES IN THE BOX + LOB RECEIVES + CORNER BLACKOUT + SIDEWAYS DIVES (PRs #43-#49, Luca's OK)
 - AERIAL BATTLES REWORKED (#46, t-034). Luca 25 Oct 19:14: battles only in the keeper's box, header v header or volley
   v volley; attacker wins = the ball goes like a shot at goal and the defender is thrown to the ground; defender wins =
