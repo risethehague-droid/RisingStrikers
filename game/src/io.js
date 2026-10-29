@@ -25,7 +25,10 @@ const SFX = {
     this.crowd = this.ctx.createGain(); this.crowd.gain.value = 0.05; src.connect(lp).connect(this.crowd).connect(this.out); src.start();
     this.crowdF = lp;
   },
-  resume() { this.init(); if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+  // QA 29 Oct (Bug Watch CRASH, v0.12.4 IS v IRO 25'): resume() returns a promise that fails when the browser can't
+  // open the speakers/headphones ("Failed to start the audio device", e.g. a Bluetooth headset switching). Nobody caught
+  // it, so it counted as a game crash. The game just stays silent and tries again on the next key or click.
+  resume() { this.init(); if (this.ctx && this.ctx.state === 'suspended') { const p = this.ctx.resume(); if (p && p.catch) p.catch(() => {}); } },
   toggle() { this.init(); if (!this.ctx) return; this.muted = !this.muted; this.out.gain.value = this.muted ? 0 : 0.5; try { localStorage.setItem('hc2-mute', this.muted ? '1' : '0'); } catch (e) {} return this.muted; },
   ok() { return this.ctx && !this.muted && this.ctx.state === 'running'; },
   tone(type, f0, f1, dur, vol, delay = 0) {

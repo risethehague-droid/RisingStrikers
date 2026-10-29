@@ -1,3 +1,5 @@
+// HELP OUT HAGUE CUP II - web game v0.14.0 (Luca OK'd PRs #51-#54, 29 Oct: the TAP KICK in every match (t-037); GOAL PHYSICS in every match - round posts and bar with real rebounds, parries that loop up (t-039); ARCADE SPECIALS part 2 - a special dribble, combo specials, team signature moves, higher leaps (the co-designer, ARCADE only); a failed audio start no longer counts as a crash (QA))
+// HELP OUT HAGUE CUP II - web game v0.13.1 (Luca OK'd PR #50, 29 Oct - his 00:38 "the test lab must be completely fixed, I cannot navigate it, it's missing moves": THE TEST LAB REWORK - a clickable BACK / NEXT / ALL TESTS / FREE PLAY bar, a scrolling searchable ALL TESTS menu in sections, the Lab opens on FREE PLAY with RESUME, 58 FREE PLAY move buttons tagged IN THE GAME / LAB ONLY; Lab files only, matches unchanged)
 // HELP OUT HAGUE CUP II - web game v0.13.0 (Luca OK'd PRs #43-#49, 27 + 29 Oct: AERIAL BATTLES only in the box, header v header or volley v volley, a win is a shot at goal and the defender goes down, a loss is cleared, an honest SPACE mash; LOB RECEIVES uncontested when the ball is clearly his, chest / thigh trap into his run; the CORNER BLACKOUT cut; KEEPER DIVES drawn sideways, the special save's flash on his gloves; a special save off his line still meets an angled special; the smarter-AI plan + tools)
 // HELP OUT HAGUE CUP II - web game v0.12.4 (Luca OK'd PRs #36, #37, #38, 25 Oct: THE SPECIAL-SAVE CLASH - a charged save covers the whole goal, then power against power: held / bounces off / hands blown away / the body; SET PIECES WITH A RHYTHM - players jog into shape before every restart, CLASSIC and ARCADE timings, a press skips; KEEPER HANDS - the dive grabs the ball into his gloves, he gets up with it and carries it (PixelLab batch 21 carry walk / jog), the computer's keeper walks a calm catch out)
 // HELP OUT HAGUE CUP II - web game v0.12.3 (Luca OK'd PR #35, 25 Oct: THE KEEPER'S RANGE - "gk needs to approach from further range to close in on attackers": on a breakaway he starts closing at 32 m, comes out to the edge of his box as the striker gets within ~20 m and attacks the ball from ~9 m away; dives with his hands only inside his box)
@@ -334,9 +336,10 @@ const AIR_CHARGE = {
 };
 // t-010 TAP KICK (Luca 24 Oct 05:57: "the kick if just pressed quickly once so not held should be a snappier kick from
 // up close and it drops off [...] it follows a predictable path which just faces the direction of the arrow"): SHOOT
-// tapped = a low stab along your arrow that dies on the grass; held = the power shot as before. OFF in matches until
-// Luca's OK (the Test Lab turns it on; ADD TO GAME there says what flipping it changes) - with it off nothing differs.
-let TAP_KICK = false;
+// tapped = a low stab along your arrow that dies on the grass; held = the power shot as before. ON in every match since
+// t-037 (Luca OK'd q-tap-kick, 26 Oct; Test Lab only from 24 Oct until then). The Lab still sets it per test
+// (lab.js: the TK tests and FREE PLAY's switch), so its other tests play with it off; false = v0.13.0's shooting.
+let TAP_KICK = true;
 const TAP = {
   tapT: 0.15,          // SHOOT let go sooner than this (s) = the tap kick; held longer = the power shot
   speed: 18,           // off the boot, m/s (~65 km/h; ~55 km/h by 6 m, ~38 by 10 m: soft enough at a set keeper's body that he holds most)
@@ -371,9 +374,10 @@ const BASE_PHYS = { SKID_DEC, ROLL_DEC, BOUNCE_Z, BOUNCE_X };   // v0.8.5: the w
 // t-013 GOAL PHYSICS (Luca 24 Oct 14:04: "a net through which the ball can interact with slight give ... more dynamic
 // feedback when the ball hits the post ... the keeper, when he blocks a lot of shots but can't grab it, but it breaks his
 // guard, a lot should go more up dramatically ... be moderate"): the net catches the ball like a spring, the posts and bar
-// are round with real rebounds, a parry or a broken guard can pop the ball up. All of it behind GOAL_PHYS:
-// null = ON in the Test Lab, OFF in matches (until Luca's OK); true / false forces it (tools/soak.js GOAL_PHYS=1).
-let GOAL_PHYS = null;
+// are round with real rebounds, a parry or a broken guard can pop the ball up. All of it behind GOAL_PHYS: ON in every
+// match (CLASSIC and ARCADE) and in the Test Lab since t-039 (Luca OK'd q-goal-phys, 27 Oct; Lab only from 24 Oct until
+// then). null = the old split (on in the Lab, off in matches); false = off everywhere (v0.13.0's posts and parries).
+let GOAL_PHYS = true;
 const gpOn = () => GOAL_PHYS ?? !!window.__lab;
 // t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule MANDATORY just make it smooth"): IFAB Law 11, simplified - the rule
 // is in matchflow.js (offKick / offWatch / offCall), the computer playing to it in teamai.js. ON by default and in every
@@ -479,7 +483,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.13.0';
+const GAME_VER = 'v0.14.0';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)
