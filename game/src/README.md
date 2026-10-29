@@ -26,3 +26,4 @@ the class body. A new file goes into all three pages, after `match.js` if it add
 | 17 | `watch.js` | WATCH mode: the computer plays both sides, pause, speed 0.5x-4x, N marks a moment, the review at full time | QA, Lead |
 | 18 | `resume.js` | RESUME: the snapshot of your match (saved while you play, cleared at full time) and putting it back from the start screen | Lead |
 | 19 | `boot.js` | Starts the game on page load (canvas size, scenes) | Lead |
+| 20 | `arcadesp.js` | ARCADE specials (the co-designer, 28 Oct): the special dribble, combo specials, team signature names, bigger leaps. Loaded after cup.js, before ui.js; it wraps the moves it needs, CLASSIC untouched | Design & Vision (friend) |

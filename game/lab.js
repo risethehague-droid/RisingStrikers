@@ -2045,6 +2045,96 @@
       arGoal('AR5', 'arcade'), arGoal('AR5-C', 'classic'),
     ];
   }
+  // ======================================================================= ARCADE SPECIALS (the co-designer, 28 Oct, arcadesp.js /
+  // design/arcade-specials.md): the special dribble (its own button and SPECIAL by position), combo specials (the 1-2 and
+  // the lob + volley, 2 and 3 bars), the team signature names, the computer's dribble. All ARCADE (sc.pace).
+  function sxDrib(id, name, sub, how) {
+    return { id, group: 'SX', name, sub, kind: 'phys', pace: 'arcade',
+      setup(r) {
+        const you = m.home.players[9], d = m.away.players[4]; cast([you, d]);
+        put(you, 50, 34, 0); put(d, 53.2, 34.4, 4); atFeet(you);
+        Object.assign(r, { human: you, marks: [], d });
+        r.action = { at: 0.5, fire: () => { m.meters[0].e = 1; r.x0 = you.x; r.ok = how === 'button' ? m.aspDribble(you, null) : m.special(you); } };
+      },
+      check(r) {
+        if (!r.fired || r.t < 1.6) return null;
+        const you = r.human, d = r.d;
+        return { o: `${how === 'button' ? 'BUTTON' : 'SPECIAL far from goal (AUTO)'} · ${r.ok ? 'went' : 'NOTHING'} · ${(you.x - r.x0).toFixed(1)} m on, ${you.x > d.x ? 'PAST' : 'not past'} #${d.num} (${d.state}) · ball ${m.ball.owner === you ? 'still his' : 'LOST'} · bars left ${m.meters[0].e.toFixed(2)} · ${m.msg.text || '-'}` };
+      } };
+  }
+  function sxRange() {
+    return { id: 'SX3', group: 'SX', name: 'SPECIAL in shooting range (AUTO): the shot, not the dribble', sub: '18 m out, a man in front, 1 bar', kind: 'phys', pace: 'arcade',
+      setup(r) {
+        const you = m.home.players[9], d = m.away.players[4], gk = m.away.players[0]; cast([you, d, gk]);
+        put(you, 87, 34, 0); put(d, 90, 34.6, 4); put(gk, LINE_X, 34, 4); atFeet(you);
+        Object.assign(r, { human: you, marks: [] });
+        r.action = { at: 0.5, fire: () => { m.meters[0].e = 1; m.special(you); r.k = m.pending && m.pending.info.special; r.dr = !!you.sdrib; } };
+      },
+      check(r) { if (!r.fired || r.t < 0.8) return null; return { o: `${r.k ? `a LV${r.k} special shot` : 'NO SHOT'} · dribble ${r.dr ? 'YES (wrong)' : 'no'} · ${m.msg.text || '-'}` }; } };
+  }
+  // the 1-2: he played it to a team-mate, got it straight back (the pass history the combo reads), then SPECIAL
+  function sxCombo(id, bars) {
+    return { id, group: 'SX', name: `the 1-2 COMBO, ${bars} bars`, sub: `${bars === 3 ? '240 power, through 6 men' : '170 power, through 3 men'} (solo LV${bars}: ${SP_POWER[bars - 1]} / ${SP_PIERCE[bars - 1]})`, kind: 'phys', pace: 'arcade',
+      setup(r) {
+        const you = m.home.players[9], mate = m.home.players[7], gk = m.away.players[0], d1 = m.away.players[3], d2 = m.away.players[4];
+        cast([you, mate, gk, d1, d2]); put(you, 80, 30, 0); put(mate, 76, 37, 0); put(gk, LINE_X, 34, 4); put(d1, 90, 32, 4); put(d2, 94, 35, 4); atFeet(you);
+        Object.assign(r, { human: you, marks: [], mate });
+        window.__labCutOff = false;
+        r.action = { at: 0.5, fire: () => {
+          const now = m.time.now; m.aspPasses = [{ p: you, q: mate, mode: 'ground', t: now - 1200 }, { p: mate, q: you, mode: 'ground', t: now - 500 }];
+          m.aspOwn = you; m.aspOwnT = now - 300; m.meters[0].e = bars; m.special(you); const k = m.pending;
+          r.c = k && k.info.combo; r.spP = k && k.info.spP; r.anim = you.kickAnim; r.cut = !!(m.cutIn && m.cutIn.kind === 'combo'); r.name = m.msg.text; } };
+      },
+      check(r) {
+        if (!r.fired) return null;
+        if (r.pierce == null && m.ball.special) r.pierce = m.ball.pierce;
+        if (r.t < 2.4) return null;
+        return { o: `${r.c ? `COMBO LV${r.c.lv} (${r.c.kind})` : 'NO COMBO'} · power ${Math.round(r.spP || 0)} · through ${r.pierce ?? '?'} men · move ${r.anim} · partner #${r.mate.num} ${r.mate.kickAnim || '-'} · cut-in ${r.cut ? 'yes' : 'no'} · ${r.name || '-'} · ${m.ball.inNet ? 'GOAL' : 'no goal'}` };
+      } };
+  }
+  function sxLob() {
+    return { id: 'SX6', group: 'SX', name: 'the LOB + VOLLEY COMBO, 2 bars', sub: 'a team-mate\'s lob drops to him, SPECIAL as it comes: the aerial special becomes the combo', kind: 'phys', pace: 'arcade',
+      setup(r) {
+        const you = m.home.players[9], mate = m.home.players[6], gk = m.away.players[0]; cast([you, mate, gk]);
+        put(you, 88, 30, 0); put(mate, 70, 20, 0); put(gk, LINE_X, 34, 4); ballAt(87.6, 30, 1.0, null); m.ball.vx = 2; m.ball.vz = -2;
+        Object.assign(r, { human: you, marks: [], mate });
+        r.action = { at: 0.2, fire: () => { const now = m.time.now; m.aspPasses = [{ p: mate, q: you, mode: 'lob', t: now - 1500 }]; m.meters[0].e = 2;
+          m.airSpecial(you); const k = m.pending; r.c = k && k.info.combo; r.spP = k && k.info.spP; r.name = m.msg.text; } };
+      },
+      check(r) { if (!r.fired || r.t < 2.2) return null; return { o: `${r.c ? `COMBO LV${r.c.lv} (${r.c.kind}, partner #${r.c.partner && r.c.partner.num})` : 'NO COMBO'} · power ${Math.round(r.spP || 0)} · ${r.name || '-'} · ${m.ball.inNet ? 'GOAL' : 'no goal'}` }; } };
+  }
+  function sxAi() {
+    return { id: 'SX7', group: 'SX', name: 'the COMPUTER\'s special dribble', sub: 'their carrier with a full meter, your man squares up 45 m from goal: it goes past him (its chance forced high for the test; in a match ~1-2 a side)', kind: 'phys', pace: 'arcade', realAi: true,
+      setup(r) {
+        const c = m.away.players[9], you = m.home.players[4], gk = m.home.players[0]; cast([c, you, gk]);
+        put(c, 45, 34, 4); put(you, 41.8, 34.2, 0); put(gk, 105 - LINE_X, 34, 0); atFeet(c);
+        Object.assign(r, { human: you, marks: [], c }); r.n0 = (m.arcN && m.arcN.dribbles) || 0;
+        r.action = { at: 0.2, fire: () => { m.meters[1].e = 3; } };
+        const R0 = ASP.dribble.aiRate; ASP.dribble.aiRate = 40; (LAB.undo = LAB.undo || []).push(() => { ASP.dribble.aiRate = R0; });   // (the chance forced: the move itself is what's tested)
+        m.away.sdribAt = -1e9;
+      },
+      check(r) {
+        const n = ((m.arcN && m.arcN.dribbles) || 0) - r.n0;
+        if (n > 0 && r.at == null) r.at = r.t;
+        if (r.t < 6 && !(r.at != null && r.t > r.at + 1)) return null;
+        return { o: n > 0 ? `the computer's dribble after ${r.at.toFixed(1)} s · ${m.msg.text || '-'} · your man ${r.human.state}` : `no dribble in 6 s (carrier at ${r.c.x.toFixed(1)}, ${r.c.y.toFixed(1)}, ball ${m.ball.owner === r.c ? 'his' : 'not his'}, bars ${m.meters[1].e.toFixed(2)}, gap ${len(r.c.x - r.human.x, r.c.y - r.human.y).toFixed(1)} m)` };
+      } };
+  }
+  function sxNames() {
+    return { id: 'SX8', group: 'SX', name: 'team signature names (LV3, combo, dribble)', sub: 'theme A, colours & elements - for Luca\'s final OK; CLASSIC keeps RISING PHOENIX', kind: 'phys', pace: 'arcade',
+      setup(r) { cast([m.home.players[9]]); Object.assign(r, { human: m.home.players[9], marks: [] }); ballAt(52.5, 34); },
+      check(r) {
+        if (r.t < 0.2) return null;
+        const L = Object.keys(TEAM_SP).map(t => `${t}: ${TEAM_SP[t].shot} / ${TEAM_SP[t].combo} / ${TEAM_SP[t].dribble}`);
+        const lp = window.__labPace; window.__labPace = 'classic'; const cl = m.spNameFor(m.home, 3); window.__labPace = lp;
+        return { o: `${L.join(' · ')} · CLASSIC LV3: ${cl}` };
+      } };
+  }
+  function sxTests() {
+    return [sxDrib('SX1', 'the SPECIAL DRIBBLE, its own button (N / O, pad LT)', 'one bar: the spin, the burst past the man in front, he goes down', 'button'),
+      sxDrib('SX2', 'SPECIAL far from goal = the dribble (AUTO, by position)', 'the same moment with SPECIAL: 50 m out with a man in front', 'auto'),
+      sxRange(), sxCombo('SX4', 2), sxCombo('SX5', 3), sxLob(), sxAi(), sxNames()];
+  }
   // ======================================================================= t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule MANDATORY
   // just make it smooth"). You attack the right-hand goal; their back line stands on x = 85 unless a test says otherwise.
   // OF1-OF5 and OF7: Lab bots (the passer plays it at 0.6 s, the receiver runs onto it). OF6: the real team AI on both sides.
@@ -2981,6 +3071,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
     add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
+    add('SX', 'ARCADE SPECIALS (co-designer, 28 Oct)', 'ARCADE only: the special dribble (its own button N / O / pad LT, or SPECIAL far from goal), combo specials (the 1-2 and the lob + volley, 2 or 3 bars, two portraits), the team signature names, the computer\'s dribble.', sxTests());
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
     add('RS', 't-029 · SET-PIECE SETUP', 'Every restart gets a short setup, as on TV: the whistle / flag and a caption, the players JOG into the restart\'s shape (anyone too far is moved under a quick TV wipe, never in plain sight), the taker walks up and places the ball, then you aim / the computer takes it. One time per kind, CLASSIC and ARCADE (quicker); your own set piece: PASS / SHOOT / LOB skips to aiming once the shape is mostly in.', rsTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
