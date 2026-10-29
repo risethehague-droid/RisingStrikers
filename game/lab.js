@@ -7,7 +7,7 @@
   const GX = PITCH_L, LINE_X = PITCH_L - 1.3;
   const LAB = { groups: [], g: 0, i: 0, run: null, slow: 1, boxes: true, rated: {}, log: [], db: null, reasons: null,
     menu: false, acc: 0, rand: Math.random, active: false, zoom: (() => { try { return clamp(+localStorage.getItem('hc2-lab-zoom') || 1, 0.5, 2); } catch (e) { return 1; } })(),
-    fp: { tap: true, sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', loop: false, anim: '' }, tune: null, base: null };
+    fp: { tap: true, gp: true, curve: true, sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', loop: false, anim: '' }, tune: null, base: null };
   let m = null;
   const $ = id => document.getElementById(id);
 
@@ -244,7 +244,7 @@
       setup(r) {
         const s = m.home.players[9], gk = m.away.players[0]; cast([s, gk]);
         put(s, 86, 34, 0); atFeet(s); put(gk, LINE_X, 34, 4); gk.guard = 1;
-        Object.assign(r, { human: s, shooter: s, gk, fired: true, stats: { kicks: 0, shots: 0, goals: 0, held: 0 }, nogk: false });
+        Object.assign(r, { human: s, human0: s, sc0: r.sc, shooter: s, gk, fired: true, stats: { kicks: 0, shots: 0, goals: 0, held: 0 }, nogk: false });   // (t-038: human0 / sc0 = the plain scene fpBase goes back to)
         r.cam = () => { const b = m.ball, q = gk.state === 'labanim' ? gk : b.owner === s || !b.owner && len(b.x - s.x, b.y - s.y) < 4 ? s : b; return { x: q.x + (q === b ? clamp(b.vx * 0.35, -10, 10) : 0), y: q.y, sx: fpShift() }; };
       },
       check(r) { fpTick(r); return null; } };
@@ -255,13 +255,15 @@
     if (F.stam) { p.stamina = 1; p.tired = false; }
     if (!!p.injury !== F.inj) p.injury = F.inj ? { k: 0.75 } : null;              // v0.8.8 INJURED: he limps (75% speed)
     if (r.air) airTick(r, p, b, mt);
-    if (F.nogk !== r.nogk) { r.nogk = F.nogk; if (F.nogk) { gk.sentOff = true; put(gk, -60, -60); } else { Object.assign(gk, { sentOff: false, cool: 0, stun: 0, hands: false, state: 'idle' }); put(gk, LINE_X, 34, 4); } }
+    if (r.fx) { const X = r.fx; X.t = (X.t || 0) + STEP; if (!X.step(r, p, X) && r.fx === X) { r.fx = null; r.noAuto = false; Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); } }   // t-038: a FREE PLAY move playing out
+    if (F.nogk !== r.nogk && !r.real) { r.nogk = F.nogk; if (F.nogk) { gk.sentOff = true; put(gk, -60, -60); } else { Object.assign(gk, { sentOff: false, cool: 0, stun: 0, hands: false, state: 'idle' }); put(gk, LINE_X, 34, 4); } }
     if (r.prevOwner === p && b.owner !== p) {                                    // it left your foot: measure this one
       Object.assign(r, { shotT: r.t, v0: null, maxZ: 0, line: null, plan: null, prevBX: null, peaks: null }); r.stats.kicks++;
     }
     r.prevOwner = b.owner;
     if (b.shotT && b.shotT !== r.lastShot) { r.lastShot = b.shotT; r.stats.shots++; }
-    if (!r.resetAt) {
+    if (r.noAuto) { r.held = 0; }
+    else if (!r.resetAt) {
       let why = null;
       if (b.inNet) why = 'goal';
       else if (r.out) why = 'out';
@@ -303,6 +305,7 @@
   }
   function fpReset(r) {                                                          // the ball comes back to you where you are (E)
     r = r || LAB.run; if (!r || r.sc.kind !== 'free') return;
+    if (r.extra || r.real || r.fx) fpBase(r);                                    // (t-038: a move's men / set piece / script go first)
     const p = r.human, gk = r.gk, b = m.ball;
     Object.assign(m, { setPiece: null, pending: null, diving: null, freeze: 0, hitStop: 0, path: null, passRing: null, nextHuman: null, charge: -1, penaltyKick: false, dead: null });
     m.msg.setText(''); m.sub.setText('');
@@ -345,6 +348,16 @@
   }
   function fpMove(kind) {
     const r = LAB.run; if (!r || r.sc.kind !== 'free') return;
+    const M = FP_BY[kind];
+    if (M && M.go) {                                                             // t-038: a move from the list - a clean start, then its set-up and script
+      if (M.gk && LAB.fp.nogk) { LAB.fp.nogk = false; syncTog(); }               // (a keeper move needs their keeper)
+      csClean(); if (m.cutIn) m.cutInEnd(); m.cutInQ = null;
+      if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null;
+      Object.assign(m, { aerial: null, lobAim: null, slowMo: 0, camTarget: null, cvFx: null, clashLast: null, gkSpLast: null, acLast: null, airCh: null, headBuf: 0 });
+      fpBase(r); fpReset(r); r.air = null; r.marks = []; r.why = null; LAB.cx = null;
+      M.go(r, r.human); return;
+    }
+    if (r.extra || r.real || r.fx) { fpBase(r); fpReset(r); }                   // (after a t-038 move: the plain scene again)
     const p = r.human, b = m.ball, dv = dirVec(p.face);
     if (m.pending || p.state === 'kick' || p.state === 'slide' || p.state === 'dheader') return;
     if (p.busy()) { p.setState('idle', 0); p.stun = 0; }                        // a reaction or a lab animation: cut it short
@@ -368,6 +381,346 @@
       const { fx, fy } = inFrom(p, 16), d = len(p.x - fx, p.y - fy) || 1;
       ballAt(fx, fy, 0); Object.assign(b, { vx: (p.x - fx) / d * 13, vy: (p.y - fy) / d * 13, last: m.home, target: p });
     }
+  }
+  // ---------- t-038 FREE PLAY'S MOVE LIST (Luca 29 Oct 00:44: "the special passes etc, don't have buttons I can press to
+  // do freely ... add all the moves that we work on as they are finished, once we like them we OK to add to the final
+  // game"). Modelled on the training modes of FIFA / EA FC (the Practice Arena), PES and the fighting / Rocket League free
+  // plays: a move list where every entry can be performed on the spot against a dummy that reacts. One line per move: its
+  // section, its label, IN THE GAME (game: true, in matches now) or LAB ONLY (waiting for Luca's OK), and what it does.
+  // A line with `go` sets up what the move needs (a team-mate, a defender, a cross, a shot at the keeper, both whole teams
+  // for a set piece) and plays it through the game's own code - the functions your keys or the computer run; a line
+  // without `go` is one of v0.8-v0.9's moves (fpMove below). A NEW MOVE GETS ITS LINE HERE (CLAUDE.md "Testing").
+  // v0.13.0 (merged with this): the aerial battle's MASH has its two lines (battle-h / battle-v); the corner blackout
+  // plays inside set-corner. Every later move adds its own line here.
+  const FP_SECS = [
+    ['pass', 'PASSING'], ['shoot', 'SHOOTING'], ['air', 'IN THE AIR · a ball comes in, he does it'],
+    ['gk', 'THEIR KEEPER · a shot or a ball at him, he does it'], ['def', 'DEFENDING · a dribbler comes at you'],
+    ['set', 'SET PIECES · both teams, the setup runs, then you take it'], ['you', 'BALL TO YOU · then you press the key'],
+  ];
+  const FP_MOVES = [
+    { mv: 'pass', sec: 'pass', n: 'PASS', game: true },
+    { mv: 'through', sec: 'pass', n: 'THROUGH', game: true },
+    { mv: 'lob', sec: 'pass', n: 'LOB', game: true },
+    { mv: 'plob30', sec: 'pass', n: 'POWER LOB 30%', game: true, tip: 'LOB held: 30% of the way' },
+    { mv: 'plob60', sec: 'pass', n: 'POWER LOB 60%', game: true },
+    { mv: 'plob100', sec: 'pass', n: 'POWER LOB 100%', game: true },
+    { mv: 'curler', sec: 'pass', n: 'CURLER!', hot: true, tip: 't-011: SPECIAL + PASS - bends round the man on the line to your team-mate\'s feet (fills a bar of SP first)', go: r => fpCurve(r, 'ground') },
+    { mv: 'outcurl', sec: 'pass', n: 'OUTSIDE CURL!', hot: true, tip: 't-011: SPECIAL + THROUGH - outside of the boot, curls into your runner\'s path', go: r => fpCurve(r, 'through') },
+    { mv: 'banana', sec: 'pass', n: 'BANANA LOB!', hot: true, tip: 't-011: SPECIAL + LOB - the scoop over a defender, bending down into the run', go: r => fpCurve(r, 'lob') },
+    { mv: 'shot', sec: 'shoot', n: 'SHOT', game: true },
+    { mv: 'power', sec: 'shoot', n: 'POWER SHOT', game: true },
+    { mv: 'tap', sec: 'shoot', n: 'TAP KICK', game: true, tip: 't-010: SHOOT tapped - OK\'d by Luca on 26 Oct, going into matches (t-037)' },
+    { mv: 'chip', sec: 'shoot', n: 'CHIP', game: true, tip: 'in a match: LOB in their box while facing goal' },
+    { mv: 'sp1', sec: 'shoot', n: 'LV1 BLAZE', game: true, hot: true },
+    { mv: 'sp2', sec: 'shoot', n: 'LV2 THUNDER', game: true, hot: true },
+    { mv: 'sp3', sec: 'shoot', n: 'LV3 PHOENIX', game: true, hot: true },
+    { mv: 'air-head', sec: 'air', n: 'HEADER', game: true },
+    { mv: 'air-volley', sec: 'air', n: 'VOLLEY', game: true },
+    { mv: 'air-dive', sec: 'air', n: 'DIVE HEADER', game: true },
+    { mv: 'air-bike', sec: 'air', n: 'OVERHEAD', game: true, tip: 'overhead / bicycle kick' },
+    { mv: 'air-chest', sec: 'air', n: 'CHEST TRAP', game: true },
+    { mv: 'chhead', sec: 'air', n: 'CHARGED HEADER', game: true, tip: 't-022: a cross comes in; SHOOT held as it comes and let go just before it arrives = full power', go: r => fpCharged(r, false) },
+    { mv: 'chvol', sec: 'air', n: 'CHARGED VOLLEY', game: true, tip: 't-022: a low driven cross; SHOOT held, let go just before it reaches you', go: r => fpCharged(r, true) },
+    { mv: 'air-sp1', sec: 'air', n: 'AIR LV1', game: true, hot: true, air: true },
+    { mv: 'air-sp2', sec: 'air', n: 'AIR LV2', game: true, hot: true, air: true },
+    { mv: 'air-sp3', sec: 'air', n: 'AIR LV3', game: true, hot: true, air: true },
+    { mv: 'cross', sec: 'air', n: 'CROSS IN · you attack it', game: true, wide: true, tip: 'a team-mate crosses from the byline to you: X header / volley, Shift + X overhead, B an aerial special', go: fpCross },
+    { mv: 'battle-h', sec: 'air', n: 'AERIAL BATTLE · HEADER', game: true, hot: true, wide: true, tip: 't-034 (v0.13.0): a cross into their box with their centre-back on you - HEADER v HEADER, MASH SPACE: win = a header at goal + he goes down, lose = he clears it', go: r => fpBattle(r, false) },
+    { mv: 'battle-v', sec: 'air', n: 'AERIAL BATTLE · VOLLEY', game: true, hot: true, wide: true, tip: 't-034 (v0.13.0): a driven waist-high cross with their man on you - VOLLEY v VOLLEY, MASH SPACE', go: r => fpBattle(r, true) },
+    { mv: 'gk-lowl', sec: 'gk', n: 'LOW DIVE CATCH ◀', game: true, gk: true, tip: 't-031: a low shot 2.4 m to his left - he dives, grabs it, lands and gets up holding it',
+      go: r => fpShotAt(r, 'LOW DIVE CATCH (his left)', { spot: [91, 35], dy: 2.4, speed: 19, u: 0 }) },
+    { mv: 'gk-lowr', sec: 'gk', n: 'LOW DIVE CATCH ▶', game: true, gk: true, tip: 't-031: the same to his right',
+      go: r => fpShotAt(r, 'LOW DIVE CATCH (his right)', { spot: [91, 33], dy: -2.4, speed: 19, u: 0 }) },
+    { mv: 'gk-high', sec: 'gk', n: 'HIGH DIVE CATCH', game: true, gk: true, tip: 'a shot 2.4 m to his side, above his waist: he flies up and across and holds it (faster or higher, he tips it over or round)',
+      go: r => fpShotAt(r, 'HIGH DIVE CATCH', { spot: [91, 34], dy: 2.4, z: 1.2, speed: 17, u: 0 }) },
+    { mv: 'gk-leap', sec: 'gk', n: 'LEAP AND GRAB', game: true, gk: true, tip: 'a ball dropping just under the bar - he goes up and snatches it',
+      go: r => fpShotAt(r, 'LEAP AND GRAB', { spot: [89, 34], dy: 0.3, z: 2.15, speed: 20, u: 0 }) },
+    { mv: 'gk-smother', sec: 'gk', n: 'SMOTHER', game: true, gk: true, tip: 'you run at him and take a heavy touch: he goes down at your feet and gathers it', go: fpSmother },
+    { mv: 'gk-parry', sec: 'gk', n: 'PARRY', game: true, gk: true, tip: 'a hard low shot to his side he can\'t hold: parried away',
+      go: r => fpShotAt(r, 'PARRY', { spot: [88, 34], dy: -2.3, speed: 24, power: 0.8, u: 0.999 }) },
+    { mv: 'gk-tip', sec: 'gk', n: 'TIP OVER', game: true, gk: true, tip: 'a hard shot under the bar: he jumps and tips it over',
+      go: r => fpShotAt(r, 'TIP OVER', { spot: [87, 34], dy: 0, z: 2.3, speed: 25, power: 0.8 }) },
+    { mv: 'gk-punch', sec: 'gk', n: 'PUNCH', game: true, gk: true, tip: 'your lob into a crowded six-yard box: he punches it clear', go: fpPunch },
+    { mv: 'gk-walk', sec: 'gk', n: 'CATCH + WALK OUT', game: true, gk: true, tip: 't-031: a soft shot, nobody near him: he holds it, carries it a few steps out, then plays it', go: fpWalkOut },
+    { mv: 'gk-roll', sec: 'gk', n: 'ROLL OUT', game: true, gk: true, tip: 'the ball in his hands, a team-mate 15 m away: underarm roll', go: r => fpRelease(r, 'roll') },
+    { mv: 'gk-throw', sec: 'gk', n: 'THROW OUT', game: true, gk: true, tip: 'a team-mate 23 m away: overarm throw', go: r => fpRelease(r, 'throw') },
+    { mv: 'gk-punt', sec: 'gk', n: 'PUNT', game: true, gk: true, tip: 'a team-mate 48 m away: the drop-kick', go: r => fpRelease(r, 'punt') },
+    { mv: 'gk-sv1', sec: 'gk', n: 'SPECIAL SAVE LV1', game: true, gk: true, hot: true, tip: 'his LV1 special save v your normal shot into the top corner', go: r => fpSpSave(r, 1) },
+    { mv: 'gk-sv2', sec: 'gk', n: 'SPECIAL SAVE LV2', game: true, gk: true, hot: true, tip: 'his LV2 special save v your normal shot', go: r => fpSpSave(r, 2) },
+    { mv: 'gk-sv3', sec: 'gk', n: 'SPECIAL SAVE LV3', game: true, gk: true, hot: true, tip: 'his LV3 special save v your normal shot', go: r => fpSpSave(r, 3) },
+    { mv: 'gk-cl1', sec: 'gk', n: 'CLASH · v SAVE LV1', game: true, gk: true, hot: true, tip: 't-028: your LV2 special v his LV1 special save - power against power', go: r => fpClash(r, 1) },
+    { mv: 'gk-cl2', sec: 'gk', n: 'CLASH · v SAVE LV2', game: true, gk: true, hot: true, tip: 't-028: your LV2 special v his LV2 special save', go: r => fpClash(r, 2) },
+    { mv: 'gk-cl3', sec: 'gk', n: 'CLASH · v SAVE LV3', game: true, gk: true, hot: true, tip: 't-028: your LV2 special v his LV3 special save', go: r => fpClash(r, 3) },
+    { mv: 'def-slide', sec: 'def', n: 'SLIDE TACKLE', game: true, tip: 't-018: he comes at you with the ball; you slide in (the shoot key)', go: r => fpDuel(r, 'slide') },
+    { mv: 'def-stand', sec: 'def', n: 'STANDING TACKLE', game: true, tip: 't-018: the challenge (the pass key) as he reaches you', go: r => fpDuel(r, 'stand') },
+    { mv: 'def-jockey', sec: 'def', n: 'JOCKEY', game: true, tip: 'side-on, backing off as he dribbles at you', go: r => fpDuel(r, 'jockey') },
+    { mv: 'slide', sec: 'def', n: 'SLIDE AT A LOOSE BALL', game: true },
+    { mv: 'set-corner', sec: 'set', n: 'CORNER', game: true, gk: true, tip: 't-029: your corner - the setup runs, then C crosses / Z passes / X shoots', go: r => fpSet(r, 'corner') },
+    { mv: 'set-fk', sec: 'set', n: 'FREE KICK + WALL', game: true, gk: true, tip: 't-029: your free kick 23 m out - their wall forms on 9.15 m, then you take it', go: r => fpSet(r, 'fk') },
+    { mv: 'set-throw', sec: 'set', n: 'THROW-IN', game: true, gk: true, tip: 't-029: your throw-in - Z short, C long', go: r => fpSet(r, 'throw') },
+    { mv: 'set-off', sec: 'set', n: 'OFFSIDE → FREE KICK', game: true, gk: true, tip: 't-024 / t-029: their striker is flagged offside - your free kick where he played it', go: r => fpSet(r, 'off') },
+    { mv: 'head', sec: 'you', n: 'HEAD', game: true },
+    { mv: 'waist', sec: 'you', n: 'WAIST', game: true },
+    { mv: 'feet', sec: 'you', n: 'FEET', game: true },
+  ];
+  const FP_BY = Object.fromEntries(FP_MOVES.map(x => [x.mv, x]));
+  // the move buttons, built from the list (so a new move is one line above)
+  function fpMovesUI() {
+    $('fp-moves').innerHTML = FP_SECS.map(([sec, title]) => `<div class="fp-sec"><div class="fp-lab">${title}</div><div class="fp-grid">${FP_MOVES.filter(x => x.sec === sec).map(x =>
+      `<button type="button" class="mv${x.hot ? ' hot' : ''}${x.air ? ' air' : ''}${x.wide ? ' wide' : ''}" data-mv="${x.mv}"${x.tip ? ` title="${x.tip.replace(/"/g, '&quot;')}"` : ''}>${x.n}<i class="tg ${x.game ? 'in' : 'lab'}">${x.game ? 'IN THE GAME' : 'LAB ONLY'}</i></button>`).join('')}</div></div>`).join('');
+  }
+
+  // ---- the helpers the moves share
+  function fpKeeper(gk, x = LINE_X, y = 34) {                                   // their keeper on his line, fresh (no save, no ball, no walk)
+    if (!gk || gk.sentOff) return; put(gk, x, y, 4);
+    Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0, spSave: 0, rig: null, hands: false, walk: undefined, hold: 0, smAt: 0 });
+  }
+  function fpCast(r, extra) { cast([r.human, ...(r.nogk ? [] : [r.gk]), ...extra]); r.extra = true; }   // you, their keeper and the men this move needs
+  function fpSpot(r, x, y) {                                                    // you on the ball at (x, y), facing the goal; their keeper on the angle
+    const p = r.human, f = dirIndex(GX - x, 34 - y), dv = dirVec(f);
+    put(p, x - dv.x * 0.5, y - dv.y * 0.42, f); ballAt(x, y, 0, p); fpKeeper(r.gk, LINE_X, 34 + (y - 34) * 0.3);
+  }
+  // back to plain FREE PLAY: you and their keeper, nothing left over from the last move (its men, its set piece, its script)
+  function fpBase(r) {
+    const s = r.human0 || r.human, gk = r.gk;
+    if (r.real) { r.sc = r.sc0; r.real = false; if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; } window.HC2_NO_OFFSIDE = true;
+      Object.assign(m, { offSide: null, offFlag: null, offLast: null, offGK: null, passAim: null, gkSetup: null }); }
+    r.human = s; m.human = s; r.nogk = !!LAB.fp.nogk;
+    cast(r.nogk ? [s] : [s, gk]); if (!r.nogk) fpKeeper(gk);
+    r.bots.clear(); r.extra = false; r.fx = null; r.noAuto = false; s.watch = null;
+    Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+  }
+  // what their keeper did, for the readout: the move he picked (dive low / high, leap, smother ...) and what came of it
+  function fpGk(r, F, gk) {
+    const b = m.ball, st = gk.saveKind || (/^(idle|run|walk|jog)$/.test(gk.state) ? '' : gk.state);
+    if (st && !F.mv) F.mv = st;
+    const ev = r.events.slice(F.e0 || 0).filter(e => /PARR|POST|TIPPED|PUNCH|SAVE|HAND|CLEAR|CORNER/i.test(e)).pop();
+    return `${F.mv ? F.mv.replace(/([a-z])([A-Z])/g, '$1 $2').toUpperCase() : 'reading it'}${gk.hands ? ' · HELD' : ''}${b.inNet ? ' · GOAL' : ''}${ev ? ' · ' + ev : ''}`;
+  }
+
+  // ---- PASSING: the curving special passes (t-011, CP1-3's set-ups 12-20 m further up the pitch)
+  const FP_CURVE = { ground: { n: 'CURLER!', from: [60, 34], mate: [78, 34], opp: [69, 33.6] },
+                     through: { n: 'OUTSIDE CURL!', from: [62, 26], mate: [78, 38, 6, 0], opp: [73, 30.6] },
+                     lob: { n: 'BANANA LOB!', from: [57, 34], mate: [82, 29, 3, 0], opp: [67, 32] } };
+  function fpCurve(r, mode) {
+    const S = FP_CURVE[mode], p = r.human, q = m.home.players[8], o = m.away.players[3];
+    fpCast(r, [q, o]); put(p, S.from[0], S.from[1], 0); atFeet(p); put(q, S.mate[0], S.mate[1], 0); put(o, S.opp[0], S.opp[1], 4);
+    r.bots.set(q, cpRun(S.mate[2] || 0, S.mate[3] || 0));
+    Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0 });
+    if (m.meters[0].e < 1) m.meters[0].e = 1;                                 // it costs a bar: the button fills one first
+    r.last = `${S.n} · a bar of SP in the bank`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.kicked) {
+        if (F.t < 0.45) return true; F.kicked = true;
+        const c0 = CURVE_PASS; CURVE_PASS = true;                                // (the button works with the CURVE PASS switch off too, like TAP KICK's)
+        try { const d = len(q.x - p.x, q.y - p.y) || 1; F.ok = m.curvePass(p, mode, { x: (q.x - p.x) / d, y: (q.y - p.y) / d }); } finally { CURVE_PASS = c0; }
+        if (!F.ok) { r.last = `${S.n} · not played (no SP?)`; return false; }
+        return true;
+      }
+      if (!F.start) { if (b.owner || m.pending) return F.t < 3; F.start = { x: b.x, y: b.y }; F.v = len(b.vx, b.vy, b.vz); F.C = m.curveLast; F.bend = 0; }
+      const A = F.C ? { x: F.C.tx, y: F.C.ty } : { x: q.x, y: q.y }, dx = A.x - F.start.x, dy = A.y - F.start.y, d = len(dx, dy) || 1;
+      if (!F.touch) { const lat = ((b.x - F.start.x) * dy - (b.y - F.start.y) * dx) / d; if (Math.abs(lat) > Math.abs(F.bend)) F.bend = lat; }
+      const tp = b.owner && b.owner !== p ? b.owner : b.lastP && b.lastP !== p ? b.lastP : null; if (tp && !F.touch) F.touch = tp;
+      r.last = `${S.n} · bend ${Math.abs(F.bend).toFixed(1)} m · ${kmh(F.v)} km/h${F.touch ? ' · ' + (F.touch === q ? `to your #${q.num}` : F.touch.team === p.team ? `your #${F.touch.num}` : `cut out by their #${F.touch.num}`) : ''}`;
+      return !F.touch && F.t < 5;
+    } };
+  }
+
+  // ---- IN THE AIR: the charged header / volley (t-022, HV1 / HV3's cross; the Lab holds SHOOT and lets go in the sweet window)
+  function fpCharged(r, vol) {
+    const p = r.human, c = m.home.players[7], n = vol ? 'CHARGED VOLLEY' : 'CHARGED HEADER';
+    const from = vol ? [100, 14] : [99, 6], z = vol ? 0.6 : 1.8, T = vol ? 0.75 : 1.35;
+    fpCast(r, [c]); put(p, 92, 31, 0); put(c, from[0], from[1]); faceTo(c, 92, 31); atFeet(c); fpKeeper(r.gk, LINE_X, 33);
+    Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); m.acLast = null; m.airCh = null;
+    r.last = `${n} · a cross comes in`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball, Tc = Input.touch;
+      if (!F.crossed) { if (F.t < 0.5) return true; F.crossed = true; const a = aimAir(b.x, b.y, 92, 31, z, T); m.kick(c, 92, 31, a.speed, a.vz, 0.13, {}); return true; }
+      if (!F.hit) {
+        const tc = b.owner || m.pending ? null : hvContactIn(p, vol);
+        if (F.down == null) { if (tc != null && tc <= 0.75) { Tc.btn.shoot = true; F.down = F.t; r.last = `${n} · SHOOT held …`; } }
+        else if (F.up == null && tc != null && tc <= 0.05) { Tc.btn.shoot = false; F.up = F.t; }
+        const L = m.acLast; if (L && L.by === p) { F.hit = L; Tc.btn = {}; } else if (F.t > 5) { r.last = `${n} · missed it`; return false; }
+        return true;
+      }
+      if (!F.v && !m.pending && !b.owner && b.lastP === p) F.v = kmh(len(b.vx, b.vy, b.vz));
+      const H = F.hit, pc = v => Math.round(v * 100) + '%';
+      r.last = H.tap ? `${H.kind.toUpperCase()} (a tap)` : `CHARGED ${H.kind.toUpperCase()} · ${pc(H.raw)} power → ${pc(H.pw)} kept · timing ${H.sweet ? 'RIGHT' : H.late ? 'LATE' : 'off ' + H.off.toFixed(2) + ' s'}${F.v ? ` · ${F.v} km/h` : ''}`;
+      return !F.v && F.t < 6;
+    } };
+  }
+  // a cross into the box for you to attack (you press the keys)
+  function fpCross(r) {
+    const p = r.human, c = m.home.players[7];
+    fpCast(r, [c]); if (!(p.x > 86 && p.x < 102 && Math.abs(p.y - 34) < 14)) put(p, 92, 31, 0);
+    put(c, 99, 6); faceTo(c, p.x, p.y); atFeet(c); fpKeeper(r.gk, LINE_X, 33);
+    r.last = 'CROSS · get ready';
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.c) { if (F.t < 0.6) return true; F.c = true; const a = aimAir(b.x, b.y, p.x + 1, p.y, 1.7, 1.35); m.kick(c, p.x + 1, p.y, a.speed, a.vz, 0.13, {});
+        r.last = 'CROSS · YOUR TURN: X header / volley · Shift + X overhead · B aerial special'; return true; }
+      if (b.lastP && b.lastP !== c && !F.met) { F.met = true; r.last = `CROSS · ${b.lastP === p ? 'you met it' : b.lastP.keeper ? 'the keeper took it' : 'cleared'}`; }
+      return F.t < 4;
+    } };
+  }
+
+  // t-034's AERIAL BATTLE in FREE PLAY (Luca, 29 Oct: "add all the moves we work on as they are finished"): the AB
+  // tests' moment - a team-mate crosses into their box, their centre-back right on you - and you MASH SPACE yourself.
+  // The battle's chance is 1 for this move only (as in AB), put back when the move ends.
+  function fpBattle(r, volley) {
+    const p = r.human, c = m.home.players[7], d = m.away.players[3], at = [92, 31];
+    fpCast(r, [c, d]); put(p, at[0], at[1], 0); put(d, at[0] + 0.7, at[1] + 0.6, 4);
+    put(c, volley ? 100 : 99, volley ? 14 : 6); faceTo(c, at[0], at[1]); atFeet(c); fpKeeper(r.gk, LINE_X, 33);
+    Object.assign(m, { aerial: null, aerialLast: null, aerialAt: -1e9, aerialKick: null, aerFx: null, slowMo: 0, camTarget: null });
+    LAB.aerialChance = LAB.aerialChance ?? AERIAL.chance; AERIAL.chance = 1;
+    r.last = `AERIAL BATTLE (${volley ? 'VOLLEY' : 'HEADER'}) · get ready to MASH SPACE`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.c) { if (F.t < 0.6) return true; F.c = true; const a = aimAir(b.x, b.y, at[0], at[1], volley ? 1.0 : 1.9, volley ? 0.8 : 1.3);
+        m.kick(c, at[0], at[1], a.speed, a.vz, 0.13, { target: p, cross: 'lab' }); r.last = 'AERIAL BATTLE · MASH SPACE when it says MASH!'; return true; }
+      if (m.aerial) F.seen = true;
+      if (F.seen && !m.aerial && !F.done) { F.done = true; const L = m.aerialLast; r.last = `AERIAL BATTLE · ${L && L.res === 'att' ? 'you won it' : L ? 'their man won it' : 'over'}`; }
+      const more = F.t < 6; if (!more && LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; }
+      return more;
+    } };
+  }
+
+  // ---- THEIR KEEPER: a shot at him from you, the ball where it makes him do the move (the GH / GKX / KC tests' shots)
+  function fpShotAt(r, n, o) {
+    const gk = r.gk; fpSpot(r, o.spot[0], o.spot[1]);
+    const ty = o.y != null ? o.y : gk.y + (o.dy || 0); r.marks = [{ x: GX, y: ty, r: 0.3 }];
+    r.last = `${n} · watch the keeper`;
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      const b = m.ball;
+      if (!F.shot) { if (F.t < 0.6) return true; F.shot = true; fireShot(r, { y: ty, z: o.z, low: !o.z }, o.speed, o.power || 0.5); return true; }
+      if (b.save && b.save.gk === gk && !F.u) { F.u = true; if (o.u != null) b.save.u = o.u; }     // (the dice: a catch is held, a parry isn't - as GH1 / GH6)
+      if (o.launch && !F.l && !b.owner && !m.pending && b.lastP === p) { F.l = true; o.launch(r, gk); }
+      r.last = `${n} · ${o.read ? o.read(r, F, gk) : fpGk(r, F, gk)}`;
+      if (r.marks.length && F.t > 2.5) r.marks = [];
+      return F.t < (o.T || 4);
+    } };
+  }
+  function fpSpSave(r, lv) {                                                    // his special save v a normal shot (KC1 / KS)
+    m.gkSpLast = null;
+    fpShotAt(r, `SPECIAL SAVE LV${lv}`, { spot: [89, 33], y: GOAL_Y1 - 0.35, z: 2.15, speed: 25, power: 0.6, T: 5,
+      launch: (r, gk) => { m.ball.saveable = m.home; gk.spSave = lv; m.saveFx(gk); },
+      read: (r, F, gk) => { const S = m.gkSpLast; return S ? `${S.n} (${(RIGS[S.n] || {}).name || ''})${gk.hands ? ' · HELD' : m.ball.inNet ? ' · GOAL' : S.res === 'hand' ? ' · a hand to it' : ' · saved'}` : fpGk(r, F, gk); } });
+    fpKeeper(r.gk, LINE_X, 34);
+  }
+  function fpClash(r, sv) {                                                     // your LV2 special v his special save (t-028, the KC tests)
+    const gk = r.gk; fpSpot(r, 86, 33); fpKeeper(gk, LINE_X, 34); Object.assign(m, { clashLast: null, gkSpLast: null });
+    r.last = `CLASH · your LV2 v his LV${sv} save`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.shot) { if (F.t < 0.6) return true; F.shot = true; m.meters[0].e = 2; m.special(p); if (m.pending && m.pending.p === p) m.pending.ty = 34.6; return true; }   // (just off his middle, as KC2-6)
+      if (!F.l) { if (b.owner || m.pending || b.lastP !== p) return F.t < 5; F.l = true; gk.spSave = sv; m.saveFx(gk); }
+      const L = m.clashLast;
+      r.last = L ? `CLASH · ${L.sn} ${L.P} v ${L.K} ${L.sv} · ${KC_OUT[L.out] || L.out}${b.inNet ? ' · GOAL' : ''}` : `CLASH · your LV2 v his LV${sv} save …`;
+      return F.t < 8;
+    } };
+  }
+  function fpSmother(r) {                                                       // you run at him and knock it too far (GH3): he smothers it
+    const p = r.human, gk = r.gk; fpKeeper(gk, LINE_X - 4, 34); put(p, 88, 35, 0); atFeet(p);
+    r.last = 'SMOTHER · you run at him';
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      const b = m.ball, T = Input.touch;
+      if (!F.knock) {
+        if (b.owner === p && p.x > 93.5) { F.knock = true; b.owner = null; b.vx = 7.5; b.vy = -0.4; p.cool = 0.4; T.x = 0.6; T.y = 0; }   // the heavy touch
+        else if (F.t > 0.3) { T.x = 1; T.y = -0.08; }
+        if (gk.state === 'dive' && gk.saveKind === 'smother' && !F.forced) { F.forced = true; gk.smU = 0; }   // (he can come before the knock too)
+        r.last = 'SMOTHER · ' + (F.forced || gk.hands ? fpGk(r, F, gk) : 'you run at him');
+        return F.t < 4 || !!F.forced && F.t < 6;
+      }
+      if (F.t - (F.kt = F.kt ?? F.t) > 0.5) T.x = 0;
+      if (gk.state === 'dive' && gk.saveKind === 'smother' && !F.forced) { F.forced = true; gk.smU = 0; }   // (the gather made to happen, as GH3)
+      r.last = 'SMOTHER · ' + fpGk(r, F, gk);
+      return F.t < 6;
+    } };
+  }
+  function fpPunch(r) {                                                         // your lob into a crowded six-yard box (GKX7): he punches it
+    const p = r.human, gk = r.gk, H = m.home.players, men = [[H[8], 98.2, 31.6], [H[6], 98.8, 33.0], [H[5], 99.8, 32.4]];
+    fpCast(r, men.map(x => x[0])); for (const [q, x, y] of men) { put(q, x, y, 0); r.bots.set(q, sit()); }
+    put(p, 80, 24, dirIndex(22.4, 10)); atFeet(p); fpKeeper(gk, 103.6, 34);
+    r.last = 'PUNCH · your lob into the crowd';
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      if (!F.k) { if (F.t < 0.6) return true; F.k = true; m.kick(p, 102.4, 34, 0, 0, 0.12, { mode: 'lob', lobPow: 0.6 }); return true; }
+      r.last = 'PUNCH · ' + fpGk(r, F, gk); return F.t < 4.5;
+    } };
+  }
+  function fpWalkOut(r) {                                                       // a calm catch, then he carries it out (t-031, GH4)
+    const gk = r.gk, A = m.away.players, mates = [[A[2], 84, 18], [A[3], 86, 50], [A[6], 72, 30]];
+    fpCast(r, mates.map(x => x[0])); for (const [q, x, y] of mates) put(q, x, y, 4);
+    fpShotAt(r, 'CATCH + WALK OUT', { spot: [88, 34], dy: 0.3, speed: 17, u: 0, T: 11,
+      read: (r, F, gk) => { const T = Input.touch, p = r.human;
+        if (F.t > 1.2 && F.t < 2.4) T.x = -0.6; else T.x = 0;                    // (you jog back: nobody presses him, so he walks it)
+        if (gk.hands && F.held == null) F.held = F.t;
+        if (gk.gkMode === 'WALK OUT') F.walked = (F.walked || 0) + STEP;
+        if (F.held != null && !gk.hands && !F.rel) F.rel = gk.kickAnim || 'played';
+        if (F.rel && (F.relT = F.relT ?? F.t) && F.t - F.relT > 0.8) F.t = 99;   // (done: the script ends)
+        return F.rel ? `held, walked it out ${(F.walked || 0).toFixed(1)} s, then ${String(F.rel).toUpperCase()}` : gk.hands ? (gk.gkMode === 'WALK OUT' ? 'HELD · walking it out' : 'HELD') : fpGk(r, F, gk); } });
+    r.noAuto = true;                                                            // (no ball-back while he has it: this one takes a few seconds)
+  }
+  function fpRelease(r, how) {                                                  // the ball in his hands, a team-mate free: roll / throw / punt
+    const gk = r.gk, q = m.away.players[3], at = { roll: [90, 41], throw: [82, 25], punt: [56, 30] }[how];
+    fpCast(r, [q]); put(q, at[0], at[1], 4); put(r.human, 84, 56, 2); fpKeeper(gk, LINE_X - 2, 34); gk.walk = null;
+    ballAt(gk.x - 0.25, gk.y, 1.1, gk); gk.hands = true; gk.handFrom = null; r.noAuto = true;
+    const n = { roll: 'ROLL OUT', throw: 'THROW OUT', punt: 'PUNT' }[how]; r.last = `${n} · in his hands`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.k) { if (F.t < 0.6) return true; F.k = true; const d = len(q.x - gk.x, q.y - gk.y) || 1; m.doPass(gk, { x: (q.x - gk.x) / d, y: (q.y - gk.y) / d }, how === 'roll' ? 'ground' : 'lob'); return true; }
+      if (!F.a && gk.kickAnim) F.a = gk.kickAnim;
+      r.last = `${n} · ${F.a ? F.a.toUpperCase() : '…'}${!m.pending && !b.owner && b.lastP === gk ? ` · ${kmh(len(b.vx, b.vy, b.vz))} km/h` : b.owner === q ? ' · to his team-mate' : ''}`;
+      return F.t < 3.5;
+    } };
+  }
+
+  // ---- DEFENDING: their man dribbles at you (t-018's slide / challenge, v0.8.2's jockey)
+  function fpDuel(r, kind) {
+    const p = r.human, c = m.away.players[9]; fpCast(r, [c]);
+    put(p, 70, 34, 0); put(c, 79, 34.4, 4); atFeet(c); r.bots.set(c, dribbleTo(40, 34.4, kind === 'jockey' ? 3.2 : 4.6));
+    const n = { slide: 'SLIDE TACKLE', stand: 'STANDING TACKLE', jockey: 'JOCKEY' }[kind]; r.last = `${n} · here he comes`;
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      const b = m.ball, d = len(c.x - p.x, c.y - p.y), T = Input.touch;
+      if (kind === 'jockey') { p.watch = c; T.x = F.t > 0.4 && F.t < 2.6 ? -0.42 : 0; if (p.jockeyOn) F.jk = (F.jk || 0) + STEP;
+        r.last = `JOCKEY · ${p.jockeyOn ? 'side-on, backing off' : F.jk ? `side-on for ${F.jk.toFixed(1)} s` : 'closing him down'}`; if (F.t >= 2.6) p.watch = null; return F.t < 3; }
+      if (!F.go) {
+        if (kind === 'slide' && d < 3.2 && b.owner === c) { F.go = true; const bd = len(b.x - p.x, b.y - p.y) || 1; m.slideTackle(p, { x: (b.x - p.x) / bd, y: (b.y - p.y) / bd }); }
+        else if (kind === 'stand' && d < 1.25 && b.owner === c) { F.go = true; m.challenge(p, c); }
+        if (F.go) F.at = F.t; else return F.t < 4;
+      }
+      const foul = r.events.slice(F.e0).some(e => /FOUL|FREE KICK|YELLOW/i.test(e));
+      if (F.t - F.at > 0.35) r.last = `${n} · ${foul ? 'FOUL' : b.owner === p ? 'WON IT' : b.owner === c ? 'MISSED' : 'knocked it loose'}${p.state === 'getup' ? ' · getting up' : ''}`;
+      return F.t - F.at < 2;
+    } };
+  }
+
+  // ---- SET PIECES: both full teams, the game's own restart (its t-029 setup) and team AI - as the RS tests play them -
+  // then the kick is yours. Back to plain FREE PLAY when the ball goes out, in, or to their keeper (or E).
+  function fpSet(r, kind) {
+    const H = m.home.players, A = m.away.players, att = { corner: 26, fk: 24, throw: 18, off: -24 }[kind];
+    r.sc = Object.assign({}, r.sc0, { realAi: true, realRestart: true }); r.real = true; r.extra = true; r.noAuto = true;
+    cast(m.all.slice());
+    for (const p of m.all) put(p, clamp(p.home.x + att, 2, PITCH_L - 2), p.home.y, p.team === m.home ? 0 : 4);
+    for (const k of [H[0], A[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, walk: undefined });
+    for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+    LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = false; m.ball.crossBy = null; window.HC2_NO_OFFSIDE = false;
+    const n = { corner: 'CORNER', fk: 'FREE KICK', throw: 'THROW-IN', off: 'OFFSIDE' }[kind];
+    if (kind === 'corner') { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; }
+    else if (kind === 'fk') { put(H[9], 81.2, 30.8, 0); ballAt(82, 30, 0); m.restart('FREE KICK', m.home, 82, 30); }
+    else if (kind === 'throw') { put(H[7], 66, 62, 0); put(A[4], 70, 61, 4); ballAt(68, 68.4, 0.1); Object.assign(m.ball, { last: m.away, lastP: A[7], vy: 1.5 }); m.dead = { kind: 'THROW-IN', team: m.home, x: 68, y: PITCH_W - 0.2, t: 0.6 }; }
+    else { const st = A[9]; put(st, 15, 32, 4); atFeet(st); m.offCall(st, { team: m.away, men: new Map([[st, { x: st.x, y: st.y }]]), line: m.offLine(m.away), by: A[6] }); }   // (RS1 the other way round: theirs is flagged, the free kick is yours)
+    r.last = `${n} · the whistle`;
+    r.fx = { step(r, p, F) {
+      const sp = m.setPiece;
+      if (sp) { F.seen = true; F.kind = sp.kind || F.kind;
+        const ready = sp.setup && !sp.su, mine = sp.team === m.home;
+        r.last = `${F.kind || n} · ${!mine ? 'theirs' : !ready ? `the players get into shape${sp.su && sp.su.frac != null ? ` (${Math.round(sp.su.frac * 100)}%)` : ''} …` : sp.kind === 'THROW-IN' ? 'YOUR THROW: Z short · C long (arrows aim)' : 'YOUR KICK: C cross / lob · Z pass · X shoot (arrows aim)'}`; }
+      else if (F.seen && !F.done) { F.done = true; F.doneT = F.t; r.out = null; r.noAuto = false; r.last = `${F.kind || n} · taken`; }   // (in play: the usual ball-back from here)
+      r.out = r.noAuto ? null : r.out;                                          // (the call itself goes through restart: not an "out" yet)
+      return F.done ? F.t - F.doneT < 6 : F.t < 30;
+    } };
   }
   // tuning (lab only - the real game keeps its values until we copy yours over)
   // v0.9.9 (Luca 02:50: "add the sliders from the training ground to the classic version"): the knobs of the Test Lab v3
@@ -459,6 +812,7 @@
     $('fp-tnote').placeholder = c.length ? `You changed ${c[c.length - 1].name.toLowerCase()}. How does it feel now?` : 'How does it feel? e.g. sprinting feels floaty';
   }
   let syncCyc = () => {};                                                        // (set by fpUI: redraws the CPU LEVEL switch)
+  let syncTog = () => {};                                                        // (set by fpUI: redraws the on / off settings - t-038's keeper moves switch NO KEEPER off)
   function fpUI() {
     LAB.base = { skid: SKID_DEC, roll: ROLL_DEC, bounce: BOUNCE_Z, sprint: SPRINT, shot: SHOT_K, recover: REST_GAIN, runGain: RUN_GAIN };
     LAB.def = { grip: 1, bounce: BOUNCE_Z, sprint: SPRINT, shot: 1, run: RUN, drain: SPRINT_DRAIN, recover: REST_GAIN, mag: BALL_MAG, lobh: LOB_H, lobd: LOB_MAX,
@@ -478,11 +832,15 @@
       flash('use COPY'); status('no lab database here: COPY and paste it to Claude');
     });
     for (const b of document.querySelectorAll('#fp [data-tog]')) b.addEventListener('click', () => { const k = b.dataset.tog; LAB.fp[k] = !LAB.fp[k]; b.setAttribute('aria-pressed', LAB.fp[k]); b.blur(); });
+    syncTog = () => { for (const b of document.querySelectorAll('#fp [data-tog]')) b.setAttribute('aria-pressed', !!LAB.fp[b.dataset.tog]); };
+    fpMovesUI();                                                                 // t-038: one button per move in FP_MOVES
     for (const b of document.querySelectorAll('#fp [data-mv]')) b.addEventListener('click', () => { fpMove(b.dataset.mv); b.blur(); });
     // v0.8.8 cycling switches: WEATHER (dry / rain / snow - the ball physics and the look) and KEEPER SAVE (off / LV1-3)
     const CYC = { wx: { vals: ['clear', 'rain', 'snow'], label: v => `WEATHER: ${{ clear: 'DRY', rain: 'RAIN', snow: 'SNOW' }[v]}`,
                         set: v => { setWx(v); if (LAB.tune) applyTune(LAB.tune, v === 'clear'); } },
                   tap: { vals: [false, true], label: v => `TAP KICK: ${v ? 'ON' : 'OFF'}`, set: v => { TAP_KICK = v; } },   // t-010
+                  gp: { vals: [false, true], label: v => `GOAL PHYSICS: ${v ? 'ON' : 'OFF'}`, set: v => { GOAL_PHYS = v; } },   // t-038: t-013's posts + pop-ups, FREE PLAY only
+                  curve: { vals: [false, true], label: v => `CURVE PASS: ${v ? 'ON' : 'OFF'}`, set: v => { CURVE_PASS = v; } },   // t-038: t-011's SPECIAL + pass chord, FREE PLAY only
                   save: { vals: [0, 1, 2, 3], label: v => `KEEPER SAVE: ${v ? 'LV' + v : 'OFF'}`, set: () => {} },
                   cpu: { vals: ['normal', 'hard', 'rise', 'easy'], label: v => `CPU LEVEL: ${{ easy: 'EASY', normal: 'NORMAL', hard: 'HARD', rise: 'RISE WARRIOR' }[v]}`, set: () => {} } };   // v0.9.2 their keeper at each difficulty
     const cycShow = [];
@@ -504,7 +862,6 @@
     $('fp-play').addEventListener('click', () => { playAnim(LAB.fp.anim); $('fp-play').blur(); });
     $('fp-loop').addEventListener('click', () => { LAB.fp.loop = !LAB.fp.loop; $('fp-loop').setAttribute('aria-pressed', LAB.fp.loop); $('fp-loop').blur(); });
     $('fp-reset').addEventListener('click', () => { fpReset(); $('fp-reset').blur(); });
-    $('fp-tapadd').addEventListener('click', () => { const i = $('fp-tapinfo'), on = i.hidden; i.hidden = !on; $('fp-tapadd').setAttribute('aria-expanded', on); $('fp-tapadd').blur(); });   // t-010: explains only
     $('fp-mini').addEventListener('click', () => { fpMini(); $('fp-mini').blur(); });
   }
 
@@ -2525,7 +2882,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   function buildTests() {
     const G = [];
     const add = (id, name, blurb, tests) => G.push({ id, name, blurb, tests });
-    add('FP', 'FREE PLAY', 'Play however you like. The panel on the left: toggles, every move on a button, any animation, tuning sliders.', [freePlay()]);
+    add('FP', 'FREE PLAY', 'The playground: you, the ball and a keeper. Every move we have built is a button in the panel (the Lab sets it up, the game plays it), plus switches, settings, knobs and any animation.', [freePlay()]);
     const k = [];
     SPOTS.forEach((s, i) => TGT.forEach((t, j) => k.push(shotTest(`K${String(i * 5 + j + 1).padStart(2, '0')}`, 'K', s, t, 25.6, 0.6))));
     add('K', 'KEEPER · SHOTS', 'A striker shoots from 6 spots to 5 places at 92 km/h. Is the keeper believable?', k);
@@ -2684,6 +3041,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     for (const mt of m.meters || []) mt.e = 0;
     if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; }           // (t-012: a WG test plays the computer on both sides)
     TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
+    GOAL_PHYS = sc.kind === 'free' ? !!LAB.fp.gp : null;                        // t-038: FREE PLAY's GOAL PHYSICS / CURVE PASS switches; the tests as before
+    CURVE_PASS = sc.kind === 'free' ? !!LAB.fp.curve : true;                    //   (GOAL_PHYS null = on in the Lab; the curving pass on since t-011)
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
     if (LAB.lobAim0 == null) LAB.lobAim0 = LOB_AIM_MODE;                        // t-019: LB / LV set LOB AIM per test; every other test plays the picked one
     LOB_AIM_MODE = LAB.lobAim0; LOB_AIM.camOld = LOB_AIM.ringOld = false; Object.assign(m, { lobCamBlend: null, camLead: undefined, camLeadOn: false });
@@ -2921,6 +3280,11 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     $('flags').hidden = LAB.slow === 1 && LAB.boxes;                            // v0.8.8: only when something is switched away from normal
     $('id').textContent = sc.id;
     $('fp').hidden = sc.kind !== 'free'; document.body.classList.toggle('free', sc.kind === 'free');
+    $('nav-where').textContent = `${grp.name} · ${LAB.i + 1} / ${grp.tests.length}`;                  // t-038 the nav bar
+    const R = LAB.resume, rg = R && LAB.groups[R[0]], rt = rg && rg.tests[R[1]];
+    $('nav-resume').hidden = !(rt && sc.kind === 'free'); if (rt) $('nav-resume').textContent = `RESUME ▶ ${rt.id} · ${rg.name}`;
+    $('keyhint').textContent = sc.kind === 'free' ? 'FREE PLAY: the keys play the game (B = SPECIAL). BACK / NEXT: the buttons at the top, or [ and ]. R, F, H, T, G work as usual.'
+      : 'B / N also go back / next. G or M: all tests (Esc closes it).';
     const clip = sc.kind === 'clip'; $('bwc').hidden = !clip || !sc.doc;                                  // v0.8.7 BUG WATCH clip card
     $('r1').textContent = clip ? 'game was right' : 'looks right'; $('r2').textContent = clip ? "it's a bug" : 'looks wrong';
     $('rate-h').textContent = clip ? 'RATE THIS CLIP' : 'RATE THIS TEST';
@@ -2934,6 +3298,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       const S = r.stats, gk = r.gk, mt = m.meters && m.meters[0];
       $('result').textContent = { goal: 'GOAL!', held: 'KEEPER HOLDS IT', out: 'OUT', far: 'BALL GONE' }[r.why] || r.last || 'READY · E = BALL BACK';
       $('result').className = r.why === 'goal' ? 'goal' : r.why ? 'done' : '';
+      $('fp-last').textContent = (r.why ? { goal: 'GOAL!', held: 'KEEPER HOLDS IT', out: 'OUT', far: 'BALL GONE' }[r.why] + ' · ' : '') + (r.last || 'READY · pick a move');   // t-038
       L.push(['ball', `${kmh(len(b.vx, b.vy, b.vz))} km/h · ${b.z.toFixed(1)} m up`]);
       if (r.v0 != null) L.push(['struck at', `${kmh(r.v0)} km/h · top ${r.maxZ.toFixed(1)} m`]);
       if (gk && !r.nogk) L.push(['keeper', `${gk.hands ? 'holding it' : gk.state} · guard ${Math.round((gk.guard ?? 1) * 100)}%${LAB.fp.save ? ` · LV${LAB.fp.save} save ready` : ''}`]);
@@ -2994,22 +3359,94 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   function next(d = 1) { const grp = LAB.groups[LAB.g]; LAB.i += d;
     if (LAB.i >= grp.tests.length) { LAB.g = (LAB.g + 1) % LAB.groups.length; LAB.i = 0; }
     if (LAB.i < 0) { LAB.g = (LAB.g - 1 + LAB.groups.length) % LAB.groups.length; LAB.i = LAB.groups[LAB.g].tests.length - 1; }
-    try { localStorage.setItem('hc2-lab-at2', JSON.stringify([LAB.g, LAB.i])); } catch (e) {}
-    start(false); }
+    remember(); start(false); }
+  // t-038 (Luca: "there is no free play or can't access it"): the Lab used to reopen wherever you left off, so FREE PLAY was
+  // easy to lose. It opens on FREE PLAY now; the last test you were on (not FREE PLAY) is kept for the RESUME button.
+  function remember() { const g = LAB.groups[LAB.g], t = g && g.tests[LAB.i]; if (!t || g.id === 'FP') return;
+    LAB.resume = [LAB.g, LAB.i]; try { localStorage.setItem('hc2-lab-at3', t.id); localStorage.setItem('hc2-lab-at2', JSON.stringify([LAB.g, LAB.i])); } catch (e) {} }
+  function savedSpot() {
+    try { const id = localStorage.getItem('hc2-lab-at3'); if (id) for (let g = 1; g < LAB.groups.length; g++) { const i = LAB.groups[g].tests.findIndex(t => t.id === id); if (i >= 0) return [g, i]; } } catch (e) {}
+    try { const at = JSON.parse(localStorage.getItem('hc2-lab-at2') || 'null'); if (at && at[0] > 0 && LAB.groups[at[0]] && LAB.groups[at[0]].tests[at[1]]) return at; } catch (e) {}
+    return null; }
+  function goTo(g, i) { if (!LAB.groups[g] || !LAB.groups[g].tests[i]) return; LAB.g = g; LAB.i = i; menu(false); remember(); start(false); }
+  function goFree() { const j = LAB.groups.findIndex(g => g.id === 'FP'); const r = LAB.run;
+    if (LAB.g === j && r && r.sc.kind === 'free') { menu(false); fpReset(r); r.last = ''; return; }        // (already there: a clean start)
+    goTo(j, 0); }
   function rateRight() { save('right', null); flash('✓ saved'); setTimeout(() => next(1), 250); }
   function flash(t) { const f = $('flash'); f.textContent = t; f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
+  // ---------- t-038 ALL TESTS: sections, a search box, every test of a group behind ▸, and it scrolls on any screen
+  // (it was one centred box of 39 groups with no scroll: the top and bottom were cut off at 1366x768, and the number keys
+  // ran out after 10). FIFA / EA FC's Skill Games and PES's training menu: categories, then the drills inside each.
+  const MENU_SECS = [['free', 'FREE PLAY'], ['new', 'NEWEST · the last 8 tasks'], ['gk', 'KEEPER'], ['shoot', 'SHOOTING & SPECIALS'], ['pass', 'PASSING & LOBS'],
+    ['air', 'AIR BALLS'], ['set', 'SET PIECES & RULES'], ['move', 'MOVEMENT & TACKLES'], ['phys', 'PHYSICS & NET'], ['tools', 'TOOLS · cut scenes, Bug Watch'], ['more', 'MORE']];
+  const MENU_OF = { FP: 'free', K: 'gk', KH: 'gk', C: 'gk', GKX: 'gk', KP: 'gk', GK: 'gk', KF: 'gk', GH: 'gk', KS: 'gk', KC: 'gk',
+    YS: 'shoot', PW: 'shoot', SM: 'shoot', CH: 'shoot', TK: 'shoot', CP: 'pass', LB: 'pass', LV: 'pass', LC: 'pass', WG: 'pass',
+    A: 'air', HV: 'air', AS: 'air', PK: 'set', OF: 'set', RS: 'set', AR: 'set', M: 'move', D: 'move', T: 'move', TT: 'move',
+    P: 'phys', N5: 'phys', GP: 'phys', NT: 'phys', CS: 'tools', BW: 'tools', CL: 'tools' };
+  function menuSec(g) {                                                          // (a group added later without a line above: by the words in its name)
+    if (MENU_OF[g.id]) return MENU_OF[g.id]; const n = g.name.toUpperCase();
+    return /KEEPER|SAVE|\bGK\b/.test(n) ? 'gk' : /SHOT|SPECIAL|SHOOT/.test(n) ? 'shoot' : /PASS|LOB|CROSS|WING/.test(n) ? 'pass' : /HEAD|VOLLEY|AERIAL|\bAIR\b/.test(n) ? 'air'
+      : /CORNER|FREE KICK|OFFSIDE|PENALT|SET.PIECE|THROW|RULE/.test(n) ? 'set' : /TACKLE|MOVE|DRIBBL/.test(n) ? 'move' : /NET|PHYSICS|BALL|GOAL/.test(n) ? 'phys' : 'more'; }
+  // NEWEST: the groups of the last 8 tasks, by the t-number in their names ("t-023 / t-025" counts as 25)
+  function menuNewest() { return LAB.groups.map((g, j) => ({ j, t: Math.max(0, ...(g.name.match(/t-(\d+)/g) || []).map(x => +x.slice(2))) })).filter(x => x.t).sort((a, b) => b.t - a.t || a.j - b.j).slice(0, 8).map(x => x.j); }
+  const escH = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function menu(open) {
     LAB.menu = open; $('menu').hidden = !open; if (!open) return;
-    $('menu-list').innerHTML = LAB.groups.map((g, j) => { const done = g.tests.filter(t => LAB.rated[t.id]).length;
-      return `<li${j === LAB.g ? ' class="cur"' : ''}><button type="button" data-g="${j}"><b>${(j + 1) % 10}</b> ${g.name}<span>${done} / ${g.tests.length} rated</span></button></li>`; }).join('');
-    for (const b of document.querySelectorAll('#menu-list button')) b.addEventListener('click', () => jump(+b.dataset.g));
+    LAB.menuOpen = new Set([LAB.g]); $('menu-q').value = ''; menuDraw(true);
+    setTimeout(() => { try { $('menu-q').focus({ preventScroll: true }); } catch (e) {} }, 0);   // type to search straight away
+  }
+  function menuDraw(scroll) {
+    const q = $('menu-q').value.trim().toLowerCase(), G = LAB.groups, has = v => String(v || '').toLowerCase().includes(q);
+    LAB.menuKeys = [];
+    const row = j => {
+      const g = G[j], gHit = !q || has(g.id) || has(g.name) || has(g.blurb);
+      const tHit = q ? g.tests.map((t, i) => has(t.id) || has(t.name) || has(t.sub) ? i : -1).filter(i => i >= 0) : [];
+      if (!gHit && !tHit.length) return '';
+      const key = !q && LAB.menuKeys.length < 10 ? (LAB.menuKeys.push(j), LAB.menuKeys.length % 10) : null;   // 1-9, 0: the first ten, only while there's no search (then they type)
+      const exp = LAB.menuOpen.has(j) || (!!q && !gHit), list = q && !gHit ? tHit : g.tests.map((_, i) => i);
+      const done = g.tests.filter(t => LAB.rated[t.id]).length;
+      return `<div class="mg${j === LAB.g ? ' cur' : ''}"><div class="mg-r"><button type="button" class="mg-x" data-x="${j}" aria-expanded="${exp}" aria-label="${exp ? 'hide' : 'show'} the tests of ${escH(g.name)}">${exp ? '▾' : '▸'}</button>` +
+        `<button type="button" class="mg-open" data-g="${j}">${key != null ? `<b>${key}</b>` : ''}<em>${escH(g.name)}</em><span>${g.tests.length > 1 ? `${done} / ${g.tests.length} rated` : '1 test'}</span></button></div>` +
+        (exp ? `<ol class="mg-t">${list.map(i => { const t = g.tests[i], v = LAB.rated[t.id];
+          return `<li><button type="button" data-g="${j}" data-i="${i}"${j === LAB.g && i === LAB.i ? ' class="cur"' : ''}><code>${escH(t.id)}</code>${escH(t.name)}<i${v ? ` class="${v}"` : ''}></i></button></li>`; }).join('')}</ol>` : '') + '</div>';
+    };
+    const html = MENU_SECS.map(([id, title]) => {
+      const js = id === 'new' ? (q ? [] : menuNewest()) : G.map((g, j) => menuSec(g) === id ? j : -1).filter(j => j >= 0);   // (searching: each group once, in its own section)
+      const h = js.map(row).join(''); return h ? `<h3>${title}</h3>${h}` : '';
+    }).join('');
+    const body = $('menu-body');
+    body.innerHTML = html || `<p id="menu-none">Nothing matches "${escH(q)}". Try keeper, lob, header, corner, or a test id like GH3.</p>`;
+    if (scroll) { const c = body.querySelector('.mg-t button.cur') || body.querySelector('.mg.cur'); if (c) c.scrollIntoView({ block: 'center' }); else body.scrollTop = 0; }
+  }
+  function menuKey(d) { const j = (LAB.menuKeys || [])[d === '0' ? 9 : +d - 1]; if (j != null) goTo(j, 0); }
+  function menuUI() {
+    $('menu-body').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.x != null) { const j = +b.dataset.x, y = $('menu-body').scrollTop; LAB.menuOpen.has(j) ? LAB.menuOpen.delete(j) : LAB.menuOpen.add(j);
+        menuDraw(false); $('menu-body').scrollTop = y; const nb = $('menu-body').querySelector(`.mg-x[data-x="${j}"]`); if (nb) nb.focus({ preventScroll: true }); return; }
+      if (b.dataset.i != null) goTo(+b.dataset.g, +b.dataset.i); else if (b.dataset.g != null) goTo(+b.dataset.g, 0);
+    });
+    const q = $('menu-q');
+    q.addEventListener('input', () => { menuDraw(false); $('menu-body').scrollTop = 0; });
+    q.addEventListener('keydown', e => {
+      e.stopPropagation();                                                       // (typing here never moves your player)
+      if (e.key === 'Escape') { e.preventDefault(); menu(false); }
+      else if (e.key === 'Enter') {                                              // a test named exactly, else the first test found, else the first group
+        const v = q.value.trim().toLowerCase(), B = $('menu-body'), ts = [...B.querySelectorAll('.mg-t button')];
+        const b = !v ? B.querySelector('.mg.cur .mg-open') : ts.find(x => x.querySelector('code').textContent.toLowerCase() === v) || ts[0] || B.querySelector('.mg-open'); if (b) b.click(); }
+      else if (/^[0-9]$/.test(e.key) && !q.value) { e.preventDefault(); menuKey(e.key); }
+      else if (e.key === 'ArrowDown') { const b = $('menu-body').querySelector('button'); if (b) { e.preventDefault(); b.focus(); } }
+    });
+    $('menu-body').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); menu(false); } });
+    $('menu').addEventListener('click', e => { if (e.target === $('menu')) menu(false); });   // (a click beside the list closes it)
+    $('menu-x').addEventListener('click', () => menu(false));
   }
   function setZoom(z, fromSlider) {
     LAB.zoom = Math.round(clamp(z, 0.5, 2) * 100) / 100; LAB.cx = null;
     if (!fromSlider && $('zoom')) $('zoom').value = LAB.zoom; if ($('zoomv')) $('zoomv').textContent = LAB.zoom.toFixed(2) + '×';
     try { localStorage.setItem('hc2-lab-zoom', String(LAB.zoom)); } catch (e) {}
   }
-  function jump(j) { if (j < 0 || j >= LAB.groups.length) return; LAB.g = j; LAB.i = 0; menu(false); start(false); }
+  function jump(j) { if (j < 0 || j >= LAB.groups.length) return; goTo(j, 0); }
   // (Luca + the co-designer, 24 Oct: "Try it in the Test Lab" on every Needs OK card) a link ending in a test's id opens
   // that test and starts it: …#CH1, also #lab-CH1 (from a PR preview page), or a whole group: #CH. Ids ignore case.
   function fromHash() {
@@ -3028,14 +3465,15 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       if (free && e.isTrusted && (k === 'b' || k === 'u')) return;                  // B / U = SPECIAL in the game (the BACK button still works)
       if (free && k === 'e' && !LAB.menu) { fpReset(); return; }
       if (free && k === 'q' && !LAB.menu) { fpMini(); return; }
-      if (LAB.menu) { if (/^[0-9]$/.test(k)) jump(k === '0' ? 9 : +k - 1); else if (k === 'g' || k === 'm') menu(false); return; }
+      if (LAB.menu) { if (/^[0-9]$/.test(k)) menuKey(k); else if (k === 'escape' || k === 'g' || k === 'm') menu(false); return; }
       if (k === '-' || k === '_') return setZoom(LAB.zoom - 0.1);
       if (k === '=' || k === '+') return setZoom(LAB.zoom + 0.1);
       if (k === '\\') return setZoom(1);
       if (k === 'r') start(false);
       else if (k === 'f') start(true);
       else if (k === 'n') { if (LAB.reasons) { save('wrong', LAB.reasons); flash('✗ saved'); } next(1); }
-      else if (k === 'b') next(-1);
+      else if (k === 'b' || k === '[') next(-1);                                // (t-038: [ / ] everywhere - in FREE PLAY B is the game's SPECIAL)
+      else if (k === ']') next(1);
       else if (k === '1') rateRight();
       else if (k === '2') { LAB.reasons = new Set(); render(); }
       else if (LAB.reasons && REASONS[k]) { LAB.reasons.has(k) ? LAB.reasons.delete(k) : LAB.reasons.add(k); render(); }
@@ -3047,6 +3485,11 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       const ev = new KeyboardEvent('keydown', { key: b.dataset.key }); dispatchEvent(ev);
     });
     $('note').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur(); });
+    // t-038 the nav bar (each button lets go of the focus, so the keys go back to the game)
+    const nb = (id, f) => $(id).addEventListener('click', e => { f(); e.currentTarget.blur(); });
+    nb('nav-back', () => next(-1)); nb('nav-next', () => next(1)); nb('nav-all', () => menu(!LAB.menu)); nb('nav-fp', goFree);
+    nb('nav-resume', () => { const R = LAB.resume; if (R) goTo(R[0], R[1]); });
+    menuUI();
     // v0.8.5 camera zoom: slider + buttons (the slider lets go of the keys again, so the arrows move your player)
     const zs = $('zoom'); if (zs) {
     zs.addEventListener('input', () => setZoom(+zs.value, true));
@@ -3072,8 +3515,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     m.setTeams('IS', 'IRO', () => {
       window.HC2_STARTED = true; CURVE_PASS = true; hook();   // (t-011: the curving special pass is Test Lab only for now - Luca)
       LAB.groups = buildTests(); LAB.active = true;
-      try { const at = JSON.parse(localStorage.getItem('hc2-lab-at2') || 'null'); if (at && LAB.groups[at[0]] && LAB.groups[at[0]].tests[at[1]]) { LAB.g = at[0]; LAB.i = at[1]; } } catch (e) {}
-      fromHash();                                                                  // a test named in the link wins over where you left off
+      LAB.resume = savedSpot(); LAB.g = 0; LAB.i = 0;                              // t-038: open on FREE PLAY; where you left off = the RESUME button
+      fromHash();                                                                  // a test named in the link opens that test
       addEventListener('hashchange', () => { if (fromHash()) { menu(false); start(false); } });
       $('loading').hidden = true; keys(); fpUI(); start(false);
       $('bw-ask').addEventListener('click', e => { askClaude(); e.currentTarget.blur(); });
@@ -3083,7 +3526,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     });
   }
   window.__lab = LAB;                                   // for automated checks
-  LAB.api = { start, next, jump, current, summary, buildTests, clipTest };
+  LAB.api = { start, next, jump, goTo, goFree, menu, fpMove, fpReset, current, summary, buildTests, clipTest, FP_MOVES };
   (async () => {
     try { LAB.db = (window.claude && window.claude.use) ? await window.claude.use('db') : null; } catch (e) { LAB.db = null; }
     if (LAB.db) {

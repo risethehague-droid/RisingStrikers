@@ -97,6 +97,11 @@ called, but nobody reorganised before the free kick.)
 3. Test Lab groups: `bash tools/mklab.sh` once (and after any change to `lab.html`), then `GROUP=<id> node tools/grp.js` (GK, CH, SM, ...). Run the groups your lane brief lists.
 4. Lane-specific tests: the ones in your brief, e.g. the difficulty checks `tools/proxy093.js` and `tools/train093.js`.
 5. Anything visual: record the PR's preview GIF with `tools/preview.js` (see "The `## Preview` section" below).
+6. **Every new or changed move gets its FREE PLAY button** (Luca, 29 Oct: "add all the moves that we work on as they are
+   finished, once we like them we OK to add to the final game"). A PR that adds or changes a move or a mechanic adds (or
+   updates) its line in `FP_MOVES` in `game/lab.js`: the button sets the moment up and the game plays the move, tagged
+   `game: true` (IN THE GAME) or not (LAB ONLY, until Luca's OK). Say which button in "How to try it". Check it with
+   `ONLY=<mv> VIEWS=none node tools/labnav.js` (the whole Lab: `node tools/labnav.js`).
 
 Tests use Node with Playwright and Chromium, run headless; time is stepped by hand, so a 5-minute match takes seconds.
 
