@@ -70,6 +70,7 @@ What to make or fix, and why (the request behind it, in the requester's words wh
 ## Done means
 - the tests to run and what they must show (smoke "errors []", Test Lab group X, ...)
 - the PR has its `## Preview` section: the GIF of <what to show> and `Test Lab: <ids>` (CLAUDE.md "Pull requests")
+- a new or changed move: its FREE PLAY button in `FP_MOVES` (game/lab.js), tagged IN THE GAME / LAB ONLY, named in "How to try it" (CLAUDE.md "Testing" 6)
 
 ## Notes
 Anything that saves time: where the code lives, what was tried, what to avoid.
