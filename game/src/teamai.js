@@ -17,7 +17,7 @@ const AI = { ROLE_DT: 0.4, RATIO: 0.8, PAD: 0.5, HOLD: 0.6, GOALSIDE: 0.95, COVE
   // his job and his target until another is CLEARLY better: the cover's and the support man's lead (s / m), the marker's
   // pull to the man he had, the runner's lead (m), how long the offside read holds (s); every target is eased (TGT_T s)
   STICK_COVER: 0.8, STICK_SUP: 4, STICK_SPOT: 1.0, STICK_MARK: 3, STICK_RUN: 6, OFF_HOLD_T: [6, 9], TGT_T: 0.3,
-  SCREEN: 7.5, LOB_READ: 1 };                                                    // (LOB_READ: how much the man on the receiver / on the passer counts against a lob)                                                                    // everyone but the presser and the cover screens this far off the ball                                                                  // ...and nobody stands on top of an opponent (3 m)                                                                             // with the ball: step away from markers inside 5 m (find space)
+  SCREEN: 7.5, LOB_READ: 0.6 };                                                    // (LOB_READ: how much the man on the receiver / on the passer counts against a lob)                                                                    // everyone but the presser and the cover screens this far off the ball                                                                  // ...and nobody stands on top of an opponent (3 m)                                                                             // with the ball: step away from markers inside 5 m (find space)
 // ------------------------------------------------------------------ players
 // t-012 WING PLAY (Luca 24 Oct 06:22, "VERY important": "make the attacking ai look for more wing plays where they play
 // lobs and try to get arial shot i think the game would feel more dynamic and inclusive of the whole arsenal of special
@@ -123,7 +123,7 @@ hc2Mix(Match, {
         } else { tx = bl.x + ubx * 0.6; ty = bl.y + uby * 0.6; }
       }
       v = Math.min(p.top(false, false) * 1.05, len(carrier.vx, carrier.vy) + 1.2 + d * 0.5); p.look(carrier.x - p.x, carrier.y - p.y); }
-    const PK = (team === this.home && !this.demo ? 1 : Math.min(1.45, 1 + (paceK().pressK - 1) * this.dkY(team).cmt)) * (1 + 0.12 * this.brainStyle(team).press)
+    const PK = (team === this.home && !this.demo ? 1 : Math.min(1.45, 1 + (paceK().pressK - 1) * this.dkY(team).cmt)) * (1 + 0.05 * this.brainStyle(team).press)
       * (team !== this.home && this.readHot(carrier) ? 1.15 : 1);                // (smarter-ai: the style's pressing; Rise Warrior closes you down sooner on your shooting spots)   // (arcade-2: ARCADE the computer's side
     p.moveTo(tx, ty, v * this.dk(team).press * PK, dt);                        // closes down harder, more at the top levels: the dash mustn't make dribbling past it easier)
                                                                                    // (v0.9.2: how hard he closes down, by level)
@@ -197,7 +197,7 @@ hc2Mix(Match, {
     this.readTick(dt);                                                            // smarter-ai step 5: Rise Warrior reads your habits (brain.js)
     for (const team of [this.home, this.away]) {
       team.mood = this.brainMood(team);                                          // smarter-ai step 3: the score and the clock (brain.js)
-      team.drain = this.dkY(team).st;                                              // v0.9.3 stamina by level (base 1)
+      team.drain = this.dkY(team).st * (1 + 0.25 * Math.max(0, this.brainStyle(team).press));   // (smarter-ai: a high press costs legs - styles.js had it winning 78%)                                              // v0.9.3 stamina by level (base 1)
       // possession: who has it, or whose pass is travelling; a loose ball keeps the last call (no flip-flopping)
       if (owner) team.inPoss = owner.team === team; else if (b.target && !b.target.sentOff) team.inPoss = b.target.team === team;
       team.poss = clamp((team.poss ?? (team.inPoss ? 1 : 0)) + (team.inPoss ? 1 : -1) * AI.POSS_RATE * dt, 0, 1);
@@ -548,6 +548,7 @@ hc2Mix(Match, {
   // the race to where it arrives. score = forward progress + his own shot from there - risk - distance
   passLook(p) {
     const team = p.team, side = team.side, opp = team.opp.players.filter(o => !o.sentOff); let best = null; const all = [];
+    const ST = this.brainStyle(team), DIR = ST.direct, WID = ST.width;
     const race = (pt, Tb) => { let r = 0; for (const o of opp) { const to = 0.3 + Math.max(0, len(o.x - pt.x, o.y - pt.y) - 1.0) / 6.5; if (to < Tb + 0.2) r += clamp((Tb + 0.2 - to) / 0.5, 0, 1); } return r; };
     const lane = (pt, d, T) => { let r = 0; const dx = pt.x - p.x, dy = pt.y - p.y;
       for (const o of opp) { const t = ((o.x - p.x) * dx + (o.y - p.y) * dy) / (d * d); if (t < 0.02 || t > 1.0) continue;
@@ -580,7 +581,7 @@ hc2Mix(Match, {
       let open = 8; for (const e of opp) open = Math.min(open, len(e.x - o.pt.x, e.y - o.pt.y));
       const progress = (o.pt.x - p.x) * side, sh = len(team.goalX - o.pt.x, 34 - o.pt.y) < 30 ? this.shotLook(team, o.pt.x, o.pt.y).q : 0;
       const wide = Math.abs(o.pt.y - 34) > WING.WIDE + 1 && this.aiFrame(team, o.pt.x) > 14 && Math.abs(p.y - 34) < Math.abs(o.pt.y - 34) ? 0.8 * this.dk(team).cross : 0;   // t-012: out to a wide man in their half (wing play)
-      const score = progress / 14 + Math.min(open, 7) / 6 + sh * 1.2 - o.risk * 1.6 - o.d / 45 + wide;
+      const score = progress / 14 * (1 + 0.4 * DIR) + Math.min(open, 7) / 6 + sh * 1.2 - o.risk * 1.6 - o.d / 45 + wide * (1 + 0.5 * WID);   // (smarter-ai: the style's directness and width)
       let mk = 9; for (const e of opp) if (!e.keeper) mk = Math.min(mk, len(e.x - q.x, e.y - q.y));
       const opt = { q, score, mode: o.mode, shot: sh, risk: o.risk, progress, marked: mk < 2, lane: o.mode === 'lob' ? 0 : lane(o.pt, o.d, passTime(o.d) + 0.15), dir: { x: (q.x - p.x) / d0, y: (q.y - p.y) / d0 } };
       all.push(opt); if (!best || score > best.score) best = opt;

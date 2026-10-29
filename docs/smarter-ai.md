@@ -191,7 +191,9 @@ get the ball in behind (before, only a man already running could).
   from 25% further out (and more often), a riskier pass is fine, the keeper goes up for a corner (the far post; he
   attacks the cross, then sprints back). Test Lab AI4, AI4-K.
 - **Protecting a lead:** by the style's `protect`: `keep` (safer passes, slower tempo, recycles it), `deep` (the line
-  drops 6 m), `middle` (a bit of both: the line 3 m deeper). Every team is NEUTRAL (= middle) for now.
+  drops 6 m), `middle` (half of each: the line up to 3 m deeper, recycles it half as often). Every team is NEUTRAL
+  (= middle) for now. This is the dial between goals and win rate: a full keep-ball made the top levels score clearly
+  less; none at all made them win clearly more (the soak: your side at Rise 21% -> 11%).
 
 ### Step 4: team personalities (the dials, not the picks)
 
