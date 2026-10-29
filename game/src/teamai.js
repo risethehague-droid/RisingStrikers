@@ -79,8 +79,9 @@ hc2Mix(Match, {
     // markers: the most dangerous runners (closest to a point between our goal and the ball), goal-side of each
     const aim = { x: 0.8 * gx + 0.2 * b.x, y: 0.8 * 34 + 0.2 * b.y };
     const wide = owner && they && Math.abs(owner.y - 34) > WING.WIDE && Math.abs(owner.x - gx) < 35;   // t-012: their man out wide near our box - the box
-    const threats = team.opp.players.filter(o => !o.keeper && !o.sentOff && o !== owner && len(o.x - gx, o.y - 34) < 40)   // gets one more marker (their runs
-      .sort((u, v) => len(u.x - aim.x, u.y - aim.y) - len(v.x - aim.x, v.y - aim.y)).slice(0, AI.MARKERS + (wide ? 1 : 0));   // came in four-up against three)
+    const ra = team.opp.runAfter, runner = ra && this.time.now - ra.t < WALL.TRACK * 1000 && !ra.p.sentOff && ra.p !== owner && ra.p.vx * team.opp.side > WALL.RUN_V ? ra.p : null;   // (smarter-ai: the man who just passed and went - tracked first)
+    const threats = team.opp.players.filter(o => !o.keeper && !o.sentOff && o !== owner && (o === runner || len(o.x - gx, o.y - 34) < 40))   // gets one more marker (their runs
+      .sort((u, v) => (u === runner ? -1e3 : 0) + len(u.x - aim.x, u.y - aim.y) - (v === runner ? -1e3 : 0) - len(v.x - aim.x, v.y - aim.y)).slice(0, AI.MARKERS + (wide ? 1 : 0));   // came in four-up against three)
     const free = team.players.filter(p => this.aiFree(p) && p.i <= 8 && p !== team.presser && p !== team.cover && p !== human);
     for (const o of threats) {
       let pick = null, bq = 1e9;
@@ -195,6 +196,11 @@ hc2Mix(Match, {
     if (AI_MODE === 'classic') return this.aiClassic(dt);
     const b = this.ball, owner = b.owner;
     this.readTick(dt);                                                            // smarter-ai step 5: Rise Warrior reads your habits (brain.js)
+    // smarter-ai, the 1-2: when the ball reaches a man, who of his own side played it to him (wallRunner) - and that team's
+    // runner after his pass, so the other side's markers pick him up too (defenders track the runner, not only the ball)
+    if (owner && owner !== this.aiLastOwner) { const L = this.aiLastHolder; owner.gotAt = this.time.now; owner.gotFrom = L && L !== owner && L.team === owner.team ? L : null;
+      if (owner.gotFrom) owner.team.runAfter = { p: owner.gotFrom, t: this.time.now }; }
+    this.aiLastOwner = owner; if (owner) this.aiLastHolder = owner;
     for (const team of [this.home, this.away]) {
       team.mood = this.brainMood(team);                                          // smarter-ai step 3: the score and the clock (brain.js)
       team.drain = this.dkY(team).st * (1 + 0.25 * Math.max(0, this.brainStyle(team).press));   // (smarter-ai: a high press costs legs - styles.js had it winning 78%)                                              // v0.9.3 stamina by level (base 1)
@@ -410,7 +416,7 @@ hc2Mix(Match, {
     p.sprinting = go; const v = p.top(go, true) * 0.95, dl = len(dx, dy) || 1;
     p.wantDir = { x: dx / dl, y: dy / dl };
     this.carrySteer(p, dx / dl, dy / dl, v, dt, p.burst > 0 ? ACC * 1.35 : ACC);
-    if (p.think > 0) return;
+    if (p.think > 0) { this.brainWall(p, this.dk(team)); return; }               // (smarter-ai: a 1-2 is played first time - he doesn't wait to think)
     // v0.9.2 difficulty: how quickly he decides (smarter-ai: and the team's tempo; a side keeping a lead slows it down)
     const K = this.dk(team), S = this.brainStyle(team), M = team.mood || this.brainMood(team);
     p.think = rnd(0.2, 0.35) * K.think * (1 - 0.25 * S.tempo) * (M.protect > 0.3 && S.protect === 'keep' ? 1.15 : 1);

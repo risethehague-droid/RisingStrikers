@@ -29,6 +29,7 @@ function studyMatch() {
     bunch: 0, swarm: 0, swarmN: 0, width: [0, 0], depth: [0, 0], wN: [0, 0],
     opts: 0, optsN: 0, noOpt: 0,                          // the carrier's open team-mates (a clear lane, within 28 m)
     passes: { n: 0, man: 0, kept: 0, lost: 0, out: 0, fwd: 0, marked: 0, markedLost: 0, byMode: {} },
+    oneTwo: { tried: 0, done: 0 },                        // smarter-ai: a pass straight back to the man who just passed to you (within 3 s), and how many he got
     losses: { tackled: 0 }, cand: [],
   };
   const T = () => R.f / 60;
@@ -44,6 +45,8 @@ function studyMatch() {
     if (!p.keeper && !this.setPiece) {
       let mk = 99; if (q) for (const o of p.team.opp.players) if (!o.sentOff) mk = Math.min(mk, Math.hypot(o.x - q.x, o.y - q.y));
       pend = { p, q, mode, t: T(), team: p.team, fwd: q ? frame(p.team, q.x) - frame(p.team, p.x) : 0, marked: mk < 2 };
+      const L = R.lastPass; pend.oneTwo = !!(L && q && L.p === q && L.q === p && T() - L.t < 3 && frame(q.team, q.x) - L.fx > 4); if (pend.oneTwo) R.oneTwo.tried++;   // (the 1-2: he gives it back to the passer, who has gone 4 m+ on)
+      R.lastPass = { p, q, t: T(), fx: frame(p.team, p.x) };
     }
     return r;
   };
@@ -70,7 +73,7 @@ function studyMatch() {
     if (pend && owner && owner === pend.p && T() - pend.t < 1.5) { /* the wind-up: it hasn't left his foot yet */ }
     else if (pend && owner) { const P = R.passes, bm = P.byMode[pend.mode] = P.byMode[pend.mode] || { n: 0, kept: 0 };
       P.n++; bm.n++; if (pend.fwd > 2) P.fwd++; if (pend.marked) P.marked++;
-      if (owner.team === pend.team) { P.kept++; bm.kept++; if (owner === pend.q) P.man++; }
+      if (owner.team === pend.team) { P.kept++; bm.kept++; if (owner === pend.q) { P.man++; if (pend.oneTwo) R.oneTwo.done++; } }
       else { P.lost++; if (pend.mode === 'lob') cand('lob_given_away', pend.p, { to: pend.q ? pend.q.i : null, at: +pend.t.toFixed(1) }); if (pend.marked) { P.markedLost++; cand('pass_into_marked_man', pend.p, { to: pend.q ? pend.q.i : null, mode: pend.mode, at: +pend.t.toFixed(1) }); } }
       pend = null; }
     if (pend && T() - pend.t > 6) { R.passes.out++; pend = null; }
@@ -170,6 +173,7 @@ function studyMatch() {
     passing: { perMatch: +(P.n / n).toFixed(1), keptPct: +(100 * P.kept / P.n).toFixed(1), toTheManPct: +(100 * P.man / P.n).toFixed(1), forwardPct: +(100 * P.fwd / P.n).toFixed(1),
       intoMarkedManPct: +(100 * P.marked / P.n).toFixed(1), markedLostPct: P.marked ? +(100 * P.markedLost / P.marked).toFixed(1) : 0,
       byMode: Object.fromEntries(Object.entries(modes).map(([k, v]) => [k, `${v.n} (${Math.round(100 * v.kept / v.n)}% kept)`])) },
+    oneTwo: { triedPerMatch: +(S(R => R.oneTwo.tried) / n).toFixed(2), completedPerMatch: +(S(R => R.oneTwo.done) / n).toFixed(2) },   // (smarter-ai: the 1-2)
     errors: S(R => R.errors.length),
   };
   const cands = all.flatMap(R => R.cand.map(c => Object.assign({ vs: `${R.setup.home},${R.setup.away}`, seed: R.setup.seed }, c)));
