@@ -11,11 +11,19 @@
 const ASP = {
   dribble: {
     bars: 1,          // costs one bar (a special shot spends them all)
-    dist: 4.2,        // metres he bursts past the man in front
-    T: 0.5,           // seconds the move takes (8 PixelLab frames at 16 fps: the spin, then the burst)
+    T: 0.6,           // seconds the move takes (8 PixelLab frames at ~14 fps). The co-designer, 29 Oct: "very slightly
+                      // extending the special dribble animations" (was 0.5)
+    spin: 0.42,       // the first 42% is the spin: he drifts round the man at vSpin...
+    vSpin: 3.5,       // ...m/s, in a beat of slow motion (slow, the sim's slowMo, real seconds)...
+    vOut: 11.5,       // ...then the burst: he accelerates to this (more than human: a sprint is 8.8) and comes OUT of it
+                      // at that speed, still with the ball - no stop at the end (29 Oct: "smoother into the run").
+                      // About 4 m in all; the carrier's own running takes over from there
+    slow: 0.16,       // the slow-mo on the spin (real seconds; the sim runs at 0.4 in it)
     look: 6.5,        // the man in front: within this, in a cone ahead of him
     far: 30,          // AUTO (by position): SPECIAL further than this from goal, with a man in front = the dribble
-    stun: 1.0,        // the beaten man is down this long (on the floor), no more
+    stun: 1.0,        // the beaten man is out of it this long, no more: he staggers and turns to watch him go (29 Oct:
+                      // "defender reaction"); only a man he goes right past (within fallR) is put on the floor
+    fallR: 1.4,
     aiCool: 75,       // the computer: at most one every 75 s a side (soak 28 Oct: at 25 s it dribbled ~12 times a match and
                       // never banked the bars for a special shot - 2.3 -> 0.3 a match)...
     aiRate: 0.5,      // ...about this often a second while a man squares up to its carrier (x its level's sp)...
@@ -83,10 +91,11 @@ hc2Mix(Match, {
     const l = len(dx, dy) || 1; dx /= l; dy /= l;
     const mt = this.meterOf(p.team); mt.e -= D.bars; mt.flash = 0.3; if (mt.level() < 3) mt.risen = false;
     const nm = teamSp(p.team).dribble;
-    p.sdrib = { t: 0, x0: p.x, y0: p.y, dx, dy, front, fell: false, gAt: 0, col: teamCol(p.team), name: nm };
+    p.sdrib = { t: 0, x0: p.x, y0: p.y, dx, dy, front, fell: false, gAt: 0, col: teamCol(p.team), name: nm, burst: false, near: 99 };
     p.face = dirIndex(dx, dy); p.setState('sdribble', D.T + 0.02);
     for (const o of p.team.opp.players) if (!o.sentOff && len(o.x - p.x, o.y - p.y) < 6) o.stun = Math.max(o.stun, D.T + 0.1);   // they're left watching it
-    this.hitStop = Math.max(this.hitStop || 0, 0.06);
+    this.hitStop = Math.max(this.hitStop || 0, 0.05); this.slowMo = Math.max(this.slowMo || 0, D.slow);   // a beat of slow motion on the spin
+    if (this.textures.exists('fx')) for (const k of [-1, 1]) this.rigPop('dust', wx(p.x, p.y) + k * 10, wy(p.y) - 4, wy(p.y) + 0.5, { s: [0.5, 1.2], ms: 360, dy: -8, flip: k > 0 });   // dust kicked up as he plants
     const c = teamCol(p.team); this.cameras.main.flash(90, (c >> 16) & 255, (c >> 8) & 255, c & 255);
     this.say(nm + '!', `${p.team.name} · SPECIAL DRIBBLE`, 1.1); SFX.special(1);
     this.ramiSay('skill', { text: `${nm}!!\nHE'S LEFT HIM FOR DEAD!`, expr: 'laugh' }, 2);
@@ -104,20 +113,44 @@ hc2Mix(Match, {
     for (const p of this.all) {
       const s = p.sdrib; if (!s) continue;
       if (p.state !== 'sdribble' || p.sentOff) { p.sdrib = null; continue; }   // (knocked over / a new state: it stops)
-      s.t += dt; const u = clamp(s.t / D.T, 0, 1), e = 1 - (1 - u) * (1 - u), v = 2 * (1 - u) * D.dist / D.T;
-      p.x = clamp(s.x0 + s.dx * D.dist * e, 1, PITCH_L - 1); p.y = clamp(s.y0 + s.dy * D.dist * e, 1, PITCH_W - 1);
+      s.t += dt; const u = clamp(s.t / D.T, 0, 1);
+      // speed: the spin drifts at vSpin, the burst accelerates from vSpin to vOut (smooth: eased in, no stop at the end)
+      const v = u < D.spin ? D.vSpin : D.vSpin + (D.vOut - D.vSpin) * Math.sin(Math.PI / 2 * (u - D.spin) / (1 - D.spin));
       p.vx = s.dx * v; p.vy = s.dy * v;
+      s.px = clamp((s.px ?? s.x0) + p.vx * dt, 1, PITCH_L - 1); s.py = clamp((s.py ?? s.y0) + p.vy * dt, 1, PITCH_W - 1);   // (its own path: p.step's move is overwritten)
+      p.x = s.px; p.y = s.py;
       if (b.owner === p) { b.x = p.x + s.dx * 0.7; b.y = p.y + s.dy * 0.7; b.z = 0; b.vx = p.vx; b.vy = p.vy; b.vz = 0; }
-      if (!s.fell && u > 0.45 && s.front && !s.front.sentOff) {                  // the man in front: down
-        s.fell = true; const o = s.front; o.setState('fall', 0.9); o.stun = Math.max(o.stun, D.stun); o.cool = Math.max(o.cool || 0, D.stun);
-        if (this.textures.exists('fx')) this.rigPop('impact', wx(o.x, o.y), wy(o.y) - 40, wy(o.y) + 1, { s: [0.6, 1.4], ms: 260, tint: s.col });
+      const o = s.front;
+      if (o && !o.sentOff) {
+        s.near = Math.min(s.near, len(o.x - p.x, o.y - p.y));
+        if (!s.fell && u > D.spin) {                                              // the burst: the man in front is beaten
+          s.fell = true;
+          if (s.near < D.fallR) o.setState('fall', 0.9); else o.setState('hit', 0.55);   // right past him: down; else he staggers
+          o.stun = Math.max(o.stun, D.stun); o.cool = Math.max(o.cool || 0, D.stun); o.vx = o.vy = 0;
+          if (this.textures.exists('fx')) this.rigPop('impact', wx(o.x, o.y), wy(o.y) - 40, wy(o.y) + 1, { s: [0.6, 1.4], ms: 260, tint: s.col });
+        }
+        if (s.fell && o.state !== 'fall') o.face = dirIndex(p.x - o.x, p.y - o.y);   // ...and turns to watch him go
+      }
+      if (!s.burst && u > D.spin) {                                               // the burst: a whoosh, a thump, speed lines
+        s.burst = true; SFX.boom(0.45);
+        if (this.textures.exists('fx')) this.rigPop('whoosh', wx(p.x, p.y) - s.dx * 30, wy(p.y) - 40, wy(p.y) + 0.6, { s: [0.8, 1.8], ms: 320, tint: s.col, flip: s.dx < 0 });
+        this.cameras.main.shake(120, 0.004);
+      }
+      if (s.burst && !this.replay && p.spr) {                                     // speed lines behind him (code-drawn, like the cut-ins')
+        const g = s.lines || (s.lines = this.add.graphics()); g.clear().setDepth(p.spr.depth - 0.4);
+        const X = wx(p.x, p.y), Y = wy(p.y) - 40, k = (u - D.spin) / (1 - D.spin);
+        g.lineStyle(2, s.col, 0.7 * (1 - k * 0.6));
+        for (let i = 0; i < 5; i++) { const off = (i - 2) * 12, ln = 40 + ((i * 37) % 30); g.lineBetween(X - s.dx * 26 + -s.dy * off, Y + off * 0.6, X - s.dx * (26 + ln) + -s.dy * off, Y + off * 0.6); }
       }
       if (!this.replay && p.spr && this.time.now - s.gAt > 40) {                 // after-images in the team's colour (drawing only)
         s.gAt = this.time.now; const sp = p.spr;
         const im = this.add.image(sp.x, sp.y, sp.texture.key, sp.frame.name).setOrigin(sp.originX, sp.originY).setScale(sp.scaleX, sp.scaleY).setDepth(sp.depth - 0.3).setTintFill(s.col).setAlpha(0.5);
         this.tweens.add({ targets: im, alpha: 0, duration: 220, onComplete: () => im.destroy() });
       }
-      if (u >= 1) { p.sdrib = null; p.setState('idle', 0); p.burst = 0.35; }     // out of it at full speed
+      if (u >= 1) {                                                               // out of it at full speed, straight into the run
+        if (s.lines) { const g = s.lines; this.tweens.add({ targets: g, alpha: 0, duration: 160, onComplete: () => g.destroy() }); }
+        p.sdrib = null; p.setState('run', 0); p.sprinting = true; p.burst = 0.45; p.touchT = 0;
+      }
     }
   },
 
