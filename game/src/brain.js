@@ -93,7 +93,7 @@ const AI_MOVES = [
 const SAFE = { RISK: 0.45, KEEP: 0.6 };
 // the 1-2 (wall pass): how long after he got it he still plays it first time (s), the passer's run (m/s forward, how far
 // level with or past the wall man), the lane (a defender this close to the line shuts it), how often it's taken
-const WALL = { FIRST: 0.9, RUN_V: 2.4, PAST: -12, LANE: 1.4, LEAD: 0.7, WANT: 0.85, TRACK: 2.5 };
+const WALL = { FIRST: 0.9, RUN_V: 2.0, PAST: -12, LANE: 1.4, LEAD: 0.7, WANT: 0.6, TRACK: 2.5 };
 // how often each move was looked at (available) and played, by side: tools/soak.js reads it (the "never used" check)
 const BRAIN_N = { seen: {}, used: {}, reset() { this.seen = {}; this.used = {}; } };
 
