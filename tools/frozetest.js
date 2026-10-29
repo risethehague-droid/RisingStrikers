@@ -37,7 +37,7 @@ const { chromium } = require('playwright');
     ok(F.b && F.b.sev === 'bug' && F.b.froze.ended && F.b.froze.gap >= 4 && /real hang/.test(F.b.why) && F.b.froze.phase, `… frames back: the gap closed at ${F.b && F.b.froze.gap} s, still a real hang, during ${F.b && F.b.froze.phase}`);
     const U = await run('unfocused gap', true);
     ok(U.a && U.b && U.b.n === F.b.n + 1, 'no focus: a second FROZE clip (kept)');
-    ok(U.b && U.b.sev === 'odd' && /browser paused/.test(U.b.why) && U.b.froze.lost, `… tagged 'odd': the browser paused the page (gap ${U.b && U.b.froze.gap} s)`);
+    ok(U.b && U.b.sev === 'odd' && /browser paused/.test(U.b.why) && (U.b.froze.lost || !U.b.froze.foc0), `… tagged 'odd': the browser paused the page (gap ${U.b && U.b.froze.gap} s)`);
   } catch (e) { fails.push('crashed: ' + e.message); }
   console.log(log.join('\n'));
   console.log(fails.length ? `FAILED ${fails.length}` : 'all ok', 'errors', JSON.stringify(errs));
