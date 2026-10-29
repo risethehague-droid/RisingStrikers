@@ -2,6 +2,10 @@
 // HC2 Football · ball.js: ball physics (flight, bounce, spin), kicks, passes, shots, lobs, the chip, dribbling, possession
 // (split out of game.js in v0.9.5 - load order and lanes: src/README.md)
 
+// t-035 the kick's hard cap (kickCap): first look this long (ms) after the kick, then every step (ms) until it has gone;
+// a kick whose countdown stood still goes off (or is called off) by its move's length + margin (s)
+const KICK_CAP = { first: 250, step: 100, margin: 0.35 };
+
 // ------------------------------------------------------------------ ball physics (shared by the game and by the pass maths)
 // In the air: gravity + quadratic drag. Bounce: loses ~45% height and ~20% pace. On the grass: a struck ball
 // skids first (high friction, the "bite") until it has lost ~28% of its pace, then rolls (low friction + drag).
@@ -215,6 +219,27 @@ hc2Mix(Match, {
     if (info.tap) this.tapAnim(p);                                                // t-010: the PixelLab tap (made E / W only)
     if (KICK_HIT[p.kickAnim] != null && !(this.setPiece && this.setPiece.kind === 'THROW-IN')) delay = (KICK_HIT[p.kickAnim] + 0.6) / kickRate(p.kickAnim);   // ball leaves on the contact frame
     this.pending = { p, tx, ty, speed, vz, t: delay, info };
+    this.time.delayedCall(KICK_CAP.first, () => this.kickCap(this.pending, this.epoch));
+  },
+  // t-035 (QA 25 Oct, IRO v IS 42': "a kick by ... hung for 3 s"): the ball leaves when k.t runs out, and k.t only runs
+  // in live play (match.js sim). A kick still waiting while play stood still (a freeze, a stoppage, a hit-stop that
+  // keeps getting topped up) waited as long as that took. Hard cap: by the move's own length + KICK_CAP.margin
+  // (counted from the moment the specials / volley / tap have set it, so a long special strike gets its full length),
+  // a kick whose countdown is still running (slow motion, slow watch mode) waits on; one whose countdown stood still goes
+  // off if play is live and he still has it, else it is called off cleanly (he keeps the ball, the kick is gone).
+  kickCap(k, ep) {
+    if (!k || this.pending !== k || ep !== this.epoch) return;
+    const p = k.p, b = this.ball, now = this.time.now;
+    if (k.capAt == null) { k.capAt = now + (Math.max(k.t, p.stateT || 0) + KICK_CAP.margin) * 1000; k.t0 = k.t; k.at = now - KICK_CAP.first; }
+    const ran = k.t < k.t0 - 1e-6; k.t0 = k.t;                                   // (its countdown moved since the last look)
+    const held = this.hitStop > 0 || this.paused || this.cutIn || this.replay || this.bwUI || this.flagUI || this.saveAsk;   // (play waits on purpose: wait with it)
+    if (now < k.capAt || ran || held) { this.time.delayedCall(KICK_CAP.step, () => this.kickCap(k, ep)); return; }
+    const live = !(this.freeze > 0 || this.foulScene || this.intro || this.ht || this.toss || this.pre || this.dead || this.over || (this.setPiece && !this.setPiece.kicked));
+    const go = live && b.owner === p && p.state === 'kick';
+    const N = this.kickCapN = this.kickCapN || { off: 0, gone: 0, log: [] }; N[go ? 'off' : 'gone']++;
+    if (N.log.length < 5) N.log.push(`${p.team.name} #${p.num} ${p.kickAnim || 'kick'} after ${((now - k.at) / 1000).toFixed(2)} s: ${go ? 'kicked' : 'called off'}`);
+    this.pending = null;
+    if (go) this.releaseKick(k);
   },
   releaseKick(k) {
     const b = this.ball, whiff = why => { if (/^(fall|hit|blasted|getup|slide)$/.test(k.p.state) || (b.lastP && b.lastP.team !== k.p.team)) return;   // (tackled / knocked down in the wind-up: fair, not a bug - the overnight soak's one WHIFF was that)
@@ -259,6 +284,10 @@ hc2Mix(Match, {
     b.how = { kind: k.p.kickAnim === 'volley' ? 'volley' : k.p.kickAnim === 'bicycle' ? 'bicycle' : k.info.shot ? 'shot' : 'pass', x: b.x, y: b.y };
     this.impact(k);                                                               // v0.7: you feel the contact
     if (k.info.shot) { b.shotBy = k.p; b.shotT = this.time.now + Math.random();   // weight on the strike
+      // t-035 (QA 25 Oct: 98 shots, 150 on target in 12 matches): every kick at goal counts as one shot here, on the
+      // contact frame - ground shot, tap, chip, special, aerial special - and before the block below (a blocked shot is
+      // a shot, as Opta counts it). doShot / tapKick no longer count: a kick taken off him in the wind-up never happened.
+      if (!this.penShot()) this.stat(k.p.team).shots++;
       // a defender standing in the line of the shot can block it
       const ux = b.vx / (speed || 1), uy = b.vy / (speed || 1);
       for (const o of k.p.team.opp.players) {
@@ -270,10 +299,14 @@ hc2Mix(Match, {
           o.cool = 0.25; this.say('', 'BLOCKED!', 0.8); return;
         }
       }
-      const pen = !!this.penaltyKick || !!(this.setPiece && this.setPiece.kind === 'PENALTY');
+      const pen = this.penShot();
       this.planSave(k.p.team.opp.players[0]); if (!k.info.special) this.shotSaveCall(k.p.team.opp, k.p.team, pen);   // v0.9.0
     }
   },
+  // t-035: a penalty is not a shot in the match stats (as before), nor on target
+  penShot() { return !!this.penaltyKick || !!(this.setPiece && this.setPiece.kind === 'PENALTY'); },
+  // headers and diving headers at goal count here (aerialShot and the kicks count their own)
+  shotCount(team) { if (!this.penShot()) this.stat(team).shots++; },
   // v0.7 IMPACT: hit-stop (everything freezes on the contact frame for a few hundredths), the ball flashes white,
   // a camera kick; a charged power shot (held shoot) freezes longer, shakes harder and drags a hot trail behind the ball
   impact(k) {
@@ -458,7 +491,6 @@ hc2Mix(Match, {
     const b = this.ball, l = len(dir.x, dir.y) || 1, e = rnd(-1, 1) * (TAP.err + (p.sprinting || p.tired ? TAP.errRun : 0));
     const c = Math.cos(e), s = Math.sin(e), ux = (dir.x * c - dir.y * s) / l, uy = (dir.x * s + dir.y * c) / l;
     const at = this.tapOnGoal(p, b.x, b.y, ux, uy);                               // heading for their goal: a shot (stats, the keeper's read)
-    if (at && (!this.setPiece || this.setPiece.kind !== 'PENALTY')) this.stat(p.team).shots++;
     this.kick(p, b.x + ux * 30, b.y + uy * 30, TAP.speed * SHOT_K, TAP.vz, 0.13, { shot: at, tap: true, power: 0.3 });
   },
   // a tap along (ux, uy) from (x, y): does it cross their goal line between the posts (with a little to spare)?
@@ -490,7 +522,7 @@ hc2Mix(Match, {
   // power 0..1 from holding the button; aimY -1..1 from the stick (far post / near post)
   doShot(p, power, aimY) {
     if (this.aiTap(p)) return;                                                    // t-010: the computer's tap-in (only with TAP_KICK on)
-    const gx = p.team.goalX; if (!this.setPiece || this.setPiece.kind !== 'PENALTY') this.stat(p.team).shots++;
+    const gx = p.team.goalX;                                                      // (counted as a shot on the contact frame: releaseKick)
     if (power > 0.93 && p === this.human) this.ramiSay('power_shot', {}, 1);
     const err = rnd(-1, 1) * (0.35 + Math.max(0, power - 0.85) * 5 + (p.sprinting ? 0.7 : 0) + (p.tired ? 0.6 : 0)) * (p === this.human && !this.demo ? 1 : this.dk(p.team).shotErr);   // (v0.9.2: the computer's finishing by level)
     const ty = clamp(34 + aimY * 2.8 + err, 27, 41);

@@ -57,9 +57,11 @@ const BW_CHECKS = {
 // marks, then the 'looks odd' AI checks. A clip from before t-021 is judged by its code's kind today (old flicker
 // clips were 'odd' / 'perf' then and are hidden now).
 const BW_ERR = new Set(['CRASH', 'CONSOLE_ERR', 'FROZE']), BW_RANK = { bug: 1, flag: 2, mark: 3, odd: 4, perf: 5, look: 6 };
-const bwSev = x => (BW_CHECKS[x.code] ? BW_CHECKS[x.code].sev : x.sev);
+// t-035: a GAME FROZE clip the watchdog tagged 'odd' (the browser paused the page: no focus / hidden) is not a code error
+const bwPaused = x => x.code === 'FROZE' && x.sev === 'odd';
+const bwSev = x => (bwPaused(x) ? 'odd' : BW_CHECKS[x.code] ? BW_CHECKS[x.code].sev : x.sev);
 const bwLook = x => bwSev(x) === 'look';
-const bwRank = x => (BW_ERR.has(x.code) ? 0 : BW_RANK[bwSev(x)] ?? 5);
+const bwRank = x => (BW_ERR.has(x.code) && !bwPaused(x) ? 0 : BW_RANK[bwSev(x)] ?? 5);
 const bwOrder = (a, b) => (a.review ? 1 : 0) - (b.review ? 1 : 0) || bwRank(a) - bwRank(b) || (a.old ? 1 : 0) - (b.old ? 1 : 0) || String(b.at || '').localeCompare(String(a.at || ''));
 // t-006 INSTA FLAG (Luca, 24 Oct 05:57: "a button where you can insta flag an issue in the game, auto clips last 5
 // seconds or whatever you think is best ... type the problem ... then instantly start working on fixing the issue").
@@ -413,12 +415,49 @@ addEventListener('unhandledrejection', e => { const m = window.__hc2, r = e.reas
 // and Phaser's frame count hasn't moved for 3 s → FROZE, with the footage up to the freeze. Real browsers only: the test
 // tools step time by hand (window.__bwDog lets tools/bwtest.js check it). A match clock that stops while frames run is
 // CLOCK_FROZEN, in the checks above.
+// t-035 (QA 29 Oct: 12 GAME FROZE clips from Luca's browser, no error, no headless repro): the clip now says what tells
+// a real hang from the browser pausing the page - how long the gap really was (closed when frames come back, or the
+// page hides), whether the window had focus and was visible at its start and its end (and lost either in between),
+// and what the match was doing. No focus or hidden for the gap: the browser paused it - the clip stays, tagged 'odd'.
+// When it fires is unchanged.
+function bwPhase(m) {                                      // what the match was doing (the clip's "why" line)
+  const b = m.ball;
+  return m.over ? 'full time' : m.cutIn ? 'a cut scene (special save)' : m.replay ? 'a replay' : m.foulScene ? 'a cut scene (foul)'
+    : m.intro ? 'the walk-out' : m.ht ? 'half time' : m.toss ? 'the coin toss' : m.pre ? 'the team sheet' : m.paused ? 'the pause menu'
+    : m.freeze > 0 && b && Math.abs(b.x - 52.5) < 0.8 && Math.abs(b.y - 34) < 0.8 ? 'kick-off' : m.freeze > 0 || m.dead ? 'a stoppage'
+    : m.setPiece ? `a set piece (${m.setPiece.kind})` : m.bw && m.bw.live() ? 'live play' : 'a stoppage';
+}
+function bwFrozeNote(D, end) {                             // the facts, and the "why" line built from them
+  const F = D.info, fv = (f, v) => `${f ? 'focused' : 'NO FOCUS'}, ${v ? 'visible' : 'HIDDEN'}`;
+  F.gap = +((D.tEnd - D.t) / 1000).toFixed(1); F.ended = !!end;
+  const paused = !F.foc0 || !F.vis0 || F.lost || (end && (!F.foc1 || !F.vis1));
+  return { paused, why: `no frame for ${F.gap} s${end ? '' : ' so far (still frozen)'} · window at the start: ${fv(F.foc0, F.vis0)}`
+    + (end ? ` · at the end: ${fv(F.foc1, F.vis1)}` : '') + (F.lost ? ' · lost focus / hidden during it' : '') + ` · during ${F.phase}`
+    + (paused ? ' → the browser paused the page (not a bug)' : ' → the window had focus and was visible: a real hang') };
+}
+function bwFrozeTag(D, end) {                              // (written into the clip already saved, and saved again)
+  const inc = D.inc, m = window.__hc2; if (!inc || !m || !m.bw) return;
+  const N = bwFrozeNote(D, end); inc.froze = Object.assign({}, D.info); inc.why = N.why; inc.sev = N.paused ? 'odd' : 'bug';
+  try { m.bw.store(inc); } catch (e) {}
+  if (end) D.inc = null;
+}
+(() => {                                                   // focus lost / page hidden at any moment of a gap (between the 1 s looks)
+  const lost = () => { const D = window.__bwDogS; if (D) D.lost = true; };
+  window.addEventListener('blur', lost); document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') lost(); });
+})();
 setInterval(() => {
   const D = window.__bwDogS = window.__bwDogS || { f: -1, n: 0, fired: false }, m = window.__hc2, L = m && m.game && m.game.loop;
   const tools = navigator.webdriver || window.HC2_TEST_FAST || window.__lab;
-  if (!L || !m.bw || (tools && !window.__bwDog) || document.visibilityState !== 'visible' || !L.running || !m.bw.watching()) { D.f = -1; D.n = 0; return; }
-  if (L.frame !== D.f) { D.f = L.frame; D.n = 0; D.fired = false; return; }
-  if (++D.n >= 3 && !D.fired) { D.fired = true; m.bw.crash(`no frame drawn for 3 s with the page open${m.bw.lastErr ? ` - the last error: ${m.bw.lastErr}` : ' - no error thrown'}`, '', 'FROZE'); }
+  const now = (window.__bwDogNow || Date.now)(), foc = document.hasFocus(), vis = document.visibilityState === 'visible';   // (__bwDogNow: a test's own clock)
+  const close = () => { if (D.inc) { Object.assign(D.info, { foc1: foc, vis1: vis, lost: D.info.lost || !!D.lost }); D.tEnd = now; bwFrozeTag(D, true); } };   // the gap is over: its real length
+  if (!L || !m.bw || (tools && !window.__bwDog) || document.visibilityState !== 'visible' || !L.running || !m.bw.watching()) { close(); D.f = -1; D.n = 0; return; }
+  if (L.frame !== D.f) { close(); D.f = L.frame; D.n = 0; D.fired = false; D.t = now; D.lost = false; D.info = { foc0: foc, vis0: vis }; return; }
+  if (++D.n >= 3 && !D.fired) { D.fired = true; const n0 = m.bw.list.length;
+    D.info = Object.assign(D.info || { foc0: foc, vis0: vis }, { phase: bwPhase(m), lost: !!D.lost, foc1: foc, vis1: vis }); D.tEnd = now;
+    m.bw.crash(`no frame drawn for 3 s with the page open${m.bw.lastErr ? ` - the last error: ${m.bw.lastErr}` : ' - no error thrown'}`, '', 'FROZE');
+    const inc = m.bw.list.length > n0 ? m.bw.list[m.bw.list.length - 1] : null; D.inc = inc && inc.code === 'FROZE' ? inc : null;
+    bwFrozeTag(D, false); }
+  else if (D.fired && D.inc) D.info.lost = D.info.lost || !!D.lost;
 }, 1000);
 
 // ---------------------------------------------------------------- Match methods: replay
@@ -770,7 +809,7 @@ hc2Mix(Match, {
     if (U.page === 'one') {
       const x = U.sel, rv = x.review, saved = x.saved === 'db' ? 'SAVED · CLAUDE CAN READ IT' : x.saved === 'local' ? 'KEPT IN THIS BROWSER' : x.ready ? 'SAVING…' : 'STILL RECORDING…';
       el.innerHTML = `<h2>BUG WATCH</h2><div class="bw"><div class="card">
-        <p><span class="sev ${x.sev}">${BW_ERR.has(x.code) ? 'CODE ERROR' : x.sev === 'bug' ? 'LOOKS LIKE A BUG' : x.sev === 'mark' ? 'YOUR MARK' : x.sev === 'flag' ? 'YOUR FLAG' : x.sev === 'perf' ? 'SPEED' : 'LOOKS ODD'}</span>${x.title}</p>
+        <p><span class="sev ${x.sev}">${BW_ERR.has(x.code) && !bwPaused(x) ? 'CODE ERROR' : x.sev === 'bug' ? 'LOOKS LIKE A BUG' : x.sev === 'mark' ? 'YOUR MARK' : x.sev === 'flag' ? 'YOUR FLAG' : x.sev === 'perf' ? 'SPEED' : 'LOOKS ODD'}</span>${x.title}</p>
         <p>${x.min}' · ${['1ST HALF', '2ND HALF', 'EXTRA TIME 1', 'EXTRA TIME 2'][(x.half || 1) - 1]} · ${x.home} ${x.score} ${x.away}${x.mode === 'demo' ? ' · THE DEMO' : x.mode === 'watch' ? ' · WATCH MODE' : ''}</p>
         <p>WHAT TRIPPED: ${x.why}</p><p class="n">${String(x.msg).replace(/[<>&]/g, '')}</p>${BW_ERR.has(x.code) && x.stack ? `<pre class="stk">${String(x.stack).slice(0, 700).replace(/[<>&]/g, '')}</pre>` : ''}
         <p>${rv ? `YOU SAID: ${BW_VERDICT[rv.verdict]}${rv.note ? ' · ' + rv.note.replace(/[<>&]/g, '') : ''} · ` : ''}${saved}</p>

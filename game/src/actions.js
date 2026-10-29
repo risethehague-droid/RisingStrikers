@@ -331,7 +331,7 @@ hc2Mix(Match, {
     p.face = dirIndex(dx, dy); p.setState('header', 0.5); p.cool = kind === 'down' ? 0 : 0.4; this.headBuf = 0;   // (a cushion: he takes it straight away)
     b.tried = null; b.lob = false; SFX.head(); b.how = { kind: 'header', x: b.x, y: b.y };
     if (b.spin || b.curl || b.aft) { b.spin = 0; b.curl = 0; b.aft = null; }     // (t-002 prototype: a header kills the lob's spin)
-    if (kind === 'goal') { this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }
+    if (kind === 'goal') { this.shotCount(p.team); this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }   // (t-035: a header at goal is a shot)
     if (kind === 'goal') this.airChargeDone(p, 'header', ch, spd);
     if (best && p.team === this.home) { this.nextHuman = best.q; this.passRing = { p: best.q, t: 1.0 }; }
   },
@@ -350,7 +350,7 @@ hc2Mix(Match, {
       const tx = toGoal < 25 ? p.team.goalX + s * 2 : p.x + s * 18, ty = toGoal < 25 ? 34 + (p === this.human ? Input.axis.y * 2.6 : rnd(-2.6, 2.6)) : p.y + rnd(-8, 8);
       const ddx = tx - b.x, ddy = ty - b.y, l = len(ddx, ddy) || 1, spd = rnd(15, 18);
       Object.assign(b, { vx: ddx / l * spd, vy: ddy / l * spd, vz: rnd(0.5, 2), skid: true, rollV: 0.72 * spd, last: p.team, lastP: p, save: null, target: null, special: 0, power: 0, saveable: null });
-      if (toGoal < 25) { this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }
+      if (toGoal < 25) { this.shotCount(p.team); this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }   // (t-035: a shot)
       this.say('', 'DIVING HEADER!', 0.9); SFX.head(); b.how = { kind: 'dheader', x: b.x, y: b.y };
     }
   },
