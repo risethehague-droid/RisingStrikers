@@ -42,6 +42,9 @@ reported on yet.
 
 ## Merging a pull request (after Luca's OK on its card)
 
+0. **Read the PR's card on HQ first: merge only if its status is `approved`** (Luca's OK through HQ's button, with
+   `decision.verdict` "ok"). An "ok" in chat is not enough on its own: on 25 Oct an "ok" in chat came in the same
+   minute Luca sent #37 and #38 *back* on HQ, and both went live by mistake. Sent back = not merged; read his note.
 1. Check: `gh api repos/risethehague-droid/RisingStrikers/pulls/<n>` (REST only; GraphQL is blocked). **Note the
    head SHA you test.**
 2. Merge it locally into `main` (`git merge --no-ff origin/<branch>`), resolve clashes keeping both sides' intent.
@@ -54,6 +57,31 @@ reported on yet.
    tested**: `gh api -X PUT .../pulls/<n>/merge -f merge_method=merge -f sha=<tested sha>`. (Without `sha`, commits
    pushed after your test come in untested: it happened with PR #1.) Then check `main` again.
 6. `/publish`, then the card → done with one line of what went live.
+7. **HQ's Versions:** add the new version's doc. Upload the PR GIFs that aren't in HQ yet (a Needs OK card's
+   `preview.gif` is usually already there: reuse it) and add them to `design/hq/gif-assets.json` (repo path → HQ
+   `/_blob/…` url; commit it). Then `python3 design/hq/hqdata.py versions $TMP/hq --gifs design/hq/gif-assets.json` and
+   ArtifactData `set` only the new `versions/<v0-x-y>` doc. Set `meta/hq.gameVer`.
+
+## Handover notes (kept here so a new taskmaster chat loses nothing)
+
+- **Starting workers.** A worker is a one-shot scheduled task (`create_trigger` with `run_once_at` a few minutes
+  ahead), model claude-opus-5-5. Copy the prompt of an earlier "HC2 worker-l · t-NNN …" task (`list_triggers` with
+  `include_completed`) and change the task id, branch name, files and the one-paragraph summary. It runs in a fresh
+  cloud session; it reports through the folder; it never merges or publishes.
+- **Usage is limited (Luca, 29 Oct).** One worker at a time unless two tasks are both urgent; small flag-flip tasks can
+  share one session; skip test runs the brief doesn't need; keep replies short.
+- **The Try-it Lab** (https://claude.ai/artifact/GLSDm1t1mFYFy15LxdQ6Ma, branch `candidate/try-it`, never merged): main
+  + every PR waiting for Luca's OK, merged together so he can test them side by side, with a TRY THE NEW STUFF panel
+  (lab.html / lab.js) and `#play-gp` / `#play-tap` / `#play-curve` / `#play-all` links that start a match with a
+  Lab-only switch on (core.js, try-it only). Rebuild: reset the branch to main, merge the waiting PRs, re-add the panel,
+  `bash tools/prpreview.sh <sha> <dir> 0 "Try it"`, set the page title to "HC2 Try-it Lab", publish to the same url.
+  Once t-038 (FREE PLAY with a button and an IN THE GAME / LAB ONLY tag per move) is live, prefer FREE PLAY there.
+- **The check's schedule.** "HC2 taskmaster check" is `trig_01XnmuxJ2BFdFv4jwZvQ7q1E`: normal
+  `CRON_TZ=Europe/Berlin 39 8,13,20 * * *`, TURBO `CRON_TZ=Europe/Berlin 39 8-22/2 * * *`. HQ's ⚡ Turbo button switches
+  it (update_trigger, as Luca) and writes `meta/hq.turbo`; if you change the schedule by hand, update `meta/hq.turbo`
+  too so HQ's next-check line stays right. Nightly QA is `trig_01MrQu9w8x9GS2hgEKev33u8` (01:44).
+- **Where "now" lives.** HQ's `meta/hq` (the taskmaster's note says what's running and what's next), the cards in
+  Needs OK / In progress, Loose Ends, and `bash tools/agent.sh inbox` / `status`. Read those before doing anything.
 
 ## Previews on Needs OK cards (the taskmaster and the scheduled check)
 
