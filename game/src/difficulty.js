@@ -14,10 +14,13 @@ let DIFF_LEVEL = (() => { try { const v = localStorage.getItem('hc2-diff'); retu
 function setDiff(v) { if (!DIFF_OPTS.some(o => o[0] === v)) return; DIFF_LEVEL = v; try { localStorage.setItem('hc2-diff', v); } catch (e) {} }
 let DIFF_TRAITS = {                                                                // TRAINED (see the header). v0.9.3: Hard and Rise one notch up
   base: { r: 1, a: 1, d: 1, k: 1 },                                                // = the AI as tuned up to v0.9.1: YOUR team-mates (and the demo)
-  easy: { r: 0.56, a: 0.6, d: 0.66, k: 0.6 },                                      // v0.9.2's trained Easy (S -1.72) nudged up: v0.9.3's smarter bursts left it at -2.5
+  easy: { r: 0.56, a: 0.48, d: 0.66, k: 0.6 },                                    // (smarter-ai stage 2: a 0.6 -> 0.48, so Easy stays easy with the team brain)                                      // v0.9.2's trained Easy (S -1.72) nudged up: v0.9.3's smarter bursts left it at -2.5
   normal: { r: 1, a: 1, d: 1, k: 1 },                                              // = base (the computer side plays like your team-mates)
-  hard: { r: 1.6, a: 1.5, d: 1.48, k: 1.38 },                                      // v0.9.3 (Luca picked "one notch up"): v0.9.2's Hard + a little; the new edges v you do the rest
-  rise: { r: 2.2, a: 2.0, d: 2.0, k: 1.9 } };                                      // v0.9.3: a step past that
+  // smarter-ai stage 2 (the co-designer: "the number of goals should increase with little to no increase to the win rate"):
+  // the top levels defend a notch less and attack a touch sharper - with the team brain, the same win rate v them, more
+  // goals both ways (tools/soak.js, 96 a level: docs/smarter-ai.md). Was hard a 1.5 d 1.48, rise a 2.0 d 2.0, easy a 0.6
+  hard: { r: 1.6, a: 1.6, d: 1.25, k: 1.38 },                                      // v0.9.3 (Luca picked "one notch up"): v0.9.2's Hard + a little; the new edges v you do the rest
+  rise: { r: 2.2, a: 2.15, d: 1.85, k: 1.9 } };                                     // v0.9.3: a step past that
 // traits -> the knobs inside the AI (1 = unchanged). v0.9.3: the caps opened up so traits past 1.6 still count
 function diffKnobs(t) {
   const e = (x, s) => Math.exp(-(x - 1) * s);

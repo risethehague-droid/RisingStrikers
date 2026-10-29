@@ -191,9 +191,9 @@ get the ball in behind (before, only a man already running could).
   from 25% further out (and more often), a riskier pass is fine, the keeper goes up for a corner (the far post; he
   attacks the cross, then sprints back). Test Lab AI4, AI4-K.
 - **Protecting a lead:** by the style's `protect`: `keep` (safer passes, slower tempo, recycles it), `deep` (the line
-  drops 6 m), `middle` (half of each: the line up to 3 m deeper, recycles it half as often). Every team is NEUTRAL
-  (= middle) for now. This is the dial between goals and win rate: a full keep-ball made the top levels score clearly
-  less; none at all made them win clearly more (the soak: your side at Rise 21% -> 11%).
+  drops 6 m), `middle` (the line up to 3 m deeper). Every team is NEUTRAL (= middle) for now. This was the dial
+  between goals and win rate: keep-ball for NEUTRAL made the top levels score clearly less (the first preview, "A");
+  without it they won more - so the levels were re-balanced instead (below, "Goals and win rate").
 
 ### Step 4: team personalities (the dials, not the picks)
 
@@ -208,3 +208,27 @@ Luca picks with the co-designer (`TEAM_STYLE`). `tools/styles.js` plays every st
 you shot from: they close you down 15% faster there), your dribble trick (the side you go past a man: the presser
 stands 0.9 m that side, showing you the other way; how close he is when you burst: half a metre more room). Not your
 passing. Rami says it once for each read. Test Lab AI6.
+
+### The 1-2 (the co-designer, 29 Oct: "doing a 1-2 is impractical")
+
+- **A wall-pass move** (`wall` in `AI_MOVES`): the man who just got it from a team-mate who is now running on (2 m/s+
+  forward, onside) plays it back first time into his path, if the lane is open and no defender gets there first. Your
+  run counts the same as a computer team-mate's. Between his thinks the receiver looks only at this (`brainWall`), once
+  per touch, so it really is first time. Taken 60% of the time it's on.
+- **Defenders track the runner:** for 2.5 s after a pass, a passer who runs on is the first man the other side marks.
+- 12 matches (`aistudy.js`, a 1-2 = the ball straight back to a passer who has gone 4 m+ on, within 3 s): today 7.5
+  tried / 3.2 completed a match; with the wall pass 9.3 / 3.3. Test Lab AI7 (open lane: back first time) and AI7b (a man
+  in the lane: not given back).
+
+### Goals and win rate (the co-designer: "more goals, about today's win rate")
+
+The levels' traits (`difficulty.js`) were re-balanced for the team brain: Easy attacks a notch less (a 0.6 -> 0.48),
+Hard and Rise Warrior defend a notch less and attack a touch sharper (Hard a 1.5 -> 1.6, d 1.48 -> 1.25; Rise a 2.0 ->
+2.15, d 2.0 -> 1.85). Soak, 96 matches a level, your side = the computer at base v the level, same seeds:
+
+| Level | Your side's points, today -> now | Goals a match, today -> now |
+| --- | --- | --- |
+| Easy | 77% -> 69% | 3.53 -> 3.60 |
+| Normal | 57% -> 49% (the same AI both sides: ~50% is fair) | 3.10 -> 3.70 |
+| Hard | 30% -> 33% | 2.65 -> 2.90 |
+| Rise Warrior | 18% -> 20% | 2.44 -> 2.65 |

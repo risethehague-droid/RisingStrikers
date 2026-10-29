@@ -71,10 +71,10 @@ const AI_MOVES = [
   { id: 'safe',                                                                  // smarter-ai (clip 7): pressed, the best ball is to a marked man - the safe one back or square
     available: () => true,
     look: (m, p, c) => { const b = c.pass(); if (!b) return null;
-      const keep = c.M.protect > 0.3 && c.S.protect !== 'deep';                  // (protecting a lead, a side that keeps the ball recycles it - NEUTRAL half as much)
+      const keep = c.M.protect > 0.3 && c.S.protect === 'keep';                  // (protecting a lead, a side that keeps the ball recycles it)
       if (!(c.pressed && b.marked && b.risk > SAFE.RISK) && !keep) return null;
       const s = b.all.filter(o => o !== b && o.risk < 0.2 && o.score > b.score - 1.2).sort((u, v) => v.score - u.score)[0]; if (!s) return null;
-      return { value: 1.6 + b.score * 0.4 - (c.pressed ? b.risk * 1.5 : 0) + 0.2 - 0.3 * c.S.direct, want: c.pressed ? 0.8 : (c.S.protect === 'keep' ? 0.25 : 0.12) * c.M.protect, how: s }; },   // (just above the risky ball)
+      return { value: 1.6 + b.score * 0.4 - (c.pressed ? b.risk * 1.5 : 0) + 0.2 - 0.3 * c.S.direct, want: c.pressed ? 0.8 : 0.25 * c.M.protect, how: s }; },   // (just above the risky ball)
     play: (m, p, s) => { m.doPass(p, s.dir, s.mode, s.q); } },
   { id: 'curve',                                                                 // t-011 the curving pass round the man in the lane (CURVE_PASS: Test Lab only)
     available: (m, p) => CURVE_PASS && m.meterOf(p.team).level() >= 1,
@@ -155,7 +155,7 @@ hc2Mix(Match, {
     c.central = Math.abs(p.y - 34) < 16 + Math.max(0, 18 - c.toGoal) * 0.3;
     c.PR = paceK().shotRange * (M.chase ? MOOD.RANGE_CHASE : 1);                // (arcade-2: ARCADE shoots from ~20% further; chasing: further still)
     c.sh = c.toGoal < 32 * c.PR ? this.shotLook(team, p.x, p.y) : { q: 0, aim: 0 };
-    c.riskMax = (c.pressed ? Math.max(K.risk, 0.6) : K.risk) * (1 + 0.35 * S.risk) + (M.chase ? MOOD.RISK_CHASE : 0) - (M.protect > 0.3 ? (S.protect === 'keep' ? 0.1 : S.protect === 'middle' ? 0.05 : 0) : 0);
+    c.riskMax = (c.pressed ? Math.max(K.risk, 0.6) : K.risk) * (1 + 0.35 * S.risk) + (M.chase ? MOOD.RISK_CHASE : 0) - (M.protect > 0.3 && S.protect === 'keep' ? 0.1 : 0);
     let pl; c.pass = () => pl === undefined ? (pl = this.passLook(p)) : pl;
     const side = team === this.home ? 'home' : 'away', N = BRAIN_N, picks = [];
     for (const mv of AI_MOVES) {
