@@ -331,9 +331,10 @@ const AIR_CHARGE = {
 };
 // t-010 TAP KICK (Luca 24 Oct 05:57: "the kick if just pressed quickly once so not held should be a snappier kick from
 // up close and it drops off [...] it follows a predictable path which just faces the direction of the arrow"): SHOOT
-// tapped = a low stab along your arrow that dies on the grass; held = the power shot as before. OFF in matches until
-// Luca's OK (the Test Lab turns it on; ADD TO GAME there says what flipping it changes) - with it off nothing differs.
-let TAP_KICK = false;
+// tapped = a low stab along your arrow that dies on the grass; held = the power shot as before. ON in every match since
+// t-037 (Luca OK'd q-tap-kick, 26 Oct; Test Lab only from 24 Oct until then). The Lab still sets it per test
+// (lab.js: the TK tests and FREE PLAY's switch), so its other tests play with it off; false = v0.13.0's shooting.
+let TAP_KICK = true;
 const TAP = {
   tapT: 0.15,          // SHOOT let go sooner than this (s) = the tap kick; held longer = the power shot
   speed: 18,           // off the boot, m/s (~65 km/h; ~55 km/h by 6 m, ~38 by 10 m: soft enough at a set keeper's body that he holds most)
