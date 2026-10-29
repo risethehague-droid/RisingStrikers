@@ -190,6 +190,7 @@ hc2Mix(Match, {
     this.flagReplay(nm + '!');
     const N = this.arcN = this.arcN || { reb: 0, air: 0, rebShots: 0, sp: 0 }; N.combos = (N.combos || 0) + 1;
     if (!window.__labCutOff) this.cutIn = this.aspCutBuild(p, partner, lv, nm);
+    if (this.cutInQ && this.cutInQ.kind === 'shot' && this.cutInQ.who === p) this.cutInQ = null;   // (attack balance: every special shot queues its own cut-in; the combo's two-portrait one is that moment, so not both in a row)
     return true;
   },
   aspCutBuild(p, q, lv, nm) {                                                     // the combo's cut-in: both men on the band
