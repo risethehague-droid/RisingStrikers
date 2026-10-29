@@ -239,11 +239,11 @@ i.tg.in{background:var(--good);color:var(--ink)} i.tg.lab{background:var(--pink)
       <button type="button" data-cyc="tap" class="wide" aria-pressed="true" title="SHOOT tapped quickly = a snappy stab along your arrow; held = the power shot">TAP KICK: ON</button><i class="tg in">IN THE GAME</i>
       <div class="fp-hint">Tap SHOOT (let go within 0.15 s): a low, quick shot along your arrow that dies by about 15 m. Hold it: the power shot. Luca OK'd it on 26 Oct: it's going into matches (t-037). OFF here = the old shot, to compare.</div>
     </div>
-    <!-- t-013 GOAL_PHYS (core.js: null = on in the Lab, off in matches) and t-011 CURVE_PASS (off in matches): both wait for
-         Luca's decision (HQ cards q-goal-phys / q-curve-pass). These switch them for FREE PLAY only; every test plays as before. -->
+    <!-- t-013 GOAL_PHYS: in matches since v0.14.0 (Luca OK'd q-goal-phys, t-039 / PR #54). t-011 CURVE_PASS (off in matches)
+         waits for Luca's decision (HQ card q-curve-pass). These switch them for FREE PLAY only; every test plays as before. -->
     <div class="fp-sw">
-      <button type="button" data-cyc="gp" class="wide" aria-pressed="true">GOAL PHYSICS: ON</button><i class="tg lab">LAB ONLY</i>
-      <div class="fp-hint">Round posts and bar with real rebounds, and a parry or a broken guard that can loop the ball up. OFF = the posts as in matches. (The living net is in matches either way.)</div>
+      <button type="button" data-cyc="gp" class="wide" aria-pressed="true">GOAL PHYSICS: ON</button><i class="tg in">IN THE GAME</i>
+      <div class="fp-hint">Round posts and bar with real rebounds, and a parry or a broken guard that can loop the ball up. OFF = the old flat posts, to compare. (The living net is in matches either way.)</div>
     </div>
     <div class="fp-sw">
       <button type="button" data-cyc="curve" class="wide" aria-pressed="true">CURVE PASS: ON</button><i class="tg lab">LAB ONLY</i>

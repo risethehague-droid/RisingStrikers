@@ -1,3 +1,4 @@
+// HELP OUT HAGUE CUP II - web game v0.14.0 (Luca OK'd PRs #51-#54, 29 Oct: the TAP KICK in every match (t-037); GOAL PHYSICS in every match - round posts and bar with real rebounds, parries that loop up (t-039); ARCADE SPECIALS part 2 - a special dribble, combo specials, team signature moves, higher leaps (the co-designer, ARCADE only); a failed audio start no longer counts as a crash (QA))
 // HELP OUT HAGUE CUP II - web game v0.13.1 (Luca OK'd PR #50, 29 Oct - his 00:38 "the test lab must be completely fixed, I cannot navigate it, it's missing moves": THE TEST LAB REWORK - a clickable BACK / NEXT / ALL TESTS / FREE PLAY bar, a scrolling searchable ALL TESTS menu in sections, the Lab opens on FREE PLAY with RESUME, 58 FREE PLAY move buttons tagged IN THE GAME / LAB ONLY; Lab files only, matches unchanged)
 // HELP OUT HAGUE CUP II - web game v0.13.0 (Luca OK'd PRs #43-#49, 27 + 29 Oct: AERIAL BATTLES only in the box, header v header or volley v volley, a win is a shot at goal and the defender goes down, a loss is cleared, an honest SPACE mash; LOB RECEIVES uncontested when the ball is clearly his, chest / thigh trap into his run; the CORNER BLACKOUT cut; KEEPER DIVES drawn sideways, the special save's flash on his gloves; a special save off his line still meets an angled special; the smarter-AI plan + tools)
 // HELP OUT HAGUE CUP II - web game v0.12.4 (Luca OK'd PRs #36, #37, #38, 25 Oct: THE SPECIAL-SAVE CLASH - a charged save covers the whole goal, then power against power: held / bounces off / hands blown away / the body; SET PIECES WITH A RHYTHM - players jog into shape before every restart, CLASSIC and ARCADE timings, a press skips; KEEPER HANDS - the dive grabs the ball into his gloves, he gets up with it and carries it (PixelLab batch 21 carry walk / jog), the computer's keeper walks a calm catch out)
@@ -479,7 +480,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.13.1';
+const GAME_VER = 'v0.14.0';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)

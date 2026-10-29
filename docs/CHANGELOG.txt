@@ -1,3 +1,16 @@
+HC2 WEB GAME - v0.14.0 (29 Oct) - TAP KICK + GOAL PHYSICS IN MATCHES + ARCADE SPECIALS (PRs #51-#54, Luca's OK)
+- THE TAP KICK IN EVERY MATCH (#53, t-037). Luca OK'd q-tap-kick (26 Oct): SHOOT tapped (let go within 0.15 s) = a low,
+  quick stab along your arrow that dies by about 15 m; held = the power shot as before. Test Lab TK, FREE PLAY TAP KICK.
+- GOAL PHYSICS IN EVERY MATCH (#54, t-039). Luca OK'd q-goal-phys (27 Oct): round posts and bar with real rebounds, and a
+  parry or a broken guard can loop the ball up for a man following in. CLASSIC goals per match 1.7 -> 2.2 in the soak
+  (second chances). One IN_THE_NET flag in 24 test matches didn't repeat; the nightly QA keeps watching. Test Lab GP.
+- ARCADE SPECIALS, part 2 (#52, the co-designer): a special dribble, combo specials, team signature moves, higher leaps.
+  ARCADE only; CLASSIC plays as before. The special dribble has two triggers for now; the co-designer keeps one after
+  playing. Design: design/arcade-specials.md.
+- AUDIO HICCUPS ARE NOT CRASHES (#51, QA, from Luca's Bug Watch 28 Oct): a failed audio start is caught and retried on the
+  next key / click, instead of counting as a game crash.
+- Test Lab: GOAL PHYSICS in FREE PLAY now tagged IN THE GAME.
+
 HC2 WEB GAME - v0.13.1 (29 Oct) - THE TEST LAB REWORK (PR #50, t-038, Luca's OK)
 - THE TEST LAB, FIXED (#50, t-038, worker-l). Luca 29 Oct 00:38: "the test lab must be completely fixed, as of now I
   cannot actually navigate it, it's missing moves etc". Now: a clickable bar on top of the panel (BACK / NEXT / ALL TESTS /
