@@ -343,6 +343,26 @@ hc2Mix(Match, {
     while (t < 1.2) { const ox = c.x; ballStep(c, h, false); t += h; if ((ox - px) * (c.x - px) <= 0) return { t, x: c.x, y: c.y, z: c.z, vz: c.vz }; }
     return null;
   },
+  // INSTA FLAG flag-mvo4pchr-368 (Luca 25 Oct, HARD, IS 0-2 IRO 59:34: "gklvl 3 move still let lvl 3 shot through"):
+  // "on target" for a special save was read where the ball crosses HIS line. Off his line on the angle (GK_1V1 brings
+  // him out up to 14 m), an angled shot into the near post is still ~4.5 m off the middle there, so his charged LV3 save
+  // was called off ("off target") and the LV3 went in with no clash. The Laws judge a shot at the goal line, and FIFA /
+  // PES keepers narrow the angle exactly like this - so a shot that would go in between the posts is on target wherever
+  // he meets it (Inazuma Eleven: a hissatsu catch always meets a hissatsu shot on frame). x: the ball at his line.
+  // Not wider than the 6-yard box at his line (9.16 m): no dash across the whole box.
+  gkSpOnTarget(gk, x) {
+    if (!x || x.z > 3.2) return false;
+    if (Math.abs(x.y - 34) <= CLASH.reach) return true;                          // (as before: no extra steps for the old cases)
+    if (Math.abs(x.y - 34) > 9.16) return false;
+    const b = this.ball, c = { ...b }, h = 1 / 120, gx = gk.team.ownGoalX; let t = 0;
+    if ((gx - b.x) * (b.vx || 0) <= 0) return false;                              // (going away from his goal)
+    while (t < 1.5) { const ox = c.x; ballStep(c, h, false); t += h; if ((ox - gx) * (c.x - gx) <= 0) return Math.abs(c.y - 34) <= CLASH.reach && c.z <= 3.2; }
+    return false;
+  },
+  // where he stands when he meets it: the old save kept him inside the posts (lo .. hi), right when he met it under
+  // CLASH.reach of the middle. Met wider than that (gkSpOnTarget's new case: off his line) he's out there with it -
+  // pulling him back inside the posts snapped the ball 3-4 m across in one frame (the soak's TELEPORT)
+  gkMeetY(by, v, lo, hi) { return Math.abs(by - 34) > CLASH.reach ? v : clamp(v, lo, hi); },
   gkSpecialMove(gk, x) {
     const K = MAN.kits[gk.kit].anims, d = gk.team.side > 0 ? 'E' : 'W', dy = x.y - gk.y;
     const n = x.z > 1.9 || (x.vz < -2.5 && x.z > 1.5) ? 'kleap' : Math.abs(dy) > 1.2 ? (dy > 0 ? 'kdivecatchDown' : 'kdivecatchUp') : 'kblock';
@@ -364,14 +384,14 @@ hc2Mix(Match, {
     if (R && R.gk && g.e0 == null) {
       if (!live) { gk.rig = null; return; }
       const hk = R.keys.find(q => q.hit), x = this.gkSpecialCross(gk);
-      if (x && Math.abs(x.y - 34) <= CLASH.reach && x.z <= 3.2) { g.t = clamp(hk.t - x.t, g.lastT ?? 0, hk.t); g.B = { x: wx(x.x, x.y), y: wy(x.y) - 12 - x.z * PX_H }; }
+      if (this.gkSpOnTarget(gk, x)) { g.t = clamp(hk.t - x.t, g.lastT ?? 0, hk.t); g.B = { x: wx(x.x, x.y), y: wy(x.y) - 12 - x.z * PX_H }; }
       else g.t = Math.min(g.lastT ?? g.t, hk.t);                                   // (no crossing in sight now: he waits where he is)
       g.lastT = g.t;
       return;
     }
     if (live && !g) this.gkGloveFx(gk);
     if (!live || g) return;
-    const x = this.gkSpecialCross(gk); if (!x || Math.abs(x.y - 34) > CLASH.reach || x.z > 3.2) return;
+    const x = this.gkSpecialCross(gk); if (!this.gkSpOnTarget(gk, x)) return;          // (flag-mvo4pchr-368: on target at the goal line)
     // the move is read from where he stood as the shot came (picked once: his own steps / dive towards it don't turn a
     // shot to the side into a straight one)
     if (!gk.spPick) gk.spPick = { n: this.gkSpecialMove(gk, x) };
@@ -473,6 +493,15 @@ hc2Mix(Match, {
       this.tweens.add({ targets: im, alpha: 0, duration: 240, onComplete: () => im.destroy() });
     }
   },
+  // where a rig's boot / glove effect goes (the Test Lab's KC / KS lines measure the same point). t-036: a glove on his
+  // gloves as they're drawn this frame (player.js rigGlovePt) - rigAt's P is the frame before t-033's diveTurn turned it
+  // flat and slid it, so between the contact and the landing the flash sat up to ~90 px off his gloves (KS3), and a
+  // fixed contact-frame point drifted off them as the move went on (kleap's landing: 115 px). A boot: as before
+  rigFxPt(p, R, P, at) {
+    const hk = R.keys.find(q => q.hit) || R.keys[0];
+    if (at === 'fist' && hk.fist) { const q = rigGlovePt(p.spr, hk.fist, p.rig.d === 'W'); if (q) return q; }
+    return this.rigPt(P, hk[at] || [64, 60], p.rig.d);
+  },
   rigEvent(p, R, e, P) {
     if (e.shake) this.cameras.main.shake(e.shake[0], e.shake[1]);
     if (!e.fx) return;
@@ -480,7 +509,7 @@ hc2Mix(Match, {
     let x = s.x, y = s.y;
     if (e.at === 'feet') { x = wx(p.x, p.y); y = wy(p.y) - 4; }
     else if (e.at === 'body' && P.oy > 0.8) y -= 64 * s.scaleY;                   // (t-014: a batch 16 frame hangs from his feet: his body is ~64 px up)
-    else if (e.at === 'foot' || e.at === 'fist') { const q = this.rigPt(P, hk[e.at] || [64, 60], p.rig.d); x = q.x; y = q.y; }
+    else if (e.at === 'foot' || e.at === 'fist') { const q = this.rigFxPt(p, R, P, e.at); x = q.x; y = q.y; }
     x += (e.dx || 0) * (W ? -1 : 1);
     for (let i = 0; i < (e.n || 1); i++) this.rigPop(e.fx, x + (e.n > 1 ? rnd(-e.sp, e.sp) : 0), y + (e.n > 1 ? rnd(-e.sp, e.sp) : 0), wy(p.y) + 1, { ...e, flip: W, delay: i * 40 });
   },
@@ -619,7 +648,7 @@ hc2Mix(Match, {
   // plays the outcome. The same for both keepers: nothing here asks whose keeper it is.
   clashStart(gk, lv, P, K, out, tip, r) {
     const b = this.ball, slv = b.special, SN = this.spName && this.spName.p === b.shotBy ? this.spName.name : SP_NAMES[slv - 1];
-    gk.y = clamp(b.y, 30.6, 37.4); gk.vx = gk.vy = 0;                             // (he got there: on its line, as the old save did)
+    gk.y = this.gkMeetY(b.y, b.y, 30.6, 37.4); gk.vx = gk.vy = 0;                             // (he got there: on its line, as the old save did)
     this.gkSpecialHit(gk, true, lv);                                              // his move on its contact frame, the save's effects
     const c = { kind: 'clash', gk, lv, slv, P, K, out, tip, r, SN, SV: SAVE_NAMES[lv - 1], t: 0, dur: paceK().arcade ? CLASH.holdArcade : CLASH.hold, o: [], fxAt: 0,
       bx: b.x, by: b.y, bz: b.z, vx: b.vx, vy: b.vy, vz: b.vz, cs: SP_HOT[slv - 1][0], ck: RIG_COL[lv - 1] };

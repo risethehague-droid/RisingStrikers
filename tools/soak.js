@@ -46,7 +46,9 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     // on any version (the before / after soaks of t-012). cross = an open-play ball from wide (or lofted) aimed into the box
     const W = window.__wing = { z() { Object.assign(W, { cross: 0, crossWhip: 0, crossFloat: 0, crossCut: 0, crossH: 0, crossA: 0, crossL: 0, crossR: 0, crossGoalsL: 0, crossGoalsR: 0, headTry: 0, spCross: 0, aerial: 0, head: 0, volley: 0, bike: 0, dhead: 0, airSp: 0,
       goals: 0, aerialGoals: 0, airSpGoals: 0, headGoals: 0, crossGoals: 0, chips: 0, goalLog: [], lastCross: null, lastAerial: null,
-      lobs: 0, aimLobs: 0, battles: 0, battleAtt: 0, battleDef: 0 }); } }; W.z();   // (t-008: open-play lobs, hold-aimed lobs, aerial battles and who won them)
+      lobs: 0, aimLobs: 0, battles: 0, battleAtt: 0, battleDef: 0,
+      airB: 0, airBox: 0, airOut: 0, airHdr: 0, airVol: 0, airAtt: 0, airDef: 0, airGoals: 0, lastBattle: null,
+      rcDrop: 0, rcFree: 0, rcDuel: 0, hdrAll: 0, airVolAll: 0, traps: 0 }); } }; W.z();   // (lob receives: the lob drops played, free / contested; every header, every volley off a drop, chest / thigh traps - counted the same on any version)   // (t-034: the AERIAL battles apart from arcade-2's ground duels: in their box or not, header / volley, who won, goals off them)   // (t-008: open-play lobs, hold-aimed lobs, aerial battles and who won them)
     const inBox = (t, team) => Math.abs(t.x - team.goalX) < 16.5 && Math.abs(t.y - 34) < 20.2;
     const aer = (kind, p) => { W.aerial++; W[kind]++; W.lastAerial = { kind, team: p.team, t: m.time.now }; };
     const rk = m.releaseKick; m.releaseKick = function (k, ...rest) { const b = this.ball, had = b.owner === k.p, fx = b.x, fy = b.y, r = rk.call(this, k, ...rest);
@@ -76,16 +78,28 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
       if (o && !o.keeper && Math.abs(o.y - 34) > 11 && Math.abs(o.team.goalX - o.x) < 30 && o.speed < 1) { W.wideT += dt; if (W.wideT >= 4 && W.wideT - dt < 4) W.wideHold++; } else W.wideT = 0;
       return r; };
     if (m.aerialStart) { const as = m.aerialStart, ae = m.aerialEnd;              // t-008 AERIAL BATTLES (only on a version that has them)
-      m.aerialStart = function (...a) { W.battles++; return as.apply(this, a); };
-      m.aerialEnd = function (...a) { const A = this.aerial, r = ae.apply(this, a); if (A && A.res) W[A.res === 'att' ? 'battleAtt' : 'battleDef']++; return r; }; }
+      m.aerialStart = function (...a) { W.battles++; const r = as.apply(this, a), A = this.aerial;
+        if (A && A.kind !== 'ground') { W.airB++; const d = A.def.p.team, D = A.D, box = Math.abs(D.x - d.ownGoalX) < 16.5 && Math.abs(D.y - 34) < 20.16; W[box ? 'airBox' : 'airOut']++; W[A.move === 'volley' ? 'airVol' : 'airHdr']++; }
+        return r; };
+      m.aerialEnd = function (...a) { const A = this.aerial, r = ae.apply(this, a); if (A && A.res) W[A.res === 'att' ? 'battleAtt' : 'battleDef']++;
+        if (A && A.res && A.kind !== 'ground') { W[A.res === 'att' ? 'airAtt' : 'airDef']++; if (A.res === 'att') W.lastBattle = { team: A.att.p.team, t: m.time.now }; } return r; }; }
     // (every wrapper passes ALL arguments on: t-008 gave header a 3rd one, dir, and a (p, kind) wrapper dropped it - soak runs then
     // played aerial-battle headers differently from the real game. Counting must never change play.)
-    const hd = m.header; m.header = function (p, kind, ...rest) { if (kind === 'goal') aer('head', p); return hd.call(this, p, kind, ...rest); };
+    const hd = m.header; m.header = function (p, kind, ...rest) { W.hdrAll++; if (kind === 'goal') aer('head', p); return hd.call(this, p, kind, ...rest); };
+    // LOB RECEIVES (co-designer 28 Oct): any version - a lob's drop played (lobDuel took it), with one of theirs within its reach (1.35 m) or
+    // not; every volley off a dropping ball (airVolley); every chest / thigh trap. The new version's own verdicts come from m.recvN.
+    if (m.lobDuel) { const ld = m.lobDuel; m.lobDuel = function (...a) { const b = this.ball, q = b.target;
+      const them = q && q.team && q.team.opp.players.some(o => !o.sentOff && !o.keeper && len(o.x - b.x, o.y - b.y) < 1.35);
+      const r = ld.apply(this, a); if (r) { W.rcDrop++; W[them && !(b.recv && b.recv.kind === 'clean') ? 'rcDuel' : 'rcFree']++; } return r; }; }
+    if (m.airVolley) { const av = m.airVolley; m.airVolley = function (...a) { W.airVolAll++; return av.apply(this, a); }; }
+    { const ss = Player.prototype.setState; Player.prototype.setState = function (st, ...a) { if (st === 'trap') W.traps++; return ss.call(this, st, ...a); }; }
+    if (m.chestTrap) { const ct = m.chestTrap; m.chestTrap = function (p, ...a) { const b = this.ball; if (b.z < RECV.chestZ) W.traps++; return ct.call(this, p, ...a); }; }   // (the thigh trap has no 'trap' frames)
     const dt0 = m.diveTick; m.diveTick = function (dt, ...rest) { const b = this.ball, h0 = b.how, p = this.diving && this.diving.p, r = dt0.call(this, dt, ...rest);
       if (p && b.how !== h0 && b.how && b.how.kind === 'dheader' && len(p.team.goalX - p.x, 34 - p.y) < 25) aer('dhead', p); return r; };
     const as = m.airSpecial; m.airSpecial = function (p, ...a) { const lv = this.meterOf(p.team).level(); if (lv) aer('airSp', p); return as.call(this, p, ...a); };
     { let ls = m.lastScorer; Object.defineProperty(m, 'lastScorer', { configurable: true, get() { return ls; }, set(v) { ls = v; if (!v || v.own) return; const now = m.time.now; W.goals++;
       const A = W.lastAerial && W.lastAerial.team === v.team && now - W.lastAerial.t < 3500, C = W.lastCross && W.lastCross.team === v.team && now - W.lastCross.t < 6000;
+      if (W.lastBattle && W.lastBattle.team === v.team && now - W.lastBattle.t < 3500) W.airGoals++;   // (t-034: a goal straight off an aerial battle won)
       if (A) { W.aerialGoals++; if (W.lastAerial.kind === 'airSp') W.airSpGoals++; if (W.lastAerial.kind === 'head') W.headGoals++; } if (C) { W.crossGoals++; W['crossGoals' + W.lastCross.y]++; } W.goalLog.push(`${v.team.name} ${v.min}' ${v.how || '?'}${A ? ' AERIAL:' + W.lastAerial.kind : ''}${C ? ' from a cross ' + W.lastCross.y : ''} far ${Math.round(v.far || 0)}`); } }); }
     return GAME_VER; }, !!process.env.TAP);
   if (process.env.GOAL_PHYS) await page.evaluate(() => { GOAL_PHYS = true; });   // t-013
@@ -111,6 +125,7 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     await page.evaluate(c => { const m = window.__hc2; window.__soakInc = []; window.__wing.z(); Math.random = window.__rngOf(c.seed); m.gpStats = { wood: 0, back: 0, pops: 0, net: 0 };   // (t-013's goal-physics counts)
       m.arcN = { reb: 0, air: 0, rebShots: 0, sp: 0 }; window.__wing.spShot = 0; window.__wing.spSave = 0;   // (t-020's ARCADE counts)
       window.__clashN = {}; m.clashN = {};                                        // (t-028's special-save outcomes)
+      m.recvN = null;                                                             // (lob receives: the race's verdicts)
       setAiMode(c.ai); setDiff(c.lvl === 'base' ? 'normal' : c.lvl);
       window.__diffTeams = { home: Object.assign({}, DIFF_TRAITS.base, { lvl: 'base' }), away: Object.assign({}, DIFF_TRAITS[c.lvl] || DIFF_TRAITS.normal, { lvl: c.lvl }) };
       m.mset = { arena: 'loo', tod: c.tod, weather: c.weather, ending: 'none' }; m.applyRules();
@@ -137,11 +152,14 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
         corners: sum('corners'), onT: sum('onT'), held: sum('held'), parried: sum('parried'), kOut: sum('kOut'), kIn: sum('kIn'), fouls: `${H.fouls || 0}-${A.fouls || 0}`, offsides: sum('offsides'),   // (t-024)
         play: (P => ({ inPlay: P.run ? +(100 * P.live / P.run).toFixed(1) : 0, spWait: P.n ? +(P.sp / 60 / P.n).toFixed(2) : 0, setPieces: P.n }))(window.__play),   // (t-029)
         possHome: poss ? Math.round(100 * H.poss / poss) : null, clock: Math.round(m.clock), half: m.half, trips: Object.assign({}, m.bw ? m.bw.stats : {}), arc: Object.assign({}, m.arcN || {}), incidents: window.__soakInc.slice(), gp: GOAL_PHYS ? Object.assign({}, m.gpStats) : null,
-        clash: Object.assign({}, window.__clashN), clashOut: Object.assign({}, m.clashN || {}), wing: Object.fromEntries(Object.entries(window.__wing).filter(([k, v]) => (typeof v === 'number' && k !== 'wideT') || k === 'goalLog')) }; });
+        recv: Object.assign({}, m.recvN || {}), clash: Object.assign({}, window.__clashN), clashOut: Object.assign({}, m.clashN || {}), wing: Object.fromEntries(Object.entries(window.__wing).filter(([k, v]) => (typeof v === 'number' && k !== 'wideT') || k === 'goalLog')) }; });
     out.matches.push(Object.assign({ n: i + 1, setup: c, repro: line(c), finished: !!res, stall, seconds: Math.round((Date.now() - t0) / 1000) }, st));
     const TR = Object.entries(st.trips).sort((a, b) => rank(a[0]) - rank(b[0]) || b[1] - a[1]), lk = TR.filter(([k]) => SEV[k] === 'look');   // (t-021: bugs first, looks last)
     const tr = [TR.filter(([k]) => SEV[k] !== 'look').map(([k, v]) => `${k} ${v}`).join(', '), lk.length ? `looks: ${lk.map(([k, v]) => `${k} ${v}`).join(', ')}` : ''].filter(Boolean).join(' · ');
     { const w = st.wing; console.log(`   wing: crosses ${w.cross} (whipped ${w.crossWhip}, floated ${w.crossFloat}, other ${w.crossCut}, you ${w.crossH} / them ${w.crossA}) + set-piece ${w.spCross} · aerial shots ${w.aerial} (head ${w.head}, volley ${w.volley}, overhead ${w.bike}, diving ${w.dhead}, air SP ${w.airSp}) · goals ${w.goals}: aerial ${w.aerialGoals}, after a cross ${w.crossGoals} · corners ${st.corners} · chips ${w.chips} · runners idle ${w.runIdle.toFixed(1)} s · parked wide ${w.wideHold}${w.goalLog.length ? '\n     ' + w.goalLog.join('\n     ') : ''}`); }
+    { const w = st.wing; console.log(`   aerial battles (t-034): ${w.airB} (in their box ${w.airBox}, outside ${w.airOut} · header ${w.airHdr}, volley ${w.airVol}) · attacker won ${w.airAtt}, defender ${w.airDef} · goals off them ${w.airGoals}`); }
+    { const w = st.wing, R = st.recv, f = Object.entries(R).map(([k, v]) => `${k} ${v}`).join(', ');   // lob receives
+      console.log(`   lob receives: drops played ${w.rcDrop} (free ${w.rcFree}, contested ${w.rcDuel}) · aerial battles ${w.airB} · headers ${w.hdrAll} · volleys off a drop ${w.airVolAll} · chest / thigh traps ${w.traps}${f ? ` · the race: ${f}` : ''}`); }
     { const w = st.wing; console.log(`   tackles (t-018): slides ${w.slides} (won the ball ${w.slideWins}) · challenges ${w.challenges} (won ${w.chWins}) · fouls ${st.fouls} · possession changes ${w.possCh}`); }
     if (process.env.PACE === 'arcade') { const a = st.arc; console.log(`   arcade: board rebounds ${a.reb} (up for a header ${a.air}) · headers / volleys off them ${a.rebShots} · special shots ${st.wing.spShot} · special saves ${st.wing.spSave} · aerial battles ${st.wing.battles} · SP extras ${a.sp} (aerial ${a.aerial || 0}, rebound ${a.rebound || 0}, save ${a.save || 0})`); }
     console.log(`#${i + 1} ${c.home} v ${c.away} · ${c.lvl} · ${c.ai} AI · ${c.weather} / ${c.tod} · ${res ? 'FT' : 'NOT FINISHED'} ${st.score} · shots ${st.shots} · on target ${st.onT} · corners ${st.corners} · saves held ${st.held} / parried ${st.parried} · keeper touches out ${st.kOut} / in play ${st.kIn} · ${process.env.TAP ? `tap kicks ${st.wing.taps} · ` : ''}${tr || 'no trips'}${st.gp ? ` · woodwork ${st.gp.wood} (back in play ${st.gp.back}) · pop-ups ${st.gp.pops} · net hits ${st.gp.net}` : ''}${stall ? ' · STALL: ' + stall : ''} (${out.matches[i].seconds} s)`);
@@ -165,6 +183,10 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
     out.wing = Object.fromEntries(Object.entries(T).map(([k, v]) => [k, +(v / n).toFixed(2)]));
     if (process.env.PACE === 'arcade') { const A = {}; for (const mt of out.matches) for (const [k, v] of Object.entries(mt.arc)) A[k] = (A[k] || 0) + v; out.arc = Object.fromEntries(Object.entries(A).map(([k, v]) => [k, +(v / n).toFixed(2)]));
       console.log('\nARCADE per match (average of ' + n + '): ' + Object.entries(out.arc).map(([k, v]) => `${k} ${v}`).join(' · ')); }
+    { const R = {}; for (const mt of out.matches) for (const [k, v] of Object.entries(mt.recv || {})) R[k] = (R[k] || 0) + v; out.recv = R;   // lob receives: totals
+      const rc = (R.clean || 0) + (R.contest || 0) + (R.lost || 0), pc = k => rc ? Math.round(100 * (R[k] || 0) / rc) + '%' : '-';
+      console.log(`\nLOB RECEIVES (totals of ${n}): goals ${T.score} · drops played ${T.rcDrop || 0} (free ${T.rcFree || 0}, contested ${T.rcDuel || 0}) · aerial battles ${T.airB || 0} · headers ${T.hdrAll || 0} · volleys off a drop ${T.airVolAll || 0} · chest / thigh traps ${T.traps || 0}` +
+        (rc ? `\n  the race (${rc} receives): clean ${R.clean || 0} (${pc('clean')}) · contested ${R.contest || 0} (${pc('contest')}: duel ${R.duel || 0}, battle ${R.battle || 0}) · lost ${R.lost || 0} (${pc('lost')}) · chest ${R.chest || 0} · thigh ${R.thigh || 0}` : '')); }
     console.log('\nWING per match (average of ' + n + '): ' + Object.entries(out.wing).map(([k, v]) => `${k} ${v}`).join(' · '));
     const nw = out.matches.filter(mt => mt.setup.ai === 'new'), N = {};                // (the CLASSIC AI, v0.7.6, is kept as it was: no wing play)
     for (const mt of nw) { for (const k of ['cross', 'aerial', 'airSp', 'airSpGoals', 'aerialGoals', 'goals']) N[k] = (N[k] || 0) + mt.wing[k]; const [a, b] = mt.shots.split('-').map(Number); N.shots = (N.shots || 0) + a + b; N.corners = (N.corners || 0) + mt.corners; }
