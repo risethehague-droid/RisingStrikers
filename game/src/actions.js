@@ -54,6 +54,7 @@ hc2Mix(Match, {
     this.airChargeTick(p, dt);                                                   // t-022: SHOOT held for a header / volley
     if (p.state === 'kick' || p.state === 'slide' || p.state === 'getup' || p.state === 'dheader' || p.stun > 0) return;
     const ax = Input.axis, moving = len(ax.x, ax.y) > 0.1, owns = b.owner === p;
+    if (owns && this.trapRunStep(p, dt)) return;                                 // lob receives: the chest / thigh trap carries him on into the run
     const sprint = Input.held('sprint') && moving;
     if (sprint && !p.sprinting && p.stamina > 0.3 && (p.burstCd || 0) <= this.time.now) { p.burst = paceK().burstT; p.burstCd = this.time.now + 1500; }   // v0.8 burst (not spammable; arcade-2: ARCADE a longer dash, 0.8 s)
     p.sprinting = sprint;
@@ -164,7 +165,7 @@ hc2Mix(Match, {
     }
     if (!b.owner && !b.inNet && b.z < 1.0 && bsp > 8 && !this.diving) {
       for (const p of this.all) {
-        if (p === this.human || p.keeper || p.busy() || p.stun > 0 || p.cool > 0 || (b.tried && b.tried.has('v' + p.team.name + p.i))) continue;
+        if (p === this.human || p.keeper || p.busy() || p.stun > 0 || p.cool > 0 || this.recvShield(p) || (b.tried && b.tried.has('v' + p.team.name + p.i))) continue;
         const d = len(p.x - b.x, p.y - b.y), toGoal = len(p.team.goalX - p.x, 34 - p.y);
         if (d < 1.0 && toGoal < 20 && (p.team.goalX - p.x) * p.team.side > 2) {
           (b.tried = b.tried || new Set()).add('v' + p.team.name + p.i);
@@ -174,14 +175,14 @@ hc2Mix(Match, {
     }
     if (!b.owner && !b.inNet && b.z > 0.5 && b.z < 1.3 && !this.diving && b.vz < 0) {           // AI: dive at a low cross near goal
       for (const p of this.all) {
-        if (p === this.human || p.keeper || p.busy() || p.stun > 0 || p.cool > 0 || (b.tried && b.tried.has('d' + p.team.name + p.i))) continue;
+        if (p === this.human || p.keeper || p.busy() || p.stun > 0 || p.cool > 0 || this.recvShield(p) || (b.tried && b.tried.has('d' + p.team.name + p.i))) continue;
         const d = len(p.x - b.x, p.y - b.y), toGoal = len(p.team.goalX - p.x, 34 - p.y);
         if (d > 1.3 && d < 3.0 && toGoal < 16) { (b.tried = b.tried || new Set()).add('d' + p.team.name + p.i); if (Math.random() < 0.45) { this.divingHeader(p); break; } }
       }
     }
     if (b.owner || b.inNet || b.z < 1.1 || b.z > paceK().headZ) return;         // (arcade-2: ARCADE they leap higher: 3.1 m)
     for (const p of [...this.all].sort((u, v) => len(u.x - b.x, u.y - b.y) - len(v.x - b.x, v.y - b.y))) {   // lob-mechanics: nearest first (was: home side always first)
-      if (p.busy() || p.stun > 0 || p.cool > 0) continue;
+      if (p.busy() || p.stun > 0 || p.cool > 0 || this.recvShield(p)) continue;   // (lob receives: clearly his - their men stay out of it)
       if (p.keeper && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2) continue;   // keepers catch it
       if (len(p.x - b.x, p.y - b.y) > 1.2) continue;
       let kind;
@@ -207,10 +208,12 @@ hc2Mix(Match, {
   lobDuel() {
     const b = this.ball, q = b.target;
     if (!b.lob || b.owner || b.inNet || this.diving || b.vz >= 0 || b.z < 0.6 || b.z > 2.6 || !q || q.sentOff || b.last !== q.team) return false;
+    const V = this.recvVerdict(); if (V && V.kind === 'lost') return false;      // lob receives: clearly theirs - their man wins it as before (headers)
     const R = 1.35, inBox = p => p.keeper && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
     const ok = p => !p.sentOff && !p.busy() && p.stun <= 0 && p.cool <= 0 && !inBox(p) && len(p.x - b.x, p.y - b.y) < R;
     const us = q.team.players.filter(ok); if (!us.length) return false;          // our man isn't there yet: no duel (a defender alone heads it as before)
-    const them = q.team.opp.players.filter(ok);
+    const them = V && V.kind === 'clean' ? [] : q.team.opp.players.filter(ok);   // lob receives: clearly his - nobody contests it
+    if (them.length) this.recvCount('duel');
     const sc = p => (R - len(p.x - b.x, p.y - b.y)) + (p === q ? 0.35 : 0) - ((p.speed || 0) > 5.5 ? 0.15 : 0) + Math.random() * 0.5;
     let win = null, ws = -1e9; for (const p of [...us, ...them]) { const s = sc(p); if (s > ws) { ws = s; win = p; } }
     b.lob = false; b.tried = null;
@@ -220,16 +223,88 @@ hc2Mix(Match, {
     if (win === this.human && this.headBuf > 0 && this.headKind === 'shoot' && b.z < 1.1) { b.owner = win; this.airVolley(win, 0.6, Input.axis.y); this.headBuf = 0; return true; }   // (t-008: too low to head: volleyed at goal)
     if (win === this.human && this.headBuf > 0) { this.header(win, this.headKind === 'shoot' ? 'goal' : 'pass'); return true; }
     if (win !== this.human && toGoal < (b.aimLob ? 22 : 18) && b.z > 1.1) { if (!this.aiAirSpecial(win)) this.header(win, 'goal'); return true; }   // (t-012: or the aerial special; t-008: your aimed lob - he goes for goal from a little further)
-    if (b.z < 1.75) {                                                             // chest / thigh it down: his ball
-      const ivx = b.vx, ivy = b.vy, sp = len(b.vx, b.vy); this.gain(win, sp);
-      if (!win.hands) { win.setState('trap', 0.32); win.face = dirIndex(-ivx || win.team.side, -ivy); }
-      return true;
-    }
+    if (b.z < 1.75) { this.chestTrap(win, len(b.vx, b.vy)); return true; }    // chest / thigh it down into his stride: his ball
     for (const o of them) o.cool = Math.max(o.cool, 0.45);                       // too high to chest: beaten men are out of it for a moment, and he
     const free = !win.team.opp.players.some(o => !o.sentOff && len(o.x - win.x, o.y - win.y) < 2.0);   // with room: he lets it drop onto his chest (you:
-    if (free && len(b.vx, b.vy) < 9 && (win === this.human || Math.random() < 0.6)) {   // (t-008: only a ball dropping steeply - a flatter one came on at his head and bounced off him)
+    if ((free || !them.length) && len(b.vx, b.vy) < (them.length ? 9 : 14) && (win === this.human || !them.length || Math.random() < 0.6)) {   // (lob receives: uncontested - he chests it)   // (t-008: only a ball dropping steeply - a flatter one came on at his head and bounced off him)
       b.target = win; (b.tried = new Set()).add('h' + win.team.name + win.i); return true; }   // or volley it)
     this.header(win, free ? 'down' : 'pass'); return true;                       // or cushions it to his feet; marked tight: nods it on first time
+  },
+  // ======================================================================= LOB RECEIVES (co-designer 28 Oct: "In lob receives it's not a
+  // button mash every time. Only in very contested receives should there be a button mash. When it is clearly going to a
+  // certain receiver, it should be uncontested." + "chest traps / lob receives are now too clunky and slow. It should be
+  // so you can chest trap and animate into running"). Real football: a good lob to a free man is simply received, his
+  // first touch takes him into space; a real aerial contest is two men arriving together. PES: the contested header only
+  // with a defender goal-side and close. So as a high ball (a lob, a cross) comes down to the man it's meant for, ONE race
+  // decides it, once per ball: when can he play it (the first point of its drop in the head-to-thigh band he gets to in
+  // time) v when can their quickest man (keepers keep their own claim). First by RECV.margin s or more - or none of
+  // theirs can get within RECV.room m of it by then - CLEAN: no battle, no duel, their men stay out of it (recvShield)
+  // while he's on it. Their man first by the margin - LOST: theirs, as before. Only a near tie is CONTEST: lobDuel, or in
+  // their box t-034's battle with the mash. The same for the computer's balls and yours.
+  recvVerdict() {
+    const b = this.ball, q = b.target, P = this.path, C = RECV;
+    if (!C.on || b.owner || b.inNet || !q || q.sentOff || q.keeper || b.last !== q.team || !P || this.setPiece || this.dead || !(b.lob || b.crossBy)) return null;
+    const R = b.recv; if (R && R.k === b.spT && R.q === q) return R;
+    const band = []; let pz = b.z;                                               // the points it can be played at (a lob: on its way down)
+    for (const pt of P) { const down = pt.z <= pz; pz = pt.z; if (pt.z <= C.zHi && pt.z >= C.zLo && (down || !b.lob)) band.push(pt); }
+    if (!band.length) return null;
+    // where he meets it: the first point he gets to in time (else the one he gets to soonest, late)
+    const arr = (p, pt) => C.react + Math.max(0, len(pt.x - p.x, pt.y - p.y) - C.reachR) / p.top(p.stamina > 0.2, false);
+    let M = null, late = null; for (const pt of band) { const t = arr(q, pt); if (t <= pt.t) { M = pt; break; } if (!late || t - pt.t < late.t - late.pt.t) late = { t, pt }; }
+    const Mt = M ? M.t : late.t, aq = M ? arr(q, M) : late.t, Mp = M || late.pt;
+    if (Math.min(Mt, band[0].t) > C.look) return null;                           // (not yet: the runs aren't made)
+    // their man: plays it first if he can meet it in time at an earlier point of the drop; else whoever is on the spot
+    // first (two men both waiting under it: the one settled there first has it - a real contest is arriving together)
+    let gap = Infinity, room = true;
+    for (const o of q.team.opp.players) { if (o.sentOff || o.keeper || o.stun > 0) continue;
+      let g = arr(o, Mp) - aq;
+      const ox = Mp.x - o.x, oy = Mp.y - o.y, ol = len(ox, oy) || 1, qa = ((q.x - o.x) * ox + (q.y - o.y) * oy) / ol;   // boxed out: the receiver stands in his
+      if (qa > 0.3 && qa < ol + 1.2 && Math.abs(((q.x - o.x) * oy - (q.y - o.y) * ox) / ol) < C.boxOut) g += C.boxT;   // way to it (PES: only a man goal-side and close contests it) for (const pt of band) { if (pt.t >= Mt - 0.05) break; if (arr(o, pt) <= pt.t) { g = Math.min(g, pt.t - Mt); break; } }
+      if (g < gap) gap = g;
+      if (len(o.x - Mp.x, o.y - Mp.y) - o.top(true, false) * Math.max(0, Mt - C.react) < C.room) room = false; }
+    const kind = room || gap >= C.margin ? 'clean' : gap <= -C.margin ? 'lost' : 'contest';
+    this.recvCount(kind);
+    return (b.recv = { k: b.spT, q, kind, gap, at: { x: Mp.x, y: Mp.y, z: Mp.z }, t: Mt });
+  },
+  recvCount(k) { const N = this.recvN = this.recvN || { clean: 0, contest: 0, lost: 0, duel: 0, battle: 0, chest: 0, thigh: 0 }; N[k]++; },
+  // clearly his: their men leave it to him (no header, volley, block or pickup) while he's right there for it
+  recvShield(p) {
+    const b = this.ball, R = b.recv;
+    if (!R || R.kind !== 'clean' || b.owner || R.k !== b.spT || b.target !== R.q || p.team === R.q.team) return false;
+    return R.q.stun <= 0 && !R.q.sentOff && len(R.q.x - b.x, R.q.y - b.y) < RECV.shieldR;
+  },
+  // which way the first touch takes him: the arrow you hold; else the way he was already going; else away from the
+  // nearest of theirs (a little towards their goal); nobody near: towards their goal
+  recvDir(p) {
+    const ax = Input.axis, al = len(ax.x, ax.y);
+    if (p === this.human && !this.demo && al > 0.2) return { x: ax.x / al, y: ax.y / al };
+    if (p.speed > 1.5) return { x: p.vx / p.speed, y: p.vy / p.speed };
+    const gx = p.team.goalX - p.x, gy = 34 - p.y, gl = len(gx, gy) || 1;
+    const o = p.team.opp.players.filter(e => !e.sentOff && !e.keeper && len(e.x - p.x, e.y - p.y) < 8).sort((u, v) => len(u.x - p.x, u.y - p.y) - len(v.x - p.x, v.y - p.y))[0];
+    let ux = gx / gl, uy = gy / gl;
+    if (o) { const ol = len(p.x - o.x, p.y - o.y) || 1; ux = (p.x - o.x) / ol + ux * 0.35; uy = (p.y - o.y) / ol + uy * 0.35; }
+    const l = len(ux, uy) || 1; return { x: ux / l, y: uy / l };
+  },
+  // THE CHEST / THIGH TRAP INTO THE RUN (FIFA / EA FC's directional first touch; real football's "chest it into his
+  // stride"). It used to stop him: the ball dead at his feet, him stood facing where it came from (0.32 s of 'trap', then
+  // a standing start). Now he takes it on the move, turned the way he'll go: on the chest (RECV.chestZ and up: the trap
+  // move's frames, RECV.trapT) it's cushioned down in front of him; on the thigh (lower) it pops up a touch and drops.
+  // He keeps running the whole time (trapRunStep) and it lands in his stride: running with it ~RECV.runT s after the
+  // contact. Until then the touch can't be played on (no pass or shot off a ball still dropping).
+  chestTrap(p, sp) {
+    const b = this.ball, C = RECV, z = b.z, thigh = z < C.chestZ, u = this.recvDir(p);
+    this.gain(p, sp); if (p.hands) return;                                       // (a keeper in his box: his hands, as before)
+    const v = Math.min(Math.max(p.speed, RUN * 0.75), p.top(true, true));
+    p.trapRun = { u, v, t: C.runT, kind: thigh ? 'thigh' : 'chest' }; p.face = dirIndex(u.x, u.y);
+    Object.assign(b, { x: p.x + u.x * 0.3, y: p.y + u.y * 0.25, z: Math.max(0.3, z - 0.1), vx: u.x * v, vy: u.y * v, vz: thigh ? C.thighVz : C.dropVz });
+    p.touchT = C.runT; b.trapDrop = true;                                        // (his next stride's touch once it's down; ball.js dribble settles it there)
+    if (thigh) p.touchAnimT = 0.28; else p.setState('trap', C.trapT);
+    this.recvCount(thigh ? 'thigh' : 'chest');
+  },
+  trapRunStep(p, dt) {                                                           // (the trap's run: your arrow can still bend it)
+    const T = p.trapRun; if (!T) return false;
+    if (p === this.human && !this.demo) { const ax = Input.axis, al = len(ax.x, ax.y); if (al > 0.2) { T.u = { x: ax.x / al, y: ax.y / al }; if (Input.held('sprint')) T.v = Math.max(T.v, p.top(true, true)); } }
+    p.wantDir = T.u; p.steer(T.u.x * T.v, T.u.y * T.v, dt, ACC * 1.2); return true;
   },
   header(p, kind, dir, chIn) {                                                   // (t-008: dir - the AERIAL BATTLE's clearance; t-022: chIn - its charge)
     const b = this.ball, s = p.team.side; let tx, ty, spd, vz, best = null, ch = null;
@@ -470,6 +545,7 @@ hc2Mix(Match, {
     const cross = !b.lob && !!b.crossBy && !!q && b.crossBy.team === q.team;   // (t-034: the computer's whipped cross, or anyone's cross marked at the kick)
     if (!C.on || !((b.lob && b.ring) || cross) || b.owner || b.inNet || this.diving || this.pending || (b.lob && b.vz >= 0) || b.z < C.lowZ || b.z > 4 || !q || q.sentOff || b.last !== q.team || this.setPiece || this.dead) return false;
     if (this.aerialKick === b.spT) return false;                                 // (decided once per ball: b.spT is its kick)
+    const V = this.recvVerdict(); if (V && V.kind !== 'contest') return false;   // lob receives: a battle only when it's a near tie (clearly his: no mash)
     const P = this.path; if (!P) return false;
     const dg = q.team.opp, inBox = pt => Math.abs(pt.x - dg.ownGoalX) < C.boxX && Math.abs(pt.y - 34) < C.boxY;
     const ok = p => !p.sentOff && !p.keeper && !p.busy() && p.stun <= 0 && p.cool <= 0;
@@ -503,7 +579,7 @@ hc2Mix(Match, {
     const A = this.aerial = { t: 0, phase: 'intro', kind: o.kind || 'air', D, b0: { x: b.x, y: b.y, z: b.z }, att: side(att, def, 1), def: side(def, att, -1), sp: false, res: null, cam: { x: wx(D.x, D.y), y: wy(D.y) - 110 } };
     if (A.kind === 'ground') { b.owner = null; b.target = null; this.duelN = (this.duelN || 0) + 1; }   // (the ball is nobody's while they fight for it)
     else {
-      this.aerialN = (this.aerialN || 0) + 1;
+      this.aerialN = (this.aerialN || 0) + 1; this.recvCount('battle');
       // t-034 THE BAR, honest: it starts where the head start puts it (whole steps), then every press is one step - yours
       // towards their end, the computer's back towards yours - and where it stands at the end is the result
       Object.assign(A, { move: o.move || 'header', R: C.barR, owed: 0, T: paceK().arcade ? C.mashTArc : C.mashT, n: { x: n0.x / nl, y: n0.y / nl } });

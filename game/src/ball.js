@@ -859,6 +859,7 @@ hc2Mix(Match, {
     // ones at a sprint (that's when it can be nicked). The ball eases after him, it never snaps; he turns in arcs.
     const rx = b.x - p.x, ry = b.y - p.y, dist = len(rx, ry);
     if (dist > 2.6 * BALL_MAG) { b.owner = null; b.target = null; return; }     // too heavy a touch: it's a loose ball now (BALL_MAG: the Lab's magnetism knob, 1 in the game)
+    if (b.trapDrop && b.z <= 0.05) { b.z = 0; b.vz = 0; b.trapDrop = false; }    // (lob receives: a chest / thigh trap's drop lands in his stride - no bouncing at his feet)
     if (p.state === 'kick') return;                                              // let it roll into the swing
     const sp = p.speed, want = p.wantDir;
     const dir = sp > 0.6 ? { x: p.vx / sp, y: p.vy / sp } : (want || dirVec(p.face));
@@ -899,7 +900,7 @@ hc2Mix(Match, {
     }
     let best = null, bd = 1e9, hit = null, viaChest = false;
     for (const p of this.all) {
-      if (p.sentOff) continue;
+      if (p.sentOff || (!p.keeper && this.recvShield(p))) continue;         // (lob receives: clearly his - their men leave it to him)
       const d = len(p.x - b.x, p.y - b.y);
       if (b.special && !p.keeper && b.spTeam && p.team !== b.spTeam && d < 0.9 && b.z < 1.9 && p.pierced !== b.spT && p.state !== 'slide') {   // v0.8.6 a special meets a defender (even one stood watching it)
         const sv = len(b.vx, b.vy) || 1, lat = Math.abs(((p.x - b.x) * b.vy - (p.y - b.y) * b.vx) / sv);   // how far off the ball's line he stands
@@ -968,15 +969,17 @@ hc2Mix(Match, {
       }
       const smax = box ? 40 : (b.target === p ? 26 : 17);                       // the intended receiver can take a firm ball
       // chest / thigh control of a dropping ball (headers come with the v0.2 animations)
-      const chest = !box && b.z >= zmax && b.z < 1.7 && d < 0.8 && (b.target === p ? sp < 16 : sp < 9);
+      const mine = b.target === p && b.recv && b.recv.k === b.spT, clean = mine && b.recv.kind === 'clean';   // (lob receives: the man it's meant for thighs it
+      const chest = !box && b.z >= (mine ? RECV.zLo : zmax) && b.z < (clean ? 1.95 : 1.7) && d < 0.8 && (b.target === p ? sp < 16 : sp < 9);   // from 0.5 m; uncontested he takes a flatter one on the chest at up to 1.95 m)
       if (chest && d < bd) { bd = d; best = p; viaChest = true; continue; }
-      if (d < reach && b.z < zmax) { if (sp < smax) { if (d < bd) { bd = d; best = p; } } else if (d < 0.55 && !hit) hit = p; }
-      else if (d < 0.5 && b.z < 1.9 && !hit) hit = p;                            // the ball hits his body / head
+      if (d < reach && b.z < zmax && !(mine && b.z >= RECV.zLo)) {   // (lob receives: waist-high to him - the thigh trap takes it, not a reach with the boot)
+        if (sp < smax) { if (d < bd) { bd = d; best = p; } } else if (d < 0.55 && !hit) hit = p; }
+      else if (d < 0.5 && b.z < 1.9 && !hit && !clean) hit = p;                            // the ball hits his body / head
     }
-    if (best && viaChest && b.z > 0.9 && best.team.opp.players.some(o => !o.keeper && o.stun <= 0 && len(o.x - best.x, o.y - best.y) < 1.0) && Math.random() < 0.5) {
+    if (best && viaChest && b.z > 0.9 && !(b.recv && b.recv.k === b.spT && b.recv.kind === 'clean' && b.recv.q === best) && best.team.opp.players.some(o => !o.keeper && o.stun <= 0 && len(o.x - best.x, o.y - best.y) < 1.0) && Math.random() < 0.5) {
       hit = best; best = null; hit.stun = 0.25;                                  // challenged in the air: it runs loose
     }
-    if (best) { const ivx = b.vx, ivy = b.vy; this.gain(best, sp); if (viaChest && !best.hands) { best.setState('trap', 0.32); best.face = dirIndex(-ivx || best.team.side, -ivy); } }
+    if (best) { if (viaChest) this.chestTrap(best, sp); else this.gain(best, sp); }   // (lob receives: the chest / thigh trap carries him into the run - actions.js chestTrap)
     else if (hit) {                                                              // deflection: no more balls passing through people
       const d = len(b.x - hit.x, b.y - hit.y) || 0.01, nx = (b.x - hit.x) / d, ny = (b.y - hit.y) / d, vn = b.vx * nx + b.vy * ny;
       if (vn < 0) { b.vx -= 1.4 * vn * nx; b.vy -= 1.4 * vn * ny; }
@@ -1051,7 +1054,7 @@ hc2Mix(Match, {
     if (b.shotBy && b.shotBy.team !== p.team && p.keeper) this.missedChance(b.shotBy.team, 'held'); else b.shotBy = null;
     const back = p.keeper && b.last === p.team && b.lastP && b.lastP !== p && b.how && b.how.kind === 'pass';   // v0.9.1 (IFAB Law 12): a team-mate's pass / throw-in back to him - feet only
     const box = p.keeper && !back && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
-    b.owner = p; b.last = p.team; b.target = null; b.save = null; b.lob = false; b.ring = null; b.camUp = false; b.duelTry = false;   // (arcade-2: a new loose ball can be a duel again)   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
+    b.owner = p; b.last = p.team; b.target = null; b.trapDrop = false; b.save = null; b.lob = false; b.ring = null; b.camUp = false; b.duelTry = false;   // (arcade-2: a new loose ball can be a duel again)   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
     if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }          // (t-002 prototype; t-011 the curving pass)
     if (prev) { prev.cool = 0.4; }
     if (box) {
