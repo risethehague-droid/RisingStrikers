@@ -62,20 +62,50 @@ button.k:focus-visible{outline:2px solid var(--yellow);outline-offset:3px}
 #flash{position:fixed;left:calc((100vw - var(--panel)) / 2);top:42%;transform:translate(-50%,-50%);font:20px var(--f-label);color:var(--ink);background:var(--yellow);padding:12px 16px;border:3px solid var(--ink);z-index:9;opacity:0;pointer-events:none}
 #flash.go{animation:fl .7s ease-out}
 @keyframes fl{0%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%)}}
-#menu{position:fixed;inset:0;z-index:8;background:rgba(12,10,14,.7);display:flex;align-items:center;justify-content:center;padding:16px}
-#menu .card{position:static;padding:16px 18px;width:min(560px,100%)}
-#menu h2{font:12px/1.4 var(--f-label);color:var(--yellow);margin:0 0 10px}
-#menu-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
-#menu-list button{width:100%;display:flex;gap:10px;align-items:baseline;background:none;border:2px solid transparent;color:var(--paper);font:400 22px var(--f-read);padding:4px 6px;cursor:pointer;text-align:left}
-#menu-list button b{font:11px var(--f-label);color:var(--ink);background:var(--paper);padding:3px 5px}
-#menu-list button span{margin-left:auto;color:var(--dim);font-size:18px}
-#menu-list li.cur button,#menu-list button:hover{border-color:var(--yellow)}
-#menu p{font:400 18px var(--f-read);color:var(--dim);margin:10px 0 0}
+/* t-038 the navigation bar: always on top of the panel (it scrolls under it), big enough to click */
+#nav{position:sticky;top:-12px;z-index:3;padding:8px 10px;display:grid;gap:6px;margin-top:-2px}
+.nav-b{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+#nav button{font:9px/1.3 var(--f-label);letter-spacing:.03em;color:var(--paper);background:#1d1a22;border:2px solid #3a3542;padding:7px 6px;cursor:pointer;text-align:center}
+#nav button:hover{border-color:var(--paper)} #nav button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+#nav #nav-fp{background:var(--good);color:var(--ink);border-color:var(--ink)} body.free #nav #nav-fp{background:var(--yellow)}
+#nav #nav-all{background:var(--cyan);color:var(--ink);border-color:var(--ink)}
+.nav-w{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#nav-where{font:400 18px/1.05 var(--f-read);color:var(--yellow);min-width:0}
+#nav #nav-resume{font:400 17px/1 var(--f-read);letter-spacing:0;background:var(--pink);color:#fff;border-color:var(--ink);padding:4px 7px;text-align:left}
+/* ALL TESTS: fits any screen - the card is as tall as the window at most, the list scrolls inside it */
+#menu{position:fixed;inset:0;z-index:8;background:rgba(12,10,14,.75);display:flex;align-items:center;justify-content:center;padding:16px}
+#menu .card{position:static;padding:14px 16px;width:min(680px,100%);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);box-sizing:border-box;display:flex;flex-direction:column;gap:8px}
+.mh{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#menu h2{font:12px/1.4 var(--f-label);color:var(--yellow);margin:0}
+#menu-x{font:9px var(--f-label);background:var(--paper);color:var(--ink);border:2px solid var(--ink);padding:6px 8px;cursor:pointer}
+#menu-q{font:400 22px var(--f-read);background:#1d1a22;color:var(--paper);border:2px solid #3a3542;padding:4px 8px;width:100%;box-sizing:border-box}
+#menu-q:focus{outline:2px solid var(--yellow)}
+#menu-body{overflow-y:auto;overscroll-behavior:contain;min-height:0;flex:1 1 auto;scrollbar-width:thin;padding-right:4px}
+#menu-body h3{font:8px/1.4 var(--f-label);color:var(--dim);letter-spacing:.08em;margin:10px 0 4px;padding-top:6px;border-top:2px solid #26222d}
+#menu-body h3:first-child{margin-top:0;border-top:0;padding-top:0}
+.mg-r{display:flex;gap:4px;align-items:stretch}
+.mg-r button{background:none;border:2px solid transparent;color:var(--paper);cursor:pointer;text-align:left}
+.mg-x{font:400 22px/1 var(--f-read);width:30px;flex:none;color:var(--yellow)!important}
+.mg-open{flex:1;min-width:0;display:flex;gap:10px;align-items:baseline;font:400 22px/1.1 var(--f-read);padding:3px 6px}
+.mg-open b{font:11px var(--f-label);color:var(--ink);background:var(--paper);padding:3px 5px;flex:none}
+.mg-open em{font-style:normal;flex:1;min-width:0}
+.mg-open span{margin-left:auto;color:var(--dim);font-size:17px;white-space:nowrap}
+.mg.cur > .mg-r .mg-open{border-color:var(--yellow)}
+.mg-r button:hover,.mg-r button:focus-visible{border-color:var(--paper);outline:0}
+.mg-t{list-style:none;margin:2px 0 6px 34px;padding:0;display:grid;gap:1px}
+.mg-t button{width:100%;display:flex;gap:8px;align-items:baseline;background:none;border:2px solid transparent;color:var(--paper);font:400 19px/1.1 var(--f-read);padding:2px 6px;cursor:pointer;text-align:left}
+.mg-t button code{font:8px var(--f-label);color:var(--cyan);flex:none;min-width:4.5em}
+.mg-t button.cur{border-color:var(--yellow)} .mg-t button:hover,.mg-t button:focus-visible{border-color:var(--paper);outline:0}
+.mg-t button i{font-style:normal;margin-left:auto;width:9px;height:9px;flex:none;align-self:center;background:#3a3542}
+.mg-t button i.good{background:var(--good)} .mg-t button i.bad{background:var(--pink)}
+#menu-none{font:400 20px var(--f-read);color:var(--dim)}
+#menu p{font:400 17px/1.15 var(--f-read);color:var(--dim);margin:0}
 #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:12px var(--f-label);color:var(--yellow);z-index:7;background:var(--bg)}
 /* v0.8 FREE PLAY panel: under the test card on the left */
 #fp{padding:10px 12px;display:grid;gap:8px}
-#fp.mini{} #fp.mini > :not(.fp-h){display:none} #fp.mini .fp-h b{display:none}
+#fp.mini{} #fp.mini > :not(.fp-h):not(.fp-last){display:none} #fp.mini .fp-h b{display:none}
 body.free #blurb,body.free #count,body.free #test .row:last-child{display:none}
+body.free #test{display:none}   /* t-038: in FREE PLAY the nav bar says where you are and the FREE PLAY card has the keys: the moves come up the panel */
 body.free #test{gap:5px;padding:10px 12px}
 body.free #name{font-size:22px}
 body.free #side{gap:6px;padding:10px 12px}
@@ -83,6 +113,17 @@ body.free #result{font-size:11px;padding:6px 8px}
 body.free #live{font-size:17px}
 .fp-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .fp-h b{font:10px var(--f-label);color:var(--yellow);letter-spacing:.06em;white-space:nowrap}
+.fp-title{font:10px/1.4 var(--f-label);color:var(--yellow);letter-spacing:.06em;margin:0}
+.fp-last{font:11px/1.5 var(--f-label);color:var(--ink);background:var(--paper);padding:6px 8px;border:2px solid var(--ink);text-wrap:balance}
+.fp-legend{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font:400 15px/1.2 var(--f-read);color:var(--dim)}
+/* t-038 the tags: IN THE GAME (in matches now) / LAB ONLY (waiting for Luca's OK) */
+i.tg{font:6px/1.2 var(--f-label);font-style:normal;letter-spacing:.04em;padding:2px 3px;border:1px solid var(--ink);white-space:nowrap}
+i.tg.in{background:var(--good);color:var(--ink)} i.tg.lab{background:var(--pink);color:#fff}
+#fp .fp-grid button.mv{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:5px 4px 4px}
+#fp .fp-grid button.mv i.tg{display:block}
+.fp-sw{display:grid;grid-template-columns:1fr auto;gap:3px 8px;align-items:center}
+.fp-sw .fp-hint{grid-column:1/-1}
+#fp .fp-sw button{text-align:left}
 .fp-lab{font:8px/1.5 var(--f-label);color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
 .fp-row{display:flex;flex-wrap:wrap;gap:5px}
 /* v0.8.8 (Luca: "clean the overlay a bit"): sections with a hairline between, buttons in an even grid */
@@ -158,6 +199,18 @@ body.free #live{font-size:17px}
 <div id="loading">LOADING THE LAB…</div>
 
 <aside id="panel" aria-label="Test Lab">
+<!-- t-038 (Luca 29 Oct 00:38, "utmost importance": "as of now I cannot actually navigate it"): the way round the Lab,
+     always on top of the panel and clickable - the keys still work, but nobody has to know them. -->
+<nav class="card" id="nav" aria-label="Test Lab navigation">
+  <div class="nav-b">
+    <button type="button" id="nav-back" title="the test before (keys: [ or B)">&#9664; BACK</button>
+    <button type="button" id="nav-next" title="the next test (keys: ] or N)">NEXT &#9654;</button>
+    <button type="button" id="nav-all" aria-haspopup="dialog" title="every group and test (keys: G or M)">&#9776; ALL TESTS</button>
+    <button type="button" id="nav-fp" title="the playground: you, the ball, a keeper and every move on a button">&#9917; FREE PLAY</button>
+  </div>
+  <div class="nav-w"><span id="nav-where">FREE PLAY · 1 / 1</span><button type="button" id="nav-resume" hidden>RESUME</button></div>
+</nav>
+
 <section class="card" id="test" aria-live="polite">
   <div class="row"><span id="grp">KEEPER · SHOTS</span><span id="count">1 / 30</span></div>
   <h1 id="name">penalty spot (11 m) → low, TOP post</h1>
@@ -166,18 +219,37 @@ body.free #live{font-size:17px}
   <div class="row"><div id="dots"></div><span id="id">K01</span></div>
 </section>
 
-<section class="card" id="side">
-  <div id="result">watch…</div>
-  <dl id="live"></dl>
-  <div id="flags"><span id="slow">normal speed</span><span id="boxes">hit boxes on</span></div>
-  <div class="zoom">
-    <label for="zoom">CAMERA ZOOM</label><input id="zoom" type="range" min="0.5" max="2" step="0.05" value="1" aria-label="Camera zoom"><output id="zoomv" for="zoom">1.00×</output>
-    <div class="zb"><button type="button" id="zout">OUT<kbd>-</kbd></button><button type="button" id="zin">IN<kbd>=</kbd></button><button type="button" id="zreset">RESET<kbd>\</kbd></button></div>
-  </div>
-</section>
-
+<!-- t-038 (Luca 29 Oct 00:44: "add the free play clear and add all the moves that we work on as they are finished, once
+     we like them we OK to add to the final game"): FREE PLAY is the playground. The moves come first, one button per move
+     we've built (lab.js FP_MOVES builds them: the Lab sets the moment up and the game plays the move for real), each tagged
+     IN THE GAME (in matches now) or LAB ONLY (waiting for Luca's OK); then the switches, the settings, the knobs. -->
 <section class="card" id="fp" hidden aria-label="Free play controls">
-  <div class="fp-h"><b>CONTROLS</b><span class="fp-row"><button type="button" id="fp-reset">RESET BALL<kbd>E</kbd></button><button type="button" id="fp-mini">HIDE<kbd>Q</kbd></button></span></div>
+  <div class="fp-h"><h2 class="fp-title">FREE PLAY · try anything</h2><span class="fp-row"><button type="button" id="fp-reset">RESET BALL<kbd>E</kbd></button><button type="button" id="fp-mini">HIDE<kbd>Q</kbd></button></span></div>
+  <div class="fp-hint" id="fp-keys">Click a move: the Lab sets it up and the game plays it. Or play it yourself: X shoot (hold = power) · Z pass · V through · C lob · B special · Shift sprint · E ball back.</div>
+  <div class="fp-last" id="fp-last" aria-live="polite">READY · pick a move</div>
+  <div class="fp-legend"><i class="tg in">IN THE GAME</i> in matches now <i class="tg lab">LAB ONLY</i> waiting for Luca's OK</div>
+
+  <div id="fp-moves"></div>
+
+  <div class="fp-sec">
+    <div class="fp-lab">SWITCHES</div>
+    <!-- t-010 the tap kick: Luca OK'd it into matches on 26 Oct (t-037 switches TAP_KICK on in core.js). The switch stays
+         so it can still be compared with the old shot here. -->
+    <div class="fp-sw">
+      <button type="button" data-cyc="tap" class="wide" aria-pressed="true" title="SHOOT tapped quickly = a snappy stab along your arrow; held = the power shot">TAP KICK: ON</button><i class="tg in">IN THE GAME</i>
+      <div class="fp-hint">Tap SHOOT (let go within 0.15 s): a low, quick shot along your arrow that dies by about 15 m. Hold it: the power shot. Luca OK'd it on 26 Oct: it's going into matches (t-037). OFF here = the old shot, to compare.</div>
+    </div>
+    <!-- t-013 GOAL_PHYS: in matches since v0.14.0 (Luca OK'd q-goal-phys, t-039 / PR #54). t-011 CURVE_PASS (off in matches)
+         waits for Luca's decision (HQ card q-curve-pass). These switch them for FREE PLAY only; every test plays as before. -->
+    <div class="fp-sw">
+      <button type="button" data-cyc="gp" class="wide" aria-pressed="true">GOAL PHYSICS: ON</button><i class="tg in">IN THE GAME</i>
+      <div class="fp-hint">Round posts and bar with real rebounds, and a parry or a broken guard that can loop the ball up. OFF = the old flat posts, to compare. (The living net is in matches either way.)</div>
+    </div>
+    <div class="fp-sw">
+      <button type="button" data-cyc="curve" class="wide" aria-pressed="true">CURVE PASS: ON</button><i class="tg lab">LAB ONLY</i>
+      <div class="fp-hint">Hold SPECIAL (B) and press PASS / THROUGH / LOB with a bar of SP: the pass bends round the man in the way (CURLER!, OUTSIDE CURL!, BANANA LOB!). OFF = as in matches: B is the special shot. The buttons above work either way.</div>
+    </div>
+  </div>
 
   <div class="fp-sec">
     <div class="fp-lab">SETTINGS</div>
@@ -194,29 +266,10 @@ body.free #live{font-size:17px}
     </div>
   </div>
 
-  <!-- t-010 (Luca 24 Oct 05:57: "give me a test lab of the new simple tap kick [...] add an 'add to game' prompt"): the
-       tap kick is on here only. ADD TO GAME just explains what switching it on in matches would change - the real
-       switch is a code change the taskmaster makes after Luca's OK. -->
-  <div class="fp-sec">
-    <div class="fp-lab">TAP KICK · new, Test Lab only</div>
-    <div class="fp-grid">
-      <button type="button" data-cyc="tap" class="wide" aria-pressed="true" title="SHOOT tapped quickly = a snappy stab along your arrow; held = the power shot">TAP KICK: ON</button>
-      <button type="button" id="fp-tapadd" class="wide" aria-expanded="false" aria-controls="fp-tapinfo">ADD TO GAME</button>
-    </div>
-    <div class="fp-hint">Tap SHOOT (let go within 0.15 s): a low, quick shot along your arrow that dies by about 15 m. Hold it: the power shot, as before.</div>
-    <div class="fp-chg" id="fp-tapinfo" hidden>
-      <b>ADD THE TAP KICK TO THE GAME?</b> In matches it would change:<br>
-      · SHOOT tapped (let go within 0.15 s) = the tap kick: about 65 km/h, low, straight along your arrow (or the way he faces), about 1&deg; of error, dead by about 15 m. Held = the power shot, exactly as now.<br>
-      · Set pieces, the chip, specials, volleys and headers: unchanged.<br>
-      · The computer taps it in too: on the ball within 9 m of goal with the far corner out of the keeper's reach.<br>
-      · Keepers: no change to how they save. In his reach he holds most taps; out of it they go in.<br>
-      Nothing changes from this button. To add it: <b>OK the t-010 card on the Taskboard</b> (or tell the taskmaster "add the tap kick to the game"); the taskmaster switches TAP_KICK on in the code and publishes.
-    </div>
-  </div>
-
   <!-- v0.9.9 (Luca 02:50: "add the sliders from the training ground to the classic version"): the knobs from the
-       Test Lab v3 prototype, in tabs, each in plain words. They change only this Lab's FREE PLAY, never the game. -->
-  <details class="fp-sec" data-k="tune" open>
+       Test Lab v3 prototype, in tabs, each in plain words. They change only this Lab's FREE PLAY, never the game.
+       (t-038: folded under the moves; it remembers if you leave it open) -->
+  <details class="fp-sec" data-k="tune">
     <summary class="fp-lab">CHANGE HOW IT FEELS · lab only</summary>
     <div class="fp-row fp-tabs" id="fp-ttabs" role="tablist" aria-label="Knobs"></div>
     <div id="fp-tune" class="fp-knobs" role="tabpanel"></div>
@@ -226,44 +279,23 @@ body.free #live{font-size:17px}
     <div class="fp-hint">Your changes stay in this browser until RESET ALL. They only change FREE PLAY here, never the real game: SUGGEST sends them to Claude with your comment.</div>
   </details>
 
-  <div class="fp-sec">
-    <div class="fp-lab">ON THE GROUND</div>
-    <div class="fp-grid">
-      <button type="button" data-mv="pass">PASS</button><button type="button" data-mv="through">THROUGH</button><button type="button" data-mv="lob">LOB</button>
-      <button type="button" data-mv="shot">SHOT</button><button type="button" data-mv="tap" title="t-010: the tap kick (in play: tap SHOOT)">TAP KICK</button><button type="button" data-mv="power">POWER SHOT</button><button type="button" data-mv="slide">SLIDE</button><button type="button" data-mv="chip" title="in a match: LOB in their box while facing goal">CHIP</button>
-    </div>
-    <div class="fp-row fp-seg" role="group" aria-label="Power lob"><span>POWER LOB</span><button type="button" data-mv="plob30">30%</button><button type="button" data-mv="plob60">60%</button><button type="button" data-mv="plob100">100%</button></div>
-  </div>
-
-  <div class="fp-sec">
-    <div class="fp-lab">IN THE AIR · a ball comes in, he does it</div>
-    <div class="fp-grid">
-      <button type="button" data-mv="air-head">HEADER</button><button type="button" data-mv="air-volley">VOLLEY</button><button type="button" data-mv="air-dive" title="diving header">DIVE HEADER</button>
-      <button type="button" data-mv="air-bike" title="overhead / bicycle kick">OVERHEAD</button><button type="button" data-mv="air-chest">CHEST TRAP</button>
-    </div>
-  </div>
-
-  <div class="fp-sec">
-    <div class="fp-lab">SPECIALS</div>
-    <div class="fp-grid">
-      <button type="button" class="hot" data-mv="sp1">LV1 BLAZE</button><button type="button" class="hot" data-mv="sp2">LV2 THUNDER</button><button type="button" class="hot" data-mv="sp3">LV3 PHOENIX</button>
-      <button type="button" class="hot air" data-mv="air-sp1">AIR LV1</button><button type="button" class="hot air" data-mv="air-sp2">AIR LV2</button><button type="button" class="hot air" data-mv="air-sp3">AIR LV3</button>
-    </div>
-  </div>
-
-  <div class="fp-sec">
-    <div class="fp-lab">BALL TO YOU · you press the key</div>
-    <div class="fp-grid">
-      <button type="button" data-mv="head">HEAD</button><button type="button" data-mv="waist">WAIST</button><button type="button" data-mv="feet">FEET</button>
-    </div>
-  </div>
-
   <details class="fp-sec" data-k="anim">
-    <summary class="fp-lab">ANIMATIONS</summary>
+    <summary class="fp-lab">ANIMATIONS · any frame strip on its own</summary>
     <div class="fp-row"><select id="fp-anim" aria-label="Animation"></select><button type="button" id="fp-play">PLAY</button><button type="button" id="fp-loop" aria-pressed="false">LOOP</button></div>
   </details>
 
 </section>
+
+<section class="card" id="side">
+  <div id="result">watch…</div>
+  <dl id="live"></dl>
+  <div id="flags"><span id="slow">normal speed</span><span id="boxes">hit boxes on</span></div>
+  <div class="zoom">
+    <label for="zoom">CAMERA ZOOM</label><input id="zoom" type="range" min="0.5" max="2" step="0.05" value="1" aria-label="Camera zoom"><output id="zoomv" for="zoom">1.00×</output>
+    <div class="zb"><button type="button" id="zout">OUT<kbd>-</kbd></button><button type="button" id="zin">IN<kbd>=</kbd></button><button type="button" id="zreset">RESET<kbd>\</kbd></button></div>
+  </div>
+</section>
+
 
 <section class="card" id="bwc" hidden aria-label="Bug watch clip">
   <div class="fp-h"><b>BUG WATCH CLIP</b><span class="fp-row"><button type="button" id="bw-again">WATCH AGAIN<kbd>R</kbd></button></span></div>
@@ -282,12 +314,13 @@ body.free #live{font-size:17px}
   <div class="keys grid">
     <button type="button" class="k" data-key="r"><kbd>R</kbd>replay</button>
     <button type="button" class="k" data-key="f"><kbd>F</kbd>new dice</button>
-    <button type="button" class="k" data-key="b"><kbd>B</kbd>back</button>
-    <button type="button" class="k" data-key="n"><kbd>N</kbd>next</button>
+    <button type="button" class="k" data-key="["><kbd>[</kbd>back</button>
+    <button type="button" class="k" data-key="]"><kbd>]</kbd>next</button>
     <button type="button" class="k" data-key="h"><kbd>H</kbd>hit boxes</button>
     <button type="button" class="k" data-key="t"><kbd>T</kbd>slow motion</button>
     <button type="button" class="k" data-key="g"><kbd>G</kbd>all tests</button>
   </div>
+  <div class="fp-hint" id="keyhint">B / N also go back / next. G or M: all tests. Esc closes it.</div>
   <div id="reasons" hidden>
     <b>WHAT LOOKS WRONG?</b>
     <span class="keys grid" style="margin-top:6px">
@@ -309,10 +342,13 @@ body.free #live{font-size:17px}
 </section>
 </aside>
 
-<div id="menu" hidden><div class="card">
-  <h2>ALL TESTS · PRESS 1-9, 0 OR CLICK (THE REST: CLICK)</h2>
-  <ul id="menu-list"></ul>
-  <p>Each test replays the same way every time (R). F rolls new dice. Your rating saves the numbers you saw with it.</p>
+<!-- t-038: ALL TESTS fits any screen (the list scrolls), has a search box and sections, and every test in a group opens
+     from it (▸). lab.js menu() builds it. -->
+<div id="menu" hidden role="dialog" aria-modal="true" aria-labelledby="menu-h"><div class="card">
+  <div class="mh"><h2 id="menu-h">ALL TESTS</h2><button type="button" id="menu-x" aria-label="Close the list">&#10005; ESC</button></div>
+  <input id="menu-q" type="search" autocomplete="off" spellcheck="false" placeholder="search: keeper, lob, t-031, GH3 ..." aria-label="Search the tests">
+  <div id="menu-body"></div>
+  <p id="menu-foot">Click a group to open its first test, &#9656; to see all its tests. Numbered groups: press 1-9, 0. Enter opens the first match. Esc closes.</p>
 </div></div>
 <div id="flash" aria-hidden="true"></div>
 
@@ -331,6 +367,7 @@ body.free #live{font-size:17px}
 <script src="src/matchflow.js"></script>
 <script src="src/penalties.js"></script>
 <script src="src/cup.js"></script>
+<script src="src/arcadesp.js"></script>
 <script src="src/ui.js"></script>
 <script src="src/replay.js"></script>
 <script src="src/watch.js"></script>

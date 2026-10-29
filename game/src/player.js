@@ -157,6 +157,7 @@ class Player {
       const [nm, fps] = ap ? [ap.a, ap.fps] : this.state === 'celebrate' && this.celeAnim ? [this.celeAnim, 10] : ONCE[this.state];
       if (ap && this.state === 'header') this._from = airContact(K, nm, d) || 0;   // batch 20: the ball leaves his head the moment the header starts, so the move opens on the frame that meets it (the snap shows with the thump, flash and hit-stop; the take-off frames before it are skipped)
       if (!this.play(`${nm}-${d}`, fps, true) && !this.play(`${nm}-S`, fps, true)) this.play(`idle-${d}`, 5); }
+    else if (this.state === 'sdribble') { if (!this.play(`sdribble-${d}`, 14, true)) this.play(`sprint-${d}`, 16); }   // arcadesp.js: PixelLab batch 22 (the spin, then the burst)
     else if (this.waitingThrowIn()) { if (!this.play(`throwinhold-${this.y < 34 ? 'S' : 'N'}`, 1, true)) this.play(`idle-${d}`, 5); }   // ball held over his head
     else if (this.keeper && this.hands && this.speed < 0.5) { if (this.handDive) this._from = Math.max(0, (K.anims[`catch-${d}`] || [0]).length - 1);   // t-031: up from a diving catch: straight into the hold (not catching it again)
       if (!(this.claimHigh && !this.handDive && this.play(`claim-${d}`, 16, true)) && !this.play(`catch-${d}`, 16, true)) this.play(`idle-${d}`, 5); this._from = 0; }   // holds it as he caught it
