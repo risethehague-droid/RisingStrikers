@@ -584,7 +584,8 @@ hc2Mix(Match, {
     return { ...q, lv, col, t: 0, dur: (shot ? 0.55 + 0.15 * lv : 1.5) * paceK().cutK, o, veil, band, lines, por, fl, name, sub, seed: Math.random() * 1000 };   // (t-020: dur - ARCADE ~1 s; a shot's 0.7-1 s, ARCADE ~0.45-0.65)
   },
   cutInTick(dt) {
-    if (this.cutIn.kind === 'clash') { this.clashTick(dt); return; }              // t-028: the clash plays on the cut scene's path (play waits, ENTER cuts it)
+    if (this.cutIn.kind === 'clash') { this.clashTick(dt); return; }
+    if (this.cutIn.kind === 'combo') { this.aspCutTick(dt); return; }            // arcadesp.js: the combo special's two-portrait cut-in              // t-028: the clash plays on the cut scene's path (play waits, ENTER cuts it)
     const c = this.cutIn; c.t += dt; const t = c.t, W = VIEW_W, H = VIEW_H, z = this.cameras.main.zoom || 1, cx = W / 2, cy = H / 2;
     const at = (obj, x, y, sc = 1) => obj.setPosition(cx + (x - cx) / z, cy + (y - cy) / z).setScale(sc / z);   // screen point -> what this zoom needs
     const io = clamp(t / 0.2, 0, 1), ein = 1 - Math.pow(1 - io, 3), ko = clamp((t - (c.dur - 0.3)) / 0.3, 0, 1), eout = ko * ko;
@@ -806,10 +807,11 @@ hc2Mix(Match, {
       k.t = (KICK_HIT[SA] + 0.6) / kickRate(SA);
       for (const o of p.team.opp.players) o.stun = Math.max(o.stun, k.t + 0.2);  // everyone stops to watch
     }
-    this.say(SP_NAMES[lv - 1] + '!', `${p.team.name} · LV${lv} SPECIAL`, 1.3); this.spName = { p, name: SP_NAMES[lv - 1] };
-    this.ramiSay('skill', { text: [`A ${SP_NAMES[0]}!\nTHE BALL IS ON FIRE!`, `${SP_NAMES[1]}!\nYOU CAN HEAR IT CRACKLE!`, `THE ${SP_NAMES[2]}!!\nI HAVE NEVER SEEN THAT!`][lv - 1], expr: 'laugh' }, 2);
-    SFX.special(lv); this.flagReplay(SP_NAMES[lv - 1] + '!');
-    if (!window.HC2_TEST_FAST && !this.replay && (!window.__lab || window.__labCut)) this.cutInQ = { kind: 'shot', who: p, lv, name: SP_NAMES[lv - 1] };   // 29 Oct: its cut-in (during the wind-up)
+    const NM = this.spNameFor ? this.spNameFor(p.team, lv) : SP_NAMES[lv - 1];   // (arcadesp.js: on ARCADE a LV3 is the team's own signature shot)
+    this.say(NM + '!', `${p.team.name} · LV${lv} SPECIAL`, 1.3); this.spName = { p, name: NM };
+    this.ramiSay('skill', { text: [`A ${SP_NAMES[0]}!\nTHE BALL IS ON FIRE!`, `${SP_NAMES[1]}!\nYOU CAN HEAR IT CRACKLE!`, `THE ${NM}!!\nI HAVE NEVER SEEN THAT!`][lv - 1], expr: 'laugh' }, 2);
+    SFX.special(lv); this.flagReplay(NM + '!');
+    if (!window.HC2_TEST_FAST && !this.replay && (!window.__lab || window.__labCut)) this.cutInQ = { kind: 'shot', who: p, lv, name: NM };   // 29 Oct: its cut-in (during the wind-up; attack-balance + arcade-specials: the team's signature name on a LV3)
     return true;
   },
   // ======================================================================= t-011 THE CURVING SPECIAL PASS (Luca 24 Oct 05:57: "add a special
