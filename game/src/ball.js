@@ -507,17 +507,19 @@ hc2Mix(Match, {
   tapSfx() { SFX.tone('triangle', 330, 110, 0.05, 0.45); SFX.hiss(2400, 1.4, 0.03, 0.28); },
   // the computer's tap-in (t-010, with TAP_KICK on): on the ball close in, the corner away from the keeper past his
   // reach (the same keeperCover his save uses, with the tap's travel time) - it slots it there instead of blasting
-  aiTap(p) {
+  aiTap(p) { const dir = this.aiTapAt(p); if (!dir) return false; this.tapKick(p, dir); return true; },
+  // (smarter-ai: the judgement on its own, so the team brain's move list can weigh the tap against the other moves)
+  aiTapAt(p) {
     const b = this.ball, gx = p.team.goalX, gk = p.team.opp.players[0];
-    if (!TAP_KICK || (p === this.human && !this.demo) || b.owner !== p || b.z > 0.25 || this.setPiece || p.keeper) return false;
-    if (len(gx - b.x, 34 - b.y) > TAP.aiD) return false;
+    if (!TAP_KICK || (p === this.human && !this.demo) || b.owner !== p || b.z > 0.25 || this.setPiece || p.keeper) return null;
+    if (len(gx - b.x, 34 - b.y) > TAP.aiD) return null;
     const ty = !gk || gk.sentOff ? 34 : gk.y < 34 ? GOAL_Y1 - 0.6 : GOAL_Y0 + 0.6, dx = gx - b.x, dy = ty - b.y, d = len(dx, dy);
     if (gk && !gk.sentOff) {
       const T = d / (TAP.speed * 0.8) - 0.15, t = (gk.x - b.x) / dx, gap = Math.abs(b.y + dy * clamp(t, 0, 1) - gk.y);   // where it passes him
       const busy = gk.state === 'dive' || gk.stun > 0 || Math.abs(gk.x - gx) > 6;   // down, stranded, or far off his line
-      if (!busy && gap < this.keeperCover(T, 0.2) + TAP.aiGap) return false;   // he'd get there: a normal shot
+      if (!busy && gap < this.keeperCover(T, 0.2) + TAP.aiGap) return null;    // he'd get there: a normal shot
     }
-    this.tapKick(p, { x: dx / d, y: dy / d }); return true;
+    return { x: dx / d, y: dy / d };
   },
   // power 0..1 from holding the button; aimY -1..1 from the stick (far post / near post)
   doShot(p, power, aimY) {

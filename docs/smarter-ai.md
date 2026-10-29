@@ -142,3 +142,93 @@ burst: they show you the other way). A Rami line when they've read you.
 - Luca: the personality of each team (a talk with the co-designer); OK for the whole plan as worker-f's task.
 - Already decided (the co-designer, 27 Oct): chasing late = bold; protecting = by personality; habit reading on Rise
   Warrior only, for flank, shooting spots and dribble tricks; measure first, worker-f builds it, preview first.
+
+## Stage 2: the team brain (worker-f, 28 Oct, in the preview "HC2 · preview · smarter AI")
+
+All of it lives in one new file, `game/src/brain.js`, plus small hooks in `teamai.js` (and one line each in `keeper.js`,
+`matchflow.js`, `ball.js`). The Test Lab has a new group **AI** (AI1-AI6). Numbers: "Before / after" below.
+
+### Step 1: commit and calm (the 7 clips)
+
+| Clip | Cause (stage 1) | Fix |
+| --- | --- | --- |
+| 1 dithering beside a duel | target recomputed every frame, support job re-picked every 0.4 s | the support man keeps the job unless another is clearly nearer (x1.4 + 4 m), and keeps his spot unless a new one scores clearly better; he's remembered through a heavy touch / a one-two (1.5 s); the side he steps to round an opponent only flips once the man is clearly on the other side; every target is eased (0.3 s) |
+| 2 a runner who can't decide | `team.runner` re-picked every 3 s, the offside hold moved every 1.5-3 s | the runner keeps his run unless another forward is 6 m nearer; the offside read holds per man on the ball (6-9 s) |
+| 3, 4 three on the ball | only the "zone" men kept 6.5 m off | one presser + one cover; everyone else, markers included, screens 7.5 m off the ball; the cover and the markers keep their man unless another is clearly better |
+| 5, 6 lobs given away | a lob rated only by the race to the drop | also the man on the receiver (anyone about as close to the drop as he is) and a man right on the passer in front of the kick (most lost lobs were charged down below 2 m) |
+| 7 a pass into a marked man | pressed, any pass a little risky went | pressed, a risky ball to a marked man loses to a safe one back or square, or to keeping it |
+
+### Step 2: the move list ("new moves join in")
+
+`carrierAI2`'s fixed chain is now `AI_MOVES` in `brain.js`: special, chip, tap, shot, cross, line (take it on for the
+cross), pass, safe, curve, carry. Each think, the dice are rolled for every move he wants (`look().want`, from the
+level's knobs, the style and the match state), and of those that come up he plays the one worth most (`look().value`).
+
+**How a new move joins in** (one entry, one switch):
+
+```js
+{ id: 'mymove',                                      // soak.js counts it per side
+  available: (m, p, c) => MY_SWITCH && ...,           // its switch + the moment it needs (cheap)
+  look: (m, p, c) => ({ value: 2.5, want: 0.4 * c.K.sp, how: {...} }),   // reuse the game's own judgement
+  play: (m, p, how, c) => { m.myMove(p, how); } },   // false = couldn't: the next best is tried
+```
+
+- `value` ranks it against the rest (special 6, chip 5, tap 4.6, shot 3 + quality, cross ~2.6, line 2.4, pass ~1.6 +).
+- `want` is the chance he plays it when it's on; scale it by the level (`c.K`), the style (`c.S`) and the match state
+  (`c.M`) so Easy stays easy.
+- `tools/soak.js` ends with a MOVES line and, over 12+ matches, the **MOVE CHECK**: it fails if a move was available
+  but the computer never played it. The tap kick and the curving passes are in the list but stay Test Lab only
+  (`TAP_KICK`, `CURVE_PASS` off in matches) until Luca says otherwise; `TAP=1` runs the soak with the tap on.
+
+Also new (to make the goals come back): through the middle, the second striker peels to the far side of the box and a
+midfielder arrives at the edge (`aiBoxRuns`, like the wing runs), and a man waiting on the last defender's shoulder can
+get the ball in behind (before, only a man already running could).
+
+### Step 3: the match state
+
+`brainMood(team)`: `s` from -1 (protect) to +1 (chase), from the goal difference, stronger as the clock runs down.
+- **Chasing late** (last 10%, a goal or more down): the line 7 m higher, both strikers make the run in behind, shots
+  from 25% further out (and more often), a riskier pass is fine, the keeper goes up for a corner (the far post; he
+  attacks the cross, then sprints back). Test Lab AI4, AI4-K.
+- **Protecting a lead:** by the style's `protect`: `keep` (safer passes, slower tempo, recycles it), `deep` (the line
+  drops 6 m), `middle` (the line up to 3 m deeper). Every team is NEUTRAL (= middle) for now. This was the dial
+  between goals and win rate: keep-ball for NEUTRAL made the top levels score clearly less (the first preview, "A");
+  without it they won more - so the levels were re-balanced instead (below, "Goals and win rate").
+
+### Step 4: team personalities (the dials, not the picks)
+
+`STYLES` in `brain.js`: tempo, width, direct, press, risk, specials, protect, each -1..+1 (0 = as before). Four examples
+for the Test Lab (AI5a-d): PATIENT POSSESSION, DIRECT AND WIDE, HIGH PRESS, COUNTER. **Every team plays NEUTRAL** until
+Luca picks with the co-designer (`TEAM_STYLE`). `tools/styles.js` plays every style against every other, both ways.
+
+### Step 5: Rise Warrior reads your habits (Rise Warrior only)
+
+`readTick` (only when you play Rise Warrior; never the demo, never another level): over the last minutes, fading out
+(75 s of real play): your flank (14 s+ with a 30% lean: their block shifts 4 m that way), your shooting spots (where
+you shot from: they close you down 15% faster there), your dribble trick (the side you go past a man: the presser
+stands 0.9 m that side, showing you the other way; how close he is when you burst: half a metre more room). Not your
+passing. Rami says it once for each read. Test Lab AI6.
+
+### The 1-2 (the co-designer, 29 Oct: "doing a 1-2 is impractical")
+
+- **A wall-pass move** (`wall` in `AI_MOVES`): the man who just got it from a team-mate who is now running on (2 m/s+
+  forward, onside) plays it back first time into his path, if the lane is open and no defender gets there first. Your
+  run counts the same as a computer team-mate's. Between his thinks the receiver looks only at this (`brainWall`), once
+  per touch, so it really is first time. Taken 60% of the time it's on.
+- **Defenders track the runner:** for 2.5 s after a pass, a passer who runs on is the first man the other side marks.
+- 12 matches (`aistudy.js`, a 1-2 = the ball straight back to a passer who has gone 4 m+ on, within 3 s): today 7.5
+  tried / 3.2 completed a match; with the wall pass 9.3 / 3.3. Test Lab AI7 (open lane: back first time) and AI7b (a man
+  in the lane: not given back).
+
+### Goals and win rate (the co-designer: "more goals, about today's win rate")
+
+The levels' traits (`difficulty.js`) were re-balanced for the team brain: Easy attacks a notch less (a 0.6 -> 0.48),
+Hard and Rise Warrior defend a notch less and attack a touch sharper (Hard a 1.5 -> 1.6, d 1.48 -> 1.25; Rise a 2.0 ->
+2.15, d 2.0 -> 1.85). Soak, 96 matches a level, your side = the computer at base v the level, same seeds:
+
+| Level | Your side's points, today -> now | Goals a match, today -> now |
+| --- | --- | --- |
+| Easy | 77% -> 69% | 3.53 -> 3.60 |
+| Normal | 57% -> 49% (the same AI both sides: ~50% is fair) | 3.10 -> 3.70 |
+| Hard | 30% -> 33% | 2.65 -> 2.90 |
+| Rise Warrior | 18% -> 20% | 2.44 -> 2.65 |
