@@ -1622,8 +1622,8 @@
           m.readTick(0); m.read.a = 12; },
         check(r) { const R = m.read; if (!R) return { o: 'NO READ (!) · readOn is off' };
           if (r.t < 9) return null;
-          const fb = m.readFlank(), A4 = A().filter(p => p.i >= 1 && p.i <= 8 && !p.sentOff), was = m.read;
-          const on = A4.reduce((a, p) => a + m.aiZone(p, m.away).y, 0) / A4.length; m.read = null; const off = A4.reduce((a, p) => a + m.aiZone(p, m.away).y, 0) / A4.length; m.read = was;
+          const fb = m.readFlank(), A4 = A().filter(p => p.i >= 1 && p.i <= 8 && !p.sentOff), was = m.read, ip = m.away.inPoss; m.away.inPoss = false;   // (their shape without the ball)
+          const on = A4.reduce((a, p) => a + m.aiZone(p, m.away).y, 0) / A4.length; m.read = null; const off = A4.reduce((a, p) => a + m.aiZone(p, m.away).y, 0) / A4.length; m.read = was; m.away.inPoss = ip;
           return { o: `READ: ${fb < 0 ? 'the FAR side' : fb > 0 ? 'the NEAR side' : 'nothing yet (!)'} (${R.a.toFixed(0)} s far / ${R.b.toFixed(0)} s near) · Rami: ${R.said.flank ? 'said it' : 'quiet (!)'} · their block ${(on - off).toFixed(1)} m towards it` }; } },
     ];
   }
