@@ -49,6 +49,19 @@ class Referee {
 }
 
 // ---------------------------------------------------------------- Match methods: matchflow
+// t-035: Phaser draws Math.random for an id each time it makes a text (and a few other objects), and the game makes
+// some only when first needed (the replay captions, the added-time board...): halfway through a page's first match
+// those draws shifted the match's own dice, so a soak repro line played a different match on a fresh page than after
+// another one. Making an object now draws from its own generator, never the game's.
+(() => {
+  let a = 0x2f6b9d3; const own = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  for (const P of [Phaser.GameObjects.GameObjectFactory.prototype, Phaser.GameObjects.GameObjectCreator.prototype])
+    for (const k of Object.getOwnPropertyNames(P)) {
+      const f = P[k]; if (typeof f !== 'function' || k === 'constructor' || /^(boot|start|shutdown|destroy|existing|register|remove)$/.test(k)) continue;
+      P[k] = function (...args) { const R = Math.random; Math.random = own; try { return f.apply(this, args); } finally { Math.random = R; } };
+    }
+})();
+
 hc2Mix(Match, {
 
   // ---------- restarts
