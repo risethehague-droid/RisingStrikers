@@ -390,7 +390,8 @@
   // A line with `go` sets up what the move needs (a team-mate, a defender, a cross, a shot at the keeper, both whole teams
   // for a set piece) and plays it through the game's own code - the functions your keys or the computer run; a line
   // without `go` is one of v0.8-v0.9's moves (fpMove below). A NEW MOVE GETS ITS LINE HERE (CLAUDE.md "Testing").
-  // Next, with the open PRs: the aerial battle's MASH, the corner blackout ... (their PRs add their lines).
+  // v0.13.0 (merged with this): the aerial battle's MASH has its two lines (battle-h / battle-v); the corner blackout
+  // plays inside set-corner. Every later move adds its own line here.
   const FP_SECS = [
     ['pass', 'PASSING'], ['shoot', 'SHOOTING'], ['air', 'IN THE AIR · a ball comes in, he does it'],
     ['gk', 'THEIR KEEPER · a shot or a ball at him, he does it'], ['def', 'DEFENDING · a dribbler comes at you'],
@@ -424,6 +425,8 @@
     { mv: 'air-sp2', sec: 'air', n: 'AIR LV2', game: true, hot: true, air: true },
     { mv: 'air-sp3', sec: 'air', n: 'AIR LV3', game: true, hot: true, air: true },
     { mv: 'cross', sec: 'air', n: 'CROSS IN · you attack it', game: true, wide: true, tip: 'a team-mate crosses from the byline to you: X header / volley, Shift + X overhead, B an aerial special', go: fpCross },
+    { mv: 'battle-h', sec: 'air', n: 'AERIAL BATTLE · HEADER', game: true, hot: true, wide: true, tip: 't-034 (v0.13.0): a cross into their box with their centre-back on you - HEADER v HEADER, MASH SPACE: win = a header at goal + he goes down, lose = he clears it', go: r => fpBattle(r, false) },
+    { mv: 'battle-v', sec: 'air', n: 'AERIAL BATTLE · VOLLEY', game: true, hot: true, wide: true, tip: 't-034 (v0.13.0): a driven waist-high cross with their man on you - VOLLEY v VOLLEY, MASH SPACE', go: r => fpBattle(r, true) },
     { mv: 'gk-lowl', sec: 'gk', n: 'LOW DIVE CATCH ◀', game: true, gk: true, tip: 't-031: a low shot 2.4 m to his left - he dives, grabs it, lands and gets up holding it',
       go: r => fpShotAt(r, 'LOW DIVE CATCH (his left)', { spot: [91, 35], dy: 2.4, speed: 19, u: 0 }) },
     { mv: 'gk-lowr', sec: 'gk', n: 'LOW DIVE CATCH ▶', game: true, gk: true, tip: 't-031: the same to his right',
@@ -559,6 +562,27 @@
         r.last = 'CROSS · YOUR TURN: X header / volley · Shift + X overhead · B aerial special'; return true; }
       if (b.lastP && b.lastP !== c && !F.met) { F.met = true; r.last = `CROSS · ${b.lastP === p ? 'you met it' : b.lastP.keeper ? 'the keeper took it' : 'cleared'}`; }
       return F.t < 4;
+    } };
+  }
+
+  // t-034's AERIAL BATTLE in FREE PLAY (Luca, 29 Oct: "add all the moves we work on as they are finished"): the AB
+  // tests' moment - a team-mate crosses into their box, their centre-back right on you - and you MASH SPACE yourself.
+  // The battle's chance is 1 for this move only (as in AB), put back when the move ends.
+  function fpBattle(r, volley) {
+    const p = r.human, c = m.home.players[7], d = m.away.players[3], at = [92, 31];
+    fpCast(r, [c, d]); put(p, at[0], at[1], 0); put(d, at[0] + 0.7, at[1] + 0.6, 4);
+    put(c, volley ? 100 : 99, volley ? 14 : 6); faceTo(c, at[0], at[1]); atFeet(c); fpKeeper(r.gk, LINE_X, 33);
+    Object.assign(m, { aerial: null, aerialLast: null, aerialAt: -1e9, aerialKick: null, aerFx: null, slowMo: 0, camTarget: null });
+    LAB.aerialChance = LAB.aerialChance ?? AERIAL.chance; AERIAL.chance = 1;
+    r.last = `AERIAL BATTLE (${volley ? 'VOLLEY' : 'HEADER'}) · get ready to MASH SPACE`;
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.c) { if (F.t < 0.6) return true; F.c = true; const a = aimAir(b.x, b.y, at[0], at[1], volley ? 1.0 : 1.9, volley ? 0.8 : 1.3);
+        m.kick(c, at[0], at[1], a.speed, a.vz, 0.13, { target: p, cross: 'lab' }); r.last = 'AERIAL BATTLE · MASH SPACE when it says MASH!'; return true; }
+      if (m.aerial) F.seen = true;
+      if (F.seen && !m.aerial && !F.done) { F.done = true; const L = m.aerialLast; r.last = `AERIAL BATTLE · ${L && L.res === 'att' ? 'you won it' : L ? 'their man won it' : 'over'}`; }
+      const more = F.t < 6; if (!more && LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; }
+      return more;
     } };
   }
 
