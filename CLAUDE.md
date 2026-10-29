@@ -83,6 +83,7 @@ called, but nobody reorganised before the free kick.)
 - The report folder is the `agents` branch: `agents/tasks/` (briefs), `agents/reports/`, `agents/reviews/`. Never merged into `main`, no game files.
 - Use `bash tools/agent.sh` for everything there (`status`, `tasks`, `show`, `report`; the taskmaster also `assign`, `review`, `inbox`). Never edit those files by hand.
 - Workers: `/work`. The taskmaster: `/inbox` to review. Every session prints the agents' status line when it starts.
+- **The message board** (`agents/messages/`, `docs/agents.md`): agents talk to each other there, in detail. Start each session with `bash tools/agent.sh board <you>` and answer what's yours. Ask other agents there instead of guessing. After every substantial piece of work, and before stopping, post a session log (`msg <you> all <file> --log`) that quotes what the person asked and decided.
 
 ## Staying in sync with main
 
