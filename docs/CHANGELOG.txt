@@ -1,3 +1,18 @@
+HC2 WEB GAME - v0.15.0 (29 Oct) - SMARTER TEAM AI + ATTACK BALANCE + QA FIXES (PRs #55-#58, Luca's OK)
+- SMARTER TEAM AI, stage 2 (#58, worker-f, the co-designer's plan from #48): one team brain (game/src/brain.js). Players
+  keep their job until another is clearly better, one presses + one covers, a move list any new move joins with one
+  entry (AI_MOVES), the 1-2 played back first time, late runs and balls in behind, chasing late / protecting a lead,
+  team style dials (every team plays NEUTRAL until Luca picks the personalities), Rise Warrior reads your habits. Levels
+  re-tuned: winning the ball back at Hard / Rise is harder for a human. Test Lab AI.
+- ATTACK BALANCE + SPECIALS MORE OFTEN (#57, the co-designer): sprinting no longer protects the ball; your lob from wide
+  in their third is a real cross to the first runner there; the SP meter fills faster (CLASSIC 1.4x, ARCADE 2.0x); every
+  special shot gets a short cut-in (no double cut-in with combo specials). Test Lab WG3, WG3-B..E; tools/strategy.js.
+- FOUR QA FIXES (#55, t-035): every attempt at goal counts once as a shot (on target <= shots); a kick waiting for its
+  contact frame has a hard cap; a second match on the same page starts clean (seeded test matches replay on their own;
+  seeds from before this version play differently); GAME FROZE clips record the gap, focus / visibility and phase, and
+  a paused browser is tagged 'odd', not a bug.
+- LAN STEP 1 (#56, t-041): a WebRTC connection test page in tools/lan/ (not in the game) for Luca's 2-PC test.
+
 HC2 WEB GAME - v0.14.0 (29 Oct) - TAP KICK + GOAL PHYSICS IN MATCHES + ARCADE SPECIALS (PRs #51-#54, Luca's OK)
 - THE TAP KICK IN EVERY MATCH (#53, t-037). Luca OK'd q-tap-kick (26 Oct): SHOOT tapped (let go within 0.15 s) = a low,
   quick stab along your arrow that dies by about 15 m; held = the power shot as before. Test Lab TK, FREE PLAY TAP KICK.
