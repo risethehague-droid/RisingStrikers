@@ -19,7 +19,9 @@
 
 const LAN_DELAY = 100;                     // ms the guest draws behind the host (step 1's spikes reach 121 ms: one hold at most)
 const LAN_SNAP_MS = 33;                    // host -> guest snapshots: ~30 a second
-const LAN_LOST_MS = 3000, LAN_BACK_MS = 10000;   // silence before CONNECTION LOST, then back to the menu
+// (Luca's first 2-PC test, 30 Oct: "lost immediately". 3 s of silence was too touchy for a laptop busy loading the
+// kits, so 5 s now, and the 10 s count back to the menu restarts if the line comes back)
+const LAN_LOST_MS = 5000, LAN_BACK_MS = 10000;   // silence before CONNECTION LOST, then back to the menu
 
 const LAN = {
   on: false, role: null, seq: 0, pc: null, ctl: null, fast: null, urls: [], st: null, lastMsg: 0, lost: 0, closed: false,
@@ -69,7 +71,13 @@ const LAN = {
   // snapshots: a late one is worth nothing, the next one is already on its way)
   makePC() {
     const pc = this.pc = new RTCPeerConnection({ iceServers: [] });               // (same Wi-Fi: the host / mDNS candidates are enough)
-    pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') this.drop(); };
+    pc.onconnectionstatechange = () => {
+      this.log('link: ' + pc.connectionState + ' (ice ' + pc.iceConnectionState + ')');
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        this.drop('the link ' + pc.connectionState);
+        if (!this.on) this.say('THE TWO PCS COULDN\'T REACH EACH OTHER.<br>SAME WI-FI (NOT A GUEST NETWORK)? TRY AGAIN; STILL NOT: SEND LUCA\'S CLAUDE A PHOTO OF THE BLACK WINDOW');
+      }
+    };
     return pc;
   },
   gathered() {
@@ -80,10 +88,19 @@ const LAN = {
   wire(ch) {
     if (ch.label === 'fast') this.fast = ch; else this.ctl = ch;
     ch.onmessage = e => { this.lastMsg = performance.now(); let k; try { k = JSON.parse(e.data); } catch (er) { return; } this.recv(k); };
-    ch.onclose = () => this.drop();
+    ch.onclose = () => this.drop('the ' + ch.label + ' channel closed');
     if (ch.label === 'ctl') ch.onopen = () => this.opened();
   },
   send(k, fast) { const c = fast ? this.fast : this.ctl; if (c && c.readyState === 'open') { if (fast && this.spikeQ) { this.spikeQ.push(k); return; } try { c.send(JSON.stringify(k)); } catch (e) {} } },
+  // t-044 after the first 2-PC test: each page tells serve.py how the link is doing, and the black window prints it
+  // (connected, the link's states, the round trip every 15 s, why it was lost) - what we need to see when it goes wrong
+  log(msg) {
+    try { fetch('lan/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: this.role, msg }), keepalive: true }).catch(() => {}); } catch (e) {}
+  },
+  cands(sdp) {                                                                   // what kind of addresses this PC offered
+    const c = (sdp.match(/a=candidate:[^\r\n]*/g) || []).map(l => l.split(' ')), n = t => c.filter(f => f[7] === t).length;
+    return `${c.length} candidates (${n('host')} host, ${c.filter(f => /\.local$/.test(f[4] || '')).length} .local, ${n('srflx')} stun)`;
+  },
   async api(path, body) {
     const r = await fetch('lan/' + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });
     return { status: r.status, j: r.status === 200 ? await r.json() : null };
@@ -96,6 +113,7 @@ const LAN = {
     this.wire(pc.createDataChannel('ctl')); this.wire(pc.createDataChannel('fast', { ordered: false, maxRetransmits: 0 }));
     this.say('GETTING READY...');
     await pc.setLocalDescription(await pc.createOffer()); await this.gathered();
+    this.log('hosting: ' + this.cands(pc.localDescription.sdp) + ' · ' + navigator.userAgent.replace(/^.*\) /, ''));
     const addr = this.urls[0] || 'this laptop\'s address', t0 = performance.now();
     while (!this.ctl || this.ctl.readyState !== 'open') {
       if (!this.room) { const r = await this.api('host', { name: this.pick('home'), offer: pc.localDescription.toJSON() }); if (r.status !== 200) { this.say('THE LAN SERVER SAID NO (' + r.status + '). IS SERVE.PY STILL RUNNING?'); return; } this.room = r.j.room; }
@@ -129,13 +147,16 @@ const LAN = {
     this.say('CONNECTING TO ' + String(o.name).replace(/[^A-Z0-9 ]/gi, '') + '...');
     const pc = this.makePC(); pc.ondatachannel = e => this.wire(e.channel);
     await pc.setRemoteDescription(o.offer); await pc.setLocalDescription(await pc.createAnswer()); await this.gathered();
+    this.log('joining: ' + this.cands(pc.localDescription.sdp) + ' · ' + navigator.userAgent.replace(/^.*\) /, ''));
     const r = await this.api('answer/' + o.room, { answer: pc.localDescription.toJSON() });
     if (r.status !== 200) { this.pc.close(); this.pc = null; this.closed = false; this.say('THAT GAME WAS TAKEN. LOOKING AGAIN...'); return this.join(); }
   },
 
   // ---- the lobby (like FIFA's friendly lobby): each picks his own team on the start screen (host = home), both READY
   opened() {
-    this.on = true; this.lastMsg = performance.now();
+    this.on = true; this.lastMsg = performance.now(); this.log('CONNECTED');
+    this.pc.getStats().then(st => st.forEach(r => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') {
+      const l = st.get(r.localCandidateId), q = st.get(r.remoteCandidateId); this.log(`route: ${l && l.address} (${l && l.candidateType}) <-> ${q && q.address} (${q && q.candidateType})`); } })).catch(() => {});
     if (!this.dog) this.dog = setInterval(() => this.watch(), 250);
     if (this.role === 'guest') this.send({ t: 'hello', team: this.pick('home'), keys: window.HC2_KEYS || 'arrows' });
     this.say('CONNECTED');
@@ -168,7 +189,8 @@ const LAN = {
     const m = window.__hc2;
     if (k.t === 'i') { if (this.pad) this.pad.feed(k); return; }                // (host) the guest's buttons
     if (k.t === 's') { if (m && m.lanGuest) m.lanSnap(k); return; }             // (guest) a snapshot
-    if (k.t === 'ping') return;
+    if (k.t === 'ping') { this.send({ t: 'pong', at: k.at }); return; }
+    if (k.t === 'pong') { (this.rtts = this.rtts || []).push(performance.now() - k.at); return; }
     if (k.t === 'hello' && this.role === 'host') { this.guest = { team: k.team, keys: k.keys }; this.hostLobby(); return; }
     if (k.t === 'lobby' && this.role === 'guest') { this.teams = { h: k.h, a: k.a }; this.ready.host = k.ready.host; this.lobby(); return; }
     if (k.t === 'ready') { this.ready[this.role === 'host' ? 'guest' : 'host'] = true; if (this.role === 'host') this.hostLobby(); else this.lobby(); return; }
@@ -216,20 +238,23 @@ const LAN = {
   // ---- both sides: a silent line = CONNECTION LOST, 10 s later the menu. The line coming back before then carries on.
   watch() {
     const now = performance.now(), m = window.__hc2;
-    if (this.on && !this.closed) this.send({ t: 'ping' });
+    if (this.on && !this.closed) this.send({ t: 'ping', at: now });
+    if (this.on && this.rtts && this.rtts.length && now - (this.rttAt || 0) > 15000) { const r = this.rtts.splice(0), a = r.reduce((x, y) => x + y, 0) / r.length;
+      this.rttAt = now; this.log(`ping ${r.length}x: avg ${a.toFixed(0)} ms, max ${Math.max(...r).toFixed(0)} ms`); }
     if (!this.on) return;
     const quiet = this.closed || now - this.lastMsg > LAN_LOST_MS;
     if (quiet && !this.lost) {
-      this.lost = now;
+      this.lost = now; const why = this.closed ? this.why : `nothing heard for ${((now - this.lastMsg) / 1000).toFixed(1)} s`;
+      this.log(`CONNECTION LOST: ${why} · link ${this.pc && this.pc.connectionState}, ice ${this.pc && this.pc.iceConnectionState}, ctl ${this.ctl && this.ctl.readyState}, fast ${this.fast && this.fast.readyState}, page ${document.visibilityState}`);
       if (m && this.role === 'host' && this.started) { m.lanHoldWas = m.paused; m.paused = true; m.lanHold = 'lost'; m.say('CONNECTION LOST', 'BACK TO THE MENU IN 10 S', 9999); }
-      this.over('CONNECTION LOST', 'BACK TO THE MENU IN 10 S');
+      this.over('CONNECTION LOST', `BACK TO THE MENU IN 10 S<br>(${why})`);
     } else if (!quiet && this.lost) {
-      this.lost = 0; this.over(null);
+      this.lost = 0; this.over(null); this.log('the line came back');
       if (m && m.lanHold === 'lost') { m.lanHold = null; m.paused = !!m.lanHoldWas; m.say('', '', 0.01); }
     }
     if (this.lost && now - this.lost > LAN_BACK_MS) { this.on = false; location.reload(); }
   },
-  drop() { this.closed = true; },
+  drop(why) { if (!this.closed) { this.why = why || 'closed'; this.log('dropped: ' + this.why); } this.closed = true; },
   // a plain screen-wide note over the game (CONNECTION LOST, PAUSED, waiting for the host)
   over(big, small) {
     let el = document.getElementById('lanover');
@@ -334,4 +359,7 @@ hc2Mix(Match, {
   },
 });
 
-if (typeof document !== 'undefined' && document.getElementById('start')) LAN.probe();
+if (typeof document !== 'undefined' && document.getElementById('start')) {
+  LAN.probe();
+  document.addEventListener('visibilitychange', () => { if (LAN.on) LAN.log('page ' + document.visibilityState); });   // (a hidden page runs slow: worth knowing)
+}

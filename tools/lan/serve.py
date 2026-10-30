@@ -55,6 +55,28 @@ def lan_name():
     return n if n and n.lower() != 'localhost' else None
 
 
+def say(line):
+    # (flush: the Windows console window shows a thread's print late otherwise)
+    print(time.strftime('  %H:%M:%S ') + line, flush=True)
+
+
+def with_ip_candidates(desc, ip):
+    """Luca's first 2-PC test (30 Oct, Windows laptop): connected, then lost straight away. Chrome / Edge hide each PC's
+    address behind a random <id>.local name (mDNS) in its connection candidates, and the other PC has to look that
+    name up on the Wi-Fi; routers and Windows don't always answer, and then the two can't reach each other. This
+    server already sees each PC's real address, so every .local candidate gets a twin with that address (the
+    original stays: whichever works wins)."""
+    if not ip: return desc
+    out = []
+    for ln in desc['sdp'].split('\r\n'):
+        out.append(ln)
+        f = ln.split(' ')
+        if ln.startswith('a=candidate:') and len(f) > 5 and f[4].endswith('.local'):
+            f[0] = f[0] + '9'                      # (its own foundation)
+            f[4] = ip; out.append(' '.join(f))
+    return dict(desc, sdp='\r\n'.join(out))
+
+
 class Handler(SimpleHTTPRequestHandler):
     server_version = 'HC2LAN/1'
 
@@ -62,7 +84,7 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*a, directory=GAME, **k)
 
     def log_message(self, fmt, *args):  # quiet: only the matchmaker's lines are worth seeing
-        if self.command == 'POST' or (args and str(args[1]) not in ('200', '204', '304')):
+        if (self.command == 'POST' and not self.path.startswith('/lan/')) or (args and len(args) > 1 and str(args[1]) not in ('200', '204', '304', '404')):
             sys.stderr.write('  [%s] %s\n' % (self.client_address[0], fmt % args))
 
     def local_only(self):
@@ -73,6 +95,10 @@ class Handler(SimpleHTTPRequestHandler):
         if ip is None or not (ip.is_private or ip.is_loopback or ip.is_link_local):
             self.send_error(403, 'HC2 LAN answers the local network only'); return False
         return True
+
+    def peer_ip(self):                             # this PC's address on the Wi-Fi (the laptop's own page comes in on 127.0.0.1)
+        ip = self.client_address[0]
+        return lan_ip() if ipaddress.ip_address(ip).is_loopback else ip
 
     def reply(self, code, obj=None):
         body = json.dumps(obj).encode() if obj is not None else b''
@@ -133,9 +159,9 @@ class Handler(SimpleHTTPRequestHandler):
             frm = 'this laptop' if ipaddress.ip_address(self.client_address[0]).is_loopback else self.client_address[0]
             with lock:
                 prune(); r = secrets.token_hex(4)
-                rooms[r] = {'name': name, 'offer': off, 'from': frm, 't': time.time(), 'answer': None}
+                rooms[r] = {'name': name, 'offer': with_ip_candidates(off, self.peer_ip()), 'from': frm, 't': time.time(), 'answer': None}
                 lock.notify_all()
-            print('  a game is hosted (%s, from %s): waiting for PC 2' % (name, frm))
+            say('a game is hosted (%s, from %s): waiting for PC 2' % (name, frm))
             return self.reply(200, {'room': r})
         if p.startswith('/lan/answer/'):
             r, ans = p.rsplit('/', 1)[1], b.get('answer')
@@ -144,8 +170,12 @@ class Handler(SimpleHTTPRequestHandler):
                 prune(); o = rooms.get(r)
                 if o is None: return self.reply(404, {'error': 'no such room'})
                 if o['answer'] is not None: return self.reply(409, {'error': 'taken'})
-                o['answer'] = ans; lock.notify_all()
-            print('  PC 2 joined from %s: connecting the two PCs' % self.client_address[0])
+                o['answer'] = with_ip_candidates(ans, self.peer_ip()); lock.notify_all()
+            say('PC 2 joined from %s: connecting the two PCs' % self.client_address[0])
+            return self.reply(200, {'ok': 1})
+        if p == '/lan/log':                        # the two pages say how the link is doing, so this window shows it
+            who = 'HOST' if b.get('role') == 'host' else 'PC 2'
+            say('%s (%s): %s' % (who, self.client_address[0], ''.join(c for c in str(b.get('msg', '')) if c.isprintable())[:300]))
             return self.reply(200, {'ok': 1})
         return self.reply(404, {'error': 'unknown'})
 

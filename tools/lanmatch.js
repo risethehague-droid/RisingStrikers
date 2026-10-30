@@ -9,7 +9,7 @@
 //   - the edges: the guest pauses -> both stop, the host's ENTER can't resume, the guest's can; the guest's PC goes away
 //     -> CONNECTION LOST on the host, back to the menu after 10 s
 //   - no page errors
-//   node tools/lanmatch.js        SECS=60 (match time) · LANPORT=8771 · GIF=docs/previews/pr<N>-lan-match.gif (both pages side by side)
+//   node tools/lanmatch.js        SRVLOG=1 (print what the server window showed) · SECS=60 (match time) · LANPORT=8771 · GIF=docs/previews/pr<N>-lan-match.gif (both pages side by side)
 const { chromium } = require('playwright');
 const { spawn, execFileSync } = require('child_process'), fs = require('fs'), path = require('path'), os = require('os');
 const E = process.env, SECS = +(E.SECS || 60), LANPORT = +(E.LANPORT || 8771), GIF = E.GIF;
@@ -136,6 +136,7 @@ print('gif', out, os.path.getsize(out), 'bytes,', len(frames), 'frames')
     console.log(execFileSync('python3', ['-I', py, dir, GIF]).toString().trim());
   }
   await br.close(); srv.kill();
+  if (E.SRVLOG) console.log('--- what serve.py printed ---\n' + srvOut.split('\n').filter(l => /^\s+\d\d:\d\d/.test(l)).join('\n'));   // (SRVLOG=1: the black window's lines)
   console.log(fail.length ? `lan match: FAILED (${fail.length})` : 'lan match: OK');
   process.exit(fail.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
