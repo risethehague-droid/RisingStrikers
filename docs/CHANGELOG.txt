@@ -1,3 +1,10 @@
+HC2 WEB GAME - v0.15.1 (30 Oct) - TWO QA FIXES (PRs #59, #60, Luca's OK)
+- AUDIO ON TAB SWITCH (#59, QA): Phaser's own sound system (unused: the game's sound is SFX in io.js) suspended and
+  resumed its audio device on every tab switch and never caught a failure, so Bug Watch logged a CRASH. It's switched
+  off (boot.js); the game's own sound is unchanged. Seeded matches identical.
+- KEEPER UP FOR A LAST CORNER (#60, QA): since v0.15.0 a keeper goes up for a last-minute corner when his team is a goal
+  down (#58). Bug Watch's KEEPER MILES FROM GOAL check now skips him while he's up on purpose (replay.js).
+
 HC2 WEB GAME - v0.15.0 (29 Oct) - SMARTER TEAM AI + ATTACK BALANCE + QA FIXES (PRs #55-#58, Luca's OK)
 - SMARTER TEAM AI, stage 2 (#58, worker-f, the co-designer's plan from #48): one team brain (game/src/brain.js). Players
   keep their job until another is clearly better, one presses + one covers, a move list any new move joins with one

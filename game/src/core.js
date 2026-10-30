@@ -1,3 +1,4 @@
+// HELP OUT HAGUE CUP II - web game v0.15.1 (Luca OK'd PRs #59, #60, 30 Oct - two QA fixes from the overnight run: Phaser's own unused sound system is switched off, so a failed audio start when the tab comes back is no longer a crash (#59); Bug Watch no longer flags a keeper who is up for a last-minute corner on purpose (#60, PR #58's keeper))
 // HELP OUT HAGUE CUP II - web game v0.15.0 (Luca OK'd PRs #55-#58, 29 Oct: SMARTER TEAM AI stage 2 - the team brain (brain.js): players keep their jobs, one presses + one covers, a move list (AI_MOVES), the 1-2, chasing late / protecting a lead, team style dials (every team NEUTRAL until Luca picks), Rise Warrior reads your habits (#58, worker-f); ATTACK BALANCE - sprinting no longer protects the ball, your lob from wide is a real cross to a runner, the SP meter fills faster (CLASSIC 1.4x, ARCADE 2.0x), a short cut-in on every special shot (#57, the co-designer); four QA fixes - every attempt counts as a shot, a hard cap on a kick waiting for its contact frame, a second match starts clean, GAME FROZE clips tell a paused browser from a hang (#55, t-035); the LAN connection test page in tools/lan (#56, t-041, not in the game))
 // HELP OUT HAGUE CUP II - web game v0.14.0 (Luca OK'd PRs #51-#54, 29 Oct: the TAP KICK in every match (t-037); GOAL PHYSICS in every match - round posts and bar with real rebounds, parries that loop up (t-039); ARCADE SPECIALS part 2 - a special dribble, combo specials, team signature moves, higher leaps (the co-designer, ARCADE only); a failed audio start no longer counts as a crash (QA))
 // HELP OUT HAGUE CUP II - web game v0.13.1 (Luca OK'd PR #50, 29 Oct - his 00:38 "the test lab must be completely fixed, I cannot navigate it, it's missing moves": THE TEST LAB REWORK - a clickable BACK / NEXT / ALL TESTS / FREE PLAY bar, a scrolling searchable ALL TESTS menu in sections, the Lab opens on FREE PLAY with RESUME, 58 FREE PLAY move buttons tagged IN THE GAME / LAB ONLY; Lab files only, matches unchanged)
@@ -484,7 +485,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.15.0';
+const GAME_VER = 'v0.15.1';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)
