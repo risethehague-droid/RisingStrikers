@@ -361,7 +361,7 @@ hc2Mix(Match, {
     return keep && ks > bs - 0.6 ? keep : best;                                // v0.7.4: the mate you're shown stays picked unless another is clearly better (no flicker)
   },
   doPass(p, dir, mode, to) {
-    const q = to || this.passTarget(p, dir, mode, p === this.human ? this.passAim : null);   // (v0.8.2: the AI names the man it picked)
+    const q = to || this.passTarget(p, dir, mode, this.isHuman(p) ? this.slot(p.team).passAim : null);   // (v0.8.2: the AI names the man it picked)
     let tx, ty;
     if (q) {
       if (mode === 'through') {                                                // into the space in front of him
@@ -372,10 +372,10 @@ hc2Mix(Match, {
         tx = q.x + q.vx * t * 0.6; ty = q.y + q.vy * t * 0.6;
       }
     } else { const d = mode === 'lob' ? 25 : 16; tx = p.x + dir.x * d; ty = p.y + dir.y * d; }
-    if (!(p === this.human && !this.demo) && !p.keeper) { const e = this.dk(p.team).passErr; if (e > 0) {   // v0.9.2: a weaker computer side passes less accurately
+    if (!(this.isHuman(p) && !this.demo) && !p.keeper) { const e = this.dk(p.team).passErr; if (e > 0) {   // v0.9.2: a weaker computer side passes less accurately
       const a = rnd(-1, 1) * e, dx = tx - p.x, dy = ty - p.y, c = Math.cos(a), s = Math.sin(a); tx = p.x + dx * c - dy * s; ty = p.y + dx * s + dy * c; } }
     this.kick(p, tx, ty, 0, 0, 0.12, { mode, target: q, loft: mode === 'lob' && !p.keeper && !this.setPiece });
-    if (q && p.team === this.home) { this.nextHuman = q; this.passRing = { p: q, t: 1.0 }; this.passStick = { ...Input.axis }; }
+    { const S = this.slot(p.team); if (q && S) { S.nextHuman = q; this.passRing = { p: q, t: 1.0 }; S.passStick = { ...this.inpOf(p.team).axis }; } }   // (t-043: either human's side, his own stick)
   },
   // t-011: the curving special pass leaves the boot - solved from where the ball really is at contact, round the men in
   // the way now (specials.js curvePass set it up; nothing solvable = it goes as the straight pass it already is)
@@ -395,9 +395,9 @@ hc2Mix(Match, {
     const q = p.team.players.filter(m => m !== p && !m.sentOff && !m.keeper).sort((a, b) => len(a.x - tx, a.y - ty) - len(b.x - tx, b.y - ty))[0];
     const target = q && len(q.x - tx, q.y - ty) < 9 ? q : null;
     this.kick(p, tx, ty, 0, 0, 0.14, { mode: 'lob', target, lobPow: c, loft: !p.keeper && !this.setPiece });
-    if (target && p.team === this.home) { this.nextHuman = target; this.passRing = { p: target, t: 1.0 }; this.passStick = { ...Input.axis }; }
+    { const S = this.slot(p.team); if (target && S) { S.nextHuman = target; this.passRing = { p: target, t: 1.0 }; S.passStick = { ...this.inpOf(p.team).axis }; } }
   },
-  lobSpot(p) { const ax = Input.axis, dv = len(ax.x, ax.y) > 0.1 ? ax : dirVec(p.face), l = len(dv.x, dv.y) || 1, d = 12 + this.lobCharge * (LOB_MAX - 12);
+  lobSpot(p) { const ax = this.inpOf(p.team).axis, dv = len(ax.x, ax.y) > 0.1 ? ax : dirVec(p.face), l = len(dv.x, dv.y) || 1, d = 12 + (this.slot(p.team) || this).lobCharge * (LOB_MAX - 12);
     if (this.chipCan(p, dv)) return { x: p.team.goalX, y: clamp(34 + (Math.abs(ax.y) > 0.2 ? ax.y * 2.4 : 0), GOAL_Y0 + 0.4, GOAL_Y1 - 0.4), chip: true };   // v0.9.2 a chip: at the goal
     return { x: clamp(p.x + dv.x / l * d, 1, PITCH_L - 1), y: clamp(p.y + dv.y / l * d, 1, PITCH_W - 1) }; },
   // ======================================================================= t-008 THE HOLD-TO-AIM LOB (Luca 24 Oct 05:57: "the sensitivity /
@@ -408,7 +408,7 @@ hc2Mix(Match, {
   // solved with the real flight (lobSolve) so it comes down on the ring. Its arc comes from the distance and what's in
   // the way (lobAimApex). The tap stays the instant lob; the chip in their box and the keeper's throw keep the old hold.
   lobAimStart(p, dir) {
-    const l = len(dir.x, dir.y) || 1, ux = dir.x / l, uy = dir.y / l, q = this.passTarget(p, { x: ux, y: uy }, 'lob', p === this.human ? this.passAim : null);
+    const l = len(dir.x, dir.y) || 1, ux = dir.x / l, uy = dir.y / l, q = this.passTarget(p, { x: ux, y: uy }, 'lob', this.isHuman(p) ? this.slot(p.team).passAim : null);
     const qd = q ? len(q.x - p.x, q.y - p.y) : 0;
     const s = q && qd >= LOB2.minD && qd <= LOB2.maxD ? { x: q.x + q.vx * 0.5, y: q.y + q.vy * 0.5 } : { x: p.x + ux * LOB2.startD, y: p.y + uy * LOB2.startD };
     return this.lobAimClamp(p, s.x, s.y);
@@ -443,7 +443,7 @@ hc2Mix(Match, {
       const t = len(m.x - tx, m.y - ty) / (m.top ? m.top(true, false) : RUN); if (t < bt && t < T + 0.6) { bt = t; q = m; } } }
     this.kick(p, tx, ty, 0, 0, 0.14, { mode: 'lob', target: q, loft: !p.keeper && !this.setPiece, aim: { apex, x: tx, y: ty } });
     this.lobAimLast = { x: tx, y: ty, apex, q, by: p, auto: !!A.auto };
-    if (q && p.team === this.home) { this.nextHuman = q; this.passRing = { p: q, t: 1.0 }; this.passStick = { ...Input.axis }; }
+    { const S = this.slot(p.team); if (q && S) { S.nextHuman = q; this.passRing = { p: q, t: 1.0 }; S.passStick = { ...this.inpOf(p.team).axis }; } }   // (t-043: either human's side, his own stick)
   },
   // t-019 AUTO: where the lob to q comes down - where his run takes him while it's in the air, plus LOB_AIM.step on along
   // it (towards their goal when he stands), so he takes it in stride (Luca: "closer to fifa"). k = how long LOB was held
@@ -511,7 +511,7 @@ hc2Mix(Match, {
   // (smarter-ai: the judgement on its own, so the team brain's move list can weigh the tap against the other moves)
   aiTapAt(p) {
     const b = this.ball, gx = p.team.goalX, gk = p.team.opp.players[0];
-    if (!TAP_KICK || (p === this.human && !this.demo) || b.owner !== p || b.z > 0.25 || this.setPiece || p.keeper) return null;
+    if (!TAP_KICK || (this.isHuman(p) && !this.demo) || b.owner !== p || b.z > 0.25 || this.setPiece || p.keeper) return null;
     if (len(gx - b.x, 34 - b.y) > TAP.aiD) return null;
     const ty = !gk || gk.sentOff ? 34 : gk.y < 34 ? GOAL_Y1 - 0.6 : GOAL_Y0 + 0.6, dx = gx - b.x, dy = ty - b.y, d = len(dx, dy);
     if (gk && !gk.sentOff) {
@@ -525,8 +525,8 @@ hc2Mix(Match, {
   doShot(p, power, aimY) {
     if (this.aiTap(p)) return;                                                    // t-010: the computer's tap-in (only with TAP_KICK on)
     const gx = p.team.goalX;                                                      // (counted as a shot on the contact frame: releaseKick)
-    if (power > 0.93 && p === this.human) this.ramiSay('power_shot', {}, 1);
-    const err = rnd(-1, 1) * (0.35 + Math.max(0, power - 0.85) * 5 + (p.sprinting ? 0.7 : 0) + (p.tired ? 0.6 : 0)) * (p === this.human && !this.demo ? 1 : this.dk(p.team).shotErr);   // (v0.9.2: the computer's finishing by level)
+    if (power > 0.93 && this.isHuman(p)) this.ramiSay('power_shot', {}, 1);
+    const err = rnd(-1, 1) * (0.35 + Math.max(0, power - 0.85) * 5 + (p.sprinting ? 0.7 : 0) + (p.tired ? 0.6 : 0)) * (this.isHuman(p) && !this.demo ? 1 : this.dk(p.team).shotErr);   // (v0.9.2: the computer's finishing by level)
     const ty = clamp(34 + aimY * 2.8 + err, 27, 41);
     const spd = (16 + power * 16) * SHOT_K;
     const vz = 0.9 + power * 3.6 + (power > 0.88 ? (power - 0.88) * 40 : 0) + rnd(-0.3, 0.4);  // too much power: over the bar
@@ -605,7 +605,7 @@ hc2Mix(Match, {
   chipShot(p, c, aimY) {
     const gx = p.team.goalX, s = p.team.side, gk = p.team.opp.players[0];
     const ay = Math.abs(aimY) > 0.2 ? aimY : gk && !gk.sentOff ? (gk.y > 34 ? -0.55 : 0.55) : 0;   // no aim: away from the keeper
-    const err = rnd(-1, 1) * (0.25 + (p.sprinting ? 0.5 : 0) + (p.tired ? 0.4 : 0)) * (p === this.human && !this.demo ? 1 : this.dk(p.team).shotErr);
+    const err = rnd(-1, 1) * (0.25 + (p.sprinting ? 0.5 : 0) + (p.tired ? 0.4 : 0)) * (this.isHuman(p) && !this.demo ? 1 : this.dk(p.team).shotErr);
     const ty = clamp(34 + ay * 2.3 + err, GOAL_Y0 + 0.3, GOAL_Y1 - 0.3);
     this.kick(p, gx + s * 1.5, ty, 0, 0, 0.12, { shot: true, chip: true, chipC: clamp(c, 0, 1), power: 0.45, chipErr: err });
     if (p.kickAnim !== 'chip') p.kickAnim = MAN.kits[p.kit].anims[`pass-${DIRS[p.face]}`] ? 'pass' : 'kick';   // (a kit without the PixelLab chip: the pass frames)
@@ -635,9 +635,9 @@ hc2Mix(Match, {
   // floated lob, SPRINT + LOB a driven lob (low, fast, onto his feet), the chip a scoop that floats over the keeper.
   // (t-005: prototypes A and C are gone - A's fixes are the game now, C wasn't picked)
   lobProto(k, d, quick) {
-    const pow = k.info.lobPow, mine = k.p === this.human && !this.demo;
+    const pow = k.info.lobPow, mine = this.isHuman(k.p) && !this.demo;
     if (k.info.chip) return { spin: CHIP_SPIN };                                 // (chipSolve already flew it with the spin)
-    const driven = mine && pow == null && Input.held('sprint');
+    const driven = mine && pow == null && this.inpOf(k.p.team).held('sprint');
     const apex = driven ? clamp(1.8 + d * 0.05, 2.4, 3.8) : pow != null ? 4.5 + pow * 7 : clamp(3 + d * 0.12, 4.5, 9);
     const spin = driven ? 8 : 30;
     return { ...lobSolve(Math.max(4, d - (driven ? 0.5 : pow != null ? 1 : 2)), apex, spin, quick), spin };   // (quick: t-005's charge arc)
@@ -866,7 +866,7 @@ hc2Mix(Match, {
   gpLvl(team) {
     const o = window.__diffTeams, s = team === this.home ? 'home' : 'away';
     if (o && o[s]) return o[s].lvl || 'normal';
-    return !this.demo && team !== this.home ? DIFF_LEVEL : 'base';
+    return !this.demo && !this.hasHuman(team) ? DIFF_LEVEL : 'base';            // (t-043: a human's side plays base, either side)
   },
   // t-031 KEEPER HANDS: the ball he holds is drawn at (sx, sy) on the screen - his gloves on this frame (player.js
   // handPoint, keeper.js GK_HANDS). The drawing goes from the ball's x / y / z (world.js render), so the ball is put

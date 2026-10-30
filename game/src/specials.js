@@ -272,7 +272,7 @@ hc2Mix(Match, {
   airSpecial(p, aimAI) {
     const b = this.ball, mt = this.meterOf(p.team), lv = mt.spend(); if (!lv) return; if (aimAI == null) this.airSp = null;
     const pick = this.airPick(p, lv), bz0 = b.z;                                  // t-014: which of the level's two, from the ball's arc as it arrives (before it's stopped for the strike)
-    const aim = aimAI != null ? aimAI : Math.abs(Input.axis.y) > 0.2 ? Input.axis.y : (Math.random() < 0.5 ? -1 : 1) * rnd(0.55, 1), KA = MAN.kits[p.kit].anims;   // (t-012: the computer passes its own aim, not your stick)
+    const aim = aimAI != null ? aimAI : Math.abs(this.inp.axis.y) > 0.2 ? this.inp.axis.y : (Math.random() < 0.5 ? -1 : 1) * rnd(0.55, 1), KA = MAN.kits[p.kit].anims;   // (t-012: the computer passes its own aim, not your stick)
     { const dv = dirVec(p.face); b.x = p.x + dv.x * 0.45; b.y = p.y + dv.y * 0.35; b.vx = b.vy = b.vz = 0; }   // he meets it (the leap / volley closes the gap) - v0.8.7: and it stops there for the strike (it flew on and the kick missed: the Lab's PW10 caught it)
     b.owner = p; this.doShot(p, 0.85, aim);
     const k = this.pending; if (!k || k.p !== p) return;
@@ -426,7 +426,7 @@ hc2Mix(Match, {
   // to spend (your team-mates head it as before)
   aiAirSpecial(p) {
     const b = this.ball, team = p.team, lv = this.meterOf(team).level();
-    if (lv < 1 || p.keeper || (team === this.home && !this.demo) || b.owner || b.inNet || b.z < 0.55 || b.z > 2.6 || p.busy() || this.pending) return false;
+    if (lv < 1 || p.keeper || (this.hasHuman(team) && !this.demo) || b.owner || b.inNet || b.z < 0.55 || b.z > 2.6 || p.busy() || this.pending) return false;
     const gx = team.goalX, toGoal = len(gx - p.x, 34 - p.y); if (toGoal > 22 || (gx - p.x) * team.side < 3 || Math.abs(p.y - 34) > 14) return false;
     if ((team.airSpAt ?? -1e9) > this.time.now - 30000 || !(Math.random() < 0.45 * this.dk(team).sp)) return false;
     team.airSpAt = this.time.now; p.face = dirIndex(gx - p.x, 34 - p.y); this.airSpecial(p, (Math.random() < 0.5 ? -1 : 1) * rnd(0.5, 1)); return true;
@@ -553,7 +553,7 @@ hc2Mix(Match, {
     const mt = this.meterOf(def), gk = def.players[0]; if (!gk || gk.sentOff) return;
     gk.spSave = 0;
     if (mt.level() < 1) return;
-    if (def === this.home && !this.demo) { this.saveAsk = { team: def, t: 0.75 }; this.say('', `SPECIAL SAVE! PRESS ${keyset().special}`, 0.75); return; }
+    if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75 }; this.say('', `SPECIAL SAVE! PRESS ${keyset().special}`, 0.75); return; }
     if (Math.random() < (paceK().gkAnswer > 0.6 ? 0.95 : 0.8)) { gk.spSave = mt.spend(); this.saveFx(gk); }   // (arcade-2: ARCADE nearly always answers a special)
   },
   saveFx(gk) {
@@ -616,7 +616,7 @@ hc2Mix(Match, {
     const b = this.ball, s = b.save, mt = this.meterOf(def), gk = def.players[0];
     if (!gk || gk.sentOff || pen || b.special || !s || s.gk !== gk || s.off || gk.spSave || mt.level() < 1) return;
     b.saveable = shooters;
-    if (def === this.home && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset().special}`, 0.75); return; }
+    if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset().special}`, 0.75); return; }
     const P = paceK(); if (s.dy > s.cover * P.gkCover && Math.random() < P.gkAnswer * this.dk(def).gkSave) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it (arcade-2: ARCADE answers more, and a little sooner: a keeper's move against every big shot)
   },
   // the clash at the keeper: true = saved, 'hand' = he only gets a hand to it (t-007: it goes out), 'clash' = a special v
@@ -794,7 +794,7 @@ hc2Mix(Match, {
   special(p) {
     const mt = this.meterOf(p.team), b = this.ball;
     if (mt.level() < 1 || p.keeper || b.owner !== p || p.busy() || this.pending) return false;
-    const lv = mt.spend(), held = p === this.human && Math.abs(Input.axis.y) > 0.2, aim = held ? Input.axis.y : (Math.random() < 0.5 ? -1 : 1) * rnd(0.55, 1);   // no aim held: it picks a corner
+    const lv = mt.spend(), pax = this.inpOf(p.team).axis, held = this.isHuman(p) && Math.abs(pax.y) > 0.2, aim = held ? pax.y : (Math.random() < 0.5 ? -1 : 1) * rnd(0.55, 1);   // no aim held: it picks a corner
     this.doShot(p, 0.8, aim);
     const k = this.pending; if (!k || k.p !== p) return false;
     k.ty = clamp(34 + aim * 2.9 + rnd(-0.25, 0.25), GOAL_Y0 + 0.5, GOAL_Y1 - 0.5); k.tx = p.team.goalX + p.team.side * 2;

@@ -83,8 +83,11 @@ const Input = {
   // mashTake() hands the presses over since it was last asked. A held key or its repeat is never a second press.
   mashN: 0, padShoot: false, touchShoot: false,
   mashTake() { const n = this.mashN; this.mashN = 0; return n; },
+  // t-043 TWO HUMANS: with a second player on the keyboard (keyPad below) the keys he owns are his alone - this home
+  // source skips them (null = one player, every key as always)
+  skip: null,
   init() {
-    addEventListener('keydown', e => { this.keys.add(e.code); this.downs.add(e.code); if (!e.repeat && this.map.shoot.includes(e.code)) this.mashN++; if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); });
+    addEventListener('keydown', e => { this.keys.add(e.code); this.downs.add(e.code); if (!e.repeat && this.map.shoot.includes(e.code) && !(this.skip && this.skip.has(e.code))) this.mashN++; if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); });
     addEventListener('keyup', e => this.keys.delete(e.code));
     addEventListener('blur', () => this.keys.clear());
   },
@@ -92,7 +95,7 @@ const Input = {
     this.prev = this.cur; this.prevAxis = this.axis; const c = {};
     let ax = 0, ay = 0;
     this.taps = this.downs; this.downs = new Set();                              // a quick tap between two frames still counts
-    const k = { has: code => this.keys.has(code) || this.taps.has(code) };
+    const k = { has: code => (this.keys.has(code) || this.taps.has(code)) && !(this.skip && this.skip.has(code)) };
     if (k.has('ArrowLeft') || k.has('KeyA')) ax -= 1; if (k.has('ArrowRight') || k.has('KeyD')) ax += 1;
     if (k.has('ArrowUp') || k.has('KeyW')) ay -= 1; if (k.has('ArrowDown') || k.has('KeyS')) ay += 1;
     for (const a in this.map) c[a] = this.map[a].some(code => k.has(code));
@@ -121,6 +124,41 @@ const Input = {
   pressed(a) { return !!this.cur[a] && !this.prev[a]; },
   released(a) { return !this.cur[a] && !!this.prev[a]; },
 };
+// t-043 TWO HUMANS (LAN step 2 part 1, docs/lan-step2.md): the away human reads a source of his own with Input's face -
+// axis, held / pressed / released, mashTake, nav - so the code that reads "your" buttons reads his for him
+// (m.inpOf(team), m.inp). Its state comes from set(): a test script, the second keyboard set below, and in part 2 the
+// LAN guest's input packets. poll() moves it on once a frame, as Input.poll does.
+function inputPad() {
+  return {
+    cur: {}, prev: {}, axis: { x: 0, y: 0 }, prevAxis: { x: 0, y: 0 }, taps: new Set(), next: {}, mashN: 0, shootWas: false,
+    set(s) { this.next = s || {}; },                                            // { x, y (the stick), pass, shoot, ... (true = down), mash (extra presses) }
+    poll() {
+      const s = this.next, c = {}; this.prev = this.cur; this.prevAxis = this.axis;
+      for (const a in s) if (a !== 'x' && a !== 'y' && a !== 'mash') c[a] = !!s[a];
+      if (c.shoot && !this.shootWas) this.mashN++; this.shootWas = !!c.shoot;  // (a SHOOT going down = one mash press, as Input counts it)
+      this.mashN += s.mash || 0; if (s.mash) s.mash = 0;
+      const ax = s.x || 0, ay = s.y || 0, l = len(ax, ay);
+      this.axis = l > 0.2 ? { x: ax / Math.max(1, l), y: ay / Math.max(1, l) } : { x: 0, y: 0 };
+      this.cur = c;
+    },
+    mashTake: Input.mashTake, held: Input.held, pressed: Input.pressed, released: Input.released, nav: Input.nav,
+  };
+}
+// ...and two players on one keyboard, to try two humans on one PC before the LAN exists (#2p on the page's address):
+// the away player has WASD to move, J pass, K shoot, L lob, I through, U special, O special dribble, left SHIFT
+// sprint; home keeps the arrows, Z X C V B N and right SHIFT (and the pad, ENTER / ESC / P, T and F)
+const KEYPAD_MAP = { pass: ['KeyJ'], shoot: ['KeyK'], lob: ['KeyL'], through: ['KeyI'], special: ['KeyU'], sdribble: ['KeyO'], sprint: ['ShiftLeft'] };
+function keyPad() {
+  const P = inputPad(), M = KEYPAD_MAP, all = ['KeyW', 'KeyA', 'KeyS', 'KeyD'].concat(...Object.values(M));
+  Input.skip = new Set(all);
+  const poll = P.poll;
+  P.poll = function () {                                                        // (after Input.poll: its taps are this frame's)
+    const has = c => Input.keys.has(c) || Input.taps.has(c), s = { x: (has('KeyD') ? 1 : 0) - (has('KeyA') ? 1 : 0), y: (has('KeyS') ? 1 : 0) - (has('KeyW') ? 1 : 0) };
+    for (const a in M) s[a] = M[a].some(has);
+    this.next = s; poll.call(this);
+  };
+  P.keys = true; return P;
+}
 
 // ------------------------------------------------------------------ boot: manifest, then assets
 // ------------------------------------------------------------------ v0.7.5 PHONE (LITE) TEXTURES

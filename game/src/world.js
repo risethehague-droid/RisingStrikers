@@ -251,7 +251,7 @@ hc2Mix(Match, {
     const fs = this.foulScene;
     if (fs) { const q = fs.card ? fs.by : fs.victim; tx = wx(q.x, q.y); ty = wy(q.y) - 70 - clamp(1 - q.y / 20, 0, 1) * 120; }   // v0.8: the camera stays on the incident
     const spc = this.setPiece;
-    if (spc && !spc.kicked && spc.team === this.home && this.aimPt) {          // your set piece: frame the ball AND the aim cursor
+    if (spc && !spc.kicked && this.hasHuman(spc.team) && this.aimPt) {          // your set piece: frame the ball AND the aim cursor
       const ax = wx(this.aimPt.x, this.aimPt.y), ay = wy(this.aimPt.y);       // show where the ball is going (the line points back to the taker)
       tx = X + (ax - X) * 0.8; ty = wy(b.y) + (ay - wy(b.y)) * 0.8 - 40;
       if (spc.kind === 'FREE KICK' || spc.kind === 'GOAL KICK') tx = clamp(tx, X - (VIEW_W / 2 - 150), X + (VIEW_W / 2 - 150));   // v0.8: the taker stays in shot (corners: the box matters more)
