@@ -9,7 +9,7 @@
 //   node tools/twohuman.js same|two      PORT=8765 · SEEDS=101,202 · LEVELS=easy,normal,hard,rise · STEPS=<frames>
 const { chromium } = require('playwright');
 const MODE = process.argv[2] || 'same', PORT = process.env.PORT || 8765;
-const SEEDS = (process.env.SEEDS || '101,202').split(',').map(Number), LEVELS = (process.env.LEVELS || 'easy,normal,hard,rise').split(',');
+const SEEDS = (process.env.SEEDS || (MODE === 'two' ? '101,202,303' : '101,202')).split(',').map(Number), LEVELS = (process.env.LEVELS || (MODE === 'two' ? 'normal' : 'easy,normal,hard,rise')).split(',');   // (two humans: no computer side, so both play base at any level)
 const STEPS = +(process.env.STEPS || (MODE === 'two' ? 60 * 120 : 60 * 400));   // (same: a whole match, both halves and the break)
 (async () => {
   const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -56,7 +56,7 @@ const STEPS = +(process.env.STEPS || (MODE === 'two' ? 60 * 120 : 60 * 400));   
         let s2 = null, a0 = null;
         if (pad) { const ah = m.humanOf(m.away); s2 = window.__script(m, f, ah, m.away, 57); pad.set(s2); a0 = { p: ah, x: ah.x, y: ah.y }; }
         window.__T += 1000 / 60; g.step(window.__T, 1000 / 60); if (m.cutIn) m.cutInEnd(); if (m.replay) m.endReplay();
-        if (pad && a0 && a0.p === m.humanOf(m.away) && !m.setPiece && !m.freeze && !m.aerial && !m.ht && !m.intro && !m.paused && a0.p.state !== 'kick' && a0.p.stun <= 0) {
+        if (pad && a0 && a0.p === m.humanOf(m.away) && !m.setPiece && !(m.freeze > 0) && !m.aerial && !m.ht && !m.intro && !m.paused && a0.p.state !== 'kick' && !(a0.p.stun > 0)) {
           const dx = a0.p.x - a0.x, dy = a0.p.y - a0.y, l = Math.hypot(s2.x, s2.y);
           if (Math.hypot(dx, dy) > 0.02 && l > 0.5) { C.moves++; if ((dx * s2.x + dy * s2.y) / (Math.hypot(dx, dy) * l) > 0.3) C.along++; else C.against++; }
           if (m.ball.owner === a0.p) C.owned++;
