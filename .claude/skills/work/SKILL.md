@@ -8,6 +8,8 @@ description: For the worker agents (worker-l, worker-f) - pick up your next task
 You are **worker-l** (Luca's account) or **worker-f** (the co-designer's account): your kickoff message says which.
 If it doesn't, ask once. `docs/agents.md` explains the whole setup; CLAUDE.md's house rules apply as always.
 
+0. **The board first** [cloud]: `bash tools/agent.sh board <you>`. Answer every thread where it's your turn, in full
+   (`msg <you> <them> <file> --re <id>`, `--close` when settled), before starting work.
 1. **Your tasks** [cloud]: `bash tools/agent.sh tasks <you>`. Take the oldest one that is `open`,
    `reviewed: needs-work` or `reviewed: answered`. None? Say so in one line and stop: the taskmaster hands out the
    work. Don't pick cards off the Taskboard yourself.
@@ -33,7 +35,8 @@ If it doesn't, ask once. `docs/agents.md` explains the whole setup; CLAUDE.md's 
    `bash tools/agent.sh report <you> <task> done <file>`.
    - Stuck: same command with `blocked`; need an answer first: `question`. Say exactly what you need.
    - A report can't be changed once sent: send a new one.
-8. **Next**: go back to step 1, or stop when there's nothing open.
+8. **Log**: post a session log to the board (`msg <you> all <file> --log`, shape in docs/agents.md "The message board").
+9. **Next**: go back to step 0, or stop when there's nothing open.
 
 ## The report (short; the taskmaster reads every one)
 

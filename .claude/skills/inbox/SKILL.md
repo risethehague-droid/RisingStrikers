@@ -9,6 +9,8 @@ Only on Luca's account: it writes reviews and Taskboard cards. Workers use `/wor
 Board: https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4, collection `tasks`, card id = the task id (`t-NNN`). Use
 ArtifactData, pinning every write to an existing card with `if_version`.
 
+0. **The board** [cloud]: `bash tools/agent.sh board taskmaster` (and `board check`, `board --logs`). Answer in full,
+   mirror HQ <-> the board (docs/taskmaster.md "The message board").
 1. **What's waiting** [cloud]: `bash tools/agent.sh inbox`. Nothing? One line, stop.
 2. **For each report**, oldest first:
    - Read the report (`bash tools/agent.sh show reports/<name>`), its brief (`show tasks/<agent>/<task>.md`) and

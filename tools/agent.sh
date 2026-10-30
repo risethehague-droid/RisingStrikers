@@ -13,11 +13,21 @@
 #                                                                to another agent)
 #   bash tools/agent.sh review <report> <verdict> <file>        (taskmaster) post a review (verdict: ok | needs-work |
 #                                                                answered | for-luca | dropped)
+# The message board (the co-designer, 29 Oct: "We want you communicating in a lot more details", HQ's board can't be
+# reached from his account's Claude sessions, so the board lives here, where both accounts already write):
+#   bash tools/agent.sh msg <from> <to> <file> [--re <id>] [--close] [--urgent] [--card <id>] [--log]
+#                                                               a message (--re: a reply in that thread, --close: the reply
+#                                                                that answers it, --log: a session log for everyone that
+#                                                                needs no answer). who: luca co-designer taskmaster
+#                                                                worker-l worker-f check qa all
+#   bash tools/agent.sh board [<who>] [--all] [--logs]          open threads (to <who> or everyone), newest first
+#   bash tools/agent.sh thread <id>                             a whole thread: the message and every reply
 # Agents: worker-l (Luca's account), worker-f (the co-designer's account), co-designer, qa (the nightly QA run). How it all fits: docs/agents.md.
 set -u
 ORIG="$PWD"; abs() { case "$1" in /*|"") echo "$1";; *) echo "$ORIG/$1";; esac; }   # file paths are relative to where you ran it
 cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}" || exit 0
 AGENTS="worker-l worker-f co-designer qa"
+WHO="luca co-designer taskmaster worker-l worker-f check qa all"   # (the board: the same names as HQ's Messages)
 REF=refs/remotes/origin/agents
 say() { echo "[agents] $*"; }
 die() { echo "[agents] $*" >&2; exit 1; }
@@ -62,6 +72,23 @@ task_state() {   # open | reported: <status> | reviewed: <verdict>
 closed() { case "$1" in "reviewed: ok"|"reviewed: dropped") return 0;; esac; return 1; }
 unreviewed() { for r in $(ls_dir reports | sort); do [ -n "$(get "reviews/${r#reports/}")" ] || echo "$r"; done; }
 
+# ---- the message board: agents/messages/<id>.md, one file per message (so pushes never clash), id = <time>--<from>.
+# A reply carries "re: <id>"; a thread is answered once a reply says "closes: yes". Logs ("kind: log") need no answer.
+valid_who() { case " $WHO " in *" $1 "*) return 0;; esac; die "unknown name '$1' (one of: $WHO)"; }
+msgs() { ls_dir messages | sed -n 's#^messages/\(.*\)\.md$#\1#p' | sort; }
+mfield() { field "messages/$1.md" "$2"; }
+replies() { for m in $(msgs); do [ "$(mfield "$m" re)" = "$1" ] && echo "$m"; done; }
+closed_t() { for r in $(replies "$1"); do [ "$(mfield "$r" closes)" = yes ] && return 0; done; return 1; }
+first_line() { get "messages/$1.md" | awk 'f && NF { print; exit } /^---$/ { n++; if (n == 2) f = 1 }' | cut -c1-110; }
+waiting() {   # "<id>\t<whose turn>" for each open thread (not a log, no closing reply): whose turn = who the newest
+              # message in it is to (you asked the taskmaster; it replied to you: now it's yours)
+  local all; all="$(msgs)"; local closed="" last=""
+  for m in $all; do r="$(mfield "$m" re)"; [ -n "$r" ] && { last="$last $r=$m"; [ "$(mfield "$m" closes)" = yes ] && closed="$closed $r"; }; done
+  for m in $all; do [ -z "$(mfield "$m" re)" ] && [ "$(mfield "$m" kind)" != log ] && case " $closed " in *" $m "*) ;; *)
+    n="$m"; for kv in $last; do [ "${kv%%=*}" = "$m" ] && n="${kv#*=}"; done
+    printf '%s\t%s\n' "$m" "$(mfield "$n" to)";; esac; done
+}
+
 cmd="${1:-status}"; shift || true
 case "$cmd" in
   status)
@@ -72,7 +99,11 @@ case "$cmd" in
       for t in $(task_ids "$a"); do s="$(task_state "$t")"; closed "$s" || open="$open $t"; done
       [ -n "$open" ] && line="$line · $a:$open"; done
     n="$(unreviewed | grep -c .)"
-    line="${line# · }"; say "open tasks: ${line:-none}$( [ "$n" -gt 0 ] && echo " · reports waiting for the taskmaster: $n")";;
+    line="${line# · }"; say "open tasks: ${line:-none}$( [ "$n" -gt 0 ] && echo " · reports waiting for the taskmaster: $n")"
+    w="$(waiting | cut -f2 | sort | uniq -c | awk '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $2, $1 }')"
+    [ -n "$w" ] && say "messages waiting: $w (bash tools/agent.sh board <you>)"
+    last="$(for m in $(msgs); do [ "$(mfield "$m" kind)" = log ] && echo "$m"; done | tail -1)"
+    [ -n "$last" ] && say "latest session log: $last ($(mfield "$last" from)) - bash tools/agent.sh board --logs";;
   tasks)
     a="${1:-}"; valid_agent "$a"; fetch || die "couldn't reach GitHub"; have || { say "no agents branch yet"; exit 0; }
     ids="$(task_ids "$a")"; [ -z "$ids" ] && { say "$a has no tasks"; exit 0; }
@@ -120,5 +151,39 @@ case "$cmd" in
     tmpf="$(mktemp)"; { echo "---"; echo "report: $r"; echo "task: $(field "reports/$r" task)"; echo "agent: $(field "reports/$r" agent)"
       echo "verdict: $v"; echo "reviewed: $(now)"; echo "---"; echo; cat "$f"; } > "$tmpf"
     publish "reviews/$r" "$tmpf" "review: ${r%%--*} $v"; rm -f "$tmpf";;
-  *) sed -n '2,14p' "$0"; exit 1;;
+  msg)
+    fr="${1:-}"; to="${2:-}"; f="$(abs "${3:-}")"; shift 3 2>/dev/null || die "usage: msg <from> <to> <file> [--re <id>] [--close] [--urgent] [--card <id>] [--log]"
+    valid_who "$fr"; valid_who "$to"; [ -s "$f" ] || die "the message file '$f' is missing or empty"
+    re=""; cl=""; ur=""; card=""; kind=message
+    while [ $# -gt 0 ]; do case "$1" in --re) re="${2:-}"; shift;; --close) cl=yes;; --urgent) ur=yes;; --card) card="${2:-}"; shift;; --log) kind=log;; *) die "unknown option $1";; esac; shift; done
+    fetch || die "couldn't reach GitHub"
+    if [ -n "$re" ]; then re="${re#messages/}"; re="${re%.md}"; [ -n "$(get "messages/$re.md")" ] || die "no message $re (bash tools/agent.sh board --all)"
+      root="$(mfield "$re" re)"; [ -n "$root" ] && re="$root"; kind=reply; fi                  # a reply to a reply joins the thread
+    [ -n "$cl" ] && [ -z "$re" ] && die "--close goes with --re <id> (the reply that answers it)"
+    ns="$(date +%N 2>/dev/null | cut -c1-4)"; case "$ns" in [0-9][0-9][0-9][0-9]) ;; *) ns="$(printf %04d $((RANDOM % 10000)))";; esac
+    id="$(stamp)-$ns--$fr"; tmpf="$(mktemp)"   # (two in one second got the same id; the extra digits keep them in order)
+    { echo "---"; echo "id: $id"; echo "from: $fr"; echo "to: $to"; echo "kind: $kind"; echo "sent: $(now)"
+      [ -n "$re" ] && echo "re: $re"; [ -n "$cl" ] && echo "closes: yes"; [ -n "$ur" ] && echo "urgent: yes"; [ -n "$card" ] && echo "card: $card"
+      echo "branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"; echo "---"; echo; cat "$f"; } > "$tmpf"
+    publish "messages/$id.md" "$tmpf" "message: $fr -> $to ($kind${re:+, re $re}${cl:+, closes it})"; rm -f "$tmpf"
+    [ -n "$ur" ] && say "urgent: on Luca's side, also ring the doorbell (an HQ comment starting \"Claude:\")"; say "id: $id";;
+  board)
+    who=""; all=""; logs=""
+    while [ $# -gt 0 ]; do case "$1" in --all) all=1;; --logs) logs=1;; *) valid_who "$1"; who="$1";; esac; shift; done
+    fetch || die "couldn't reach GitHub"; have || { say "no agents branch yet"; exit 0; }
+    if [ -n "$logs" ]; then ids="$(for m in $(msgs); do [ "$(mfield "$m" kind)" = log ] && echo "$m"; done | sort -r | head -15)"
+      [ -z "$ids" ] && { say "no session logs yet"; exit 0; }
+      for m in $ids; do echo "  LOG  $m  $(first_line "$m")"; done; exit 0; fi
+    if [ -n "$all" ]; then ids="$(for m in $(msgs); do [ -z "$(mfield "$m" re)" ] && echo "$m"; done | sort -r | head -40)"
+    else ids="$(waiting | awk -F'\t' -v w="$who" 'w == "" || $2 == w || $2 == "all" { print $1 }' | sort -r)"; fi
+    [ -z "$ids" ] && { say "nothing waiting${who:+ for $who}"; exit 0; }
+    for m in $ids; do n="$(replies "$m" | grep -c .)"; st="open"; closed_t "$m" && st="answered"; [ "$(mfield "$m" kind)" = log ] && st="log"
+      echo "  $m  $(mfield "$m" from) -> $(mfield "$m" to)  [$st$( [ "$n" -gt 0 ] && echo ", $n repl$( [ "$n" = 1 ] && echo y || echo ies)")]$( [ "$(mfield "$m" urgent)" = yes ] && echo " URGENT")"
+      echo "      $(first_line "$m")"; done
+    say "read one: bash tools/agent.sh thread <id>";;
+  thread)
+    m="${1:-}"; m="${m#agents/}"; m="${m#messages/}"; m="${m%.md}"; fetch; [ -n "$(get "messages/$m.md")" ] || die "no message $m"
+    root="$(mfield "$m" re)"; [ -n "$root" ] && m="$root"
+    get "messages/$m.md"; for r in $(replies "$m"); do echo; echo "======== reply"; get "messages/$r.md"; done;;
+  *) sed -n '2,24p' "$0"; exit 1;;
 esac

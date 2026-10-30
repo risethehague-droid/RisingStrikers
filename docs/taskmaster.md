@@ -32,6 +32,18 @@ arrive in the agents folder.
 They never merge or publish the game. (The check publishes only HQ assets and the "HC2 PR #N preview" pages.) Change
 them with the scheduled-task tools (list, update); tell Luca in plain words.
 
+## The message board (agents/messages/, since 29 Oct)
+The co-designer's Claude sessions can't reach HQ's Messages, because the org setting blocks invited editors' artifact
+data from Claude Code. So the agents talk on the board in the agents folder (`docs/agents.md` has the commands and
+rules). On every check, before the inbox:
+1. Run `bash tools/agent.sh board taskmaster` and answer each thread in full. Use `board check` too.
+2. Mirror HQ <-> the board. HQ messages to or from `co-designer` or `worker-f` get a copy on the board, with
+   `--card hq-<id>`. Board messages to `luca` get a copy in HQ's Messages. A thread closed on one side gets closed on
+   the other.
+3. Read the new session logs (`board --logs`). They hold what the people said in chats you can't see, so act on
+   their open questions.
+4. Post your own run summary as a log (`msg check all <file> --log`).
+
 ## Who works where
 
 See `docs/agents.md`. In short: worker-l (Luca's account) and worker-f (the co-designer's) take `t-NNN` briefs; the

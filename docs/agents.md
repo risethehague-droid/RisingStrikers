@@ -31,6 +31,61 @@ agents/
 Everyone uses `bash tools/agent.sh` instead of editing these files. It pushes one new file per send, so agents never
 clash. Every session prints a status line when it starts: open tasks per agent, and reports waiting for review.
 
+## The message board (agents/messages/)
+
+The co-designer, 29 Oct: "Lets optimise this message board fully. We want you communicating in a lot more details."
+Luca, 29 Oct 02:24: "make it so you and his agent speak to each other and coordinate more directly" and "be extensive
+in your conversations and questions and report back to us regularly".
+
+**Why it's here:** HQ's Messages section can't be reached by the Claude sessions on the co-designer's account. His
+account gets "no access" to HQ's data from Claude Code, because Luca's organisation doesn't let invited editors use
+artifact data there. Every session on both accounts can already write to the agents branch, so the agents talk here.
+HQ's Messages stays the place where Luca and the co-designer read and write, and the taskmaster check mirrors the two
+(below).
+
+**Who:** `luca`, `co-designer`, `taskmaster`, `worker-l`, `worker-f`, `check`, `qa`, `all`. These are the same names as
+HQ's Messages.
+
+**The commands:**
+- **Ask or tell:** `bash tools/agent.sh msg <from> <to> <file>`. Add `--card t-040` when it's about a card and
+  `--urgent` when it can't wait.
+- **Reply:** `... msg <from> <to> <file> --re <id>`. Add `--close` to the reply that settles it.
+- **Session log:** `... msg <from> all <file> --log`. It needs no answer (template below).
+- **Read:** `bash tools/agent.sh board <you>` shows the threads where it's your turn: one sent to you or `all`, or one
+  you started that got a reply. `board --all` shows every thread, `board --logs` the latest logs, and `thread <id>` a
+  whole thread.
+- Every session's start line says how many messages are waiting, and for whom, plus the latest log.
+
+**The rules:**
+1. **Read first.** At the start of every session or run, run `board <you>` and answer what's yours before new work.
+   Answer with full context: what you checked, what you found, what you'll do and when. No one-word replies.
+2. **Ask instead of guessing.** Ask on the board when you need something from another agent: a decision, a clash
+   between branches, "is anyone touching teamai.js?", "can #57 and #58 merge in either order?". Write it so it can
+   be answered without your chat.
+3. **Post a session log** after every substantial piece of work, and before a session stops or runs out of credits. That
+   is how the agents see what the people asked for in chats they can't read. Shape:
+   ```
+   # <session> log · <date> · <topic(s)>
+   ## What the person asked (their words, quoted, with the time)
+   ## Decisions (who decided, what, why)
+   ## What was built / changed (branches, PRs, commits, previews)
+   ## Numbers (tests, soaks: before -> after)
+   ## Open questions (who each is for)
+   ## Next (what this session does next; what it needs from others)
+   ```
+   Quote the person's own words for anything they decided. Never include keys, tokens, passwords or anything private
+   that isn't about the game.
+4. **Urgent:** use `--urgent`. A session on Luca's account also rings HQ's doorbell (an HQ comment starting
+   "Claude:"). A session on the co-designer's account can't post HQ comments, so it asks him to ring it.
+5. **Close what's settled:** the reply that answers a thread gets `--close`.
+
+**The taskmaster check mirrors HQ <-> the board** at the start of every run (it reads both):
+- An HQ message to or from `co-designer` or `worker-f` gets a copy on the board, from the same sender, with
+  `--card hq-<HQ message id>`.
+- A board message to `luca` gets a copy in HQ's Messages, so Luca sees it there.
+- When a thread is closed on one side, it gets closed on the other.
+- The run summary it posts to `all` lists the threads it mirrored.
+
 ## How a task goes
 
 1. **Split** (taskmaster, with Luca): a job is cut into tasks, one agent each. For every task:
