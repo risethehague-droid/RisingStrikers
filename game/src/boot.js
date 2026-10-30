@@ -16,6 +16,11 @@ window.addEventListener('load', async () => {
     pixelArt: true, roundPixels: true, scene: [Boot, Load, Match, PenaltyScene],
     scale: { mode: Phaser.Scale.NONE, zoom: bestZoom() },
     input: { gamepad: false }, render: { antialias: false, powerPreference: 'high-performance' },
+    // QA 30 Oct (Bug Watch CRASH again on v0.14.0, IS v IRO 2', after PR #51): Phaser opened a second, unused sound
+    // system of its own. Each time the tab comes back into view it restarts that one's audio with a promise nobody
+    // catches, so "Failed to start the audio device" (speakers/headset not ready) still counted as a crash. All the game's
+    // sound is SFX in io.js, so Phaser's is switched off.
+    audio: { noAudio: true },
   });
   addEventListener('resize', () => game.scale.setZoom(bestZoom()));
   setupTouch();
