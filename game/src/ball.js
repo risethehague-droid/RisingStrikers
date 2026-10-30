@@ -93,21 +93,98 @@ function curveStep(b, h) {
   b.vx = vx * c - b.vy * s; b.vy = vx * s + b.vy * c; b.cv *= 1 - h / CURVE.tau;
   if (Math.abs(b.cv) < 1e-4) b.cv = 0;
 }
-// fly a curving test ball from (0,0) towards (d,0): launched th radians off the line to side s (+1 = +y), curvature k
+// t-042 (the curve's kick took up to ~60 ms, t-015): the curve never changes the ball's pace (curveStep only turns it; drag,
+// bounce and the roll all go by speed), so one straight test flight gives the speed (and height) at every step for any
+// launch angle and spin. curveProfile flies it once; curveRun then replays the curved path from it with a little trig
+// (the same steps as ballStep + curveStep, so the same result) instead of a full flight for every guess.
+function curveProfile(speed, vz, lob) {
+  const b = { x: 0, y: 0, z: 0.05, vx: speed, vy: 0, vz, skid: true, rollV: 0.8 * speed }, h = 1 / 120, v = [], z = [];
+  for (let t = 0, z0 = b.z; t < 6; t += h) {
+    ballStep(b, h, false); v.push(b.vx); z.push(b.z);
+    if (lob ? z0 > 0 && b.z <= 0 : b.vx < 0.3) break; z0 = b.z;                // (curveRun stops there: landed / stopped)
+  }
+  return { v, z };
+}
+// a curving test ball from (0,0) towards (d,0): launched th radians off the line to side s (+1 = +y), curvature k
 // bringing it back. Ground: where it is when it first gets d along (null: it stopped or turned round first); lob: where it
 // lands. `at`: the ball's lateral offset and height as it passes each man in `block` (along a). arc: the distance flown.
-function curveFly(speed, vz, th, k, s, lob, d, block) {
-  const b = { x: 0, y: 0, z: 0.05, vx: speed * Math.cos(th), vy: speed * Math.sin(th) * s, vz, skid: true, rollV: 0.8 * speed, cv: -k * s }, h = 1 / 120;
-  let arc = 0, bend = 0; const at = block ? block.map(() => null) : null;
-  for (let t = 0; t < 6; t += h) {
-    const ox = b.x, oy = b.y, z0 = b.z; ballStep(b, h, false); arc += Math.hypot(b.x - ox, b.y - oy);
-    if (Math.abs(b.y) > Math.abs(bend)) bend = b.y;
-    if (at) block.forEach((o, i) => { if (!at[i] && ox < o.a && b.x >= o.a) at[i] = { y: b.y, z: b.z }; });
-    if (lob) { if (z0 > 0 && b.z <= 0) return { x: b.x, y: b.y, arc, bend, at, t }; }
-    else if (b.x >= d) { const f = (d - ox) / (b.x - ox || 1); return { x: d, y: oy + (b.y - oy) * f, arc, bend, at, t }; }
-    else if (b.vx <= 0 || Math.hypot(b.vx, b.vy) < 0.3) return null;
+function curveRun(P, th, k, s, lob, d, block) {
+  const h = 1 / 120, dec = 1 - h / CURVE.tau, V = P.v, Z = P.z, nb = block ? block.length : 0;
+  let x = 0, y = 0, z0 = 0.05, ux = Math.cos(th * s), uy = Math.sin(th * s), cv = -k * s, arc = 0, bend = 0; const at = block ? block.map(() => null) : null;
+  for (let n = 0; n < V.length; n++) {
+    const v = V[n], ox = x, oy = y;
+    if (cv) {                                                                    // (curveStep's turn; it's a few mrad a step,
+      const a = cv * v * h, c = 1 - a * a / 2, sn = a - a * a * a / 6, u = ux;   // so the series is exact to 1e-11 - no trig)
+      ux = u * c - uy * sn; uy = u * sn + uy * c; cv *= dec; if (Math.abs(cv) < 1e-4) cv = 0;
+    }
+    const vx = v * ux; x += vx * h; y += v * uy * h; arc += v * h;
+    if (Math.abs(y) > Math.abs(bend)) bend = y;
+    for (let i = 0; i < nb; i++) if (!at[i] && ox < block[i].a && x >= block[i].a) at[i] = { y, z: Z[n] };
+    if (lob) { if (z0 > 0 && Z[n] <= 0) return { x, y, arc, bend, at, t: n * h }; z0 = Z[n]; }
+    else if (x >= d) { const f = (d - ox) / (x - ox || 1); return { x: d, y: oy + (y - oy) * f, arc, bend, at, t: n * h }; }
+    else if (vx <= 0 || v < 0.3) return null;
   }
   return null;
+}
+// t-042 solveGround's answer in ~4 test kicks instead of 22, from a guess (the last answer for a near distance):
+// regula falsi on the arrival speed, bracketed, to a hundredth of a m/s (solveGround's full bisection where it can't)
+function curveGround(dist, arrive, vz, guess) {
+  const f = v => { const r = simKick(v, vz, dist); return r.short ? -arrive - 1 : r.v - arrive; };
+  let a = clamp(guess || Math.sqrt(arrive * arrive + 18 * dist), 2, KICK_MAX), fa = f(a), b = clamp(a * (fa < 0 ? 1.06 : 0.94), 2, KICK_MAX), fb = f(b);
+  for (let i = 0; i < 6 && fa * fb > 0; i++) {
+    const n = clamp(b * (fb < 0 ? 1.2 : 0.83), 2, KICK_MAX); if (n === b) return b;   // (out of reach: solveGround's answer is the cap too)
+    a = b; fa = fb; b = n; fb = f(b);
+  }
+  if (fa * fb > 0) return solveGround(dist, arrive, vz);
+  for (let i = 0, side = 0; i < 12 && Math.abs(b - a) > 0.01; i++) {
+    const m = (a * fb - b * fa) / (fb - fa), fm = f(m);
+    if (fm * fb < 0) { a = b; fa = fb; side = 0; } else { fa *= side === -1 ? 0.5 : 1; side = -1; }   // (Illinois: no stuck end)
+    b = m; fb = fm;
+  }
+  return Math.max(a, b);   // (solveGround's hi: the side that arrives at full pace)
+}
+// t-042 lobSolve(dist, apex, -, quick)'s answer in ~10 test flights instead of ~130: Newton on (landing, peak) from a guess
+// (the last answer, or the no-drag one), each flight giving both
+function curveLob(dist, apex, guess) {
+  const fly = (v0, vz) => { const b = { x: 0, y: 0, z: 0.05, vx: v0, vy: 0, vz, skid: true, rollV: 0 }, h = 1 / 120; let p = 0, ox = 0, oz = 0.05, ovx = 0, ovz = 0;
+    for (let t = 0; t < 6; t += h) { ox = b.x; oz = b.z; ovx = b.vx; ovz = b.vz; ballStep(b, h, false); p = Math.max(p, b.z); if (b.z <= 0 && t > 0.1) break; }
+    // (where in the last step it touched down, at its pace in the air: a whole step is ~20 cm, too coarse for Newton)
+    return [ox + ovx * h * (ovz < 0 ? clamp(oz / (-ovz * h), 0, 1) : 1) - dist, p - apex]; };
+  let vz = guess ? guess.vz : Math.sqrt(2 * G * apex) * 1.08, v = guess ? guess.speed : dist * G / (2 * vz) * 1.15, best = null;
+  for (let i = 0; i < 8; i++) {
+    const F = fly(v, vz), e = Math.abs(F[0]) + 3 * Math.abs(F[1]);
+    if (!best || e < best.e) best = { speed: v, vz, e }; if (Math.abs(F[0]) < 0.03 && Math.abs(F[1]) < 0.01) break;
+    const A = fly(v + 0.1, vz), B = fly(v, vz + 0.1);
+    const j11 = (A[0] - F[0]) / 0.1, j21 = (A[1] - F[1]) / 0.1, j12 = (B[0] - F[0]) / 0.1, j22 = (B[1] - F[1]) / 0.1, det = j11 * j22 - j12 * j21;
+    if (!det) break;
+    v = clamp(v - (j22 * F[0] - j12 * F[1]) / det, 2, KICK_MAX); vz = clamp(vz - (j11 * F[1] - j21 * F[0]) / det, 1, 20);
+  }
+  return { speed: best.speed, vz: best.vz };
+}
+// t-042 the spin that brings the ball back onto the line at d: where it crosses is smooth in k, so once a guess each side
+// has a real crossing it's regula falsi (Illinois) to half a centimetre, a few test paths where halving took 15. From a
+// guess (the spin a near angle needed) it brackets round that; with none, or if a path there stops, it halves [0, kMax]
+// as before - a path that stops or turns round counts as too much spin, and a lob spun hard enough loops back across
+// the line, so the far end itself is never asked.
+function curveK(P, th, s, lob, d, guess) {
+  const y = k => { const f = curveRun(P, th, k, s, lob, d); return f ? f.y * s : null; };
+  let lo = 0, hi = CURVE.kMax, ylo = null, yhi = null, side = 0;
+  if (guess) {
+    let g = guess, yg = y(g); if (yg != null && Math.abs(yg) < 0.005) return g;
+    for (let i = 0; i < 4 && yg != null; i++) {
+      const h2 = clamp(g * (yg > 0 ? 1.06 : 0.94), 1e-5, CURVE.kMax), y2 = y(h2);
+      if (y2 == null) break;
+      if ((y2 > 0) !== (yg > 0)) { [lo, ylo, hi, yhi] = yg > 0 ? [g, yg, h2, y2] : [h2, y2, g, yg]; break; }
+      g = h2; yg = y2;
+    }
+  }
+  for (let i = 0; i < 20 && hi - lo > 1e-5; i++) {
+    const m = ylo != null && yhi != null ? (lo * yhi - hi * ylo) / (yhi - ylo) : (lo + hi) / 2, ym = y(m);
+    if (ym != null && Math.abs(ym) < 0.005) return m;
+    if (ym != null && ym > 0) { lo = m; ylo = ym; if (side === 1 && yhi != null) yhi /= 2; side = 1; }
+    else { hi = m; yhi = ym; if (side === -1 && ylo != null) ylo /= 2; side = -1; }
+  }
+  return (lo + hi) / 2;
 }
 // the curving pass of `mode` over d metres: which side it bends to, how far off the line it sets off, and the spin that
 // brings it back onto the target. opps: the other side in the pass's frame (a along, l across, + = right of the line).
@@ -121,21 +198,42 @@ function curveSolve(mode, d, opps, foot, apex) {
   const block = opps.filter(o => o.a > 1.5 && o.a < d - 1.2 && Math.abs(o.l) < CURVE.clear + 0.6);
   const near = block.reduce((m, o) => !m || Math.abs(o.l) < Math.abs(m.l) ? o : m, null);
   const s = near && Math.abs(near.l) > 0.3 ? -Math.sign(near.l) : (mode === 'through' ? -1 : 1) * foot;
-  const at = th => {
+  // (t-042: every angle tried starts from the same straight-line kick, so its pace and test flight are solved once)
+  const M = new Map(), memo = (key, f) => { if (!M.has(key)) M.set(key, f()); return M.get(key); };
+  let last = null, lastK = null;
+  const at = (th, quick) => {
     let L = d, speed = 0, vz = vz0, k = 0, r = null;
-    for (let it = 0; it < (lob ? 3 : 2); it++) {
-      if (lob) { const S = lobSolve(Math.max(4, L), apex, undefined, true); speed = S.speed; vz = S.vz; } else speed = solveGround(Math.min(50, L), arrive, vz);
-      let lo = 0, hi = CURVE.kMax;
-      for (let i = 0; i < 15; i++) { const mid = (lo + hi) / 2, f = curveFly(speed, vz, th, mid, s, lob, d); if (f && f.y * s > 0) lo = mid; else hi = mid; }
-      k = (lo + hi) / 2; r = curveFly(speed, vz, th, k, s, lob, d, block); if (!r) return null;
+    for (let it = 0; it < (quick ? 1 : lob ? 3 : 2); it++) {
+      if (lob) { const S = memo('l' + L.toFixed(2), () => curveLob(Math.max(4, L), apex, last)); speed = S.speed; vz = S.vz; last = S; }
+      else { speed = memo('g' + L.toFixed(2), () => curveGround(Math.min(50, L), arrive, vz, last)); last = speed; }
+      const P = memo('p' + speed + ',' + vz, () => curveProfile(speed, vz, lob));
+      ({ k, r } = memo('k' + th + ',' + speed + ',' + vz, () => {
+        const k = curveK(P, th, s, lob, d, lastK && lastK.k * th / lastK.th); lastK = { k, th };   // (spin scales with the angle)
+        return { k, r: curveRun(P, th, k, s, lob, d, block) }; }));
+      if (!r) return null;
       L = lob ? L * d / Math.max(1, Math.hypot(r.x, r.y)) : r.arc;
     }
-    const clear = block.every((o, i) => { const q = r.at[i]; return !q || (q.y - o.l) * s >= CURVE.clear || q.z > 2.3; });
-    return { th, k, s, speed, vz, bend: Math.abs(r.bend), miss: Math.hypot(r.x - d, r.y), t: r.t, clear, block: block.length };
+    // margin: how far the closest man in the way is cleared beyond CURVE.clear (over his head counts as clear)
+    const margin = block.reduce((m, o, i) => { const q = r.at[i]; return !q || q.z > 2.3 ? m : Math.min(m, (q.y - o.l) * s - CURVE.clear); }, Infinity);
+    return { th, k, s, speed, vz, bend: Math.abs(r.bend), miss: Math.hypot(r.x - d, r.y), t: r.t, clear: margin >= 0, block: block.length, margin };
   };
-  let best = null;
   // (a lob clears a man by going over him: its bend is the show, so it takes the free angle)
-  for (const deg of block.length && !lob ? CURVE.ang : [CURVE.angFree]) { const S = at(deg * Math.PI / 180); if (!S || S.miss > 1.2) continue; best = S; if (S.clear) break; }
+  const angs = (block.length && !lob ? CURVE.ang : [CURVE.angFree]).map(deg => deg * Math.PI / 180);
+  // t-042: the narrowest angle that clears everyone, else the widest that still arrives - as before, but a quick look at
+  // each angle first (the pace for the straight distance only) skips the full solve where a man is clearly in the way
+  // (by more than 30 cm; the final pace moves the path by centimetres) - those come back, widest first, only if no wider
+  // angle arrives
+  const Q = [], skipped = [];
+  let best = null;
+  for (let i = 0; i < angs.length; i++) {
+    if (angs.length > 1 && i < angs.length - 1) {
+      const q = Q[i] = at(angs[i], true);
+      if (!q || q.miss > 1.2) continue;
+      if (q.margin < -0.3) { skipped.push(i); continue; }
+    }
+    const S = at(angs[i]); if (!S || S.miss > 1.2) continue; best = S; if (S.clear) break;
+  }
+  for (let j = skipped.length - 1; j >= 0 && !best; j--) { const S = at(angs[skipped[j]]); if (S && S.miss <= 1.2) best = S; }   // (the wider ones all failed after all)
   return best;
 }
 // fly a test ball along +x and report when/how fast it gets to `dist` (or where it stops)
