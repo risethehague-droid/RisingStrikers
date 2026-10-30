@@ -205,7 +205,7 @@ hc2Mix(Match, {
   },
   // the keeper goes up for a corner: chasing late, a corner for his side (spShape puts him at the far post) - and from the
   // kick he attacks it like the runners do, then sprints back once it's gone (keeperAI asks this first)
-  brainKeeperUp(team) { const M = team.mood || this.brainMood(team); return M.chase && !(team === this.home && !this.demo && this.human && this.human.keeper); },
+  brainKeeperUp(team) { const M = team.mood || this.brainMood(team); return M.chase && !(this.hasHuman(team) && !this.demo && this.humanOf(team) && this.humanOf(team).keeper); },   // (t-043: either side's human)
   keeperUp(k, dt) {
     const U = k.up; if (!U) return false;
     const b = this.ball, sp = this.setPiece;

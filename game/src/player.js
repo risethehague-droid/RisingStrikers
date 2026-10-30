@@ -183,7 +183,7 @@ class Player {
       // frame, run-SW) or just after one still blipped. Now every idle / walk / run picture, direction included, stays
       // up at least 0.11 s. The dust keeps the unheld pick: it draws a random number, so seeded matches play the same.
       const dustNow = cls === 'sprint'; let fc = this.face;
-      if (this !== this.m.human && !this.m.replay) {                             // (your own player turns the moment you steer)
+      if (!this.m.isHuman(this) && !this.m.replay) {                             // (your own player turns the moment you steer)
         const lk = cls + ':' + fc;
         if (this.lkKey && lk !== this.lkKey && this.anim === this.locoAnim && now - (this.lkAt || 0) < 110) { cls = this.lkCls; fc = this.lkFace; }
         else if (lk !== this.lkKey) { this.lkKey = lk; this.lkCls = cls; this.lkFace = fc; this.lkAt = now; }
@@ -383,7 +383,7 @@ class Player {
     if (this.stamina < 0.02) this.tired = true; else if (this.tired && this.stamina > 0.3) this.tired = false;
     this.x = clamp(this.x + this.vx * dt, -3, PITCH_L + 3); this.y = clamp(this.y + this.vy * dt, -3, PITCH_W + 3);
     this.speed = len(this.vx, this.vy);
-    const b = this.m.ball, human = this.m.human === this;
+    const b = this.m.ball, human = this.m.isHuman(this);                         // (t-043: either side's human)
     // v0.8.7 (BUG WATCH found it: keepers + slow players flickered between idle / walk / shuffle and two facings several
     // times a second): ONE wish for the way he faces each frame, and a slow player only turns once the new way has
     // held for 0.12 s. You (and anyone running fast) still turn at once.

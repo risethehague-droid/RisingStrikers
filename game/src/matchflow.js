@@ -73,7 +73,7 @@ hc2Mix(Match, {
     Object.assign(this.ball, { x: 52.5, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: k, last: team, inNet: false, netRight: undefined, target: null, skid: false });
     this.netReset();                                                             // t-025: the net still and whole again (an LV3's hole closes now, not after the freeze)
     if (this.ref) { this.ref.x = 52.5 + 3; this.ref.y = 22; this.ref.vx = this.ref.vy = 0; this.ref.act('whistle', 0.9); }   // v0.7.1: the referee starts it
-    if (team === this.home) this.human = k;
+    { const S = this.slot(team); if (S) S.human = k; }   // (t-043: his side's human, either side)
     this.setPiece = null; this.pending = null;
     applyPace(); this.freeze = paceK().koFreeze; this.say('KICK-OFF', team.name + ' TO START', 1.2); SFX.whistle(1);   // (t-004: ARCADE 0.6 s)
   },
@@ -100,14 +100,14 @@ hc2Mix(Match, {
     let taker;
     if (kind === 'PENALTY') taker = [9, 10, 8, 7, 6, 5, 4, 3, 2, 1].map(i => team.players[i]).find(p => !p.sentOff) || team.players[0];
     else taker = this.spTaker(kind, team, x, y, opts);
-    this.charge = -1; this.nextHuman = null; this.pending = null;
+    for (const S of this.hSlots()) { S.charge = -1; S.nextHuman = null; } this.pending = null;
     if (kind === 'PENALTY') {                                                    // (the demo / the old test page: no penalty scene - as before)
       this.placeSetPiece(kind, team, taker, x, y);
       this.aimPt = this.defaultAim(kind, team, taker, x, y);
       const dx = this.aimPt.x - x, dy = this.aimPt.y - y, dl = len(dx, dy) || 1;
       taker.x = x - dx / dl * 0.6; taker.y = y - dy / dl * 0.6; taker.vx = taker.vy = 0; taker.face = dirIndex(dx, dy);
       b.owner = taker; b.last = team; taker.state = 'idle';
-      if (team === this.home) this.human = taker;
+      { const S = this.slot(team); if (S) S.human = taker; }
       this.setPiece = { kind, team, taker, t: 0, kicked: false };
       this.freeze = paceK().spFreeze; this.say(kind, note || (team === this.home ? (k => `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`)(keyset()) : team.name), team === this.home ? 2.4 : 1.4);
       return;
@@ -146,7 +146,7 @@ hc2Mix(Match, {
     const bo = wipe && kind === 'CORNER' ? { t: 0, o: S.boOut, h: S.boHold, i: S.boIn, a: 0, at: {} } : null;
     if (wipe && !bo) this.wipe();
     this.aimPt = null;                                                           // (no aim cursor yet: the camera follows the ball, ui.js draws nothing)
-    if (team === this.home) this.human = taker;
+    { const S = this.slot(team); if (S) S.human = taker; }
     this.setPiece = { kind, team, taker: null, t: 0, kicked: false,
       su: { key, t: 0, T, Tmax: T * 1.5 + 0.6, taker, must, stand, ball: { x, y }, toward, cutAt: bo ? 1e9 : wipe ? 0.24 : opts.cut ? 0 : -1, cut: false, placed: null, skip: false, wiped: wipe || !!opts.cut, moved: 0, bo } };
     if (!wipe && !opts.cut) this.setPiece.su.cut = true;                         // (nothing to cut: they all jog)
@@ -221,7 +221,7 @@ hc2Mix(Match, {
     const fk = sp.kind === 'CORNER' ? (U.placed == null ? 0 : 0.95) : U.key === 'fkNear' ? 0.4 : 0, fb = sp.kind === 'CORNER' && U.placed == null ? tk : U.ball;
     if ((fk || sp.kind === 'CORNER') && U.cut && (!this.camTarget || this.camTarget === this.spCam)) { const fx = fb.x + (U.toward.x - fb.x) * fk, fy = fb.y + (U.toward.y - fb.y) * fk;
       this.spCam = this.spCam || {}; this.spCam.x = wx(fx, fy); this.spCam.y = wy(fy) - 40; this.camTarget = this.spCam; }
-    if (sp.team === this.home && !this.demo && U.t > 0.2 && ['pass', 'shoot', 'lob', 'through'].some(a => Input.pressed(a))) U.skip = true;
+    if (this.hasHuman(sp.team) && !this.demo && U.t > 0.2 && ['pass', 'shoot', 'lob', 'through'].some(a => this.inpOf(sp.team).pressed(a))) U.skip = true;
     const inN = U.must.filter(q => q.sentOff || !q.spot || len(q.x - q.spot.x, q.y - q.spot.y) < 1.2).length;
     U.frac = U.must.length ? inN / U.must.length : 1;
     if (U.placed == null || !((U.frac >= 0.8 && (U.t >= U.T || U.skip)) || U.t >= U.Tmax)) return true;
@@ -229,10 +229,10 @@ hc2Mix(Match, {
     if (this.spCam && this.camTarget === this.spCam) this.camTarget = null;     // (your aim's framing / the ball from here)
     if (U.bo) this.blackout(0);                                                  // (never carry the black into the aim)
     sp.su = null; sp.setup = { t: U.t, key: U.key, frac: U.frac, skip: U.skip, wiped: U.wiped, moved: U.moved, placed: U.placed, bo: U.bo && U.bo.at };
-    sp.t = 0; sp.gate = Input.held('shoot');                                     // (a SHOOT that skipped: let go before it charges a shot)
+    sp.t = 0; sp.gate = this.inpOf(sp.team).held('shoot');                                     // (a SHOOT that skipped: let go before it charges a shot)
     this.aimPt = this.defaultAim(sp.kind, sp.team, tk, U.ball.x, U.ball.y);
     if (sp.kind !== 'THROW-IN') tk.face = dirIndex(this.aimPt.x - tk.x, this.aimPt.y - tk.y);
-    if (sp.team === this.home) { this.human = tk; const k = keyset();
+    if (this.hasHuman(sp.team)) { this.slot(sp.team).human = tk; const k = keyset();
       this.say(sp.kind, sp.kind === 'THROW-IN' ? `${k.move} AIM  ${k.pass} SHORT  ${k.lob} LONG` : `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`, 2.4); }
     return true;
   },
@@ -257,8 +257,8 @@ hc2Mix(Match, {
     this.offGK = gk;                                                             // t-024: no offside from a goal kick (his first ball out of his hands)
     if (this.ref) this.ref.place(b);
     this.camX = this.camY = undefined;                                           // a cut, not a pan
-    this.setPiece = null; this.pending = null; this.charge = -1; this.nextHuman = null;
-    if (team === this.home) this.human = gk;
+    this.setPiece = null; this.pending = null; for (const S of this.hSlots()) { S.charge = -1; S.nextHuman = null; }
+    { const S = this.slot(team); if (S) S.human = gk; }
     this.freeze = Math.max(this.freeze, T);
     this.gkSetup = { t0: this.time.now, T };                                     // (the Test Lab's RS6 reads it)
     const k = keyset(); this.say('GOAL KICK', team === this.home ? `${k.pass} THROW  ${k.lob} PUNT` : team.name, team === this.home ? 2.0 : 1.2);
@@ -365,18 +365,18 @@ hc2Mix(Match, {
     if (sp.kicked) return false;                                                 // the kick is under way: normal play takes over
     this.placeAtFeet();
     const gx = sp.team.goalX, s = sp.team.side, A = this.aimPt;
-    const human = sp.team === this.home && p === this.human;
+    const human = this.isHuman(p), I = this.inpOf(sp.team), S = this.slot(sp.team) || this;   // (t-043: the taker's own human: his stick, his buttons, his charge)
     if (human && sp.t < 12) {                                                    // (after 12 s idle the AI takes it for you)
-      const ax = Input.axis; A.x = clamp(A.x + ax.x * 16 * dt, -2, PITCH_L + 2); A.y = clamp(A.y + ax.y * 16 * dt, -2, PITCH_W + 2);
+      const ax = I.axis; A.x = clamp(A.x + ax.x * 16 * dt, -2, PITCH_L + 2); A.y = clamp(A.y + ax.y * 16 * dt, -2, PITCH_W + 2);
       if (sp.kind === 'PENALTY') { A.x = gx + s * 0.5; A.y = clamp(A.y, GOAL_Y0 + 0.4, GOAL_Y1 - 0.4); }
       p.face = dirIndex(A.x - p.x, A.y - p.y);
       const atGoal = Math.abs(A.x - gx) < 3 && Math.abs(A.y - 34) < 5;
-      if (sp.kind !== 'PENALTY' && Input.pressed('pass')) return this.spKick('ground');
-      if (sp.kind !== 'PENALTY' && (Input.pressed('lob') || Input.pressed('through'))) return this.spKick('lob');
-      if (sp.kind === 'THROW-IN') { if (Input.pressed('shoot')) return this.spKick('lob'); return true; }
-      if (sp.gate) { if (!Input.held('shoot')) sp.gate = false; return true; }   // (t-029: the SHOOT that skipped the setup)
-      if (Input.held('shoot')) this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / paceK().chargeT);
-      if (Input.released('shoot') && this.charge >= 0) { const c = this.charge; this.charge = -1; return this.spKick(atGoal || sp.kind === 'PENALTY' ? 'shot' : 'lob', c); }
+      if (sp.kind !== 'PENALTY' && I.pressed('pass')) return this.spKick('ground');
+      if (sp.kind !== 'PENALTY' && (I.pressed('lob') || I.pressed('through'))) return this.spKick('lob');
+      if (sp.kind === 'THROW-IN') { if (I.pressed('shoot')) return this.spKick('lob'); return true; }
+      if (sp.gate) { if (!I.held('shoot')) sp.gate = false; return true; }   // (t-029: the SHOOT that skipped the setup)
+      if (I.held('shoot')) S.charge = S.charge < 0 ? 0 : Math.min(1, S.charge + dt / paceK().chargeT);
+      if (I.released('shoot') && S.charge >= 0) { const c = S.charge; S.charge = -1; return this.spKick(atGoal || sp.kind === 'PENALTY' ? 'shot' : 'lob', c); }
       return true;
     }
     if (sp.t < (sp.setup ? paceK().setup.aiAfter : paceK().aiTake)) return true;   // (t-029: after a setup he has already placed it - a short breath)                                      // AI takes a breath, then takes it (t-004: ARCADE quickly)
@@ -480,7 +480,7 @@ hc2Mix(Match, {
     SFX.whistle(2, true); this.ramiSay('half_time', {}, 3);
     this.say('HALF TIME', `${this.home.name} ${this.home.score} - ${this.away.score} ${this.away.name}`, 3);
     const b = this.ball; Object.assign(b, { owner: null, vx: 0, vy: 0, vz: 0, target: null, save: null, shotBy: null });
-    this.setPiece = null; this.pending = null; this.dead = null; this.charge = -1;
+    this.setPiece = null; this.pending = null; this.dead = null; for (const S of this.hSlots()) S.charge = -1;
     for (const p of this.all) { if (p.sentOff) continue; if (p.busy()) p.setState('idle', 0); p.hands = false; p.stun = 0; }
     if (this.flowFast()) { this.secondHalf(true); return; }                     // demo / tests: straight on, like before
     this.htAiSubs = ''; this.aiSubs(this.away); this.htSubsDone = true;          // (the computer's changes show on the card)
@@ -558,7 +558,7 @@ hc2Mix(Match, {
   },
   stopPlay() {
     const b = this.ball; Object.assign(b, { owner: null, vx: 0, vy: 0, vz: 0, target: null, save: null, shotBy: null });
-    this.setPiece = null; this.pending = null; this.dead = null; this.charge = -1;
+    this.setPiece = null; this.pending = null; this.dead = null; for (const S of this.hSlots()) S.charge = -1;
     for (const p of this.all) { if (p.sentOff) continue; if (p.busy()) p.setState('idle', 0); p.hands = false; p.stun = 0; p.vx = p.vy = 0; }
   },
   extraTime() {
@@ -693,8 +693,8 @@ hc2Mix(Match, {
   sendOff(p) {
     p.sentOff = true; p.state = 'idle'; p.vx = p.vy = 0; p.x = -60; p.y = -60; p.stun = 1e9; p.cool = 1e9; p.hands = false;
     if (this.ball.owner === p) this.ball.owner = null;
-    if (this.human === p) this.switchHuman();
-    if (this.nextHuman === p) this.nextHuman = null;
+    if (this.isHuman(p)) this.asSide(p.team, () => this.switchHuman());          // (t-043: his own side's next man)
+    for (const S of this.hSlots()) if (S.nextHuman === p) S.nextHuman = null;
   },
   // ======================================================================= t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule
   // MANDATORY just make it smooth"). IFAB Law 11, simplified:
@@ -742,7 +742,7 @@ hc2Mix(Match, {
   },
   offCall(p, S) {
     const def = S.team.opp, x = clamp(p.x, 1, PITCH_L - 1), y = clamp(p.y, 1, PITCH_W - 1), b = this.ball;
-    this.offSide = null; this.pending = null; this.charge = -1; p.hands = false;
+    this.offSide = null; this.pending = null; for (const S of this.hSlots()) S.charge = -1; p.hands = false;
     Object.assign(b, { owner: null, vx: 0, vy: 0, vz: 0, target: null, save: null, saveable: null, special: 0, shotBy: null, lob: false, ring: null, crossBy: null });
     const st = this.stat(S.team); st.offsides = (st.offsides || 0) + 1;
     this.offFlag = { p, until: this.time.now + OFFSIDE.FLAG * 1000 };             // (ui.js marks him)
@@ -770,7 +770,7 @@ hc2Mix(Match, {
       if (!victim.keeper && victim.state !== 'fall' && victim.state !== 'getup') victim.setState('fall', 0.8);   // card", ~9 s of foul scenes a match):
       const mate = victim.team.players.filter(q => q !== victim && !q.sentOff && !q.keeper && !q.busy() && len(q.x - b.x, q.y - b.y) < 5)   // a team-mate right there
         .sort((u, v) => len(u.x - b.x, u.y - b.y) - len(v.x - b.x, v.y - b.y))[0];   // plays on with it, else a quick free kick, no scene
-      this.pending = null; this.charge = -1; this.passAim = null; this.loseTime(-8);
+      this.pending = null; for (const S of this.hSlots()) { S.charge = -1; S.passAim = null; } this.loseTime(-8);
       if (mate) { Object.assign(b, { owner: null, target: null, save: null, z: 0, vz: 0 }); this.gain(mate, 0); this.say('', 'ADVANTAGE!', 0.9); this.ramiSay('foul', { text: 'PLAY ON!\nADVANTAGE!', expr: 'smirk' }, 2); return; }
       SFX.whistle(1); this.restart('FREE KICK', victim.team, clamp(victim.x, 1, PITCH_L - 1), clamp(victim.y, 1, PITCH_W - 1)); return;
     }
@@ -779,7 +779,7 @@ hc2Mix(Match, {
       const ux = victim.x - by.x, uy = victim.y - by.y, ul = len(ux, uy) || 1;
       victim.setState('fall', 0.8); victim.vx = victim.vx * 0.4 + ux / ul * 2.2; victim.vy = victim.vy * 0.4 + uy / ul * 2.2;
     }
-    Object.assign(b, { owner: null, target: null, save: null }); this.pending = null; this.charge = -1; this.passAim = null;
+    Object.assign(b, { owner: null, target: null, save: null }); this.pending = null; for (const S of this.hSlots()) { S.charge = -1; S.passAim = null; }
     if (this.ref) { const r = this.ref, dx = r.x - by.x, dy = r.y - by.y, d = len(dx, dy);
       if (card && d > 9) { r.x = by.x + dx / d * 9; r.y = by.y + dy / d * 9; }   // he runs in from just off screen
       r.act('whistle', 0.45); }
@@ -866,7 +866,7 @@ hc2Mix(Match, {
   // v0.8.5: after the free kick is given - the computer brings a man on for him; you get told (PAUSE -> TEAM to sub him)
   injuryNews(v) {
     if (!v.injury || v.sentOff) return;
-    const t = v.team, human = t === this.home && !this.demo;
+    const t = v.team, human = this.hasHuman(t) && !this.demo;
     if (!human && this.injSub(v)) return;
     this.ramiSay('foul', { text: `THAT LOOKS BAD.\nNUMBER ${v.num} IS LIMPING.`, expr: 'shock' }, 3);
     this.time.delayedCall(2600, () => { if (!this.over) this.say('INJURY', human ? `#${v.num} IS LIMPING · PAUSE (ENTER) -> TEAM TO SUB HIM` : `${t.name} #${v.num} PLAYS ON LIMPING`, 3); });

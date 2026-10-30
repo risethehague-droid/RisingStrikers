@@ -2,6 +2,9 @@
 // HC2 Football · actions.js: what players do on the ball and off it: human controls, switching, tackles, slides, headers, bicycle kicks
 // (split out of game.js in v0.9.5 - load order and lanes: src/README.md)
 
+// t-043: what each human carries, per side (asSide swaps these between the match and this.hOther)
+const HUMAN_SLOT = ['hSide', 'inp', 'human', 'nextHuman', 'charge', 'lobCharge', 'lobAim', 'aimY', 'spHeld', 'airSp', 'headBuf', 'headKind', 'passStick', 'passAim', 'airCh'];
+
 // ---------------------------------------------------------------- Match methods: actions
 hc2Mix(Match, {
 
@@ -22,24 +25,53 @@ hc2Mix(Match, {
       }
     }
   },
+  // t-043 TWO HUMANS (LAN step 2 part 1, docs/lan-step2.md): a human on each side. One player per side is "his" -
+  // the home one is this.human as always, the away one lives in this.hOther (null = one human: the game as it was).
+  // Everything a human carries from frame to frame (HUMAN_SLOT: his player, the shot / lob charge, the lob aim, the
+  // header press, the pass he's waiting for, his input source...) is kept per side: controlHuman for the away side runs
+  // with his values swapped onto the match (asSide), so the code under it - the passes, lobs, specials, the set-piece
+  // aim - reads "the human" and his buttons unchanged. Code that runs for everybody (headers, tackles, the team AI)
+  // asks isHuman(p) / humanOf(team) / slot(team) / inpOf(team) instead of comparing with this.human and Input.
+  twoHumans(src) {
+    this.hOther = src ? { hSide: 'away', inp: src, human: this.away.players[9], nextHuman: null, charge: -1, lobCharge: -1, lobAim: null,
+      aimY: 0, spHeld: 0, airSp: null, headBuf: 0, headKind: null, passStick: null, passAim: null, airCh: null } : null;
+    if (!src) Input.skip = null;
+  },
+  hTeam() { return this[this.hSide || 'home']; },                              // the side whose human is on the match right now
+  h2() { return this.demo ? null : this.hOther; },                             // (the demo / watch mode: the computer has the away side too)
+  hasHuman(team) { const O = this.h2(); return team === this.hTeam() || (!!O && team === this[O.hSide]); },
+  humanOf(team) { const O = this.h2(); return team === this.hTeam() ? this.human : O && team === this[O.hSide] ? O.human : null; },
+  isHuman(p) { const O = this.h2(); return p === this.human || (!!O && !!p && p === O.human); },
+  slot(team) { const O = this.h2(); return team === this.hTeam() ? this : O && team === this[O.hSide] ? O : null; },
+  hSlots() { return this.hOther ? [this, this.hOther] : [this]; },
+  inpOf(team) { const S = this.slot(team); return (S && S.inp) || Input; },
+  asSide(team, fn) {
+    if (!this.hOther || team !== this[this.hOther.hSide]) return fn();
+    const O = this.hOther, swap = () => { for (const k of HUMAN_SLOT) { const v = this[k]; this[k] = O[k]; O[k] = v; } };
+    swap(); try { return fn(); } finally { swap(); }
+  },
+  controlHumans(dt) {
+    this.controlHuman(dt, this.hTeam());
+    if (this.hOther) { const t = this[this.hOther.hSide]; this.asSide(t, () => this.controlHuman(dt, t)); }
+  },
   // t-011 (Luca: "add a special lvl 1 pass that curves [...] only test lab"): with CURVE_PASS on, hold SPECIAL and press
   // PASS / THROUGH / LOB = the curving special pass (specials.js curvePass); no bar in the bank = that button's normal pass
   // (the press falls through). So the chord can be made, SPECIAL on its own then fires the special shot when you LET GO
   // (not on the press), and only if no pass was made while it was held. Returns true when it took the frame.
   curveInput(p, owns, dir) {
     if (!owns || p.keeper) { this.spHeld = 0; return false; }
-    if (Input.pressed('special')) this.spHeld = 1;
-    if (this.spHeld && Input.held('special')) {
-      const md = Input.pressed('pass') ? 'ground' : Input.pressed('through') ? 'through' : Input.pressed('lob') ? 'lob' : null;
+    if (this.inp.pressed('special')) this.spHeld = 1;
+    if (this.spHeld && this.inp.held('special')) {
+      const md = this.inp.pressed('pass') ? 'ground' : this.inp.pressed('through') ? 'through' : this.inp.pressed('lob') ? 'lob' : null;
       if (md) { this.spHeld = 2; if (this.curvePass(p, md, dir)) return true; }
-    } else if (this.spHeld && Input.released('special')) {
+    } else if (this.spHeld && this.inp.released('special')) {
       const solo = this.spHeld === 1; this.spHeld = 0;
       if (solo) { if (this.special(p)) return true; this.say('', 'SP METER EMPTY', 0.6); }
     } else this.spHeld = 0;
     return false;
   },
-  controlHuman(dt) {
-    const b = this.ball, me = this.human, team = this.home;
+  controlHuman(dt, side) {                                                      // (t-043: side = the team this human plays for; home by default)
+    const b = this.ball, me = this.human, team = side || this.home;
     const prevAir = this.airSp; this.airSp = null;                               // v0.8.6 (set again below while the moment lasts)
     if (this.aerial) { this.lobAim = null; this.aerialInput(); return; }         // t-008: an AERIAL BATTLE is on - your SHOOT presses are the mash
     if (this.camTarget && this.camTarget === this.lobAimCam && !this.lobAim) this.camTarget = null;   // (t-008: the aim's framing ends with the aim)
@@ -47,15 +79,15 @@ hc2Mix(Match, {
     if (!b.owner && this.nextHuman && b.last === team) { /* ball travelling to a team-mate: switch once it is closer to him */
       const q = this.nextHuman; if (len(q.x - b.x, q.y - b.y) < len(this.human.x - b.x, this.human.y - b.y)) { this.human = q; this.nextHuman = null; }
     }
-    if (!(b.owner && b.owner.team === team) && (Input.pressed('lob') || (b.owner && b.owner.team !== team && this.human.keeper))) this.switchHuman();
+    if (!(b.owner && b.owner.team === team) && (this.inp.pressed('lob') || (b.owner && b.owner.team !== team && this.human.keeper))) this.switchHuman();
     const p = this.human;
     // t-018 (Luca: "you can spam it too easy"): getting up off the grass he does nothing either - a SHOOT pressed there
     // slid again, shot first time or was kept for a header (no queued presses)
     this.airChargeTick(p, dt);                                                   // t-022: SHOOT held for a header / volley
     if (p.state === 'kick' || p.state === 'slide' || p.state === 'getup' || p.state === 'dheader' || p.stun > 0) return;
-    const ax = Input.axis, moving = len(ax.x, ax.y) > 0.1, owns = b.owner === p;
+    const ax = this.inp.axis, moving = len(ax.x, ax.y) > 0.1, owns = b.owner === p;
     if (owns && this.trapRunStep(p, dt)) return;                                 // lob receives: the chest / thigh trap carries him on into the run
-    const sprint = Input.held('sprint') && moving;
+    const sprint = this.inp.held('sprint') && moving;
     if (sprint && !p.sprinting && p.stamina > 0.3 && (p.burstCd || 0) <= this.time.now) { p.burst = paceK().burstT; p.burstCd = this.time.now + 1500; }   // v0.8 burst (not spammable; arcade-2: ARCADE a longer dash, 0.8 s)
     p.sprinting = sprint;
     let spd = p.top(sprint, owns);
@@ -82,18 +114,18 @@ hc2Mix(Match, {
     }
     this.passAim = owns && !(p.keeper && p.hands) ? this.passTarget(p, dir, 'ground', this.passAim) : null;   // v0.7.4: who a pass would go to right now (shown on the grass)
     if (CURVE_PASS) { if (this.curveInput(p, owns, dir)) return; }              // t-011 (Test Lab only): SPECIAL held + a pass = the curving pass
-    else if (owns && Input.pressed('special') && !p.keeper) { if (this.special(p)) return; this.say('', 'SP METER EMPTY', 0.6); }
+    else if (owns && this.inp.pressed('special') && !p.keeper) { if (this.special(p)) return; this.say('', 'SP METER EMPTY', 0.6); }
     if (owns) {
-      if (Input.pressed('pass')) this.doPass(p, dir, 'ground');
-      else if (Input.pressed('through')) this.doPass(p, dir, 'through');
-      else if (Input.pressed('lob')) this.lobPress(p, dir);                       // v0.8.5: a tap = the lob to a team-mate (t-008: hold = aim the landing ring)
+      if (this.inp.pressed('pass')) this.doPass(p, dir, 'ground');
+      else if (this.inp.pressed('through')) this.doPass(p, dir, 'through');
+      else if (this.inp.pressed('lob')) this.lobPress(p, dir);                       // v0.8.5: a tap = the lob to a team-mate (t-008: hold = aim the landing ring)
       if (this.lobAim) { if (this.lobAimTick(p, ax, dir, dt)) return; }
       else if (this.lobCharge >= 0) {                                             // (the chip in their box and the keeper's throw: the old hold)
-        if (Input.held('lob')) this.lobCharge = Math.min(1, this.lobCharge + dt / 0.9);
+        if (this.inp.held('lob')) this.lobCharge = Math.min(1, this.lobCharge + dt / 0.9);
         else { const c = this.lobCharge; this.lobCharge = -1; if (this.chipCan(p, dir)) this.chipShot(p, c, ax.y); else if (c < 0.2) this.doPass(p, dir, 'lob'); else this.powerLob(p, dir, c); }   // v0.9.2: in their box facing goal = CHIP
       }
-      if (Input.held('shoot')) { this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / paceK().chargeT); this.aimY = ax.y; }   // (arcade-2: ARCADE charges 25% quicker)
-      if (Input.released('shoot') && this.charge >= 0) { if (!this.tapKickTry(p, ax, this.charge)) this.doShot(p, this.charge, this.aimY); this.charge = -1; }   // (t-010: a quick tap = the tap kick)
+      if (this.inp.held('shoot')) { this.charge = this.charge < 0 ? 0 : Math.min(1, this.charge + dt / paceK().chargeT); this.aimY = ax.y; }   // (arcade-2: ARCADE charges 25% quicker)
+      if (this.inp.released('shoot') && this.charge >= 0) { if (!this.tapKickTry(p, ax, this.charge)) this.doShot(p, this.charge, this.aimY); this.charge = -1; }   // (t-010: a quick tap = the tap kick)
     } else {
       this.charge = -1; this.lobCharge = -1; this.lobAim = null;
       // v0.8.6 AERIAL SPECIAL: a ball dropping to you at volley / head height in their half, near enough to goal, SP in the bank
@@ -101,21 +133,21 @@ hc2Mix(Match, {
       const mtA = this.meterOf(team), dA = len(b.x - p.x, b.y - p.y), toG = len(team.goalX - p.x, 34 - p.y);
       const coming = (b.x - p.x) * b.vx + (b.y - p.y) * b.vy < 0 || dA < 1.2;     // dropping towards him
       this.airSp = !b.owner && !b.inNet && b.last === team && (b.z > 0.55 || this.tideWin(p)) && b.z < 2.6 && b.vz < 2 && dA < 3.6 && coming && toG < 30 && !p.busy() && mtA.level() >= 1 ? (prevAir || { t: 0 }) : null;
-      if (this.airSp) { this.airSp.t += dt; if (Input.pressed('special')) { this.airSpecial(p); return; } }
+      if (this.airSp) { this.airSp.t += dt; if (this.inp.pressed('special')) { this.airSpecial(p); return; } }
       // v0.8.1 defending: CHALLENGE = pass button, SLIDE = shoot button (in the direction you push)
-      if (Input.pressed('pass') && b.owner && b.owner.team !== team) this.challenge(p, b.owner);
-      else if (Input.pressed('shoot') && b.owner && b.owner.team !== team) this.slideTackle(p, moving ? ax : null);
-      else if (Input.pressed('shoot') && !b.owner && b.z < 0.3 && len(b.x - p.x, b.y - p.y) >= 2.0 && len(b.x - p.x, b.y - p.y) < 4.5 &&
+      if (this.inp.pressed('pass') && b.owner && b.owner.team !== team) this.challenge(p, b.owner);
+      else if (this.inp.pressed('shoot') && b.owner && b.owner.team !== team) this.slideTackle(p, moving ? ax : null);
+      else if (this.inp.pressed('shoot') && !b.owner && b.z < 0.3 && len(b.x - p.x, b.y - p.y) >= 2.0 && len(b.x - p.x, b.y - p.y) < 4.5 &&
         b.last !== team && !p.busy()) this.slideTackle(p, null);                 // a loose ball just out of reach: slide in for it
-      else if (Input.pressed('shoot') && !b.owner && len(b.x - p.x, b.y - p.y) < 2.0 && b.z < 1) {   // first-time shot / volley
+      else if (this.inp.pressed('shoot') && !b.owner && len(b.x - p.x, b.y - p.y) < 2.0 && b.z < 1) {   // first-time shot / volley
         const volley = b.z > 0.35; b.owner = p; this.doShot(p, 0.6, ax.y); if (volley) { this.airHitNote(p, p.team.goalX - p.x, 34 - p.y); this.volleyLook(p); }   // (batch 20: picked + timed like airVolley's)
       }
-      else if (Input.pressed('shoot') && this.canBicycle(p, true)) this.bicycle(p);   // ball over head height in front of goal: overhead kick
-      else if (Input.pressed('shoot') && !b.owner && b.z >= 0.4 && b.z < 1.3 && len(b.x - p.x, b.y - p.y) < 3.4 && !p.busy()) {
+      else if (this.inp.pressed('shoot') && this.canBicycle(p, true)) this.bicycle(p);   // ball over head height in front of goal: overhead kick
+      else if (this.inp.pressed('shoot') && !b.owner && b.z >= 0.4 && b.z < 1.3 && len(b.x - p.x, b.y - p.y) < 3.4 && !p.busy()) {
         this.divingHeader(p);                                                  // too far to volley, too low to head: throw yourself at it
       }
-      else if ((Input.pressed('shoot') || Input.pressed('pass')) && !b.owner) {  // ball in the air: get ready to head it
-        this.headBuf = Math.max(0.7, this.lobDropIn(p)); this.headKind = Input.pressed('shoot') ? 'shoot' : 'pass';   // lob-mechanics: 0.7 s (was 0.35 s, near impossible to time)
+      else if ((this.inp.pressed('shoot') || this.inp.pressed('pass')) && !b.owner) {  // ball in the air: get ready to head it
+        this.headBuf = Math.max(0.7, this.lobDropIn(p)); this.headKind = this.inp.pressed('shoot') ? 'shoot' : 'pass';   // lob-mechanics: 0.7 s (was 0.35 s, near impossible to time)
         if (this.headKind === 'shoot') this.airChargeStart(p);                   // t-022: keep holding it = the charged header / volley
       }                                                                          // (t-008: a lob dropping to you - kept until it gets there)
       // t-008 (Luca: "so aerial shots are easier to do and become more common"): SHOOT pressed as a lob drops to you and it
@@ -140,7 +172,7 @@ hc2Mix(Match, {
     const b = this.ball; if (!MAN.kits[p.kit].anims['bicycle-E'] || p.keeper || p.busy() || b.owner || b.inNet) return false;
     const d = len(p.x - b.x, p.y - b.y), gx = p.team.goalX - p.x, gy = 34 - p.y, toGoal = len(gx, gy), f = dirVec(p.face);
     const backToGoal = (f.x * gx + f.y * gy) / (toGoal || 1) < -0.2;
-    return b.z > 1.35 && b.z < 2.4 && d < 1.5 && toGoal < 19 && (backToGoal || (human && Input.held('sprint')));
+    return b.z > 1.35 && b.z < 2.4 && d < 1.5 && toGoal < 19 && (backToGoal || (human && this.inpOf(p.team).held('sprint')));
   },
   bicycle(p) {
     const b = this.ball; b.owner = p; this.doShot(p, rnd(0.6, 0.85), rnd(-0.8, 0.8));
@@ -158,14 +190,14 @@ hc2Mix(Match, {
     // AI: a fast ball across the box at his feet / knees -> hit it first time (a volley if it's off the ground)
     if (!b.owner && !b.inNet && b.z > 1.35 && b.z < 2.4 && !this.diving) {         // AI: the odd bicycle kick
       for (const p of this.all) {
-        if (p === this.human || (b.tried && b.tried.has('b' + p.team.name + p.i)) || !this.canBicycle(p)) continue;
+        if (this.isHuman(p) || (b.tried && b.tried.has('b' + p.team.name + p.i)) || !this.canBicycle(p)) continue;
         (b.tried = b.tried || new Set()).add('b' + p.team.name + p.i);
         if (Math.random() < 0.3) { if (!this.aiAirSpecial(p)) this.bicycle(p); return; }   // (t-012: or the aerial special, SP in the bank)
       }
     }
     if (!b.owner && !b.inNet && b.z < 1.0 && bsp > 8 && !this.diving) {
       for (const p of this.all) {
-        if (p === this.human || p.keeper || p.busy() || p.stun > 0 || p.cool > 0 || this.recvShield(p) || (b.tried && b.tried.has('v' + p.team.name + p.i))) continue;
+        if (this.isHuman(p) || p.keeper || p.busy() || p.stun > 0 || p.cool > 0 || this.recvShield(p) || (b.tried && b.tried.has('v' + p.team.name + p.i))) continue;
         const d = len(p.x - b.x, p.y - b.y), toGoal = len(p.team.goalX - p.x, 34 - p.y);
         if (d < 1.0 && toGoal < 20 && (p.team.goalX - p.x) * p.team.side > 2) {
           (b.tried = b.tried || new Set()).add('v' + p.team.name + p.i);
@@ -175,7 +207,7 @@ hc2Mix(Match, {
     }
     if (!b.owner && !b.inNet && b.z > 0.5 && b.z < 1.3 && !this.diving && b.vz < 0) {           // AI: dive at a low cross near goal
       for (const p of this.all) {
-        if (p === this.human || p.keeper || p.busy() || p.stun > 0 || p.cool > 0 || this.recvShield(p) || (b.tried && b.tried.has('d' + p.team.name + p.i))) continue;
+        if (this.isHuman(p) || p.keeper || p.busy() || p.stun > 0 || p.cool > 0 || this.recvShield(p) || (b.tried && b.tried.has('d' + p.team.name + p.i))) continue;
         const d = len(p.x - b.x, p.y - b.y), toGoal = len(p.team.goalX - p.x, 34 - p.y);
         if (d > 1.3 && d < 3.0 && toGoal < 16) { (b.tried = b.tried || new Set()).add('d' + p.team.name + p.i); if (Math.random() < 0.45) { this.divingHeader(p); break; } }
       }
@@ -186,7 +218,7 @@ hc2Mix(Match, {
       if (p.keeper && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2) continue;   // keepers catch it
       if (len(p.x - b.x, p.y - b.y) > 1.2) continue;
       let kind;
-      if (p === this.human) { if (!(this.headBuf > 0)) continue; kind = this.headKind === 'shoot' ? 'goal' : 'pass'; }
+      if (this.isHuman(p)) { const S = this.slot(p.team); if (!(S.headBuf > 0)) continue; kind = S.headKind === 'shoot' ? 'goal' : 'pass'; }
       else {
         const toGoal = len(p.team.goalX - p.x, 34 - p.y);
         const chestable = b.z < 1.7 && len(b.vx, b.vy) < (b.target === p ? 16 : 9);                 // away from goal he'd rather chest it down
@@ -218,15 +250,16 @@ hc2Mix(Match, {
     let win = null, ws = -1e9; for (const p of [...us, ...them]) { const s = sc(p); if (s > ws) { ws = s; win = p; } }
     b.lob = false; b.tried = null;
     if (them.length) this.say('', win.team === q.team ? 'WON IT IN THE AIR!' : 'HEADED AWAY!', 0.7);
-    if (win.team !== q.team) { this.header(win, win === this.human && this.headBuf > 0 && this.headKind === 'shoot' ? 'goal' : 'clear'); return true; }
+    const WS = this.isHuman(win) ? this.slot(win.team) : null;                  // (t-043: the winner's own header press, either side)
+    if (win.team !== q.team) { this.header(win, WS && WS.headBuf > 0 && WS.headKind === 'shoot' ? 'goal' : 'clear'); return true; }
     const toGoal = len(win.team.goalX - win.x, 34 - win.y);
-    if (win === this.human && this.headBuf > 0 && this.headKind === 'shoot' && b.z < 1.1) { b.owner = win; this.airVolley(win, 0.6, Input.axis.y); this.headBuf = 0; return true; }   // (t-008: too low to head: volleyed at goal)
-    if (win === this.human && this.headBuf > 0) { this.header(win, this.headKind === 'shoot' ? 'goal' : 'pass'); return true; }
-    if (win !== this.human && toGoal < (b.aimLob ? 22 : 18) && b.z > 1.1) { if (!this.aiAirSpecial(win)) this.header(win, 'goal'); return true; }   // (t-012: or the aerial special; t-008: your aimed lob - he goes for goal from a little further)
+    if (WS && WS.headBuf > 0 && WS.headKind === 'shoot' && b.z < 1.1) { b.owner = win; this.airVolley(win, 0.6, this.inpOf(win.team).axis.y); WS.headBuf = 0; return true; }   // (t-008: too low to head: volleyed at goal)
+    if (WS && WS.headBuf > 0) { this.header(win, WS.headKind === 'shoot' ? 'goal' : 'pass'); return true; }
+    if (!WS && toGoal < (b.aimLob ? 22 : 18) && b.z > 1.1) { if (!this.aiAirSpecial(win)) this.header(win, 'goal'); return true; }   // (t-012: or the aerial special; t-008: your aimed lob - he goes for goal from a little further)
     if (b.z < 1.75) { this.chestTrap(win, len(b.vx, b.vy)); return true; }    // chest / thigh it down into his stride: his ball
     for (const o of them) o.cool = Math.max(o.cool, 0.45);                       // too high to chest: beaten men are out of it for a moment, and he
     const free = !win.team.opp.players.some(o => !o.sentOff && len(o.x - win.x, o.y - win.y) < 2.0);   // with room: he lets it drop onto his chest (you:
-    if ((free || !them.length) && len(b.vx, b.vy) < (them.length ? 9 : 14) && (win === this.human || !them.length || Math.random() < 0.6)) {   // (lob receives: uncontested - he chests it)   // (t-008: only a ball dropping steeply - a flatter one came on at his head and bounced off him)
+    if ((free || !them.length) && len(b.vx, b.vy) < (them.length ? 9 : 14) && (!!WS || !them.length || Math.random() < 0.6)) {   // (lob receives: uncontested - he chests it)   // (t-008: only a ball dropping steeply - a flatter one came on at his head and bounced off him)
       b.target = win; (b.tried = new Set()).add('h' + win.team.name + win.i); return true; }   // or volley it)
     this.header(win, free ? 'down' : 'pass'); return true;                       // or cushions it to his feet; marked tight: nods it on first time
   },
@@ -276,8 +309,8 @@ hc2Mix(Match, {
   // which way the first touch takes him: the arrow you hold; else the way he was already going; else away from the
   // nearest of theirs (a little towards their goal); nobody near: towards their goal
   recvDir(p) {
-    const ax = Input.axis, al = len(ax.x, ax.y);
-    if (p === this.human && !this.demo && al > 0.2) return { x: ax.x / al, y: ax.y / al };
+    const ax = this.inpOf(p.team).axis, al = len(ax.x, ax.y);
+    if (this.isHuman(p) && !this.demo && al > 0.2) return { x: ax.x / al, y: ax.y / al };
     if (p.speed > 1.5) return { x: p.vx / p.speed, y: p.vy / p.speed };
     const gx = p.team.goalX - p.x, gy = 34 - p.y, gl = len(gx, gy) || 1;
     const o = p.team.opp.players.filter(e => !e.sentOff && !e.keeper && len(e.x - p.x, e.y - p.y) < 8).sort((u, v) => len(u.x - p.x, u.y - p.y) - len(v.x - p.x, v.y - p.y))[0];
@@ -303,19 +336,19 @@ hc2Mix(Match, {
   },
   trapRunStep(p, dt) {                                                           // (the trap's run: your arrow can still bend it)
     const T = p.trapRun; if (!T) return false;
-    if (p === this.human && !this.demo) { const ax = Input.axis, al = len(ax.x, ax.y); if (al > 0.2) { T.u = { x: ax.x / al, y: ax.y / al }; if (Input.held('sprint')) T.v = Math.max(T.v, p.top(true, true)); } }
+    if (this.isHuman(p) && !this.demo) { const I = this.inpOf(p.team), ax = I.axis, al = len(ax.x, ax.y); if (al > 0.2) { T.u = { x: ax.x / al, y: ax.y / al }; if (I.held('sprint')) T.v = Math.max(T.v, p.top(true, true)); } }
     p.wantDir = T.u; p.steer(T.u.x * T.v, T.u.y * T.v, dt, ACC * 1.2); return true;
   },
   header(p, kind, dir, chIn) {                                                   // (t-008: dir - the AERIAL BATTLE's clearance; t-022: chIn - its charge)
     const b = this.ball, s = p.team.side; let tx, ty, spd, vz, best = null, ch = null;
     if (kind === 'goal') { const gk = p.team.opp.players[0], away = gk && !gk.sentOff ? (gk.y > 34 ? -2.4 : 2.4) : 0;   // (t-008: yours with the stick idle - away from the keeper, it was straight at him)
       ch = chIn !== undefined ? chIn : this.airChargeFor(p);                     // t-022: held SHOOT (or the computer's dice): a charged header
-      tx = p.team.goalX + s * 2; ty = 34 + (p === this.human ? (Math.abs(Input.axis.y) > 0.2 ? Input.axis.y * 2.6 : away) : rnd(-2.6, 2.6));
+      tx = p.team.goalX + s * 2; ty = 34 + (this.isHuman(p) ? (Math.abs(this.inpOf(p.team).axis.y) > 0.2 ? this.inpOf(p.team).axis.y * 2.6 : away) : rnd(-2.6, 2.6));
       if (!ch) { spd = rnd(12, 15); vz = rnd(-1.5, 0.8); }                        // a tap: today's header
       else { const C = AIR_CHARGE, w = 1 - ch.q;                                  // charged: pace from the hold, lost and sprayed by the timing
         spd = C.hdrLo + (C.hdrHi - C.hdrLo) * ch.pw; ty += rnd(-1, 1) * (C.err0 + w * C.err);
         vz = rnd(-0.9, 0.3) + w * rnd(0, C.wild) + (ch.pw > C.overP ? (ch.pw - C.overP) * C.overK : 0); }   // (too much: over the bar, like a ground shot)
-      if (p !== this.human) { const toG = len(p.team.goalX - p.x, 34 - p.y), e = (0.9 + toG * 0.13) * this.dk(p.team).shotErr;   // t-012: the computer's headers
+      if (!this.isHuman(p)) { const toG = len(p.team.goalX - p.x, 34 - p.y), e = (0.9 + toG * 0.13) * this.dk(p.team).shotErr;   // t-012: the computer's headers
         ty += rnd(-1, 1) * e; vz += rnd(0, 1) * e * 0.5; } }                     // miss too (the soak: a headed cross went in 1 in 2 - the posts were never missed)
     else if (kind === 'clear' && dir) { tx = p.x + dir.x * 25; ty = clamp(p.y + dir.y * 25, 2, 66); spd = 15; vz = 4.5; }
     else if (kind === 'clear') { tx = p.x + s * 25; ty = clamp(p.y + rnd(-12, 12), 4, 64); spd = 15; vz = 4.5; }
@@ -328,12 +361,12 @@ hc2Mix(Match, {
     const dx = tx - b.x, dy = ty - b.y, l = len(dx, dy) || 1;
     this.airHitNote(p, dx, dy, ch);                                              // (t-022: for the animation pick - before the ball turns)
     Object.assign(b, { vx: dx / l * spd, vy: dy / l * spd, vz, skid: true, rollV: 0.72 * spd, last: p.team, lastP: p, save: null, target: best ? best.q : null, special: 0, power: ch ? ch.pw : 0, saveable: null });   // v0.8.8: a headed ball is an ordinary ball (a spent special kept its special flight)   // (t-022: a charged one is a shot by its pace for the keeper's guard, as a ground shot)
-    p.face = dirIndex(dx, dy); p.setState('header', 0.5); p.cool = kind === 'down' ? 0 : 0.4; this.headBuf = 0;   // (a cushion: he takes it straight away)
+    p.face = dirIndex(dx, dy); p.setState('header', 0.5); p.cool = kind === 'down' ? 0 : 0.4; for (const S of this.hSlots()) S.headBuf = 0;   // (a cushion: he takes it straight away)
     b.tried = null; b.lob = false; SFX.head(); b.how = { kind: 'header', x: b.x, y: b.y };
     if (b.spin || b.curl || b.aft) { b.spin = 0; b.curl = 0; b.aft = null; }     // (t-002 prototype: a header kills the lob's spin)
     if (kind === 'goal') { this.shotCount(p.team); this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }   // (t-035: a header at goal is a shot)
     if (kind === 'goal') this.airChargeDone(p, 'header', ch, spd);
-    if (best && p.team === this.home) { this.nextHuman = best.q; this.passRing = { p: best.q, t: 1.0 }; }
+    const HS = this.slot(p.team); if (best && HS) { HS.nextHuman = best.q; this.passRing = { p: best.q, t: 1.0 }; }   // (t-043: either human's side)
   },
   divingHeader(p) {
     this.airHitNote(p, this.ball.x - p.x, this.ball.y - p.y);                    // (t-022: the dive's pick)
@@ -347,7 +380,7 @@ hc2Mix(Match, {
     if (p.state !== 'dheader' || b.owner || D.t <= 0) { this.diving = null; return; }
     if (len(b.x - p.x, b.y - p.y) < 1.2 && b.z > 0.2 && b.z < 1.6) {
       this.diving = null; p.cool = p.stateT + 0.45; const s = p.team.side, toGoal = len(p.team.goalX - p.x, 34 - p.y);
-      const tx = toGoal < 25 ? p.team.goalX + s * 2 : p.x + s * 18, ty = toGoal < 25 ? 34 + (p === this.human ? Input.axis.y * 2.6 : rnd(-2.6, 2.6)) : p.y + rnd(-8, 8);
+      const tx = toGoal < 25 ? p.team.goalX + s * 2 : p.x + s * 18, ty = toGoal < 25 ? 34 + (this.isHuman(p) ? this.inpOf(p.team).axis.y * 2.6 : rnd(-2.6, 2.6)) : p.y + rnd(-8, 8);
       const ddx = tx - b.x, ddy = ty - b.y, l = len(ddx, ddy) || 1, spd = rnd(15, 18);
       Object.assign(b, { vx: ddx / l * spd, vy: ddy / l * spd, vz: rnd(0.5, 2), skid: true, rollV: 0.72 * spd, last: p.team, lastP: p, save: null, target: null, special: 0, power: 0, saveable: null });
       if (toGoal < 25) { this.shotCount(p.team); this.planSave(p.team.opp.players[0]); this.shotSaveCall(p.team.opp, p.team); }   // (t-035: a shot)
@@ -367,10 +400,10 @@ hc2Mix(Match, {
     const C = this.airCh; if (!C) return; const b = this.ball;
     if (C.p !== p || b.owner || b.inNet || this.setPiece || (C.rel ?? 0) > 1.0 || C.held > 3) { this.airCh = null; return; }   // (it never came: forgotten)
     if (C.rel != null) { C.rel += dt; return; }
-    if (Input.held('shoot')) { C.held += dt; this.headBuf = Math.max(this.headBuf || 0, 0.25); }   // (the press's 0.7 s would run out under a long hold)
+    if (this.inp.held('shoot')) { C.held += dt; this.headBuf = Math.max(this.headBuf || 0, 0.25); }   // (the press's 0.7 s would run out under a long hold)
     else { C.rel = 0; this.headBuf = Math.max(this.headBuf || 0, 0.7); }        // let go: it still meets the ball as a press did
   },
-  airChargeFor(p) { return p === this.human && !this.demo ? this.airChargeAt(p) : this.aiAirCharge(p); },
+  airChargeFor(p) { return this.isHuman(p) && !this.demo ? this.asSide(p.team, () => this.airChargeAt(p)) : this.aiAirCharge(p); },   // (t-043: his own hold, either side)
   airChargeAt(p) {
     const C = this.airCh, A = AIR_CHARGE; this.airCh = null;
     if (!A.on || !C || C.p !== p || C.held < A.tapT) return null;                // a tap (or no hold): today's header / volley
@@ -459,7 +492,7 @@ hc2Mix(Match, {
     const A = this.lobAim; A.t += dt;
     if (this.pending && this.pending.p === p) { this.lobAim = null; return false; }   // (another kick went first - a pass or a shot pressed while aiming)
     if (A.auto) return this.lobAutoTick(p, dir);
-    if (!Input.held('lob')) {                                                    // let go: the kick
+    if (!this.inp.held('lob')) {                                                 // let go: the kick
       this.lobAim = null;
       // t-019: the aim's framing hands over to the normal follow over LOB_AIM.camBlend (it snapped back to the ball)
       if (this.camTarget === this.lobAimCam && !LOB_AIM.camOld) this.lobCamBlend = { x: this.lobAimCam.x, y: this.lobAimCam.y, t: 0 };
@@ -494,7 +527,7 @@ hc2Mix(Match, {
   // space along the arrow, as far as the hold says. (The chip in their box and the keeper's throw: as they were.)
   lobAutoTick(p, dir) {
     const A = this.lobAim; this.lobAutoPick(p, dir);
-    if (!Input.held('lob')) { this.lobAim = null; this.autoLob(p, A, dir, clamp((A.t - LOB2.tapT) / LOB_AIM.holdT, 0, 1)); return true; }
+    if (!this.inp.held('lob')) { this.lobAim = null; this.autoLob(p, A, dir, clamp((A.t - LOB2.tapT) / LOB_AIM.holdT, 0, 1)); return true; }
     this.passAim = A.mate;                                                       // (the marker on the grass under him; none = into space)
     return false;
   },
@@ -589,7 +622,7 @@ hc2Mix(Match, {
     const hs = (p, o) => { const dp = len(p.x - D.x, p.y - D.y), dq = len(o.x - D.x, o.y - D.y), f = dirVec(p.face), ux = (D.x - p.x) / (dp || 1), uy = (D.y - p.y) / (dp || 1);
       return clamp((dq - dp) * C.hsDist + Math.max(0, f.x * ux + f.y * uy) * C.hsFace + (p === b.target ? C.hsRun : 0) + (p.stamina ?? 1) * C.hsSpring, -C.hsMax, C.hsMax); };
     const side = (p, q, sg) => ({ p, hs: o.hs ? o.hs[sg > 0 ? 0 : 1] : hs(p, q), n: 0, acc: 0, x0: p.x, y0: p.y, tx: D.x + n0.x / nl * 0.45 * sg, ty: D.y + n0.y / nl * 0.45 * sg, push: 0,
-      cpu: !this.demo && p.team === this.home ? null : C.cpuRate * this.dk(p.team).mash * (1 + rnd(-1, 1) * C.cpuJit) });   // (you mash yourself; the computer at its rate)
+      cpu: !this.demo && this.hasHuman(p.team) ? null : C.cpuRate * this.dk(p.team).mash * (1 + rnd(-1, 1) * C.cpuJit) });   // (you mash yourself; the computer at its rate)
     const A = this.aerial = { t: 0, phase: 'intro', kind: o.kind || 'air', D, b0: { x: b.x, y: b.y, z: b.z }, att: side(att, def, 1), def: side(def, att, -1), sp: false, res: null, cam: { x: wx(D.x, D.y), y: wy(D.y) - 110 } };
     if (A.kind === 'ground') { b.owner = null; b.target = null; this.duelN = (this.duelN || 0) + 1; }   // (the ball is nobody's while they fight for it)
     else {
@@ -600,11 +633,11 @@ hc2Mix(Match, {
       A.hz = A.move === 'volley' ? C.holdZv : C.holdZ;
       A.pos0 = A.pos = clamp(Math.round(A.att.hs - A.def.hs), -C.hsBar, C.hsBar);
       for (const s of [A.att, A.def]) { if (s.cpu != null) s.acc = -s.cpu * C.cpuReact; s.p.aerPose = { kind: A.move, f: 0, h: { z: A.hz, side: 0, pw: 1 } }; s.p.setState('aerial', 9); }   // (both go up for it: player.js holds the move's frames)
-      Input.mashTake();                                                          // (presses before the prompt don't count)
+      for (const S of this.hSlots()) S.inp.mashTake();                          // (presses before the prompt don't count)
     }
-    if (!this.demo) { this.human = att.team === this.home ? att : def; this.nextHuman = null; }
+    if (!this.demo) for (const S of this.hSlots()) { const t = this[S.hSide || 'home']; S.human = att.team === t ? att : def; S.nextHuman = null; }   // (t-043: each human takes his man in it)
     for (const p of [att, def]) { p.vx = p.vy = 0; p.cool = 9; }               // (busy with each other: no pickups, no tackles)
-    this.headBuf = 0; this.charge = -1; this.lobCharge = -1; this.lobAim = null;
+    for (const S of this.hSlots()) { S.headBuf = 0; S.charge = -1; S.lobCharge = -1; S.lobAim = null; }
     this.slowMo = Math.max(this.slowMo || 0, 0.2); this.camTarget = A.cam;
     if (A.kind === 'ground') this.duelAt = this.aerialClock || 0; else this.aerialAt = this.aerialClock || 0;   // (arcade-2: the grass duel keeps its own clock - lob battles aren't crowded out)
     SFX.ooh(); SFX.roar(2.2, 0.7);
@@ -618,19 +651,19 @@ hc2Mix(Match, {
   aerialInput() {
     const A = this.aerial, s = A.att.p === this.human ? A.att : A.def.p === this.human ? A.def : null; if (!s) return;
     if (A.kind !== 'ground') {
-      const n = Input.mashTake(); if (A.res == null) for (let i = 0; i < n && this.aerial === A && A.res == null; i++) this.aerialPress(s, true);
-      if (s === A.att && Input.pressed('special') && this.meterOf(s.p.team).level() >= 1) A.sp = true;   // SPECIAL in the battle: the aerial special if you win it
+      const n = this.inp.mashTake(); if (A.res == null) for (let i = 0; i < n && this.aerial === A && A.res == null; i++) this.aerialPress(s, true);
+      if (s === A.att && this.inp.pressed('special') && this.meterOf(s.p.team).level() >= 1) A.sp = true;   // SPECIAL in the battle: the aerial special if you win it
       return;
     }
-    const g = A.kind === 'ground', h = Input.held('shoot') || (g && Input.held('pass')), hit = Input.pressed('shoot') || (g && Input.pressed('pass')) || (h && !A.lastShoot); A.lastShoot = h;   // (arcade-2: on the grass PASS mashes too)
+    const g = A.kind === 'ground', h = this.inp.held('shoot') || (g && this.inp.held('pass')), hit = this.inp.pressed('shoot') || (g && this.inp.pressed('pass')) || (h && !A.lastShoot); A.lastShoot = h;   // (arcade-2: on the grass PASS mashes too)
     if (A.phase === 'mash' && hit) this.aerialHit(s);
-    if (s === A.att && Input.pressed('special') && this.meterOf(s.p.team).level() >= 1) A.sp = true;   // SPECIAL in the battle: the aerial special if you win it
+    if (s === A.att && this.inp.pressed('special') && this.meterOf(s.p.team).level() >= 1) A.sp = true;   // SPECIAL in the battle: the aerial special if you win it
   },
   aerialHit(s) {                                                                 // (the grass duel's press: arcade-2, as it was)
     const A = this.aerial, att = s === A.att; s.n++;
     SFX.tone('square', (att ? 520 : 330) + Math.min(s.n, 16) * 22, (att ? 760 : 480) + Math.min(s.n, 16) * 22, 0.05, 0.05); SFX.hiss(2200, 1.5, 0.03, 0.06);   // (a note per press, climbing)
     if (this.aerialPop) this.aerialPop(att);                                     // sparks off the ball (ui.js)
-    if (s.p === this.human || s.n % 2 === 0) this.cameras.main.shake(40, 0.0012);
+    if (this.isHuman(s.p) || s.n % 2 === 0) this.cameras.main.shake(40, 0.0012);
   },
   // t-034 one press in the aerial battle = one step of the bar, always. Yours (own): a tiny hit-stop, sparks, a punchy
   // thump, a camera kick, your man shoves in. The computer's: the bar steps back the same, its man shoves, a softer,
@@ -736,7 +769,7 @@ hc2Mix(Match, {
       // the ball goes like a shot - off his contact frame, at a real shot's pace, at a corner (or the aerial special)
       const ux = l.x - w.x, uy = l.y - w.y, ul = len(ux, uy) || 1;
       l.setState('fall', C.floorT); l.stun = C.floorT + 0.45; l.cool = l.stun; l.vx = ux / ul * 2.6; l.vy = uy / ul * 2.6; l.face = dirIndex(-ux, -uy);
-      const me = w === this.human && !this.demo;
+      const me = this.isHuman(w) && !this.demo;
       this.say('', 'WON IT IN THE AIR!', 0.9);
       if (me && A.sp && this.meterOf(w.team).level() >= 1) { this.airSpecial(w); how = 'special'; }   // your aerial special (SPECIAL pressed in the battle)
       else if (!me && this.aiAirSpecial(w)) how = 'special';                     // (the computer's, SP banked)
@@ -755,8 +788,8 @@ hc2Mix(Match, {
   // outright), at a corner away from the keeper (yours: your stick's side if you hold one), give or take
   // AERIAL.shotSpread (the computer's x its finishing by level). A normal shot for the keeper: planSave, the SAVE! call.
   aerialShot(w, A) {
-    const b = this.ball, C = AERIAL, s = w.team.side, gk = w.team.opp.players[0], m = clamp(Math.abs(A.pos) / A.R, 0, 1), vol = A.move === 'volley', me = w === this.human && !this.demo;
-    const sideY = me && Math.abs(Input.axis.y) > 0.2 ? Math.sign(Input.axis.y) : gk && !gk.sentOff ? (gk.y > 34 ? -1 : 1) : (Math.random() < 0.5 ? -1 : 1);
+    const b = this.ball, C = AERIAL, s = w.team.side, gk = w.team.opp.players[0], m = clamp(Math.abs(A.pos) / A.R, 0, 1), vol = A.move === 'volley', me = this.isHuman(w) && !this.demo, wax = this.inpOf(w.team).axis;
+    const sideY = me && Math.abs(wax.y) > 0.2 ? Math.sign(wax.y) : gk && !gk.sentOff ? (gk.y > 34 ? -1 : 1) : (Math.random() < 0.5 ? -1 : 1);
     const ty = 34 + sideY * C.shotAim + rnd(-1, 1) * C.shotSpread * (me ? 1 : this.dk(w.team).shotErr), tx = w.team.goalX;
     const V = vol ? C.volV : C.hdrV, spd = V[0] + (V[1] - V[0]) * m, dx = tx - b.x, dy = ty - b.y, l = len(dx, dy) || 1, T = l / spd, zt = vol ? rnd(0.4, 1.9) : rnd(0.3, 1.5);
     const vz = (zt - b.z + 0.5 * G * T * T) / T;                                // (to cross the line at zt: under the bar)
@@ -797,7 +830,7 @@ hc2Mix(Match, {
   },
   switchHuman() {
     const b = this.ball;
-    const c = this.home.players.filter(p => !p.keeper && !p.sentOff).sort((a, q) => len(a.x - b.x, a.y - b.y) - len(q.x - b.x, q.y - b.y));
+    const c = this.hTeam().players.filter(p => !p.keeper && !p.sentOff).sort((a, q) => len(a.x - b.x, a.y - b.y) - len(q.x - b.x, q.y - b.y));
     if (c[0] === this.human && c[1]) this.human = c[1]; else this.human = c[0];
   },
   // v0.8.1 two different tackles (Luca): CHALLENGE (pass button) and SLIDE (shoot button), like FIFA / PES.
@@ -818,7 +851,7 @@ hc2Mix(Match, {
     { const k = this.pending; if (k && k.p === carrier && k.info.special && b.z > 0.6) { p.stun = TACKLE.chMissStun; p.cool = TACKLE.chMissCool; return; } }
     const cv = carrier.speed > 0.6 ? { x: carrier.vx / carrier.speed, y: carrier.vy / carrier.speed } : dirVec(carrier.face);
     const rx = p.x - carrier.x, ry = p.y - carrier.y, rl = len(rx, ry) || 1, front = (cv.x * rx + cv.y * ry) / rl;
-    const human = p === this.human && !this.demo, vsHuman = carrier === this.human && !this.demo;
+    const human = this.isHuman(p) && !this.demo, vsHuman = this.isHuman(carrier) && !this.demo;
     let pWin = front > 0.3 ? 0.8 : front > -0.3 ? 0.55 : 0.2;                   // in his path / beside him / behind him
     if (len(b.x - carrier.x, b.y - carrier.y) < 0.7) pWin -= 0.1;               // tight control is harder to win
     if (db < 0.9) pWin += 0.08;                                                  // right on the ball
@@ -876,7 +909,7 @@ hc2Mix(Match, {
       if (len(b.x - p.x, b.y - p.y) > (still ? 0.55 : 0.85)) continue;          // you have to be right on the ball
       const rx = p.x - c.x, ry = p.y - c.y, rl = len(rx, ry); if (rl > 1.8) continue;
       if ((dir.x * rx + dir.y * ry) / (rl || 1) < 0.35) continue;               // not in his way
-      const human = p === this.human && !this.demo, vsHuman = c === this.human && !this.demo;
+      const human = this.isHuman(p) && !this.demo, vsHuman = this.isHuman(c) && !this.demo;
       // (29 Oct: a man in your path took it off a sprinting you half as often as off a jogging you - 0.7 v 1.3. Now the
       // sprint is the easier one to block, 1.5, and the burst 0.5 (was 0.3): sprinting down the middle stops paying)
       const rate = human ? (c.burst > 0 ? 1.6 : 3.2) * this.dkY(c.team).mine : vsHuman ? (c.burst > 0 ? 0.5 : c.sprinting ? 1.5 : 1.3) * this.dkY(p.team).blk : (c.burst > 0 ? 0.5 : 1.6);   // per second in his path (v0.9.3: v you, by level)
