@@ -109,7 +109,7 @@ hc2Mix(Match, {
       b.owner = taker; b.last = team; taker.state = 'idle';
       { const S = this.slot(team); if (S) S.human = taker; }
       this.setPiece = { kind, team, taker, t: 0, kicked: false };
-      this.freeze = paceK().spFreeze; this.say(kind, note || (team === this.home ? (k => `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`)(keyset()) : team.name), team === this.home ? 2.4 : 1.4);
+      this.freeze = paceK().spFreeze; this.say(kind, note || (this.hasHuman(team) ? (k => `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`)(keyset(team)) : team.name), this.hasHuman(team) ? 2.4 : 1.4);   // (t-044: either human's, in his own keys)
       return;
     }
     b.last = team;
@@ -232,7 +232,7 @@ hc2Mix(Match, {
     sp.t = 0; sp.gate = this.inpOf(sp.team).held('shoot');                                     // (a SHOOT that skipped: let go before it charges a shot)
     this.aimPt = this.defaultAim(sp.kind, sp.team, tk, U.ball.x, U.ball.y);
     if (sp.kind !== 'THROW-IN') tk.face = dirIndex(this.aimPt.x - tk.x, this.aimPt.y - tk.y);
-    if (this.hasHuman(sp.team)) { this.slot(sp.team).human = tk; const k = keyset();
+    if (this.hasHuman(sp.team)) { this.slot(sp.team).human = tk; const k = keyset(sp.team);
       this.say(sp.kind, sp.kind === 'THROW-IN' ? `${k.move} AIM  ${k.pass} SHORT  ${k.lob} LONG` : `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`, 2.4); }
     return true;
   },
@@ -261,7 +261,7 @@ hc2Mix(Match, {
     { const S = this.slot(team); if (S) S.human = gk; }
     this.freeze = Math.max(this.freeze, T);
     this.gkSetup = { t0: this.time.now, T };                                     // (the Test Lab's RS6 reads it)
-    const k = keyset(); this.say('GOAL KICK', team === this.home ? `${k.pass} THROW  ${k.lob} PUNT` : team.name, team === this.home ? 2.0 : 1.2);
+    const k = keyset(team); this.say('GOAL KICK', this.hasHuman(team) ? `${k.pass} THROW  ${k.lob} PUNT` : team.name, this.hasHuman(team) ? 2.0 : 1.2);   // (t-044: either human's keys)
   },
   defaultAim(kind, team, taker, x, y) {
     const gx = team.goalX, s = team.side;

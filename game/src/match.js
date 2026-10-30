@@ -58,6 +58,7 @@ class Match extends Phaser.Scene {
       for (const mt of this.meters || []) mt.reset(); this.riseQ = null;
       this.resetMatchState(); this.setPiece = null; this.pending = null; this.diving = null; this.kickoff(this.home);   // (t-035: the rest a match owns)
       this.help.setText(this.helpText()).setVisible(!window.HC2_TOUCH); this.helpUntil = this.time.now + 10000;   // the keys you picked
+      this.lanEv('teams');                                                       // (t-044: a LAN match - PC 2 loads the same two teams)
       if (done) done();
     };
     if (!need.length) return go();
@@ -68,6 +69,7 @@ class Match extends Phaser.Scene {
   // ---------- update
   update(time, deltaMs) {
     const dt = Math.min(deltaMs / 1000, 1 / 30);
+    if (this.lanGuest) { this.lanGuestTick(dt); return; }                      // t-044 LAN: PC 2 draws the host's match, it doesn't play one (lan.js)
     this.resumeTick(dt);                                                         // v0.10.2: keeps a snapshot of your match for RESUME (resume.js)
     if (this.replay) { Input.poll(); this.stadium.update(dt); this.replayTick(dt); this.ramiTick(dt); for (const mt of this.meters || []) mt.draw(dt); return; }
     if (this.cupScreen) { Input.poll(); if (Input.pressed('start') || Input.pressed('pass')) this.cupPlay(); this.stadium.update(dt); return; }   // v0.7.2 cup table up
@@ -87,7 +89,7 @@ class Match extends Phaser.Scene {
     if (this.cutIn) { this.anims.globalTimeScale = 0.0001; this.stadium.update(dt); this.cutInTick(dt); this.render(dt); this.ramiTick(dt); return; }   // v0.8.9 special-save cut scene: play waits
     const flowBusy = !!(this.ht || this.intro || this.toss);                    // (the key that ends half time must not pause the game too)
     if (this.ht) this.htInput();
-    if (this.paused && !this.over) { this.pauseInput(); if (this.replay) return; }   // v0.8.5 PAUSE MENU
+    if (this.paused && !this.over) { if (!this.lanHold) this.pauseInput(); if (this.replay) return; }   // (t-044: paused by PC 2 or a lost line: the host's keys don't resume it)   // v0.8.5 PAUSE MENU
     else if (Input.pressed('start') && !flowBusy) {
       if (this.over && this.cup && this.cupLive) { if (!this.cupPens) this.cupResult(); return; }        // v0.7.2: back to the cup table (a level final waits for its penalties)
       if (this.over) { if (!this.matchPens) this.setTeams(this.home.name, this.away.name, () => (this.watch ? this.watchStart() : this.preMatch())); return; }   // (watch mode: watch another)   // v0.8.2: AGAIN = same teams, fresh match - v0.8.4: team sheet + walk-out

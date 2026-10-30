@@ -553,7 +553,7 @@ hc2Mix(Match, {
     const mt = this.meterOf(def), gk = def.players[0]; if (!gk || gk.sentOff) return;
     gk.spSave = 0;
     if (mt.level() < 1) return;
-    if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75 }; this.say('', `SPECIAL SAVE! PRESS ${keyset().special}`, 0.75); return; }
+    if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75 }; this.say('', `SPECIAL SAVE! PRESS ${keyset(def).special}`, 0.75); return; }
     if (Math.random() < (paceK().gkAnswer > 0.6 ? 0.95 : 0.8)) { gk.spSave = mt.spend(); this.saveFx(gk); }   // (arcade-2: ARCADE nearly always answers a special)
   },
   saveFx(gk) {
@@ -616,7 +616,7 @@ hc2Mix(Match, {
     const b = this.ball, s = b.save, mt = this.meterOf(def), gk = def.players[0];
     if (!gk || gk.sentOff || pen || b.special || !s || s.gk !== gk || s.off || gk.spSave || mt.level() < 1) return;
     b.saveable = shooters;
-    if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset().special}`, 0.75); return; }
+    if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset(def).special}`, 0.75); return; }
     const P = paceK(); if (s.dy > s.cover * P.gkCover && Math.random() < P.gkAnswer * this.dk(def).gkSave) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it (arcade-2: ARCADE answers more, and a little sooner: a keeper's move against every big shot)
   },
   // the clash at the keeper: true = saved, 'hand' = he only gets a hand to it (t-007: it goes out), 'clash' = a special v
