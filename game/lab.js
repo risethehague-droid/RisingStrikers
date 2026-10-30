@@ -3402,7 +3402,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
         m.cameras.main.centerOn(Math.round(LAB.cx), Math.round(LAB.cy));
       }
       m.help.setVisible(false);
-      const cam = m.cameras.main; if (cam.zoom !== LAB.zoom) { if (!m.uiFix) m.uiFix = [m.hud, m.rami && m.rami.c].filter(Boolean).map(g => ({ g, x: g.x, y: g.y, s: g.scaleX })); cam.setZoom(LAB.zoom); m.fixUi(LAB.zoom); }   // (the SP meters + captions stay put)   // v0.8.5 camera zoom slider
+      const cam = m.cameras.main, LZ = LAB.zoom * (m.camZoomK || 1); if (cam.zoom !== LZ) { if (!m.uiFix) m.uiFix = [m.hud, m.rami && m.rami.c].filter(Boolean).map(g => ({ g, x: g.x, y: g.y, s: g.scaleX })); cam.setZoom(LZ); m.fixUi(LZ); }   // (the SP meters + captions stay put)   // v0.8.5 camera zoom slider (t-042: x the aerial close-up, world.js camCloseTick)
       draw();
     };
     for (const o of m.hud.list) if (o !== m.msg && o !== m.sub) o.setVisible(false);   // no scoreboard, clock or radar in the lab
