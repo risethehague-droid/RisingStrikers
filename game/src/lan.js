@@ -307,7 +307,8 @@ hc2Mix(Match, {
       else LAN.over(null);
     }
     this.stadium.update(dt); this.ramiTick(dt);
-    for (const mt of this.meters || []) mt.draw(dt);
+    { const w = window.HC2_STARTED; window.HC2_STARTED = true;                // (the meters draw in a started match; PC 2 never "starts" one - it
+      for (const mt of this.meters || []) mt.draw(dt); window.HC2_STARTED = w; }   // keeps HC2_STARTED off so its FLAG button and menus stay out of it)
     this.drawCursor(); this.drawRadar();
     if (this.time.now > this.helpUntil && this.help.visible) this.help.setVisible(false);
   },

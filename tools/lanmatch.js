@@ -122,12 +122,14 @@ from PIL import Image
 d, out = sys.argv[1], sys.argv[2]
 hs = sorted(glob.glob(os.path.join(d, 'h*.png'))); frames = []
 for h in hs:
-    g = h.replace(os.sep + 'h', os.sep + 'g'); a, b = Image.open(h).convert('RGB'), Image.open(g).convert('RGB')
+    g = os.path.join(d, 'g' + os.path.basename(h)[1:]); a, b = Image.open(h).convert('RGB'), Image.open(g).convert('RGB')
     w = 360; a = a.resize((w, a.height * w // a.width), Image.NEAREST); b = b.resize((w, b.height * w // b.width), Image.NEAREST)
     c = Image.new('RGB', (w * 2 + 6, a.height), (12, 10, 14)); c.paste(a, (0, 0)); c.paste(b, (w + 6, 0)); frames.append(c)
-for cols in (64, 48, 32):
-    q = [f.quantize(colors=cols, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE) for f in frames]
-    q[0].save(out, save_all=True, append_images=q[1:], duration=150, loop=0, optimize=True)
+for fs, dur in ((frames, 150), (frames[::2], 300)):              # (too big: fewer colours, then every 2nd frame)
+    for cols in (64, 48, 32):
+        q = [f.quantize(colors=cols, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE) for f in fs]
+        q[0].save(out, save_all=True, append_images=q[1:], duration=dur, loop=0, optimize=True)
+        if os.path.getsize(out) < 1000000: break
     if os.path.getsize(out) < 1000000: break
 print('gif', out, os.path.getsize(out), 'bytes,', len(frames), 'frames')
 `);
