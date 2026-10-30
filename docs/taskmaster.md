@@ -125,6 +125,18 @@ head SHA:
    "PR + main" or "branch", builtAt: <ms>, none: "<why>" for Preview: none}`.
 5. Merged or closed PRs keep their page; never delete one unless Luca asks.
 
+## MOVES on HQ (Luca, 30 Oct: "keep the hq updated with all new animations you add, as short previews")
+
+HQ's MOVES section shows every FREE PLAY move (`FP_MOVES` in game/lab.js) as a short clip, grouped like the Lab. When
+you merge a PR that adds or changes a move (its `Move clips:` line, CLAUDE.md Testing 7):
+1. The clip: the PR's `docs/previews/pr<N>-move-<mv>.gif`, or record it from main:
+   `MOVE=<mv> FPS=10 WIDTH=320 OUT=$TMP/<mv>.gif node tools/preview.js` (set pieces: `SKIP=6 MOVEKEY=KeyC`; the throw-in
+   `KeyZ`). Shrink it to about 200 KB first if it's bigger (every 2nd frame, 32 colours).
+2. Upload it to HQ's assets (Artifact publish, `url` = HQ, `asset: true`) and add the move's line to
+   `design/hq/move-assets.json`: `"<mv>": {"gif": "<the url>", "ver": "v0.x.y", "at": <ms>}`. Commit it.
+3. `python3 design/hq/hqdata.py moves $T`, then one ArtifactData batch from `$T/moves-writes.json` (set; it also picks up
+   renamed moves and the IN THE GAME / LAB ONLY tag).
+
 ## Talking to Luca
 
 Short, casual, direct, result first; always say where the work happens ([cloud], [your laptop], [PixelLab],

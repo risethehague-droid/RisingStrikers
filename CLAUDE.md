@@ -108,6 +108,11 @@ called, but nobody reorganised before the free kick.)
    updates) its line in `FP_MOVES` in `game/lab.js`: the button sets the moment up and the game plays the move, tagged
    `game: true` (IN THE GAME) or not (LAB ONLY, until Luca's OK). Say which button in "How to try it". Check it with
    `ONLY=<mv> VIEWS=none node tools/labnav.js` (the whole Lab: `node tools/labnav.js`).
+7. **Every new or changed move gets its clip on HQ** (Luca, 30 Oct: "keep the hq updated with all new animations you
+   add, as short previews (shots, passes, mash etc)"). Record the move's FREE PLAY button:
+   `MOVE=<mv> FPS=10 WIDTH=320 OUT=docs/previews/pr<N>-move-<mv>.gif node tools/preview.js` (a set piece: add
+   `SKIP=6 MOVEKEY=KeyC`), commit it with the PR and name it in the description (`Move clips: <mv>, ...`). The
+   taskmaster puts it in HQ's MOVES section when it merges.
 
 Tests use Node with Playwright and Chromium, run headless; time is stepped by hand, so a 5-minute match takes seconds.
 
