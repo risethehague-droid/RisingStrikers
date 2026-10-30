@@ -156,7 +156,9 @@ const ARCADE = {
   // is whipped in (fast, head height, like t-012's crosses) to the attacker with the most room, never inside minD m
   // of the goal line (the keeper's six-yard box; real teams aim at 6-12 m), and the runners attack it as a cross.
   // How the games do it: FIFA's driven corner to the penalty spot, PES's near-post flick, Mario Strikers' chaos.
-  corner: { whip: true, minD: 7, maxD: 12.5 },
+  // best = how often he finds the man with the most room (else any man in the box). At 0.7 the corners scored 18 in 70
+  // (26%): far above FIFA-generous; aim ~1 in 8.
+  corner: { whip: true, minD: 7, maxD: 12.5, best: 0.3 },
   // 2 AERIALS: a rebound that will go up past headZ becomes a loose high ball "aimed" at the nearest man of the side that
   // touched it last (the way a lob is), so the game's own lob machinery takes over: he times his run under the drop,
   // their nearest man contests it, the drop is a duel / the AERIAL BATTLE, headers, volleys, the aerial specials.

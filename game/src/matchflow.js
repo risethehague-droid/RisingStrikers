@@ -386,7 +386,7 @@ hc2Mix(Match, {
     }
     if (sp.kind === 'CORNER' && paceK().arcade && ARCADE.corner.whip) {             // (ARCADE corners are chances: the man with the most room, 30 Oct)
       const box = mates.filter(q => Math.abs(q.x - gx) < 16), room = q => Math.min(...sp.team.opp.players.filter(o => !o.sentOff).map(o => len(o.x - q.x, o.y - q.y)));
-      const t = box.sort((u, v) => room(v) - room(u))[Math.random() < 0.7 ? 0 : 1] || box[0] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob'); }
+      const t = box.sort((u, v) => room(v) - room(u))[Math.random() < ARCADE.corner.best ? 0 : Math.floor(Math.random() * box.length)] || box[0] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob'); }
     if (sp.kind === 'CORNER') { const box = mates.filter(q => Math.abs(q.x - gx) < 16); const t = box[Math.floor(Math.random() * box.length)] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob'); }
     if (sp.kind === 'GOAL KICK') { const up = mates.filter(q => Math.abs(q.x - p.x) > 25).sort(() => Math.random() - 0.5)[0] || mates[0]; Object.assign(A, { x: up.x, y: up.y }); return this.spKick('lob'); }
     const best = this.bestOption(p);
