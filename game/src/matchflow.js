@@ -926,7 +926,7 @@ hc2Mix(Match, {
             this.goalQ = { ep, frames, after: () => this.afterGoal(defending) }; this.goalQTick(); }); }   // v0.8.4: a goal in the last seconds - then the whistle
         this.freeze = 99; return;
       }
-      if (paceK().arcade) return this.arcadeOut();                              // t-020 ARCADE: no corners or goal kicks - it comes back off the board
+      if (paceK().arcade && !(b.last === defending && cornerOff(b))) return this.arcadeOut();   // t-020 ARCADE: no goal kicks - it comes back off the board (30 Oct: but a corner off a defender, ARCADE.boards.corners)
       if (b.last === defending) this.dead = { kind: 'CORNER', team: defending.opp, x: left ? 0.4 : PITCH_L - 0.4, y: b.y < 34 ? 0.4 : PITCH_W - 0.4, t: 0.8 * paceK().deadT };   // (t-004: ARCADE restarts sooner)
       else {
         const close = b.shotBy && b.shotBy.team === defending.opp && Math.min(Math.abs(b.y - GOAL_Y0), Math.abs(b.y - GOAL_Y1)) < 1.3 && b.z < BAR_Z + 0.8;

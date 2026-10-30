@@ -455,7 +455,7 @@
     { mv: 'def-stand', sec: 'def', n: 'STANDING TACKLE', game: true, tip: 't-018: the challenge (the pass key) as he reaches you', go: r => fpDuel(r, 'stand') },
     { mv: 'def-jockey', sec: 'def', n: 'JOCKEY', game: true, tip: 'side-on, backing off as he dribbles at you', go: r => fpDuel(r, 'jockey') },
     { mv: 'slide', sec: 'def', n: 'SLIDE AT A LOOSE BALL', game: true },
-    { mv: 'set-corner', sec: 'set', n: 'CORNER', game: true, gk: true, tip: 't-029: your corner - the setup runs, then C crosses / Z passes / X shoots', go: r => fpSet(r, 'corner') },
+    { mv: 'set-corner', sec: 'set', n: 'CORNER', game: true, gk: true, tip: 't-029: your corner - the setup runs, then C crosses / Z passes / X shoots. On ARCADE too since 30 Oct: a ball their defender puts over his own byline is a corner (Test Lab AR2-D)', go: r => fpSet(r, 'corner') },
     { mv: 'set-fk', sec: 'set', n: 'FREE KICK + WALL', game: true, gk: true, tip: 't-029: your free kick 23 m out - their wall forms on 9.15 m, then you take it', go: r => fpSet(r, 'fk') },
     { mv: 'set-throw', sec: 'set', n: 'THROW-IN', game: true, gk: true, tip: 't-029: your throw-in - Z short, C long', go: r => fpSet(r, 'throw') },
     { mv: 'set-off', sec: 'set', n: 'OFFSIDE → FREE KICK', game: true, gk: true, tip: 't-024 / t-029: their striker is flagged offside - your free kick where he played it', go: r => fpSet(r, 'off') },
@@ -2037,15 +2037,16 @@
   function arLine(id, name, sub, o) {
     return { id, group: 'AR', name, sub, kind: 'phys', pace: o.pace || 'arcade',
       setup(r) {
-        const k = m.home.players[6], gk = m.away.players[0]; cast(o.noGk ? [k] : [k, gk]); put(k, o.from[0] - 3, o.from[1], 0); put(gk, LINE_X, 34, 4);
-        arBall(o.from[0], o.from[1], o.z || 0, o.v[0], o.v[1], o.v[2] || 0, k);
+        const k = m.home.players[6], gk = m.away.players[0], d = o.def ? m.away.players[3] : null;   // (o.def: their defender touched it last - ARCADE CORNERS, 30 Oct)
+        cast([k, ...(o.noGk ? [] : [gk]), ...(d ? [d] : [])]); put(k, o.from[0] - 3, o.from[1], 0); put(gk, LINE_X, 34, 4); if (d) put(d, o.from[0] - 1, o.from[1] + 1.5, 0);
+        arBall(o.from[0], o.from[1], o.z || 0, o.v[0], o.v[1], o.v[2] || 0, d || k);
         Object.assign(r, { human: k, gk, marks: [], o, maxZ: 0, prev: null });
       },
       check(r) {
         const b = m.ball, f1 = v => v.toFixed(1);
         if (!r.hit) {
           if (b.inNet) return { o: 'GOAL · the goal mouth is open (no board there)', hold: 1 };
-          if (r.out) return { o: `OUT · ${r.out.toLowerCase()}${o.pace === 'classic' ? ' (CLASSIC: the ball goes out)' : ' (ARCADE too since t-026: no touchline boards)'}` };
+          if (r.out) return { o: `OUT · ${r.out.toLowerCase()}${o.pace === 'classic' ? ' (CLASSIC: the ball goes out)' : r.out === 'CORNER' ? ' (ARCADE too since 30 Oct: their defender put it over his own byline)' : ' (ARCADE too since t-026: no touchline boards)'}` };
           if (b.reb && b.reb.t != null) { const p = r.prev || { vx: b.vx, vy: b.vy, vz: b.vz }, into = b.reb.hit === 'T' ? Math.abs(p.vy) : Math.abs(p.vx);
             r.hit = { side: b.reb.hit, t: r.t, x: b.x, y: b.y, vin: len(p.vx, p.vy), into, vout: len(b.vx, b.vy), vz: b.vz, apex: b.reb.apex, aimed: b.reb.q }; r.maxZ = b.z; }
           r.prev = { vx: b.vx, vy: b.vy, vz: b.vz };
@@ -2143,7 +2144,8 @@
       arLine('AR1', 'a hard drive at the TOUCHLINE', 'a loose ball at 72 km/h, 60° into the line: a throw-in, on ARCADE too since t-026 (Luca 25 Oct: no touchline boards)', { from: [56, 61], v: [10, 17.3] }),
       arLine('AR1-S', 'a firm pass rolling at the touchline', 'a ground pass at 36 km/h, square on: a throw-in (t-026: no touchline boards)', { from: [40, 63], v: [2, 10] }),
       arLine('AR1-C', 'the same drive, CLASSIC', 'CLASSIC is untouched: the ball goes out for a throw-in', { from: [56, 61], v: [10, 17.3], pace: 'classic' }),
-      arLine('AR2', 'at the BYLINE beside the goal', 'a ball at 65 km/h runs past the post (outside the goal mouth): back off the board in front of goal (CLASSIC: goal kick / corner)', { from: [95, 22], v: [17, 3.5] }),
+      arLine('AR2', 'at the BYLINE beside the goal', 'a ball at 65 km/h runs past the post off your own man (outside the goal mouth): back off the board in front of goal (CLASSIC: goal kick / corner; off their defender: AR2-D, a corner)', { from: [95, 22], v: [17, 3.5] }),
+      arLine('AR2-D', 'over the BYLINE off THEIR defender: a corner', 'the AR2 ball, but their defender touched it last (a clearance, a block): ARCADE gives the corner now (the co-designer, 30 Oct); off your own man it still comes back off the board (AR2)', { from: [95, 22], v: [17, 3.5], def: true }),
       arLine('AR2-G', 'into the goal mouth: still a goal', 'the board stops at the posts: a shot inside them goes in', { from: [88, 33], v: [24, 0.3], z: 0.3, noGk: true }),
       arAir('AR3', 'a rebound attacked in the air (touchline, by their box)', 'the real team AI: a ball driven at the touchline beside their box - since t-026 a throw-in (AR3-B / AR3-SP have the byline rebounds)',
         { from: [88, 61], v: [11, 19, 1.2], h9: [93, 57], h10: [90, 45], h8: [86, 52], a3: [97, 52], a4: [95, 59], a2: [99, 40], a7: [89, 55] }),

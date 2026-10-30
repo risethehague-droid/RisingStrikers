@@ -59,6 +59,12 @@ function ballStep(b, h, owned) {
 // along it, and a ball low on the grass pops up (pop x the speed into it, more for a square hit). No dice, so the game's
 // predicted path (predict) and the real flight agree. Returns the board it hit ('T' touchline, 'B' byline) or null.
 // Only called on ARCADE (paceK().arcade).
+// ARCADE CORNERS: a ball past a byline that's a corner rather than a board rebound (ARCADE.boards.corners)
+function cornerOff(b) {
+  const C = ARCADE.boards.corners; if (!C || !b.last || (b.x >= 0 && b.x <= PITCH_L)) return false;
+  if (b.x < 0 ? !(b.last.side > 0) : !(b.last.side < 0)) return false;              // (off an attacker: the board)
+  return C !== 'outfield' || !(b.lastP && b.lastP.keeper && b.lastP.team === b.last);   // ('outfield': the keeper's parry still rebounds)
+}
 function boardBounce(b) {
   const A = ARCADE.boards; let hit = null;
   const mouth = b.y > GOAL_Y0 && b.y < GOAL_Y1 && b.z < BAR_Z;
@@ -70,7 +76,11 @@ function boardBounce(b) {
   if (!A.touch) { }                                                              // t-026: no touchline boards (Luca: throw-ins again)
   else if (b.y < 0 && b.vy <= 0) { b.y = Math.min(-b.y, 0.5); b.vy = back(-b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
   else if (b.y > PITCH_W && b.vy >= 0) { b.y = Math.max(2 * PITCH_W - b.y, PITCH_W - 0.5); b.vy = -back(b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
-  if (!mouth && b.x < 0 && b.vx <= 0) { b.x = Math.min(-b.x, 0.5); b.vx = back(-b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
+  // (ARCADE CORNERS, 30 Oct: off a defender it goes out for a corner instead - b.last is the side that touched it last,
+  // side > 0 = it attacks the right goal, so it defends the left byline)
+  const corner = cornerOff(b);
+  if (corner) { }
+  else if (!mouth && b.x < 0 && b.vx <= 0) { b.x = Math.min(-b.x, 0.5); b.vx = back(-b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
   else if (!mouth && b.x > PITCH_L && b.vx >= 0) { b.x = Math.max(2 * PITCH_L - b.x, PITCH_L - 0.5); b.vx = -back(b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
   if (hit) b.rollV = 0.8 * Math.hypot(b.vx, b.vy);
   return hit;
@@ -535,7 +545,7 @@ hc2Mix(Match, {
   // where the loose ball will be over the next 3 seconds (for receivers and chasers). t-005: plus `land`, where a ball
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
   predict() {
-    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
+    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, last: b.last, lastP: b.lastP, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
     const ARC = paceK().arcade;                                                  // (t-020: ARCADE - the path comes back off the boards, so the AI reads the rebound)
     for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (ARC) boardBounce(c); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
