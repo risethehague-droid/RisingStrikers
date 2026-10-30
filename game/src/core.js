@@ -285,6 +285,8 @@ const AERIAL = {
   hsRun: 0.6,          // ...for the man it was meant for (he has the run on it)
   hsSpring: 0.6,       // ...for fresh legs (stamina: a higher jump)
   hsMax: 3,
+  hsSet: 1.6,          // the defender's head start on a corner ball (30 Oct: he's goal-side and facing it from before the kick)
+  setT: 3,             // ...for this long after the corner is taken (s)
   clearRand: 0.5,      // the loser clears it: this much random direction, the rest by position (up the pitch, to the near touchline)
   // t-034 (Luca 25 Oct 19:14: "aerial battles only within gk box ... header on header or volley on volley ... if you win
   // as attack ball goes like a shot towards the goal and defender thrown to ground ... if defender wins it gets cleared

@@ -400,7 +400,7 @@ hc2Mix(Match, {
   spKick(mode, power = 0.7) {
     const sp = this.setPiece, p = sp.taker, A = this.aimPt;
     const target = this.spTarget();
-    sp.kicked = true; for (const q of this.all) { q.spot = null; if (q.up) q.up.t = this.time.now; }   // (smarter-ai: a keeper up for the corner attacks it from now)
+    sp.kicked = true; if (sp.kind === 'CORNER') this.cornerAt = this.time.now; for (const q of this.all) { q.spot = null; if (q.up) q.up.t = this.time.now; }   // (smarter-ai: a keeper up for the corner attacks it from now)
     if (mode === 'shot') { this.penaltyKick = sp.kind === 'PENALTY'; this.doShot(p, power, clamp((A.y - 34) / 2.8, -1.2, 1.2)); }
     else if (sp.kind === 'THROW-IN') { const d = Math.min(len(A.x - p.x, A.y - p.y), 22); const dx = A.x - p.x, dy = A.y - p.y, l = len(dx, dy) || 1; this.kick(p, p.x + dx / l * d, p.y + dy / l * d, 0, 0, 0.18, { mode: 'lob', target }); }
     else if (mode === 'ground' && target) this.kick(p, target.x, target.y, 0, 0, 0.14, { mode, target });   // v0.8: a ground ball goes to the ringed man's feet
