@@ -367,6 +367,7 @@ hc2Mix(Match, {
     if (P) { b.spin = P.spin || 0; b.curl = 0; }                                // (t-002 prototype B: a spinning ball, no fake dip)
     else if (b.spin || b.curl) { b.spin = 0; b.curl = 0; }                      // (any other kick: no spin left over)
     if (b.cv) b.cv = 0;                                                         // (t-011: nor a curving pass's)
+    b.sx = null;                                                                // (nor an LV2 special pass's trick: sppass.js)
     // t-005 (lob step 1): every lofted ball (lob, power lob, chip, a keeper's throw or punt, a lofted set piece) keeps a
     // landing ring on the grass until someone touches it (docs/lob-chip.md: "you can't see where it lands once it's gone")
     b.ring = mode === 'lob' || k.info.chip ? { by: k.p, chip: !!k.info.chip, n: b.bounced || 0, at: null } : null;
@@ -377,6 +378,7 @@ hc2Mix(Match, {
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
     b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft; b.aimLob = !!k.info.aim;   // lob-mechanics: an open-play lob (its drop is a duel)
     if (k.info.curve) this.curveLaunch(b, k);                                     // t-011: the curving special pass (Test Lab only)
+    if (k.info.sp2) this.spPassLaunch(b, k);                                      // the LV2 special passes (sppass.js, Test Lab only)
     b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null;   // (t-012: the runners attack a cross until someone touches it)
     if (k.info.tap) this.tapSfx(); else if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
     k.p.hands = false;
@@ -746,6 +748,7 @@ hc2Mix(Match, {
     const b = this.ball, gp = gpOn(), net = netOn();                            // t-025: the net (NET_FX, every match) apart from t-013's woodwork (GOAL_PHYS, Lab)
     if (net) this.netStep(dt);                                                  // t-013: the mesh rings on after the ball has gone
     if (b.owner && b.owner.hands) return;
+    if (b.sx && this.spPassStep(dt)) return;                                   // an LV2 special pass doing its trick: the script moves it (sppass.js)
     if (net && b.gpIn) { b.vx = b.gpIn.vx; b.vz = b.gpIn.vz; b.gpIn = null; }   // (t-013: the net takes the pace off now, not the goal line - netRipple)
     const owned = !!b.owner, sub = 3, h = dt / sub, ARC = paceK().arcade;
     this.spArcadeWatch();                                                       // (29 Oct: both paces - the SP extras for an aerial battle won etc.)                                              // t-020: ARCADE's SP for aerials won, rebound volleys (specials.js)
@@ -1027,6 +1030,7 @@ hc2Mix(Match, {
   },
   pickups(pbx = this.ball.x) {
     const b = this.ball; if (b.inNet || this.dead) return;                      // nobody plays a dead ball
+    if (b.sx && !b.owner) return;                                                // (nor an LV2 special pass in the middle of its trick: sppass.js)
     const sp = len(b.vx, b.vy);
     if (b.owner) {                                                               // a loose touch can be nicked
       const o = b.owner; if (o.hands) return;
@@ -1194,7 +1198,7 @@ hc2Mix(Match, {
     if (b.shotBy && b.shotBy.team !== p.team && p.keeper) this.missedChance(b.shotBy.team, 'held'); else b.shotBy = null;
     const back = p.keeper && b.last === p.team && b.lastP && b.lastP !== p && b.how && b.how.kind === 'pass';   // v0.9.1 (IFAB Law 12): a team-mate's pass / throw-in back to him - feet only
     const box = p.keeper && !back && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
-    b.owner = p; b.last = p.team; b.target = null; b.trapDrop = false; b.save = null; b.lob = false; b.ring = null; b.camUp = false; b.duelTry = false;   // (arcade-2: a new loose ball can be a duel again)   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
+    b.owner = p; b.last = p.team; b.target = null; b.trapDrop = false; b.save = null; b.lob = false; b.ring = null; b.camUp = false; b.duelTry = false; b.sx = null;   // (arcade-2: a new loose ball can be a duel again)   // (t-007: the camera stops following it up) (t-005: someone has it - no landing ring, even if a tackle knocks it loose)
     if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }          // (t-002 prototype; t-011 the curving pass)
     if (prev) { prev.cool = 0.4; }
     if (box) {
