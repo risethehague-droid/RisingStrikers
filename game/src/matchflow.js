@@ -384,6 +384,9 @@ hc2Mix(Match, {
     if (sp.kind === 'PENALTY' || (sp.kind === 'FREE KICK' && len(gx - b.x, 34 - b.y) < 28 && Math.random() < 0.7)) {
       Object.assign(A, { x: gx + s * 0.5, y: 34 + rnd(-1, 1) * 3 }); return this.spKick('shot', rnd(0.6, 0.85));
     }
+    if (sp.kind === 'CORNER' && paceK().arcade && ARCADE.corner.whip) {             // (ARCADE corners are chances: the man with the most room, 30 Oct)
+      const box = mates.filter(q => Math.abs(q.x - gx) < 16), room = q => Math.min(...sp.team.opp.players.filter(o => !o.sentOff).map(o => len(o.x - q.x, o.y - q.y)));
+      const t = box.sort((u, v) => room(v) - room(u))[Math.random() < 0.7 ? 0 : 1] || box[0] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob'); }
     if (sp.kind === 'CORNER') { const box = mates.filter(q => Math.abs(q.x - gx) < 16); const t = box[Math.floor(Math.random() * box.length)] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob'); }
     if (sp.kind === 'GOAL KICK') { const up = mates.filter(q => Math.abs(q.x - p.x) > 25).sort(() => Math.random() - 0.5)[0] || mates[0]; Object.assign(A, { x: up.x, y: up.y }); return this.spKick('lob'); }
     const best = this.bestOption(p);
@@ -401,6 +404,9 @@ hc2Mix(Match, {
     if (mode === 'shot') { this.penaltyKick = sp.kind === 'PENALTY'; this.doShot(p, power, clamp((A.y - 34) / 2.8, -1.2, 1.2)); }
     else if (sp.kind === 'THROW-IN') { const d = Math.min(len(A.x - p.x, A.y - p.y), 22); const dx = A.x - p.x, dy = A.y - p.y, l = len(dx, dy) || 1; this.kick(p, p.x + dx / l * d, p.y + dy / l * d, 0, 0, 0.18, { mode: 'lob', target }); }
     else if (mode === 'ground' && target) this.kick(p, target.x, target.y, 0, 0, 0.14, { mode, target });   // v0.8: a ground ball goes to the ringed man's feet
+    else if (mode === 'lob' && sp.kind === 'CORNER' && paceK().arcade && ARCADE.corner.whip) {   // ARCADE corners are chances (30 Oct): whipped in, never into the keeper's six-yard box
+      const C = ARCADE.corner, gx = sp.team.goalX, s = sp.team.side, d = clamp(Math.abs(gx - A.x), C.minD, C.maxD);
+      this.kick(p, gx - s * d, clamp(A.y, 34 - 9, 34 + 9), 0, 0, 0.14, { target, cross: 'whip' }); }
     else this.kick(p, A.x, A.y, 0, 0, 0.14, { mode, target });
     if (target && sp.team === this.home) { this.nextHuman = target; this.passRing = { p: target, t: 1.0 }; }
     return false;

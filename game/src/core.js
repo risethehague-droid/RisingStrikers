@@ -150,6 +150,13 @@ const ARCADE = {
     // (in the soak nearly every ARCADE corner was a keeper parry, and those parries are most of ARCADE's rebounds);
     // false = v0.15's ARCADE (no corners at all).
     corners: 'all' },
+  // ARCADE CORNERS ARE CHANCES (the co-designer, 30 Oct, option 1: real corners, but dangerous ones). With corners on,
+  // the keeper's parries stopped bouncing back for second shots and ARCADE lost ~1.25 goals a match; its corners scored
+  // 0 in 71 (lobbed onto the near / far post, inside the six-yard box, where the keeper claims). So on ARCADE a corner
+  // is whipped in (fast, head height, like t-012's crosses) to the attacker with the most room, never inside minD m
+  // of the goal line (the keeper's six-yard box; real teams aim at 6-12 m), and the runners attack it as a cross.
+  // How the games do it: FIFA's driven corner to the penalty spot, PES's near-post flick, Mario Strikers' chaos.
+  corner: { whip: true, minD: 7, maxD: 12.5 },
   // 2 AERIALS: a rebound that will go up past headZ becomes a loose high ball "aimed" at the nearest man of the side that
   // touched it last (the way a lob is), so the game's own lob machinery takes over: he times his run under the drop,
   // their nearest man contests it, the drop is a duel / the AERIAL BATTLE, headers, volleys, the aerial specials.
