@@ -7,6 +7,7 @@ class Match extends Phaser.Scene {
   constructor() { super('match'); }
   create() {
     Input.init();
+    this.hSide = 'home'; this.inp = Input; this.hOther = null;                  // t-043: one human, on the keyboard / pad (actions.js twoHumans)
     this.cameras.main.setBounds(0, 0, MAN.worldW, MAN.worldH).setRoundPixels(true);
     this.stadium = new Stadium(this);
     this.buildTeams('IS', 'IRO');
@@ -20,6 +21,7 @@ class Match extends Phaser.Scene {
     this.human = this.home.players[9]; this.charge = -1; this.freeze = 0; this.pending = null;
     this.clock = 0; this.half = 1; this.over = false; this.paused = false; this.msgT = 0;
     this.kickoff(this.home);
+    if (/(^|#|&)2p\b/.test(location.hash)) this.twoHumans(keyPad());          // t-043: #2p = two humans on one keyboard (io.js keyPad)
     this.cameras.main.centerOn(wx(52.5, 34), wy(34) - 60);
     this.stadium.update(0, true);
     window.__hc2 = this;                                   // for automated play-tests
@@ -37,6 +39,7 @@ class Match extends Phaser.Scene {
     for (const t of [this.home, this.away]) for (let i = 0; i < 11; i++) t.players.push(new Player(this, t, i, i === 0 ? t.gk : t.kit));
     this.all = [...this.home.players, ...this.away.players];
     this.human = this.home.players[9];
+    if (this.hOther) Object.assign(this.hOther, { human: this.away.players[9], nextHuman: null, charge: -1, lobCharge: -1, lobAim: null, headBuf: 0, airCh: null });   // (t-043: the away human too)
   }
   // start screen: load the two teams' kits if they aren't loaded yet, then a fresh match
   setTeams(h, a, done) {
@@ -75,6 +78,7 @@ class Match extends Phaser.Scene {
       else this.startShootout(this.so.cpu); } this.stadium.update(dt); this.ramiTick(dt); return; }   // shoot-out over
     if (this.penaltyMode) { this.stadium.update(dt); return; }               // the penalty scene has the screen (and the keys)
     Input.poll();
+    if (this.hOther && this.hOther.inp.poll) this.hOther.inp.poll();             // t-043: the away human's source, after Input's (a keyPad reads its taps)
     if (this.flagUI || (Input.pressed('flag') && this.flagCan())) { this.flagTick(dt); return; }   // t-006 INSTA FLAG (F / pad BACK / the HUD's FLAG button): play waits while you write
     if (this.bwUI) { this.bwInput(); if (this.replay || !this.bwUI) return; this.stadium.update(dt); this.render(dt); this.ramiTick(dt); return; }   // v0.8.7 BUG WATCH review
     if (this.bw && !(this.watch && this.watch.speed > 1)) this.bw.frame(deltaMs);   // (watch mode sped up: long frames on purpose)
@@ -102,7 +106,7 @@ class Match extends Phaser.Scene {
     }
     if (this.saveAsk && !this.paused) {                                          // v0.8.6 SPECIAL SAVE prompt (read here: sim pauses for the hit-stop)
       const A = this.saveAsk; A.t -= dt;
-      if (Input.pressed('special')) { const gk = A.team.players[0]; gk.spSave = this.meterOf(A.team).spend(); this.saveFx(gk); this.saveAsk = null; }
+      if (this.inpOf(A.team).pressed('special')) { const gk = A.team.players[0]; gk.spSave = this.meterOf(A.team).spend(); this.saveFx(gk); this.saveAsk = null; }   // (t-043: his side's human presses it)
       else if (A.t <= 0 || (A.normal ? !this.ball.saveable || this.ball.owner || this.ball.inNet : !this.ball.special)) this.saveAsk = null;   // (v0.9.0: a normal shot too)
     }
     if (!this.paused && !this.over) {                                            // v0.8.7 BUG WATCH checks every step (v0.9.2: chip slow motion)
@@ -157,7 +161,8 @@ class Match extends Phaser.Scene {
     this.path = b.owner ? null : this.predict();
     for (const p of this.all) { p.sprinting = false; p.wantDir = null; }      // controllers set these again every frame
     if (this.headBuf > 0) this.headBuf -= dt;
-    if (!this.demo) this.controlHuman(dt);
+    if (this.hOther && this.hOther.headBuf > 0) this.hOther.headBuf -= dt;
+    if (!this.demo) this.controlHumans(dt);                                     // (t-043: each human, home then away)
     this.ai(dt);
     for (const p of this.all) p.step(dt);
     if (this.aspStep) this.aspStep(dt);                                       // arcadesp.js (the co-designer's ARCADE specials): the special dribble's path

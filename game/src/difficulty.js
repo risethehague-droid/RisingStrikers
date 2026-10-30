@@ -61,12 +61,12 @@ hc2Mix(Match, {
   dk(team) {
     const o = window.__diffTeams, s = team === this.home ? 'home' : 'away';
     if (o && o[s]) return o[s].K || (o[s].K = diffKnobs(o[s]));
-    return diffK(!this.demo && team !== this.home ? DIFF_LEVEL : 'base');            // (v0.9.3: your side plays at the old NORMAL = base)
+    return diffK(!this.demo && !this.hasHuman(team) ? DIFF_LEVEL : 'base');            // (v0.9.3: your side plays at the old NORMAL = base)
   },
   // v0.9.3 the level's edges v YOU (DIFF_YOU) for a side: the computer's side at your level, yours / the demo at base
   dkY(team) {
     const o = window.__diffTeams, s = team === this.home ? 'home' : 'away';
     if (o && o[s]) return DIFF_YOU[o[s].lvl] || DIFF_YOU.base;
-    return DIFF_YOU[!this.demo && team !== this.home ? DIFF_LEVEL : 'base'] || DIFF_YOU.base;
+    return DIFF_YOU[!this.demo && !this.hasHuman(team) ? DIFF_LEVEL : 'base'] || DIFF_YOU.base;   // (t-043: two humans: no computer side, both base)
   },
 });

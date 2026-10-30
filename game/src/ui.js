@@ -523,6 +523,10 @@ hc2Mix(Match, {
     const st = hp.stamina, low = st < 0.3 || hp.tired, blink = hp.tired && Math.floor(this.time.now / 160) % 2;
     g.fillStyle(INK).fillRect(X - 18, Y + 3, 36, 7);
     if (!blink) g.fillStyle(low ? 0xff2878 : 0x28c8e6).fillRect(X - 16, Y + 5, Math.round(32 * st), 3);
+    // t-043 TWO HUMANS: the away human's energy bar too, so each player sees his man (a real second cursor is art: later)
+    const h2 = this.hOther && !this.demo ? this.hOther.human : null;
+    if (h2 && !h2.sentOff) { const X2 = Math.round(wx(h2.x, h2.y)), Y2 = Math.round(wy(h2.y)), st2 = h2.stamina, bl2 = h2.tired && Math.floor(this.time.now / 160) % 2;
+      g.fillStyle(INK).fillRect(X2 - 18, Y2 + 3, 36, 7); if (!bl2) g.fillStyle(st2 < 0.3 || h2.tired ? 0xff2878 : 0xffde1e).fillRect(X2 - 16, Y2 + 5, Math.round(32 * st2), 3); }
     // v0.7.4 pass preview: a thin pulsing ring under the mate a pass would find right now (you see who before you press)
     const pa = this.passAim;
     if (pa && b.owner === hp && this.charge < 0 && !(this.lobAim && !this.lobAim.auto) && !this.setPiece && !(this.passRing && this.passRing.t > 0 && this.passRing.p)) {
@@ -558,7 +562,7 @@ hc2Mix(Match, {
     if (!this.replay) { this.drawLobAim(g, INK); this.drawAerial(g, INK); }      // t-008: the hold-to-aim ring, the AERIAL BATTLE
     // set piece (yours): aim cursor on the pitch + a line from the ball
     const sp = this.setPiece;
-    if (sp && !sp.kicked && sp.team === this.home && this.aimPt) {
+    if (sp && !sp.kicked && this.hasHuman(sp.team) && this.aimPt) {             // (t-043: either human's set piece)
       const A = this.aimPt, ax = Math.round(wx(A.x, A.y)), ay = Math.round(wy(A.y)), bx = wx(b.x, b.y), by = wy(b.y) - 6;
       g.lineStyle(5, INK, 0.9).lineBetween(bx, by, ax, ay).lineStyle(2, 0xffde1e, 1).lineBetween(bx, by, ax, ay);
       g.lineStyle(5, INK).strokeEllipse(ax, ay, 40, 16).lineStyle(3, 0xffde1e).strokeEllipse(ax, ay, 40, 16);
@@ -643,9 +647,9 @@ hc2Mix(Match, {
     if (!this.aerUi) { const F = '"Press Start 2P"';
       this.aerUi = { t: this.add.text(0, 0, 'MASH!', { fontFamily: F, fontSize: '26px', color: '#ffde1e', stroke: '#0c0a0e', strokeThickness: 7 }).setOrigin(0.5).setDepth(8.6e6),
         k: this.add.text(0, 0, '', { fontFamily: F, fontSize: '9px', color: '#0c0a0e', backgroundColor: '#ffde1e', padding: { x: 5, y: 4 } }).setOrigin(0.5, 0).setDepth(8.6e6) }; }
-    const U = this.aerUi, D = A.D, cx = Math.round(wx(D.x, D.y)), cy = Math.round(wy(D.y)) - 205, mine = !this.demo && (A.att.p === this.human || A.def.p === this.human);
+    const U = this.aerUi, D = A.D, cx = Math.round(wx(D.x, D.y)), cy = Math.round(wy(D.y)) - 205, mine = !this.demo && (this.isHuman(A.att.p) || this.isHuman(A.def.p));
     const intro = A.phase === 'intro', s = intro ? 0.3 + 0.7 * clamp(A.t / AERIAL.introT, 0, 1) : 1 + 0.1 * Math.sin(this.time.now / 45) + (A.pulse = Math.max(0, (A.pulse || 0) - 0.06));
-    const word = A.phase === 'done' ? (A.kind === 'ground' ? (A.res === 'att' ? 'KEPT IT!' : 'WON IT!') : A.res === 'att' ? 'WON IT!' : 'CLEARED!') : mine && A.def.p === this.human ? 'PRESS!' : 'MASH!';   // (arcade-2: the duel on the grass)
+    const word = A.phase === 'done' ? (A.kind === 'ground' ? (A.res === 'att' ? 'KEPT IT!' : 'WON IT!') : A.res === 'att' ? 'WON IT!' : 'CLEARED!') : mine && this.isHuman(A.def.p) && !this.isHuman(A.att.p) ? 'PRESS!' : 'MASH!';   // (arcade-2: the duel on the grass)
     U.t.setText(word).setPosition(cx, cy - 34).setScale(s).setAngle(intro ? 0 : Math.sin(this.time.now / 60) * 3).setVisible(true);
     U.k.setText(mine && A.phase !== 'done' ? (A.kind === 'ground' ? `${keyset().pass} / ${keyset().shoot}  MASH` : `${keyset().shoot}  ${keyset().shoot}  ${keyset().shoot}`) : '').setPosition(cx, cy + 14).setVisible(mine && A.phase !== 'done');
     const sa = this.aerialScore(A.att), sd = this.aerialScore(A.def), sh = A.share = A.share == null ? 0.5 : A.share + (sa / (sa + sd) - A.share) * 0.25;
@@ -671,7 +675,7 @@ hc2Mix(Match, {
       U.t.setText(X.word).setPosition(cx, cy - 34).setScale(1.5 - 0.4 * Math.min(1, k * 3)).setAngle(0).setAlpha(k < 0.7 ? 1 : (1 - k) / 0.3).setVisible(true);
       U.k.setVisible(false); U.a.setVisible(false); U.d.setVisible(false); return; }
     U.t.setAlpha(1);
-    const D = A.D, cx = Math.round(wx(D.x, D.y)), cy = Math.round(wy(D.y)) - 205, you = !this.demo ? (A.att.p === this.human ? 'att' : A.def.p === this.human ? 'def' : null) : null;
+    const D = A.D, cx = Math.round(wx(D.x, D.y)), cy = Math.round(wy(D.y)) - 205, you = !this.demo ? (this.isHuman(A.att.p) ? 'att' : this.isHuman(A.def.p) ? 'def' : null) : null;
     const intro = A.phase === 'intro', jk = A.joltAt != null ? clamp(1 - (now - A.joltAt) / 140, 0, 1) : 0;
     const s = intro ? 0.3 + 0.7 * clamp(A.t / AERIAL.introT, 0, 1) : 1 + 0.06 * Math.sin(now / 45) + 0.18 * (you && A.joltBy === (you === 'att' ? 1 : -1) ? jk : 0);
     U.t.setText(you ? 'MASH SPACE!' : 'MASH!').setPosition(cx, cy - 34).setScale(s).setAngle(intro ? 0 : Math.sin(now / 60) * 2).setVisible(A.res == null);
@@ -750,6 +754,7 @@ hc2Mix(Match, {
       g.fillStyle(TEAM_COL[p.team.name]).fillRect(Math.round(sx(p.x)) - 2, Math.round(sy(p.y)) - 2, 4, 4);
     }
     const hp = this.human; g.lineStyle(1, 0x28c8e6).strokeRect(Math.round(sx(hp.x)) - 4, Math.round(sy(hp.y)) - 4, 8, 8);
+    if (this.hOther) { const h2 = this.hOther.human; g.lineStyle(1, 0xffde1e).strokeRect(Math.round(sx(h2.x)) - 4, Math.round(sy(h2.y)) - 4, 8, 8); }   // (t-043: the away human)
     { const bx = sx(this.ball.x), by = sy(this.ball.y), pulse = 5 + 2 * Math.abs(Math.sin(this.time.now / 260));   // v0.8.5: a ball that stands out from every kit
       g.fillStyle(0x0c0a0e).fillCircle(bx, by, 4.5).fillStyle(0xffffff).fillCircle(bx, by, 3).lineStyle(2, 0xff2878, 0.9).strokeCircle(bx, by, pulse); }
   },

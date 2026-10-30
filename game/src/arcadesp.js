@@ -243,7 +243,7 @@ hc2Mix(Match, {
     if (this.aspOn() && p && this.ball.owner === p) {
       const toGoal = len(p.team.goalX - p.x, 34 - p.y), front = this.aspFront(p);
       // AUTO (by position): far from goal with a man in front = the special dribble (the preview has both ways)
-      if (toGoal > ASP.dribble.far && front && !this.aspOneTwo(p)) return this.aspDribble(p, p === this.human && !this.demo ? Input.axis : null);
+      if (toGoal > ASP.dribble.far && front && !this.aspOneTwo(p)) return this.aspDribble(p, this.isHuman(p) && !this.demo ? this.inpOf(p.team).axis : null);
       const partner = this.meterOf(p.team).level() >= 2 ? this.aspOneTwo(p) : null;
       const lv = this.meterOf(p.team).level(), ok = special0.call(this, p);
       if (ok && partner) this.aspCombo(p, partner, Math.min(lv, 3), '12');
@@ -266,16 +266,16 @@ hc2Mix(Match, {
     return r;
   };
   const human0 = P.controlHuman;
-  P.controlHuman = function (dt) {                                                 // the BUTTON way, and nothing else mid-dribble
-    const h = this.human;
+  P.controlHuman = function (dt, ...a) {                                          // the BUTTON way, and nothing else mid-dribble
+    const h = this.human;                                                         // (t-043: either side's human - this.inp is his source; the side passed on)
     if (h && h.sdrib) return;
-    if (this.aspOn() && h && Input.pressed('sdribble') && this.ball.owner === h) { if (this.aspDribble(h, Input.axis)) return; if (this.meterOf(h.team).level() < 1) this.say('', 'SP METER EMPTY', 0.6); }
-    return human0.call(this, dt);
+    if (this.aspOn() && h && this.inp.pressed('sdribble') && this.ball.owner === h) { if (this.aspDribble(h, this.inp.axis)) return; if (this.meterOf(h.team).level() < 1) this.say('', 'SP METER EMPTY', 0.6); }
+    return human0.call(this, dt, ...a);
   };
   const carrier0 = P.carrierAI2;
   P.carrierAI2 = function (p, dt) {                                                // the computer's special dribble
     if (p.sdrib) return;
-    if (this.aspOn() && this.aspDribbleCan(p) && !(p.team === this.home && !this.demo && p === this.human)) {
+    if (this.aspOn() && this.aspDribbleCan(p) && !(this.isHuman(p) && !this.demo)) {
       const front = this.aspFront(p), D = ASP.dribble, toGoal = len(p.team.goalX - p.x, 34 - p.y);
       if (front && len(front.x - p.x, front.y - p.y) < 3.5 && toGoal > D.aiZone[0] && toGoal < D.aiZone[1] && this.meterOf(p.team).level() >= D.aiBars && (p.team.sdribAt ?? -1e9) < this.time.now - D.aiCool * 1000
         && Math.random() < dt * D.aiRate) { p.team.sdribAt = this.time.now; if (this.aspDribble(p, null)) return; }

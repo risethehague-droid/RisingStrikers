@@ -1,3 +1,18 @@
+HC2 WEB GAME - v0.15.3 (30 Oct) - SMALL FIXES PACK (PR #61, Luca's OK)
+- AERIAL BATTLE CLOSE-UP (t-042): while an aerial battle is on, the camera eases in to 1.35x and frames the pair, then
+  eases back out once it's decided. Picture only: no slow-mo, play never waits. Knobs: AERIAL_CAM in world.js.
+- DIVE CATCH (t-042): a ball the keeper holds stays on his gloves on every frame, through the get-up (it hung up to
+  41 px beside him for 0.12 s). Only the catch itself keeps its soft-hands ease.
+- CURVE PASS MATHS (t-042): the curving special pass finds its spin, pace and lob much faster (one test flight replayed,
+  no more hundreds of trial kicks). Same angle rule as before.
+
+HC2 WEB GAME - v0.15.2 (30 Oct) - TWO PLAYERS IN ONE MATCH (PR #67, Luca's OK)
+- LAN STEP 2, PART 1 (t-043): the game can have a human on both sides. Each side reads its own input source; the
+  away human gets a yellow energy bar and a yellow radar box. Add #2p to the game's address to try it with two
+  players on one keyboard (home: arrows, Z X C V B N, right SHIFT; away: WASD, J pass, K shoot, L lob, I through,
+  U special, O special dribble, left SHIFT). No network yet: part 2 (t-044) adds HOST / JOIN over the Wi-Fi.
+- Single-player plays exactly as before: 8/8 seeded matches give the same score and the same movement.
+
 HC2 WEB GAME - v0.15.1 (30 Oct) - TWO QA FIXES (PRs #59, #60, Luca's OK)
 - AUDIO ON TAB SWITCH (#59, QA): Phaser's own sound system (unused: the game's sound is SFX in io.js) suspended and
   resumed its audio device on every tab switch and never caught a failure, so Bug Watch logged a CRASH. It's switched

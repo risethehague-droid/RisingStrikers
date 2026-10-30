@@ -55,7 +55,7 @@ hc2Mix(Match, {
   aiFree(p) { return !p.keeper && !p.sentOff && p.stun <= 0 && (!p.busy() || p.state === 'tackle'); },
   aiRoles(team) {
     const b = this.ball, owner = b.owner, gx = team.ownGoalX, they = owner && owner.team !== team;
-    const human = team === this.home && !this.demo ? this.human : null;
+    const human = !this.demo ? this.humanOf(team) : null;                     // (t-043: either side's human)
     const cand = team.players.filter(p => this.aiFree(p));
     const spot = p => owner ? owner : this.intercept(p, p.top(true, false));
     const prevCover = team.cover, prevMarks = team.marks;                          // (smarter-ai: kept unless another is clearly better)
@@ -124,7 +124,7 @@ hc2Mix(Match, {
         } else { tx = bl.x + ubx * 0.6; ty = bl.y + uby * 0.6; }
       }
       v = Math.min(p.top(false, false) * 1.05, len(carrier.vx, carrier.vy) + 1.2 + d * 0.5); p.look(carrier.x - p.x, carrier.y - p.y); }
-    const PK = (team === this.home && !this.demo ? 1 : Math.min(1.45, 1 + (paceK().pressK - 1) * this.dkY(team).cmt)) * (1 + 0.05 * this.brainStyle(team).press)
+    const PK = (this.hasHuman(team) && !this.demo ? 1 : Math.min(1.45, 1 + (paceK().pressK - 1) * this.dkY(team).cmt)) * (1 + 0.05 * this.brainStyle(team).press)
       * (team !== this.home && this.readHot(carrier) ? 1.15 : 1);                // (smarter-ai: the style's pressing; Rise Warrior closes you down sooner on your shooting spots)   // (arcade-2: ARCADE the computer's side
     p.moveTo(tx, ty, v * this.dk(team).press * PK, dt);                        // closes down harder, more at the top levels: the dash mustn't make dribbling past it easier)
                                                                                    // (v0.9.2: how hard he closes down, by level)
@@ -133,7 +133,7 @@ hc2Mix(Match, {
     // commit only from in front (or on a heavy touch), not every time he's near
     const b = this.ball, cv = carrier.speed > 0.6 ? { x: carrier.vx / carrier.speed, y: carrier.vy / carrier.speed } : dirVec(carrier.face);
     const front = (cv.x * (p.x - carrier.x) + cv.y * (p.y - carrier.y)) / (d || 1), loose = len(b.x - carrier.x, b.y - carrier.y) > 1.1;
-    const vsHuman = carrier === this.human && !this.demo;
+    const vsHuman = this.isHuman(carrier) && !this.demo;
     p.standoff = carrier.speed < 1.5 && len(b.x - p.x, b.y - p.y) < 2.5 ? (p.standoff || 0) + dt : 0;   // (a stand-off that drags on: he pokes at it anyway)
     if (p.cool <= 0 && len(b.x - p.x, b.y - p.y) < AI.REACH && (front > 0.25 || loose || (carrier.speed < 1.5 && front > -0.3) || p.standoff > 3) && Math.random() < dt * (vsHuman ? AI.COMMIT_VS_YOU * this.dkY(team).cmt * paceK().cmtK : AI.COMMIT) * this.dk(team).commit) {   /* (arcade-2: ARCADE it goes in on you more - by level, via cmt) */ p.standoff = 0; this.challenge(p, carrier); return; }
     // v0.8.2 BEATEN (he's got past): a recovery slide from the side, or a lunge from behind when he's through - so the
@@ -148,14 +148,14 @@ hc2Mix(Match, {
     const owner = b.owner;
     for (const team of [this.home, this.away]) {
       const has = owner && owner.team === team;
-      const chaser = (!has) ? team.players.filter(p => !p.keeper && p !== this.human && !p.sentOff)
+      const chaser = (!has) ? team.players.filter(p => !p.keeper && !this.isHuman(p) && !p.sentOff)
         .sort((a, c) => len(a.x - b.x, a.y - b.y) - len(c.x - b.x, c.y - b.y))[0] : null;
       // a ball in the air to one of THEIR players: the nearest defender goes with the receiver to contest it
       const rcv = (!owner && b.target && b.target.team !== team && (b.z > 0.4 || b.vz > 1)) ? b.target : null;
-      const marker = rcv ? team.players.filter(p => !p.keeper && p !== this.human && p !== chaser && !p.busy() && !p.sentOff)
+      const marker = rcv ? team.players.filter(p => !p.keeper && !this.isHuman(p) && p !== chaser && !p.busy() && !p.sentOff)
         .sort((a, c) => len(a.x - rcv.x, a.y - rcv.y) - len(c.x - rcv.x, c.y - rcv.y))[0] : null;
       for (const p of team.players) {
-        if (p === this.human && team === this.home && !this.demo) continue;
+        if (this.isHuman(p) && !this.demo) continue;
         if (p.state === 'kick' || p.state === 'catch' || p.state === 'dive' || p.state === 'slide' || p.state === 'dheader' || p.state === 'chance' || p.state === 'celebrate' || p.state === 'tackle' || p.state === 'dejected' || p.state === 'roar' || p.state === 'beaten' || p.state === 'protest' || p.state === 'hurt' || p.state === 'blasted' || p.stun > 0) continue;
         if (p.keeper) { this.keeperAI(p, dt); continue; }
         if (owner === p) { if (this.trapRunStep(p, dt)) continue; this.carrierAI(p, dt); continue; }
@@ -173,7 +173,7 @@ hc2Mix(Match, {
           const dx = p.x - owner.x, dy = p.y - owner.y, d = len(dx, dy) || 1;
           p.moveTo(owner.x + dx / d * 15, clamp(owner.y + dy / d * 15, 3, 65), JOG, dt); continue;
         }
-        const chase = chaser === p && !(team === this.home && len(this.human.x - b.x, this.human.y - b.y) < len(p.x - b.x, p.y - b.y) + 4) && !(owner && owner.keeper && owner.hands);
+        const chase = chaser === p && !(this.hasHuman(team) && len(this.humanOf(team).x - b.x, this.humanOf(team).y - b.y) < len(p.x - b.x, p.y - b.y) + 4) && !(owner && owner.keeper && owner.hands);
         if (chase) {
           const d = len(b.x - p.x, b.y - p.y), go = d > 4 && p.stamina > 0.35; p.sprinting = go;
           const v = p.top(go, false), pt = owner ? { x: b.x + b.vx * 0.3, y: b.y + b.vy * 0.3 } : this.intercept(p, v);
@@ -212,7 +212,7 @@ hc2Mix(Match, {
       team.fx = team.fx == null ? lx : team.fx + (lx - team.fx) * fk; team.fy = team.fy == null ? ly : team.fy + (ly - team.fy) * fk;
       { const xs = team.opp.players.filter(o => !o.sentOff).map(o => this.aiFrame(team, o.x)).sort((u, v) => v - u); team.offX = xs.length > 1 ? xs[1] : null; }   // their 2nd-last man
       team.roleT = (team.roleT ?? (team === this.home ? 0 : AI.ROLE_DT / 2)) - dt; team.presserHeld = (team.presserHeld || 0) + dt;
-      if (team.roleT <= 0 || (team.presser && !this.aiFree(team.presser) && team.presser !== this.human)) { team.roleT = AI.ROLE_DT * this.dk(team).role; this.aiRoles(team); }   // (v0.9.2: how quickly the team re-reads the play)
+      if (team.roleT <= 0 || (team.presser && !this.aiFree(team.presser) && !this.isHuman(team.presser))) { team.roleT = AI.ROLE_DT * this.dk(team).role; this.aiRoles(team); }   // (v0.9.2: how quickly the team re-reads the play)
       if (owner && owner.team === team && !owner.keeper) { team.supT = (team.supT ?? 0) - dt; if (team.supT <= 0 || (team.support && !this.aiFree(team.support))) { team.supT = AI.ROLE_DT; this.aiSupport(team, owner); } }
       else { if (team.support) team.supMem = { p: team.support, pt: team.supportPt, t: this.time.now }; team.support = null; team.supportPt = null; team.supT = 0; }   // (smarter-ai: remembered a moment - a heavy touch or a one-two mustn't hand the job to someone else)
       // t-012 the runs for a wide man (kept while his cross is in the air, so the runners keep attacking it)
@@ -220,7 +220,7 @@ hc2Mix(Match, {
       else if (!this.crossLive(team)) { team.wing = null; team.wingBy = null; team.wingT = 0; }
       if (owner) b.crossBy = null;                                                 // (t-012: someone has it - the cross is over)
       const rcv = (!owner && b.target && b.target.team !== team && (b.z > 0.4 || b.vz > 1)) ? b.target : null;   // a ball in the air to one of THEIR players
-      const aerial = rcv ? team.players.filter(p => this.aiFree(p) && p !== this.human && p !== team.presser)
+      const aerial = rcv ? team.players.filter(p => this.aiFree(p) && !this.isHuman(p) && p !== team.presser)
         .sort((u, v) => len(u.x - rcv.x, u.y - rcv.y) - len(v.x - rcv.x, v.y - rcv.y))[0] : null;
       // everyone's target first (zones, cover, markers), then team-mates' zones are pushed apart
       const tgt = new Map(), fixed = [];
@@ -228,7 +228,7 @@ hc2Mix(Match, {
         if (p.keeper || p.sentOff || p === owner || p === team.presser) { if (!p.sentOff && !p.keeper) fixed.push(p); continue; }
         let t = this.aiZone(p, team);
         if (p === team.cover && owner && owner.team !== team) {                  // cover: between the ball and our goal, ~7 m behind the presser
-          const gx = team.ownGoalX, ux = gx - owner.x, uy = 34 - owner.y, ul = len(ux, uy) || 1, back = Math.min(owner === this.human && !this.demo ? this.dkY(team).cov : 7, ul * 0.5);   // (v0.9.3: tighter on you at the top levels)
+          const gx = team.ownGoalX, ux = gx - owner.x, uy = 34 - owner.y, ul = len(ux, uy) || 1, back = Math.min(this.isHuman(owner) && !this.demo ? this.dkY(team).cov : 7, ul * 0.5);   // (v0.9.3: tighter on you at the top levels)
           t = { x: owner.x + ux / ul * back + (34 - owner.y) * 0.0, y: owner.y + uy / ul * back + (34 - owner.y) * 0.12 };
         } else if (team.marks && team.marks.get(p)) {                            // marker: goal-side of his man (defenders fully, midfield 60%)
           const o = team.marks.get(p), gx = team.ownGoalX, ux = gx - o.x, uy = 34 - o.y, ul = len(ux, uy) || 1, bx = b.x - o.x, by = b.y - o.y, bl = len(bx, by) || 1;
@@ -295,7 +295,7 @@ hc2Mix(Match, {
           t.x = p.aiTgt.x; t.y = p.aiTgt.y;
           if (team.offLim != null && this.aiFrame(team, t.x) > team.offLim) t.x = this.aiWorld(team, team.offLim); } }
       for (const p of team.players) {
-        if (p === this.human && team === this.home && !this.demo) continue;
+        if (this.isHuman(p) && !this.demo) continue;
         if (p.state === 'kick' || p.state === 'catch' || p.state === 'dive' || p.state === 'slide' || p.state === 'dheader' || p.state === 'chance' || p.state === 'celebrate' || p.state === 'tackle' || p.state === 'dejected' || p.state === 'roar' || p.state === 'beaten' || p.state === 'protest' || p.state === 'hurt' || p.state === 'blasted' || p.stun > 0) continue;
         if (p.keeper) { this.keeperAI(p, dt); continue; }
         if (owner === p) { if (this.trapRunStep(p, dt)) continue; this.carrierAI2(p, dt); continue; }
@@ -324,7 +324,7 @@ hc2Mix(Match, {
           if (!owner) { const d = len(b.x - p.x, b.y - p.y), go = d > 4 && p.stamina > 0.35; p.sprinting = go;   // a loose ball: go and get it
             const v = p.top(go, false), pt = this.intercept(p, v); p.moveTo(pt.x, pt.y, v, dt); continue; }
         }
-        if (p === team.cover && owner && owner === this.human && !this.demo && p.cool <= 0) {   // v0.9.3 DOUBLE TEAM (HARD / RISE WARRIOR): the cover man
+        if (p === team.cover && owner && this.isHuman(owner) && !this.demo && p.cool <= 0) {   // v0.9.3 DOUBLE TEAM (HARD / RISE WARRIOR): the cover man
           const Y = this.dkY(team);                                                // steps in too when you're on top of him
           if (Y.dbl > 0 && len(b.x - p.x, b.y - p.y) < AI.REACH && Math.random() < dt * Y.dbl) { this.challenge(p, owner); continue; } }
         const t = tgt.get(p); if (!t) { p.steer(0, 0, dt); continue; }
@@ -348,7 +348,7 @@ hc2Mix(Match, {
   aiAround(dt) {
     const b = this.ball;
     for (const p of this.all) {
-      if (p.keeper || p.sentOff || p === b.owner || (p === this.human && !this.demo) || p.busy() || p.stun > 0) { p.around = null; continue; }
+      if (p.keeper || p.sentOff || p === b.owner || (this.isHuman(p) && !this.demo) || p.busy() || p.stun > 0) { p.around = null; continue; }
       const v = len(p.vx, p.vy); if (v < 1.2) { p.around = null; continue; }
       const ux = p.vx / v, uy = p.vy / v; let blk = null, bd = 9;
       for (const o of this.all) {
@@ -433,7 +433,7 @@ hc2Mix(Match, {
     team.wing = null; const fl = this.aiFrame(team, owner.x), off = owner.y - 34, sgn = Math.sign(off) || 1;
     if (Math.abs(off) < WING.WIDE - 1) return this.aiBoxRuns(team, owner, fl, sgn);   // (smarter-ai: through the middle - late runs into the box)
     if (fl < 10) return;
-    const human = team === this.home && !this.demo ? this.human : null, W = new Map(), a = clamp((fl - 12) / 20, 0, 1);
+    const human = !this.demo ? this.humanOf(team) : null, W = new Map(), a = clamp((fl - 12) / 20, 0, 1);
     const free = team.players.filter(q => q !== owner && q !== human && !q.keeper && this.aiFree(q) && q !== team.support && q.stamina > 0.12);
     const homeSide = q => Math.sign(AI.HOME_Y_ATT[q.i] || 0);
     const run = (name, pool) => { const [X, o] = WING.RUNS[name], pt = { x: this.aiWorld(team, X - (1 - a) * WING.BACK), y: clamp(34 + sgn * o, 3, PITCH_W - 3), run: name, go: a > 0.45 };
@@ -454,7 +454,7 @@ hc2Mix(Match, {
   // as the wing runs (WING.RUNS), mirrored away from the ball's side; the offside line still holds them (ai()).
   aiBoxRuns(team, owner, fl, sgn) {
     if (fl < 12) return;
-    const human = team === this.home && !this.demo ? this.human : null, W = new Map(), a = clamp((fl - 12) / 18, 0, 1);
+    const human = !this.demo ? this.humanOf(team) : null, W = new Map(), a = clamp((fl - 12) / 18, 0, 1);
     const free = team.players.filter(q => q !== owner && q !== human && !q.keeper && this.aiFree(q) && q !== team.support && q !== team.runner && q.stamina > 0.12);
     const run = (name, pool) => { const [X, o] = WING.RUNS[name], pt = { x: this.aiWorld(team, X - (1 - a) * WING.BACK), y: clamp(34 - sgn * Math.abs(o) - sgn * 2, 3, PITCH_W - 3), run: name, go: a > 0.45 };
       const q = pool.filter(x => !W.has(x)).sort((u, v) => len(u.x - pt.x, u.y - pt.y) - len(v.x - pt.x, v.y - pt.y))[0]; if (q) W.set(q, pt); return q; };
@@ -597,7 +597,7 @@ hc2Mix(Match, {
   },
   // Buckland's SUPPORT SPOT: one team-mate goes to the best spot near the ball - open, a safe pass away, and a shot from there
   aiSupport(team, owner) {
-    const cand = team.players.filter(q => q.i >= 5 && q !== owner && q !== team.runner && this.aiFree(q) && q !== (team === this.home && !this.demo ? this.human : null));
+    const cand = team.players.filter(q => q.i >= 5 && q !== owner && q !== team.runner && this.aiFree(q) && q !== (!this.demo ? this.humanOf(team) : null));
     const mem = team.supMem && this.time.now - team.supMem.t < 1500 ? team.supMem : null, dO = q => len(q.x - owner.x, q.y - owner.y);
     const prev = team.support || (mem && mem.p), prevPt = team.support ? team.supportPt : mem && mem.pt;
     let sup = cand.sort((u, v) => dO(u) - dO(v))[0];
@@ -657,7 +657,7 @@ hc2Mix(Match, {
   },
   // while you hold LOB, the team-mate the ring has settled on walks to it (so the ring ends on the spot he'll reach)
   lobAimMate(p, dt) {
-    const A = this.lobAim; if (!A || A.q !== p || this.ball.owner !== this.human) return false;
+    const o = this.ball.owner, S = this.isHuman(o) ? this.slot(o.team) : null, A = S && S.lobAim; if (!A || A.q !== p) return false;   // (t-043: the lob aim of whichever human has it)
     p.moveTo(A.x, A.y, JOG, dt); return true;
   },
   // t-020 ARCADE REBOUNDS (Luca 25 Oct: "more rebounds that lead into aerials"): while a ball that came off the boards is
@@ -672,7 +672,7 @@ hc2Mix(Match, {
     if (team.rebFor !== R) {
       team.rebFor = R; team.rebMan = null; let bt = ARCADE.reb.run / 7;          // (no further than he can sprint in that time)
       for (const q of team.players) {
-        if (q.keeper || q.sentOff || q === this.human || q === b.target || q === aerial || !this.aiFree(q)) continue;
+        if (q.keeper || q.sentOff || this.isHuman(q) || q === b.target || q === aerial || !this.aiFree(q)) continue;
         const pt = this.intercept(q, q.top(true, false), 0.12, zmax); if (pt.t != null && pt.t < bt) { bt = pt.t; team.rebMan = q; }
       }
     }
