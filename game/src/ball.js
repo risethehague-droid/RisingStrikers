@@ -5,6 +5,8 @@
 // t-035 the kick's hard cap (kickCap): first look this long (ms) after the kick, then every step (ms) until it has gone;
 // a kick whose countdown stood still goes off (or is called off) by its move's length + margin (s)
 const KICK_CAP = { first: 250, step: 100, margin: 0.35 };
+// t-031 / t-042 the catch's soft hands: the ball eases from where it was into his gloves over this long (s)
+const GK_CATCH_EASE = 0.1;
 
 // ------------------------------------------------------------------ ball physics (shared by the game and by the pass maths)
 // In the air: gravity + quadratic drag. Bounce: loses ~45% height and ~20% pace. On the grass: a struck ball
@@ -973,6 +975,12 @@ hc2Mix(Match, {
   // at least 5 cm up. Runs as he's drawn, after the step (dribble's hands branch puts it back by him every step); a
   // throw / roll / punt leaves from where his hands last had it.
   gkHandBall(p, sx, sy, behind) {
+    // t-042 (t-015's open point: "after a flying dive catch the held ball drifts off his gloves while he lands"): when his
+    // move changes - the dive's landing frame to the get-up, drawn from another origin - player.js handBall eased the
+    // ball across from where it was over 0.12 s, so for those frames it hung in the air beside him (Test Lab GH1: 41 px
+    // off his gloves). A keeper brings it into his chest and keeps it there (a ball off his hands is a fumble), so a
+    // ball he already holds stays on his gloves' point; only the catch itself (GK_CATCH_EASE, soft hands) eases in
+    if (p.handEase > 0 && p.handEase0 !== GK_CATCH_EASE) { const G = p.handPoint(); if (G) { sx = G.x; sy = G.y; behind = G.behind; } p.handEase = 0; p.handEasing = false; }
     const b = this.ball, lift = 12 + (ballS() - 1) * 13;
     let by = behind ? p.y - 0.08 : p.y + 0.04;
     const z0 = (wy(by) - lift - sy) / PX_H;
@@ -1193,7 +1201,7 @@ hc2Mix(Match, {
       if (len(b.vx, b.vy) > 2 && p.state !== 'dive') p.face = dirIndex(-b.vx, -b.vy);
       // t-031: soft hands - where the ball is on screen as he takes it; player.js eases it from there into his gloves
       // (gkHandBall) instead of snapping it. k.walk: the computer's keeper decides afresh whether to walk this one out
-      p.handFrom = { x: wx(b.x, b.y), y: wy(b.y) - 12 - (ballS() - 1) * 13 - b.z * PX_H }; p.handEase = p.handEase0 = 0.1; p.handOff = null; p.walk = undefined; p.handJump = false;
+      p.handFrom = { x: wx(b.x, b.y), y: wy(b.y) - 12 - (ballS() - 1) * 13 - b.z * PX_H }; p.handEase = p.handEase0 = GK_CATCH_EASE; p.handOff = null; p.walk = undefined; p.handJump = false;
       SFX.catch(); p.hands = true; p.hold = 0; p.claimHigh = b.z > 1.45 && p.state !== 'dive'; b.vz = 0; if (p.state !== 'dive') p.setState('catch', p.claimHigh ? 0.6 : 0.5);    // a diving catch keeps the dive; a high ball = the jumping claim
       if (incoming > 15) this.say('', 'SAVED!', 0.8); return;
     }
