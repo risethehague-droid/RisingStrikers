@@ -388,7 +388,6 @@ hc2Mix(Match, {
     // landing ring on the grass until someone touches it (docs/lob-chip.md: "you can't see where it lands once it's gone")
     b.ring = mode === 'lob' || k.info.chip ? { by: k.p, chip: !!k.info.chip, n: b.bounced || 0, at: null } : null;
     b.spP = b.special ? (k.info.spP || SP_POWER[b.special - 1]) : 0; b.spF = b.special ? (k.info.spF ?? 1) : 1; b.pierce = b.special ? SP_PIERCE[b.special - 1] : 0; b.spT = this.time.now; b.spTeam = b.special ? k.p.team : null;   // v0.8.6
-    if (b.special) this.saveCall(k.p.team.opp);                                  // v0.8.6: the defending side can answer with a special save
     b.owner = null; b.vx = dx / d * speed; b.vy = dy / d * speed; b.vz = vz; b.z = Math.max(b.z, 0.05);
     if (k.p.kickAnim === 'super') b.z = 1.0;                                      // struck in mid-air, at the height of his boot
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
@@ -419,7 +418,8 @@ hc2Mix(Match, {
         }
       }
       const pen = this.penShot();
-      this.planSave(k.p.team.opp.players[0]); if (!k.info.special) this.shotSaveCall(k.p.team.opp, k.p.team, pen);   // v0.9.0
+      this.planSave(k.p.team.opp.players[0]);                                    // keeper-threat: the save calls come after the read of the flight (saveCall used to come before the ball had left, on no read at all)
+      if (k.info.special) this.saveCall(k.p.team.opp); else this.shotSaveCall(k.p.team.opp, k.p.team, pen);   // v0.8.6: the defending side can answer with a special save (v0.9.0: a normal shot too)
     }
   },
   // t-035: a penalty is not a shot in the match stats (as before), nor on target

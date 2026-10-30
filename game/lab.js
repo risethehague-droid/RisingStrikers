@@ -90,7 +90,7 @@
   }
   function fireShot(r, tgt, speed, power) {
     const b = m.ball, gk = r.gk, ty = tgt.y == null ? gk.y : tgt.y, d = len(GX - b.x, ty - b.y);
-    const vz = tgt.low ? 0.35 : vzFor(d, tgt.z, speed);
+    const vz = tgt.vz ?? (tgt.low ? 0.35 : vzFor(d, tgt.z, speed));              // (vz: a kick struck at a given loft: KT1's mis-kick)
     const tx = GX + 2, aty = b.y + (ty - b.y) * (tx - b.x) / (GX - b.x);       // so the straight line crosses the goal line at ty
     m.kick(r.shooter, tx, aty, speed, vz, 0.13, { shot: true, power });
     r.aim = { y: ty, z: tgt.low ? 0 : tgt.z };
@@ -482,6 +482,7 @@
     { mv: 'gkc-hand', sec: 'gk', n: 'COUNTER · A HAND TO IT', gk: true, game: true, hot: true, tip: 'gkcounter.js: his LV1 save v your power shot - he only pushes it away: the pop-up jolts, PUSHED AWAY', go: r => fpCounter(r, 'hand') },
     { mv: 'gkc-beaten', sec: 'gk', n: 'COUNTER · BEATEN', gk: true, game: true, hot: true, tip: 'gkcounter.js: your LV2 special v his LV1 save, the shot wins - his hands are blown away, the pop-up cracks and its letters fly off', go: r => fpCounter(r, 'beaten') },
     { mv: 'gkc-pops', sec: 'calls', n: 'KEEPER COUNTER POP-UPS', hot: true, tip: 'gkcounter.js: the three quick special-save pop-ups in a row (saved, a hand to it, beaten) at each level', go: fpCounterPops },
+    { mv: 'gk-miskick', sec: 'gk', n: 'MIS-KICK FROM MIDFIELD', game: true, gk: true, hot: true, tip: 'keeper-threat: a scuffed kick from midfield with his bars ready: he gathers it and keeps them (the KT group has the rest)', go: r => fpMiskick(r) },
     { mv: 'def-slide', sec: 'def', n: 'SLIDE TACKLE', game: true, tip: 't-018: he comes at you with the ball; you slide in (the shoot key)', go: r => fpDuel(r, 'slide') },
     { mv: 'def-stand', sec: 'def', n: 'STANDING TACKLE', game: true, tip: 't-018: the challenge (the pass key) as he reaches you', go: r => fpDuel(r, 'stand') },
     { mv: 'def-jockey', sec: 'def', n: 'JOCKEY', game: true, tip: 'side-on, backing off as he dribbles at you', go: r => fpDuel(r, 'jockey') },
@@ -750,6 +751,11 @@
       if (r.marks.length && F.t > 2.5) r.marks = [];
       return F.t < 4.5;
     } };
+  }
+  function fpMiskick(r) {                                                       // keeper-threat: KT1 as a button - his bars ready, the game decides
+    fpShotAt(r, 'MIS-KICK', { spot: [55, 14], y: 36, speed: 22, power: 0.2, T: 6,
+      read: (r, F, gk) => `${m.meters[1].level() < 2 ? 'SPECIAL SAVE' : 'bars kept'} · ${gk.hands ? 'he has it' : m.ball.inNet ? 'GOAL' : fpGk(r, F, gk)}` });
+    fpKeeper(r.gk, 92, 44); m.meters[1].e = 2; r.fx.game = true;                 // (r.fx.game: the game's own call, not free play's KEEPER SAVE switch)
   }
   function fpClash(r, sv) {                                                     // your LV2 special v his special save (t-028, the KC tests)
     const gk = r.gk; fpSpot(r, 86, 33); fpKeeper(gk, LINE_X, 34); Object.assign(m, { clashLast: null, gkSpLast: null });
@@ -1407,7 +1413,9 @@
         put(s, 17.5, 34, 4); atFeet(s); put(gk, PITCH_L - LINE_X, 31, 0); put(me, 40, 20, 4);
         for (const mt of m.meters || []) mt.e = 0; m.meters[0].e = 1;                // one bar: IRON WALL
         Object.assign(r, { human: me, shooter: s, gk, blockers: [], marks: [], o: { lv: 0, you: true }, press });
-        r.action = { at: 1.0, fire: () => m.doShot(s, 0.82, 1) };
+        // keeper-threat: hard and low into the far corner, so it beats him every time (the prompt only comes for a shot that
+        // would: doShot's aim + error left it on the edge of his reach, a prompt one run in two)
+        r.action = { at: 1.0, fire: () => { m.doShot(s, 0.82, 1); const k = m.pending; if (k && k.p === s) { k.ty = GOAL_Y1 - 0.35; k.speed = 29; k.vz = 1.2; } } };
       },
       check(r) {
         const b = m.ball; if (m.saveAsk) r.prompt = true;
@@ -3384,6 +3392,41 @@
         if (r.shotT == null) { if (!b.owner && b.lastP === r.shooter && r.fired) { r.shotT = r.t; b.saveable = m.home; r.gk.spSave = lv; m.saveFx(r.gk); } else return null; }   // (off his boot: his LV special save on a normal shot, v0.9.0: a sure stop)
         return ksOut(r); } };
   }
+  // keeper-threat (the co-designer, 30 Oct: "If player accidentally kicks the ball from midfield the keeper uses their
+  // special save. Fix that."): their keeper with bars in the bank, the real shotSaveCall / saveCall deciding (forceUse: when
+  // the rule says yes, the dice say yes too, so every run shows the rule). want: does he spend a save on it?
+  function ktTest(id, name, sub, o) {
+    return { id, group: 'KT', name, sub, kind: 'pw', forceUse: true,
+      setup(r) {
+        const s = m.home.players[9], gk = m.away.players[0], [x, y] = o.from, f = dirIndex(GX - x, 34 - y), dv = dirVec(f); cast([s, gk]);
+        put(s, x - dv.x * 0.5, y - dv.y * 0.42, f); ballAt(x, y, 0, s); put(gk, o.gk[0], o.gk[1], 4);
+        Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0, spSave: 0, rig: null, hands: false, walk: undefined, hold: 0 });
+        for (const mt of m.meters || []) mt.e = 0; m.meters[1].e = 2; Object.assign(m, { clashLast: null, gkSpLast: null });
+        Object.assign(r, { human: s, shooter: s, gk, blockers: [], marks: [], o, you: false });
+        r.action = { at: 0.7, fire: () => { if (o.sp) { m.meters[0].e = o.sp; m.special(s); if (o.ty != null && m.pending && m.pending.p === s) m.pending.ty = o.ty; } else fireShot(r, o.tgt, o.speed, o.power); } };
+      },
+      check(r) {
+        const b = m.ball, gk = r.gk;
+        if (r.shotT == null) { if (!b.owner && r.fired && b.lastP === r.shooter && !m.pending) { r.shotT = r.t; r.why = m.gkThreat ? m.gkThreat(gk).why : ''; } else return null; }
+        const used = m.meters[1].level() < 2, end = o => { const ok = used === r.o.want, L = m.clashLast;
+          return { o: `${ok ? 'PASS' : 'FAIL'} · ${used ? `SPECIAL SAVE` : 'bars kept'}${r.why ? ` (${r.why})` : ''} · ${L ? `CLASH ${KC_OUT[L.out] || L.out} · ` : ''}${o}`, hold: 0.6 }; };
+        if (b.inNet) return end('GOAL');
+        if (b.owner === gk) return end('he has it');
+        if (r.out) return end(r.out.toLowerCase());
+        return r.t - r.shotT > 7 ? end('in play') : null;
+      } };
+  }
+  function ktTests() {
+    return [
+      ktTest('KT1', 'a mis-kick from midfield, him out of place', 'scuffed from 45 m with him caught wide: it dies before the goal, he runs across and gathers it, the bars stay', { from: [60, 14], gk: [90, 44], tgt: { y: 36, vz: 2.2 }, speed: 28, power: 0.2, want: false }),
+      ktTest('KT2', 'a long ball on target, him on the wrong side', 'from 25 m, on target but dying, him on the far side of his goal: time to get across and gather it', { from: [80, 25], gk: [LINE_X - 3, 29], tgt: { y: 36.5, vz: 2 }, speed: 27, power: 0.1, want: false }),
+      ktTest('KT3', 'a shot going wide', 'hard, from 18 m, 2 m past the post: nothing to save', { from: [87, 30], gk: [LINE_X - 2.4, 33], tgt: { y: GOAL_Y1 + 2.2, z: 1 }, speed: 27, power: 0.7, want: false }),
+      ktTest('KT4', 'a hard shot on target from 18 m', '100 km/h into the corner, more than he can cover: he answers it', { from: [87, 34], gk: [LINE_X - 2.4, 35], tgt: { y: GOAL_Y0 + 0.4, z: 0.9 }, speed: 28, power: 0.8, want: true }),
+      ktTest('KT5', 'a special shot', 'your LV2 from 19 m: he answers it and the clash decides (t-028)', { from: [86, 33], gk: [LINE_X, 34], sp: 2, ty: 34.6, want: true }),
+      ktTest('KT6', 'a close-range shot', 'from 8 m across him: he answers it', { from: [97, 38], gk: [LINE_X - 1.5, 35.5], tgt: { y: GOAL_Y0 + 0.6, low: true }, speed: 24, power: 0.6, want: true }),
+      ktTest('KT7', 'a special from your own half', 'a LV1 from 60 m has lost its power (spRange): just a hard shot, a long way out, so it is his ball', { from: [45, 34], gk: [LINE_X - 8, 34], sp: 1, ty: 35.5, want: false }),
+    ];
+  }
   function ksTests() {
     const ks4 = Object.assign(pwTest('KS4', 'too strong to hold → ktip → corner', 'a LV2 special at his LV1 save: a hand to it (made to happen here), fingertips over or round', { lv: 2, from: [86, 33], block: [], save: 1 }), { group: 'KS', force: 'hand' });
     const pc = ks4.check, ks4set = ks4.setup; ks4.setup = r => { ks4set(r); m.gkSpLast = null; r.gk.rig = null; };
@@ -3908,6 +3951,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('LR', 'LOB RECEIVES', 'One race as a high ball comes down: the man it\'s meant for v their quickest. Clearly his (first by 0.35 s, or nobody of theirs within 2 m): CLEAN - no mash, no duel; he heads it, volleys it or takes it on the chest / thigh straight into his run (the arrow picks the way). Clearly theirs: LOST. Only a near tie is a contest: the quick duel, or in their box the aerial battle with the mash.', lrTests());
     add('HV', 't-022 · CHARGED HEADERS + VOLLEYS', 'Hold SHOOT as the ball comes in, let go as it reaches you: the hold is the power (like a ground shot), the timing keeps it - just before the contact = full power and on target, early or late = weaker and wilder, too much = over the bar. A tap is today\'s header / volley. A well-timed one: a white flash, a few sparks, a tiny hit-stop.', hvTests());
     add('KS', 't-014 · KEEPER SPECIAL SAVES BY THE SHOT', 'Their keeper has a special save ready; the shot picks the move: a lob → kleap, straight → kblock, wide → kdivecatch, too strong to hold → ktip (a corner). Who wins stays as before.', ksTests());
+    add('KT', 'KEEPER THREAT', 'Their keeper has bars in the bank. He spends a special save only on a ball that would really beat him: slow, long, wide or easily caught balls get a normal save and the bars stay. PASS = he did what the rule says.', ktTests());
     add('KC', 't-028 · THE KEEPER CLASH', 'With a special save on, the keeper gets to anything on target (a dash across his goal). A special shot against it is held on his gloves for a beat - sparks, slow-mo, POWER AGAINST POWER (ENTER skips) - then power decides: HELD, BOUNCES OFF (parried or tipped), HANDS BLOWN AWAY (goal), or THE BODY (blasted into the net with it).', kcTests());
     add('CS', 'CUT SCENES', 'Every cut scene in full (the Lab normally skips them). R plays it again. Rate how it looks; ENTER moves the menus on.', buildCuts());
     add('BW', 't-021 · BUG WATCH CHECKS', 'Each new Bug Watch check tripped on purpose (the Lab breaks the game for it: a frozen clock, a ball shot through a keeper who can\'t touch it, a man who won\'t move...). BW9: normal play, where none of them may trip. Nothing here is saved as a clip.', bwTests());
@@ -4088,13 +4132,15 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       m.clashForce = f === 'lose' && r.sc.forcePop ? 'hands' : { win: 'held', lose: 'body', hand: 'tip', tip: 'tip' }[f] || null;   // (GP8: the guard broken, the ball loops up - a pop-up is the hands' outcome, never the body's)
       Math.random = () => (f === 'mid' || f === 'tip' ? 0.5 : f === 'win' ? 0 : f === 'hand' && n++ ? 0 : 0.9999); /* (t-007 'hand': beaten, then a hand to it) */ try { return clash(gk); } finally { Math.random = R; m.clashForce = null; } };
     const saveCall = m.saveCall.bind(m);                                       // v0.8.8 free play KEEPER SAVE: off, or always that level
-    m.saveCall = function (def) { const r = LAB.run; if (!(r && r.sc.kind === 'free' && def === m.away)) return saveCall(def);
-      const gk = def.players[0]; if (!gk || gk.sentOff) return; gk.spSave = LAB.fp.save || 0; if (gk.spSave) m.saveFx(gk); };
+    m.saveCall = function (def) { const r = LAB.run;
+      if (r && r.sc.forceUse) { const R = Math.random; Math.random = () => 0; try { return saveCall(def); } finally { Math.random = R; } }   // (the KT group: he uses it, if the rule says so)
+      if (!(r && r.sc.kind === 'free' && def === m.away)) return saveCall(def);
+      const gk = def.players[0]; if (!gk || gk.sentOff || !m.gkThreat(gk).real) return; gk.spSave = LAB.fp.save || 0; if (gk.spSave) m.saveFx(gk); };   // (keeper-threat: free play shows the game's rule)
     const shotSave = m.shotSaveCall.bind(m);                                   // v0.9.0 free play: KEEPER SAVE also answers your normal shots
     m.shotSaveCall = function (def, shooters, pen) { const r = LAB.run;
       if (r && r.sc.forceUse) { const R = Math.random; Math.random = () => 0; try { return shotSave(def, shooters, pen); } finally { Math.random = R; } }   // (SM8-9: he uses it)
-      if (!(r && r.sc.kind === 'free' && def === m.away)) return shotSave(def, shooters, pen);
-      const gk = def.players[0], b = m.ball, sv = b.save; if (!gk || gk.sentOff || pen || !LAB.fp.save || !sv || sv.off || gk.spSave) return;
+      if (!(r && r.sc.kind === 'free' && def === m.away) || (r.fx && r.fx.game)) return shotSave(def, shooters, pen);
+      const gk = def.players[0], b = m.ball; if (!gk || gk.sentOff || pen || !LAB.fp.save || gk.spSave || !m.gkThreat(gk).real) return;
       b.saveable = shooters; gk.spSave = LAB.fp.save; m.saveFx(gk); };
     m.render = function (dt) {
       rnd(dt);
