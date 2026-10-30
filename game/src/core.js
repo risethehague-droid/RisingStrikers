@@ -132,7 +132,7 @@ PACE.arcade.setup = { throw: 0.8, offside: 1.5, fk: 1.5, fkNear: 2.5, corner: 2.
 PACE.arcade.cutK = 0.65;            // the special-save cut scene 1.5 s -> ~1 s: the bang without the wait (design E)
 const ARCADE = {
   // 1 REBOUNDS: invisible boards along the touchlines and the bylines (not the goal mouth under the bar), so the ball never
-  // goes out for a throw-in, goal kick or corner. It comes back lively: e = how much of the speed INTO the board it keeps,
+  // goes out for a throw-in, goal kick or corner (since then: throw-ins back, t-026; corners back, `corners` below). It comes back lively: e = how much of the speed INTO the board it keeps,
   // tang = of the speed ALONG it; a ball low on the grass pops up off the board (pop x the speed into it, at most popMax
   // m/s up: square on, a 14 m/s drive comes back ~4 m high, a firm 8 m/s pass ~1.3 m - the drop is at header / volley
   // height; at 0.5, 3 rebounds in 10 went up for a header, at 0.65 about half, and ~4 goals a match). popMin: slower than
@@ -142,7 +142,25 @@ const ARCADE = {
     // t-026 (Luca 25 Oct 14:42, after playing v0.12.0: "scrap the board for throws, that's bad"): the touchline boards are
     // off - a ball over a touchline is a throw-in again, on ARCADE too. The byline boards (no goal kicks / corners, the
     // rebounds in front of goal that go up for headers) stay. true = the v0.12.0 touchline boards back.
-    touch: false },
+    touch: false,
+    // ARCADE CORNERS (the co-designer, 30 Oct: "Add corners into arcade"): a ball the DEFENDING side puts over its own
+    // byline - a clearance, a block, a keeper's parry - is a corner, as in real football (Law 17) and as Mario Strikers'
+    // arcade football still keeps them. Over the byline off an ATTACKER (a shot or cross gone wide) it still comes back
+    // off the board: those are the rebounds in front of goal that go up for headers (t-020), and no goal kicks keeps
+    // ARCADE's no-waiting pace. 'all' = every defender's touch over his byline is a corner, the keeper's parries too;
+    // 'outfield' = an outfield defender's clearance / block only, so the keeper's parries still come back off the board
+    // (in the soak nearly every ARCADE corner was a keeper parry, and those parries are most of ARCADE's rebounds);
+    // false = v0.15's ARCADE (no corners at all).
+    corners: 'all' },
+  // ARCADE CORNERS ARE CHANCES (the co-designer, 30 Oct, option 1: real corners, but dangerous ones). With corners on,
+  // the keeper's parries stopped bouncing back for second shots and ARCADE lost ~1.25 goals a match; its corners scored
+  // 0 in 71 (lobbed onto the near / far post, inside the six-yard box, where the keeper claims). So on ARCADE a corner
+  // is whipped in (fast, head height, like t-012's crosses) to the attacker with the most room, never inside minD m
+  // of the goal line (the keeper's six-yard box; real teams aim at 6-12 m), and the runners attack it as a cross.
+  // How the games do it: FIFA's driven corner to the penalty spot, PES's near-post flick, Mario Strikers' chaos.
+  // best = how often he finds the man with the most room (else any man in the box). At 0.7 the corners scored 18 in 70
+  // (26%): far above FIFA-generous; aim ~1 in 8.
+  corner: { whip: true, minD: 7, maxD: 12.5, best: 0.3 },
   // 2 AERIALS: a rebound that will go up past headZ becomes a loose high ball "aimed" at the nearest man of the side that
   // touched it last (the way a lob is), so the game's own lob machinery takes over: he times his run under the drop,
   // their nearest man contests it, the drop is a duel / the AERIAL BATTLE, headers, volleys, the aerial specials.
@@ -269,6 +287,8 @@ const AERIAL = {
   hsRun: 0.6,          // ...for the man it was meant for (he has the run on it)
   hsSpring: 0.6,       // ...for fresh legs (stamina: a higher jump)
   hsMax: 3,
+  hsSet: 3,            // the defender's head start on a corner ball (30 Oct: he's goal-side and facing it from before the kick)
+  setT: 3,             // ...for this long after the corner is taken (s)
   clearRand: 0.5,      // the loser clears it: this much random direction, the rest by position (up the pitch, to the near touchline)
   // t-034 (Luca 25 Oct 19:14: "aerial battles only within gk box ... header on header or volley on volley ... if you win
   // as attack ball goes like a shot towards the goal and defender thrown to ground ... if defender wins it gets cleared
