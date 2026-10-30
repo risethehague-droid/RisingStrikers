@@ -225,7 +225,9 @@ class BugWatch {
         if (!p.keeper && len(p.x - b.x, p.y - b.y) < 5) swarm++;
       });
       if (this.hold('swarm', swarm >= 9, dt, 5)) this.flag('SWARM', `${swarm} outfield players within 5 m of the ball for 5 s`);
-      for (const t of [m.home, m.away]) { const k = t.players[0], far = k && !k.sentOff ? Math.abs(k.x - t.ownGoalX) : 0;
+      // QA 30 Oct: k.up = he's up for a last-minute corner on purpose (smarter-ai, PR #58: chasing late, a goal down, as
+      // keepers do in real football), so that trip there and the sprint back aren't a keeper wandering off
+      for (const t of [m.home, m.away]) { const k = t.players[0], far = k && !k.sentOff && !k.up ? Math.abs(k.x - t.ownGoalX) : 0;
         if (this.hold('kw' + t.side, far > 40, dt, 3)) this.flag('KEEPER_WANDER', `${this.who(k)} is ${bwF1(far)} m from his goal line (${k.state})`, { p: k }); }
       let stack = null;
       for (let i = 0; i < A.length && !stack; i++) { const p = A[i]; if (p.sentOff || p.hide) continue;
