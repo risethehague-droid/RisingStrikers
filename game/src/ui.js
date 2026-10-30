@@ -104,6 +104,9 @@ hc2Mix(Match, {
     const B = this.bw ? this.bw.list.filter(x => !x.review).length : 0;
     return `${this.home.name} ${this.home.score} - ${this.away.score} ${this.away.name}${this.half > 2 ? ' (AET)' : ''}   ENTER: ${this.cup && this.cupLive ? 'CUP' : 'AGAIN'}${H ? `   ${keyset().pass}: HIGHLIGHTS` : ''}${B ? `   B: BUG WATCH (${B})` : ''}`; },
   helpText() {
+    const O = this.hOther; if (O && O.inp && O.inp.keys) {                       // (t-044: #2p - each player's own keys, side by side)
+      const h = keyset(this.home), w = keyset(this.away), one = k => `${k.move} ${k.pass} ${k.shoot} ${k.lob} ${k.through} ${k.special}`;
+      return `P1 (${this.home.name}): ${one(h)} R-SHIFT    P2 (${this.away.name}): ${one(w)} L-SHIFT    = MOVE PASS SHOOT LOB THROUGH SPECIAL SPRINT`; }
     const k = keyset();
     return `${k.move} MOVE  ${k.pass} PASS / CHALLENGE  ${k.shoot} SHOOT (HOLD) / SLIDE  ${k.lob} LOB  ${k.through} THROUGH  SHIFT SPRINT  ${k.special} SPECIAL`;
   },
@@ -339,8 +342,9 @@ hc2Mix(Match, {
   openPause() {
     this.paused = true; this.say('PAUSED', this.pauseLine(), 9999); this.msg.setVisible(false); this.sub.setVisible(false); SFX.click();   // (the menu says it)
     this.pm = { page: 'main', i: 0 }; this.drawPause();
+    this.lanEv('pause');                                                         // (t-044: a LAN match pauses on both PCs)
   },
-  closePause() { this.pm = null; this.closeFlowEl(); this.paused = false; this.say('', '', 0.01); this.msg.setVisible(true); this.sub.setVisible(true); },
+  closePause() { this.pm = null; this.closeFlowEl(); this.paused = false; this.say('', '', 0.01); this.msg.setVisible(true); this.sub.setVisible(true); this.lanEv('resume'); },
   pauseItems() {
     const P = this.pm, k = keyset(), H = (this.highlights || []).length, Q = this.squadOf(this.home);
     if (P.page === 'opts') return [
@@ -367,7 +371,7 @@ hc2Mix(Match, {
       ...(H ? [{ k: 'hl', l: `HIGHLIGHTS (${H})`, key: k.pass, act: () => this.pauseReplay('hl') }] : []),
       ...(this.watch ? this.watchItems() : []),                                    // watch mode: speed, mark this moment
       { k: 'bw', l: `BUG WATCH (${BWn}${BWnew ? ` · ${BWnew} TO CHECK` : ''})`, act: () => this.bwOpen('pause') },
-      { k: 'quit', l: P.quit ? 'SURE? PRESS AGAIN TO QUIT' : 'QUIT TO MENU', act: () => { if (P.quit) { this.resumeSave(); try { location.reload(); } catch (e) {} } else P.quit = true; } }];   // (v0.10.2: kept for RESUME on the start screen)
+      { k: 'quit', l: P.quit ? 'SURE? PRESS AGAIN TO QUIT' : 'QUIT TO MENU', act: () => { if (P.quit) { this.lanEv('quit'); this.resumeSave(); try { location.reload(); } catch (e) {} } else P.quit = true; } }];   // (v0.10.2: kept for RESUME on the start screen)
   },
   drawPause() {
     const P = this.pm; if (!P) return; const el = this.flowEl('pause'), items = this.pauseItems(); P.i = clamp(P.i, 0, items.length - 1);
@@ -651,7 +655,8 @@ hc2Mix(Match, {
     const intro = A.phase === 'intro', s = intro ? 0.3 + 0.7 * clamp(A.t / AERIAL.introT, 0, 1) : 1 + 0.1 * Math.sin(this.time.now / 45) + (A.pulse = Math.max(0, (A.pulse || 0) - 0.06));
     const word = A.phase === 'done' ? (A.kind === 'ground' ? (A.res === 'att' ? 'KEPT IT!' : 'WON IT!') : A.res === 'att' ? 'WON IT!' : 'CLEARED!') : mine && this.isHuman(A.def.p) && !this.isHuman(A.att.p) ? 'PRESS!' : 'MASH!';   // (arcade-2: the duel on the grass)
     U.t.setText(word).setPosition(cx, cy - 34).setScale(s).setAngle(intro ? 0 : Math.sin(this.time.now / 60) * 3).setVisible(true);
-    U.k.setText(mine && A.phase !== 'done' ? (A.kind === 'ground' ? `${keyset().pass} / ${keyset().shoot}  MASH` : `${keyset().shoot}  ${keyset().shoot}  ${keyset().shoot}`) : '').setPosition(cx, cy + 14).setVisible(mine && A.phase !== 'done');
+    const ks = keyset(this.isHuman(A.att.p) ? A.att.p.team : A.def.p.team);   // (t-044: the keys of the human in it)
+    U.k.setText(mine && A.phase !== 'done' ? (A.kind === 'ground' ? `${ks.pass} / ${ks.shoot}  MASH` : `${ks.shoot}  ${ks.shoot}  ${ks.shoot}`) : '').setPosition(cx, cy + 14).setVisible(mine && A.phase !== 'done');
     const sa = this.aerialScore(A.att), sd = this.aerialScore(A.def), sh = A.share = A.share == null ? 0.5 : A.share + (sa / (sa + sd) - A.share) * 0.25;
     const W = 150, x0 = cx - W / 2, y0 = cy, ca = TEAM_COL[A.att.p.team.name] ?? 0x28c8e6, cd = TEAM_COL[A.def.p.team.name] ?? 0xff2878, mx = Math.round(x0 + W * sh);
     g.fillStyle(INK, 0.9).fillRect(x0 - 3, y0 - 3, W + 6, 14).fillStyle(ca, 1).fillRect(x0, y0, mx - x0, 8).fillStyle(cd, 1).fillRect(mx, y0, x0 + W - mx, 8);
@@ -679,7 +684,7 @@ hc2Mix(Match, {
     const intro = A.phase === 'intro', jk = A.joltAt != null ? clamp(1 - (now - A.joltAt) / 140, 0, 1) : 0;
     const s = intro ? 0.3 + 0.7 * clamp(A.t / AERIAL.introT, 0, 1) : 1 + 0.06 * Math.sin(now / 45) + 0.18 * (you && A.joltBy === (you === 'att' ? 1 : -1) ? jk : 0);
     U.t.setText(you ? 'MASH SPACE!' : 'MASH!').setPosition(cx, cy - 34).setScale(s).setAngle(intro ? 0 : Math.sin(now / 60) * 2).setVisible(A.res == null);
-    U.k.setText(you ? `or ${keyset().shoot}` : '').setPosition(cx, cy - 74).setVisible(!!you && A.res == null);   // (over the word: under the bar it sat on the 'you' arrow)
+    U.k.setText(you ? `or ${keyset(A[you].p.team).shoot}` : '').setPosition(cx, cy - 74).setVisible(!!you && A.res == null);   // (over the word: under the bar it sat on the 'you' arrow)
     const R = A.R, W = 216, st = W / (2 * R), x0 = cx - W / 2, y0 = cy - Math.round(3 * jk), ca = TEAM_COL[A.att.p.team.name] ?? 0x28c8e6, cd = TEAM_COL[A.def.p.team.name] ?? 0xff2878;
     const mx = Math.round(cx + clamp(A.pos, -R, R) * st), m0 = Math.round(cx + A.pos0 * st);
     g.fillStyle(INK, 0.92).fillRect(x0 - 3, y0 - 3, W + 6, 14).fillStyle(ca, 1).fillRect(x0, y0, mx - x0, 8).fillStyle(cd, 1).fillRect(mx, y0, x0 + W - mx, 8);
@@ -714,7 +719,7 @@ hc2Mix(Match, {
   drawCursor() {
     const hp = this.human, b = this.ball, t = this.time.now, X = Math.round(wx(hp.x, hp.y)), Y = Math.round(wy(hp.y));
     const dt = clamp((t - (this.curT ?? t)) / 1000, 0, 0.1); this.curT = t;
-    const kit = this.home && this.home.name;
+    const kt = this.lanGuest ? this.away : this.home, kit = kt && kt.name;     // (t-044: PC 2's cursor in his own kit's colour)
     if (kit !== this.curKit) { this.curKit = kit; const key = curColFor(TEAM_COL[kit]);   // once per match: the kits are fixed
       if (this.textures.exists(key)) { this.cursorImg.setTexture(key); for (const o of this.cursorInk) o.setTexture(key); } }
     if (hp !== this.curFor) { if (this.curFor) this.curPop = t; this.curFor = hp; }      // (not on the first man of the match)

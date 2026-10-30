@@ -8,7 +8,14 @@ const KEYSETS = {
   arrows: { move: 'ARROWS', pass: 'Z', shoot: 'X', lob: 'C', through: 'V', special: 'B', ud: 'UP/DOWN' },
   wasd: { move: 'WASD', pass: 'J', shoot: 'K', lob: 'L', through: 'I', special: 'U', ud: 'W/S' },
 };
-const keyset = () => KEYSETS[window.HC2_KEYS] || KEYSETS.arrows;
+// t-044 (part 1's review: in a two-human match the hints showed P2's WASD keys to P1): with a second human, each side's
+// hints name that human's own keys - #2p: home ARROWS, away WASD (io.js KEYPAD_MAP); a LAN guest: the set he picked on
+// his own start screen (his source carries it as .kset). One human: the start screen's pick, as always.
+const keyset = team => {
+  const m = window.__hc2, O = m && m.hOther, two = O && O.inp && O.inp.kset;
+  if (!two) return KEYSETS[window.HC2_KEYS] || KEYSETS.arrows;
+  return team && team === m[O.hSide] ? KEYSETS[O.inp.kset] || KEYSETS.wasd : O.inp.keys ? KEYSETS.arrows : KEYSETS[window.HC2_KEYS] || KEYSETS.arrows;
+};
 // ---------- SOUND: tiny 16-bit-console style effects made in code (Web Audio, no files): kicks, whistle, net, post,
 // catches and a crowd that bed + roars. Starts on the first key / click (browsers need that), M mutes (remembered).
 const SFX = {
@@ -157,7 +164,28 @@ function keyPad() {
     for (const a in M) s[a] = M[a].some(has);
     this.next = s; poll.call(this);
   };
-  P.keys = true; return P;
+  P.keys = true; P.kset = 'wasd'; return P;
+}
+// t-044 LAN (docs/lan-step2.md 3): the guest's PC sends its buttons every frame (lan.js); the host's away human reads them
+// here. Packets come unordered and can be lost, so each one carries the whole state plus a running count of presses per
+// button: a tap that went down and up between two packets (or in a lost one) still arrives as one press, and two
+// quick presses as two (one frame up between them). A late packet just means the last state is held a frame longer.
+function netPad(kset) {
+  const P = inputPad(); P.kset = kset || 'arrows'; P.n = -1; P.pk = null; P.done = {}; P.out = {};
+  P.feed = function (k) { if (k.n > this.n) { this.n = k.n; this.pk = k; } };   // (an older packet arriving late: dropped)
+  const poll = P.poll;
+  P.poll = function () {
+    const k = this.pk, s = { x: k ? k.x : 0, y: k ? k.y : 0 };
+    if (k) for (const a in k.b) {
+      const want = k.c[a] - (this.done[a] ?? k.c[a]); if (this.done[a] == null) this.done[a] = k.c[a];   // (counts start where we joined)
+      if (want > 0 && !this.out[a]) { s[a] = true; this.done[a]++; }           // a press we haven't played yet
+      else if (want > 0) s[a] = false;                                         // still down from the last one: up for a frame first
+      else s[a] = !!k.b[a];
+      this.out[a] = s[a];
+    }
+    this.set(s); poll.call(this);
+  };
+  return P;
 }
 
 // ------------------------------------------------------------------ boot: manifest, then assets

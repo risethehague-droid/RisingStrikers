@@ -26,5 +26,6 @@ the class body. A new file goes into all three pages, after `match.js` if it add
 | 17 | `replay.js` | Replays, highlights, BUG WATCH (the game checking its own footage) | QA overnight |
 | 18 | `watch.js` | WATCH mode: the computer plays both sides, pause, speed 0.5x-4x, N marks a moment, the review at full time | QA, Lead |
 | 19 | `resume.js` | RESUME: the snapshot of your match (saved while you play, cleared at full time) and putting it back from the start screen | Lead |
+| 22 | `lan.js` | PLAY ON LAN (t-044): HOST / JOIN through tools/lan/serve.py, the WebRTC link, host snapshots, the guest's buttons and drawing, pause / disconnect. Loaded after resume.js, before boot.js | Lead |
 | 20 | `boot.js` | Starts the game on page load (canvas size, scenes) | Lead |
 | 21 | `arcadesp.js` | ARCADE specials (the co-designer, 28 Oct): the special dribble, combo specials, team signature names, bigger leaps. Loaded after cup.js, before ui.js; it wraps the moves it needs, CLASSIC untouched | Design & Vision (friend) |
