@@ -255,6 +255,22 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
 .le .closer input { flex: 1 1 180px; min-width: 0; border: 2px solid var(--edge); padding: 6px 10px; background: var(--paper) }
 .le-bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between }
 
+/* messages (q-hq-messages): notes between Luca, the co-designer and the agents, each thread with its replies */
+.msg-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px }
+.msg { padding: 12px 14px; display: grid; gap: 8px; min-width: 0; border-left-width: 6px; border-left-color: var(--pink) }
+.msg.answered { border-left-color: var(--green) } .msg.urgent:not(.answered) { border-left-color: var(--yellow) }
+.msg .mt { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 1.45 }
+.msg .mh { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px }
+.msg .mh b { font-size: 14px }
+.msg .replies { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); display: grid; gap: 8px }
+.msg .replies li { display: grid; gap: 4px }
+.msg .reply-box, .msg-form { display: grid; gap: 8px }
+.msg textarea, .msg-form textarea { width: 100%; min-height: 4.5em; border: 2px solid var(--edge); padding: 7px 10px; background: var(--paper); resize: vertical }
+.msg-form { padding: 12px 14px }
+.msg-form .row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center }
+.msg-form select, .msg-form input[type=text] { border: 2px solid var(--edge); padding: 6px 8px; background: var(--paper); min-width: 0 }
+.badge.urgent { background: var(--yellow); color: var(--on-acc) } .badge.answered { background: var(--green); color: var(--on-acc) } .badge.waiting { background: var(--pink); color: var(--on-acc) }
+
 /* versions: newest first, like a release list */
 .vbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center }
 .vbar input { flex: 1 1 220px; min-width: 0; border: 2px solid var(--edge); padding: 7px 10px; background: var(--paper) }
@@ -341,6 +357,12 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     <div id="looseBox"><p class="loading">Loading…</p></div>
   </section>
 
+  <section id="messages" aria-labelledby="mh" style="display:flex;flex-direction:column;gap:12px">
+    <div class="sec-h"><h2 class="sec" id="mh">MESSAGES</h2><span class="muted" style="font-size:13px" id="msub"></span></div>
+    <p class="muted" style="margin:0;max-width:78ch">Notes between Luca, the co-designer and the agents (both accounts). Every taskmaster check reads the new ones first and answers what it can; the rest wait here for the person they're to. Something urgent: tick Urgent, and also leave a comment on HQ starting "Claude:" (the doorbell).</p>
+    <div id="msgBox"><p class="loading">Loading…</p></div>
+  </section>
+
   <section id="versions" aria-labelledby="vh" style="display:flex;flex-direction:column;gap:12px">
     <div class="sec-h"><h2 class="sec" id="vh">VERSIONS</h2><span class="muted" style="font-size:13px" id="vsub"></span></div>
     <div id="verBox"><p class="loading">Loading…</p></div>
@@ -363,9 +385,10 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
       <li><b>↻ Check now</b> (Luca only) runs a quick taskmaster check straight away instead of waiting for the next scheduled check: new PR cards and their previews land 5-10 minutes later (it starts a fresh cloud session each time, which takes a few minutes by itself). Report reviews, which run test matches, stay with the scheduled check. It costs one check's worth of usage each time.</li>
       <li>The tags in square brackets say where the work happens: cloud, your laptop, PixelLab, Aseprite, claude.ai, GitHub.</li>
       <li><b>Loose Ends</b> lists work stuck between two stages, with what closes it and who it waits on. <b>Make a card</b> turns one into a card on the board (it shows as Sent); <b>Close</b> settles it, with a line saying how.</li>
+      <li><b>Messages</b> is where Luca, the co-designer and the agents leave each other notes. Pick who it's to, write, send. Replies sit under the message; <b>Answered</b> closes it. The taskmaster check reads new messages first, answers what it can and leaves a short summary after each run.</li>
       <li><b>Versions</b> lists every game version, newest first, with its PRs, whose OK, the changes and their preview GIFs. Search it ("keeper"), or show only what's new since you last looked (remembered in this browser).</li>
       <li><b>Project</b> holds the roadmap (with progress by estimated hours), the art and game files, the decisions made so far and the references.</li>
-      <li>The menu on the left jumps to each section. Every section has its own link: HQ's link plus <span class="mono">#agents</span>, <span class="mono">#your-move</span>, <span class="mono">#board</span>, <span class="mono">#loose-ends</span>, <span class="mono">#versions</span>, <span class="mono">#project</span> (or a tab: <span class="mono">#roadmap</span>, <span class="mono">#creative</span>, <span class="mono">#assets</span>, <span class="mono">#decisions</span>, <span class="mono">#references</span>) or <span class="mono">#how</span>.</li>
+      <li>The menu on the left jumps to each section. Every section has its own link: HQ's link plus <span class="mono">#agents</span>, <span class="mono">#your-move</span>, <span class="mono">#board</span>, <span class="mono">#loose-ends</span>, <span class="mono">#messages</span>, <span class="mono">#versions</span>, <span class="mono">#project</span> (or a tab: <span class="mono">#roadmap</span>, <span class="mono">#creative</span>, <span class="mono">#assets</span>, <span class="mono">#decisions</span>, <span class="mono">#references</span>) or <span class="mono">#how</span>.</li>
     </ol>
   </details>
 </div>
@@ -409,7 +432,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
   const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
 
   let db = null, user = null, me = { id: null }, canWrite = true, tasks = [], hub = { phases: [], tasks: [], assets: [], decisions: [], refs: [] }, meta = {}, creative = [];
-  let loose = [], versions = [], agentState = {};   // (q-hq-sections) Loose Ends, Versions, and each agent's state for the menu
+  let loose = [], versions = [], messages = [], agentState = {};   // (q-hq-sections) Loose Ends, Versions, and each agent's state for the menu
   let laneFilter = store.get('hq-lane') || 'all', showClosed = false, openId = null, renderN = 0, ps = {};
   let tab = TABS.some(t => t[0] === location.hash.slice(1)) ? location.hash.slice(1) : (store.get('hq-tab') || 'roadmap'), assetQ = '', assetKind = 'all';
 
@@ -594,7 +617,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
       h('div', { class: 'ch' }, h('span', { text: name }), h('span', { text: String(list.length) })),
       list.length ? (i === 3 && !showClosed ? list.slice(0, 6) : list).map(cardBtn) : h('p', { class: 'none', text: none }),
       i === 3 && (list.length > 6 || drop) ? h('button', { class: 'more', type: 'button', text: showClosed ? 'Show fewer' : `Show all${drop ? ` + ${drop} dropped` : ''}`, onclick: () => { showClosed = !showClosed; render(); } }) : null)));
-    renderLoose(); renderVersions();
+    renderLoose(); renderMessages(); renderVersions();
     renderProject();
     const sb = $('#samplebar'); sb.hidden = !meta.sample; sb.textContent = meta.sample ? String(meta.sample) : '';   // a preview copy says so (meta/hq.sample)
     renderNav();
@@ -778,6 +801,81 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
       list.length ? h('ul', { class: 'le-list' }, ...list.map(looseItem)) : h('p', { class: 'loading', text: 'Nothing here with these filters.' })));
   }
 
+  // ---- MESSAGES (card q-hq-messages, Luca's OK 29 Oct): collection `messages`, one doc per message {from, to, text,
+  // re (the message it answers, or empty for a new thread), card (a card id it's about, optional), urgent, at,
+  // answered, answeredBy, answeredAt}. Anyone with edit access writes here from HQ; the taskmaster check (both
+  // accounts' agents) reads the unanswered ones first, answers what it can as a reply and marks it answered, and the
+  // rest wait for the person they're to. Urgent ones also get an HQ comment "Claude: …" (the doorbell).
+  const MWHO = { luca: 'Luca', 'co-designer': 'the co-designer', taskmaster: 'the taskmaster', 'worker-l': 'worker-l', 'worker-f': 'worker-f', check: 'the check', qa: 'qa (nightly)', all: 'everyone' };
+  const normMsg = (id, d) => ({ id, from: MWHO[d.from] ? d.from : 'all', to: MWHO[d.to] ? d.to : 'all', text: String(d.text || ''), re: d.re ? String(d.re) : '',
+    card: d.card ? String(d.card) : '', urgent: !!d.urgent, at: num(d.at), answered: !!d.answered, answeredBy: d.answeredBy || null, answeredAt: num(d.answeredAt) });
+  let msgFilter = store.get('hq-msg') || 'waiting', msgReply = null, msgShowDone = false;
+  const meAs = () => mcp ? 'luca' : 'co-designer';   // Luca's page (the owner) writes as Luca; an invited editor as the co-designer
+  const msgErr = e => toast(e && e.code === 'invalid_argument' ? 'Read-only for you. Ask Luca to invite you as an Editor.' : 'Could not send. Try again in a moment.');
+  async function sendMsg(d) {
+    if (!db || !d.text.trim()) return false;
+    try { await db.collection('messages').doc().set({ from: d.from, to: d.to, text: d.text.trim().slice(0, 4000), re: d.re || '', card: d.card || '', urgent: !!d.urgent, at: Date.now(), answered: false, answeredBy: null, answeredAt: 0, by: me.id || null }); return true; }
+    catch (e) { msgErr(e); return false; }
+  }
+  async function markMsg(m, answered) {
+    try { await db.doc('messages/' + m.id).update({ answered, answeredBy: answered ? (me.id || null) : null, answeredAt: answered ? Date.now() : 0 }); return true; }
+    catch (e) { msgErr(e); return false; }
+  }
+  const whoSel = (id, val, lab) => h('label', { for: id }, lab + ' ', h('select', { id }, ...Object.entries(MWHO).filter(([k]) => k !== 'check' && k !== 'qa' || lab === 'From').map(([k, v]) => h('option', { value: k, selected: k === val, text: v }))));
+  function msgItem(m) {
+    const reps = messages.filter(r => r.re === m.id).sort((a, b) => a.at - b.at), card = m.card && tasks.find(t => t.id === m.card);
+    const st = m.answered ? 'answered' : m.urgent ? 'urgent' : 'waiting';
+    const box = msgReply === m.id ? h('div', { class: 'reply-box' },
+      h('textarea', { id: 'msg-r-' + m.id, 'aria-label': 'Your reply', maxlength: 4000, placeholder: 'Your reply' }),
+      h('div', { class: 'acts' },
+        h('button', { class: 'btn small primary', type: 'button', text: 'Send reply', onclick: async () => {
+          const t = ($('#msg-r-' + CSS.escape(m.id)) || {}).value || '';
+          if (await sendMsg({ from: meAs(), to: m.from, text: t, re: m.id, card: m.card })) { msgReply = null; toast('Reply sent.'); renderMessages(true); } } }),
+        h('button', { class: 'btn small ok', type: 'button', text: 'Send + mark answered', onclick: async () => {
+          const t = ($('#msg-r-' + CSS.escape(m.id)) || {}).value || '';
+          if (await sendMsg({ from: meAs(), to: m.from, text: t, re: m.id, card: m.card }) && await markMsg(m, true)) { msgReply = null; toast('Reply sent, marked answered.'); renderMessages(true); } } }),
+        h('button', { class: 'btn small', type: 'button', text: 'Cancel', onclick: () => { msgReply = null; renderMessages(true); } }))) : null;
+    return h('li', { class: 'msg box ' + st },
+      h('div', { class: 'mh' }, h('span', { class: 'badge ' + st, text: m.answered ? 'Answered' : m.urgent ? 'Urgent' : 'Waiting' }),
+        h('b', { text: MWHO[m.from] + ' → ' + MWHO[m.to] }), h('span', { class: 'muted', text: ago(m.at) }),
+        card ? h('button', { class: 'more', type: 'button', text: 'about ' + (label(card.id) || 'card') + ' · ' + title(card), onclick: () => openDrawer(card.id) }) : m.card ? h('span', { class: 'chip', text: m.card }) : null),
+      h('p', { class: 'mt', text: m.text }),
+      reps.length ? h('ul', { class: 'replies' }, ...reps.map(r => h('li', {},
+        h('div', { class: 'mh' }, h('b', { text: MWHO[r.from] }), h('span', { class: 'muted', text: ago(r.at) })), h('p', { class: 'mt', text: r.text })))) : null,
+      m.answered ? h('div', { class: 'src muted', style: 'font-size:12px', text: 'Answered ' + ago(m.answeredAt) + (m.answeredBy ? ' by ' + whoName(m.answeredBy) : '') }) : null,
+      canWrite && db && msgReply !== m.id ? h('div', { class: 'acts' },
+        h('button', { class: 'btn small', type: 'button', text: 'Reply', onclick: () => { msgReply = m.id; renderMessages(true); const i = $('#msg-r-' + CSS.escape(m.id)); if (i) i.focus(); } }),
+        h('button', { class: 'btn small' + (m.answered ? '' : ' ok'), type: 'button', text: m.answered ? 'Reopen' : 'Answered', onclick: () => markMsg(m, !m.answered).then(ok => ok && toast(m.answered ? 'Reopened.' : 'Marked answered.')) })) : null,
+      box);
+  }
+  function renderMessages(force) {
+    const B = $('#msgBox');
+    if (!force && B.contains(document.activeElement) && document.activeElement.matches('input, textarea, select')) return;   // don't repaint under the cursor
+    if (!db) { B.replaceChildren(h('p', { class: 'loading', text: 'Open HQ on claude.ai, signed in, to see the messages.' })); $('#msub').textContent = ''; return; }
+    const top = messages.filter(m => !m.re), F = { waiting: ['Waiting', m => !m.answered], mine: ['To me', m => !m.answered && (m.to === meAs() || m.to === 'all')], answered: ['Answered', m => m.answered], all: ['All', () => true] };
+    if (!F[msgFilter]) msgFilter = 'waiting';
+    $('#msub').textContent = top.length ? top.filter(m => !m.answered).length + ' waiting · ' + top.length + ' threads' : '';
+    const last = m => Math.max(m.at, ...messages.filter(r => r.re === m.id).map(r => r.at));
+    const list = top.filter(F[msgFilter][1]).sort((a, b) => (b.urgent && !b.answered) - (a.urgent && !a.answered) || last(b) - last(a));
+    const LIMIT = 10, cut = !msgShowDone && list.length > LIMIT;
+    const form = canWrite ? h('form', { class: 'msg-form box', 'aria-label': 'New message', onsubmit: async e => { e.preventDefault();
+        const d = { from: $('#msg-from').value, to: $('#msg-to').value, text: $('#msg-text').value, card: $('#msg-card').value.trim(), urgent: $('#msg-urg').checked };
+        if (!d.text.trim()) { toast('Write something first.'); return; }
+        if (await sendMsg(d)) { toast(d.urgent ? 'Sent. Urgent: also leave an HQ comment starting "Claude:".' : 'Sent.'); renderMessages(true); } } },
+      h('div', { class: 'row' }, whoSel('msg-from', meAs(), 'From'), whoSel('msg-to', meAs() === 'luca' ? 'co-designer' : 'luca', 'To'),
+        h('label', { for: 'msg-card' }, 'About card ', h('input', { id: 'msg-card', type: 'text', placeholder: 't-035 (optional)', maxlength: 40, size: 12 })),
+        h('label', { for: 'msg-urg' }, h('input', { id: 'msg-urg', type: 'checkbox' }), ' Urgent')),
+      h('textarea', { id: 'msg-text', 'aria-label': 'Message', maxlength: 4000, placeholder: 'Your message' }),
+      h('div', {}, h('button', { class: 'btn primary small', type: 'submit', text: 'Send' }))) : null;
+    B.replaceChildren(h('div', { style: 'display:grid;gap:12px' },
+      form,
+      h('div', { class: 'filters', role: 'group', 'aria-label': 'Show' }, ...Object.entries(F).map(([k, [name, fn]]) => h('button', { type: 'button', 'aria-pressed': String(msgFilter === k),
+        text: name + ' ' + top.filter(fn).length, onclick: () => { msgFilter = k; store.set('hq-msg', k); renderMessages(true); } }))),
+      list.length ? h('ul', { class: 'msg-list' }, ...(cut ? list.slice(0, LIMIT) : list).map(msgItem))
+        : h('p', { class: 'loading', text: top.length ? 'Nothing here with this filter.' : 'No messages yet. Write the first one above.' }),
+      cut ? h('button', { class: 'more', type: 'button', text: `Show all ${list.length}`, onclick: () => { msgShowDone = true; renderMessages(true); } }) : null));
+  }
+
   // ---- VERSIONS (card q-hq-sections): collection `versions`, one doc per game version, built from docs/CHANGELOG.txt by
   // design/hq/hqdata.py at every merge: {ver, n (its place, oldest = 1), date, headline, note, prs, tasks, ok,
   // bullets: [{text, prs, tasks, gifs: [{url, path}]}], gifs (the PRs' GIFs no bullet names), play (an "HC2 Football ·
@@ -847,15 +945,15 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
   }
 
   // ---- the side menu: each section with a small count; the one on screen is lit up; HQ's link + #section opens it
-  const SECTIONS = [['agents', 'Agents'], ['your-move', 'Your move'], ['board', 'Board'], ['loose-ends', 'Loose ends'], ['versions', 'Versions'], ['project', 'Project'], ['how', 'How HQ works']];
+  const SECTIONS = [['agents', 'Agents'], ['your-move', 'Your move'], ['board', 'Board'], ['loose-ends', 'Loose ends'], ['messages', 'Messages'], ['versions', 'Versions'], ['project', 'Project'], ['how', 'How HQ works']];
   let curSec = 'agents';
   function navCounts() {
     const busy = Object.values(agentState).filter(s => s !== 'idle').length, nOk = tasks.filter(t => t.status === 'review').length;
-    const lOpen = loose.filter(L => L.status !== 'closed').length, top = [...versions].sort((a, b) => b.n - a.n)[0], fresh = versions.filter(isNew).length;
+    const lOpen = loose.filter(L => L.status !== 'closed').length, mOpen = messages.filter(m => !m.re && !m.answered).length, top = [...versions].sort((a, b) => b.n - a.n)[0], fresh = versions.filter(isNew).length;
     const live = hub.tasks.filter(t => t.status !== 'parked'), all = live.reduce((s, t) => s + num(t.est_h), 0), done = live.filter(t => t.status === 'done').reduce((s, t) => s + num(t.est_h), 0);
     if (!db) return {};
     return { agents: [busy + ' busy'], 'your-move': [nOk + ' to OK', nOk > 0], board: [tasks.filter(t => !isClosed(t)).length + ' open'],
-      'loose-ends': [lOpen + ' open', loose.some(L => L.status === 'open')], versions: [fresh ? fresh + ' new' : (meta.gameVer || (top && top.ver) || '…'), fresh > 0],
+      'loose-ends': [lOpen + ' open', loose.some(L => L.status === 'open')], messages: [mOpen + ' waiting', messages.some(m => !m.re && !m.answered && m.urgent)], versions: [fresh ? fresh + ' new' : (meta.gameVer || (top && top.ver) || '…'), fresh > 0],
       project: [all ? Math.round(100 * done / all) + '%' : '…'] };
   }
   function renderNav() {
@@ -1025,7 +1123,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     const [d, u] = await Promise.all([C && C.use ? C.use('db').catch(() => null) : null, C && C.use ? C.use('user').catch(() => null) : null]);
     db = d; user = u;
     if (!db) { $('#sync').textContent = 'Offline'; $('#agentGrid').replaceChildren(h('p', { class: 'loading', text: 'Open HQ inside Claude to see the agents and the cards.' }));
-      $('#movetext').textContent = 'Open HQ on claude.ai, signed in.'; $('#addBtn').hidden = true; renderProject(); renderLoose(); renderVersions(); renderNav(); land(); return; }
+      $('#movetext').textContent = 'Open HQ on claude.ai, signed in.'; $('#addBtn').hidden = true; renderProject(); renderLoose(); renderMessages(); renderVersions(); renderNav(); land(); return; }
     if (user) { try { me = await user.me(); } catch (e) {} try { const c = await user.can('data.write'); if (c === false) canWrite = false; } catch (e) {} }
     try { if (user && await user.isOwner()) mcp = await C.use('mcp'); } catch (e) { mcp = null; }   // Check now: Luca's page only
     checkUI(); turboUI();
@@ -1038,6 +1136,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     for (const k of Object.keys(hub)) db.collection('hub_' + k).onSnapshot(snap => { hub[k] = snap.docs.map(s => ({ id: s.id, ...(s.data() || {}) })); soon(); }, () => {});
     db.collection('creative').onSnapshot(snap => { creative = snap.docs.map(s => ({ id: s.id, ...(s.data() || {}) })); soon(); }, () => {});
     db.collection('loose').onSnapshot(snap => { loose = snap.docs.map(s => normLoose(s.id, s.data() || {})); soon(); }, () => {});
+    db.collection('messages').onSnapshot(snap => { messages = snap.docs.map(s => normMsg(s.id, s.data() || {})); soon(); }, () => {});
     db.collection('versions').onSnapshot(snap => { versions = snap.docs.map(s => normVer(s.id, s.data() || {})); soon(); }, () => {});
     db.doc('meta/hq').onSnapshot(s => { meta = (s && s.exists !== false && s.data && s.data()) || {}; checkUI(); turboUI(); soon(); }, () => {});
     setInterval(() => { $('#checks').textContent = nextChecks(); checkUI(); turboUI(); }, 60000);

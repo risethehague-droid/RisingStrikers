@@ -1,7 +1,11 @@
-# HC2 HQ: side menu, Loose Ends, Versions (card q-hq-sections)
+# HC2 HQ: the page's code
 
-The next HC2 HQ page, ready to publish. Built by worker-f from HQ's live source (read 25 Oct, version
-`1792844981-0cde`). Luca OK'd the card. **Only the taskmaster publishes it to HQ.**
+**`index.html` is HQ's live code** (synced from the live page, version `1793244842-0c4c`, 30 Oct 2026: side menu,
+Loose Ends, Messages, Versions, ⚡ Turbo). CLAUDE.md "HC2 HQ is the exception" says how it stays in sync: after every
+HQ publish, the publisher commits the published file here. The live page wins if the two ever differ.
+
+The notes below are from the side-menu / Loose Ends / Versions change (card q-hq-sections, built by worker-f from
+HQ's live source of 25 Oct, Luca's OK). They still describe those sections and their data.
 
 - `index.html`: the page. HQ's code with the additions below; everything else unchanged.
 - `hqdata.py`: builds the `versions` and `loose` documents from the repo and the agents folder.

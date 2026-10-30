@@ -19,6 +19,11 @@ These rules apply to every session on this repo, on either account. If you're on
     hand (cards change through HQ's own buttons, the taskmaster and the scheduled check, as now).
   - **Start from the live HQ:** read the current version first (Artifact `read`) and build on that file, never on an
     older copy. Keep HQ's data model, capabilities and ↻ Check now working.
+  - **HQ's code lives in the repo too** (Luca, 30 Oct: "give codesigner access to HQ's code to facilitate more direct
+    contact between codesigner and taskmaster"): `design/hq/index.html` is the live HQ page. After every HQ publish,
+    whoever published commits the exact file they published there (co-designer: a `friend/hq-<topic>` branch + PR;
+    the taskmaster: with its next change). Before building, compare the live HQ (Artifact `read`) with that file; if
+    they differ, the live page wins: copy it in first. Then both sides can read, diff and review HQ's code on GitHub.
   - **Say what changed:** after each publish, a note through the folder (`bash tools/agent.sh report co-designer note
     done <file>`): what changed and why. A big redesign: tell Luca first.
   - Luca can always roll HQ back to an earlier version from the page's history.
