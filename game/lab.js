@@ -489,6 +489,7 @@
       Object.assign(m, { offSide: null, offFlag: null, offLast: null, offGK: null, passAim: null, gkSetup: null }); }
     r.human = s; m.human = s; r.nogk = !!LAB.fp.nogk;
     cast(r.nogk ? [s] : [s, gk]); if (!r.nogk) fpKeeper(gk);
+    if (r.cam0) { r.cam = r.cam0; r.cam0 = null; }
     ONE_V_ONE.on = false;                                                       // (the 1 V 1 preview: only while its button's scene runs)
     r.bots.clear(); r.extra = false; r.fx = null; r.noAuto = false; s.watch = null;
     Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
@@ -648,6 +649,8 @@
     put(p, 69, 29, 0); atFeet(p); put(c, 65.5, 30.2, 0); fpKeeper(gk);
     r.bots.set(c, (q, dt) => q.moveTo(p.x - 1.4, p.y + 0.5, RUN * 0.9, dt));     // chasing, never quite catching him
     ONE_V_ONE.on = true;
+    const cam0 = r.cam0 = r.cam0 || r.cam;                                       // (while it's on, the camera frames the two of them; fpBase puts FREE PLAY's back)
+    r.cam = () => { const S = m.v1; if (!S) return cam0(); const b = m.ball, q = b.owner || !S.p ? S.p : b; return { x: clamp((q.x + gk.x) / 2, q.x - 6, q.x + 6), y: (q.y + gk.y) / 2, sx: 0 }; };
     r.last = '1 V 1 · through on goal';
     r.fx = { e0: r.events.length, step(r, p, F) {
       const b = m.ball, T = Input.touch, S = m.v1;
