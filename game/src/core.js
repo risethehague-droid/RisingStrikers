@@ -94,7 +94,7 @@ const PACE = {
   classic: { RUN: 5.2, SPRINT: 7.7, ACC: 12, DEC: 26, SPRINT_DRAIN: 0.23, WITH_BALL: 0.9, WITH_BALL_SPRINT: 0.94,
     koFreeze: 1.2, half2Freeze: 1.6, spFreeze: 0.5, deadT: 1, aiTake: 1.3, htOff: 3.2, htCard: 25, htAnyKey: false,
     goalWaitMs: 1450, goalFrames: 330, goalSlowPre: 1.7, goalSlow: 2.0, skipAfter: 0.4, evReplays: false,
-    KICK_MAX: 30, SHOT_K: 1, GRIP: 1, spGain: 1.4, shotRange: 1, shotWant: 1, chargeT: 0.8, gkCover: 0.95, gkAnswer: 0.55, passArrive: 1, lobH: 1,
+    KICK_MAX: 30, SHOT_K: 1, GRIP: 1, spGain: 1.4, shotRange: 1, shotWant: 1, chargeT: 0.8, gkCover: 0.95, gkAnswer: 0.55, passArrive: 1, lobH: 1, crossH: 1,
     hsPass: 1, hsShot: 1, trails: false, advantage: false, duels: false, duelCool: 5, duelGap: 30, pressK: 1, cmtK: 1, shK: 1, shAdd: 0, aiBurst: 1, burstT: 0.55, headZ: 2.7 },   // v0.10.4 (Luca 06:24: "dont do replays mid game being live, its janky"): big saves / near misses go to HIGHLIGHTS in CLASSIC too
   // A: end to end in ~12 s, snappier starts and turns, sprint more, dribbles that go somewhere. D: kick-off 0.6 s,
   // restarts taken after ~0.8 s, one short (~4 s) goal replay skippable at once, saves / near misses only in
@@ -109,7 +109,7 @@ const PACE = {
   // 2 the MASH duel also on 50-50 loose balls and contested tackles. 3 a longer sprint dash, higher headers, hot trails on
   // hard shots. 4 passes 20% firmer, lobs ~8% less hang time (0.85 of the height: at 0.72 defenders headed them away and the AERIAL BATTLE nearly vanished), a little less grass grip.
   // 5 no hit-stop on passes (more on shots), advantage: a foul stops play only for a card or a penalty.
-    KICK_MAX: 33, SHOT_K: 1.12, GRIP: 0.88, spGain: 2.0, shotRange: 1.2, shotWant: 0.85, chargeT: 0.6, gkCover: 0.7, gkAnswer: 0.85, passArrive: 1.2, lobH: 0.85,
+    KICK_MAX: 33, SHOT_K: 1.12, GRIP: 0.88, spGain: 2.0, shotRange: 1.2, shotWant: 0.85, chargeT: 0.6, gkCover: 0.7, gkAnswer: 0.85, passArrive: 1.2, lobH: 0.85, crossH: 1,
     hsPass: 0, hsShot: 1.35, trails: true, advantage: true, duels: true, duelCool: 3.5, duelGap: 9, pressK: 1.3, cmtK: 1.35, shK: 1.5, shAdd: 0.08, aiBurst: 1.4, burstT: 0.8, headZ: 3.1 },
 };
 // t-020 ARCADE GETS INTENSE (Luca 25 Oct 06:56: "arcade should have a smaller pitch, more rebounds that lead into aerials,

@@ -28,7 +28,11 @@ const AI = { ROLE_DT: 0.4, RATIO: 0.8, PAD: 0.5, HOLD: 0.6, GOALSIDE: 0.95, COVE
 // whipped to the near post or the spot, floated to the far post, laid back to the edge - never into the keeper's reach.
 // Spots are in the team's frame (aiFrame: metres from the centre line, the goal line at 52.5) and metres across from the
 // centre towards the ball's side (+) or away from it (-).
-const WING = { WIDE: 11, RUNS: { near: [45.5, 3.5], far: [45, -6], spot: [41.5, -1], edge: [35.5, -2.5] }, BACK: 8,
+// cross-goals (the co-designer, 30 Oct: "running down the wing and lobbing it to an attacker" should pay): crossBlock =
+// how often a man pressing the crosser, in the ball's path, blocks the cross off the boot (it was every time: 6 of 11 of
+// your ARCADE crosses, where the presser is always that tight; real football blocks about a quarter with a man close).
+// Decided once per cross, on the kick.
+const WING = { crossBlock: 0.3, WIDE: 11, RUNS: { near: [45.5, 3.5], far: [45, -6], spot: [41.5, -1], edge: [35.5, -2.5] }, BACK: 8,
   GK_REACH: 5.5, SIX: 46.8 };
 const FORMATION = [ // 4-4-2 for a team attacking towards x = 105 (metres)
   [3, 34], [17, 10], [15, 26], [15, 42], [17, 58], [33, 12], [31, 28], [31, 40], [33, 56], [46, 29], [46, 40]];
@@ -495,7 +499,7 @@ hc2Mix(Match, {
   },
   // every team-mate in or running into the box as a cross: where he'll be (his run's spot), whipped or floated.
   // score = he gets there in time + the defenders don't + his shot from there - the keeper's reach - bodies in a low lane
-  crossLook(p) {
+  crossLook(p, noCut) {                                                         // (noCut, cross-goals 30 Oct: your LOB from wide is a cross INTO the box, never the cut-back)
     const team = p.team, gk = team.opp.players[0], defs = team.opp.players.filter(o => !o.sentOff && !o.keeper); let best = null;
     const offL = offsideOn() ? this.offLine(team) + rnd(0, OFFSIDE.READ) : null;   // t-024: never a cross at a man standing offside (as he reads it)
     for (const q of team.players) {
@@ -504,7 +508,7 @@ hc2Mix(Match, {
       const X = this.aiFrame(team, at0.x), off = Math.abs(at0.y - 34);
       if (X < 33 || X > 50 || off > 15) continue;                                  // in the box or at its edge
       const d0 = len(at0.x - p.x, at0.y - p.y); if (d0 < 8 || d0 > 42) continue;
-      const kinds = name === 'edge' ? ['cut'] : name === 'far' ? ['float', 'whip'] : name ? ['whip', 'float'] : ['whip', 'float'];
+      const kinds = name === 'edge' ? (noCut ? [] : ['cut']) : name === 'far' ? ['float', 'whip'] : name ? ['whip', 'float'] : ['whip', 'float'];
       for (const kind of kinds) {
         let at = at0, d = d0;
         if (kind === 'whip' && w) {                                                // whipped: into his path, where his run has got to when it arrives
