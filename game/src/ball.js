@@ -63,7 +63,10 @@ function ballStep(b, h, owned) {
 function cornerOff(b) {
   const C = ARCADE.boards.corners; if (!C || !b.last || (b.x >= 0 && b.x <= PITCH_L)) return false;
   if (b.x < 0 ? !(b.last.side > 0) : !(b.last.side < 0)) return false;              // (off an attacker: the board)
-  return C !== 'outfield' || !(b.lastP && b.lastP.keeper && b.lastP.team === b.last);   // ('outfield': the keeper's parry still rebounds)
+  // ('outfield': the keeper's parry still rebounds. A parry sets b.last to his side but leaves b.lastP on the shooter,
+  // so it's his touch while b.gkTouch still matches: the next kick anywhere changes b.lastP and ends it)
+  const gk = b.gkTouch && b.gkTouch.p.team === b.last && b.gkTouch.lastP === b.lastP;
+  return C !== 'outfield' || !gk;
 }
 function boardBounce(b) {
   const A = ARCADE.boards; let hit = null;
@@ -545,7 +548,7 @@ hc2Mix(Match, {
   // where the loose ball will be over the next 3 seconds (for receivers and chasers). t-005: plus `land`, where a ball
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
   predict() {
-    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, last: b.last, lastP: b.lastP, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
+    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, last: b.last, lastP: b.lastP, gkTouch: b.gkTouch, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
     const ARC = paceK().arcade;                                                  // (t-020: ARCADE - the path comes back off the boards, so the AI reads the rebound)
     for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (ARC) boardBounce(c); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
@@ -1060,6 +1063,7 @@ hc2Mix(Match, {
       b.vx = side * rnd(1.5, 3.5) - b.vx * 0.1; b.vy = s * rnd(5, 9) + b.vy * 0.15; b.vz = rnd(1.5, 4) + (b.z > 1.6 ? 2 : 0);
     }
     b.z = Math.max(b.z, 0.3); b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.lob = false; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
+    b.gkTouch = { p, lastP: b.lastP };                                          // (ARCADE corners 'outfield': his touch was the last one while b.lastP is still the shooter's)
     if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }          // (t-002 prototype; t-011 the curving pass)
     b.camUp = how !== 'parry' || b.vz > 3;                                       // t-007: the camera follows it up and out (world.js)
   },
