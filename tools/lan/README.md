@@ -1,3 +1,30 @@
+# Play a LAN match (t-044, LAN step 2)
+
+Two PCs on the same Wi-Fi, one match: one PC hosts, the other joins. One laptop also runs a tiny server that hands
+out the game and connects the two PCs (claude.ai can't: its pages have no WebRTC, step 1 showed that).
+
+**Once, on the laptop that serves (needs the game folder, e.g. a clone of the repo):**
+- **Mac:** open `tools/lan` in Finder, double-click **Start LAN.command**. The first time macOS may block it: right-click
+  it, **Open**, **Open**. If it asks to install the command line developer tools (for Python 3), say **Install**,
+  then double-click again.
+- **Windows:** double-click **Start LAN.bat** in `tools\lan`. No Python yet? Get it from python.org (tick "Add
+  python.exe to PATH"). When **Windows Security** asks about Python: tick **Private networks**, **Allow access**.
+- A window opens with the address for the other PC (e.g. `http://lucas-macbook.local:8770` and a number like
+  `http://192.168.1.23:8770`), and the game opens in the laptop's browser. Leave the window open while you play.
+
+**Every time:**
+1. Laptop: start it as above. Other PC: open the address in Chrome or Edge (bookmark it: next time just click it).
+2. On one PC: **PLAY ON LAN**, **HOST**. On the other: pick your team as YOU on the start screen, **PLAY ON LAN**, **JOIN**.
+3. Both press **READY**. The host picks the settings and the team sheet; PC 2 sees them. Then the walk-out and kick-off.
+4. ENTER pauses both screens; only the one who paused can resume. QUIT sends both back to the menu.
+
+**It doesn't connect?**
+- The other PC can't open the address: the laptop's firewall blocks Python. Mac: System Settings, Network, Firewall,
+  Options, allow Python. Windows: Windows Security, Firewall, "Allow an app", tick Python for Private.
+- Use the number address if the name one doesn't open. Both PCs on the same Wi-Fi (not a guest network).
+- `python3 tools/lan/serve.py --port 8770 --no-browser` runs it from a terminal. `node tools/lanmatch.js` is the
+  developer test (two headless pages: HOST, JOIN, a minute of play, spikes, pause, disconnect).
+
 # LAN step 1: the 5-minute connection test (t-041)
 
 One question before any LAN match work: **can two PCs connect straight to each other from a claude.ai page?**
