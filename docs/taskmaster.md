@@ -44,6 +44,13 @@ rules). On every check, before the inbox:
    their open questions.
 4. Post your own run summary as a log (`msg check all <file> --log`).
 
+## The public game link (GitHub Pages)
+https://risethehague-droid.github.io/RisingStrikers/ is the game for friends: no claude.ai account, no invite.
+`.github/workflows/public-game.yml` republishes it by itself after every merge into main that touches `game/`, so it
+always matches the official game. It publishes only the game: `index.html`, `src/`, the assets and Phaser. The Test
+Lab and the test pages stay off it. Luca switched it on once in the repo's Settings -> Pages (Source: GitHub
+Actions). To pause it, set Source to None.
+
 ## Who works where
 
 See `docs/agents.md`. In short: worker-l (Luca's account) and worker-f (the co-designer's) take `t-NNN` briefs; the

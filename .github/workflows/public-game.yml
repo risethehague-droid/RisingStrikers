@@ -1,0 +1,43 @@
+# The public game link (the co-designer, 30 Oct: "create a link that lets our friends play the game easily without
+# having to give them access"). Every time the taskmaster merges into main, this publishes the game - and only the
+# game, not the Test Lab or the test pages - to GitHub Pages: https://risethehague-droid.github.io/RisingStrikers/
+# Free because the repo is public; no claude.ai account needed to play. It only runs once Luca switches it on
+# (repo Settings -> Pages -> Source: GitHub Actions), and it publishes what's already live, so it never gets ahead of
+# the official game.
+name: Public game link
+
+on:
+  push:
+    branches: [main]
+    paths: ['game/**', '.github/workflows/public-game.yml']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pick the game's files (no Test Lab, no test pages, no previews)
+        run: |
+          mkdir -p _site
+          cp -r game/index.html game/src game/assets game/assets-lo game/phaser.min.js _site/
+          find _site -name '*.md' -delete
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
