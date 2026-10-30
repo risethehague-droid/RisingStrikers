@@ -484,7 +484,10 @@ hc2Mix(Match, {
   crossYou(p) {
     const team = p.team, X = this.aiFrame(team, p.x), off = Math.abs(p.y - 34);
     if (p.keeper || this.setPiece || X < 26 || off < 12) return false;          // wide (12 m+ off the middle), in their last ~26 m
-    const c = this.crossLook(p); if (!c || c.score < -0.6) return false;
+    // (cross-goals, the co-designer 30 Oct: "running down the wing and lobbing it to an attacker" should pay. On ARCADE
+    // the man pressing you made the cross look risky, so it picked the cut-back to the edge - a ground pass straight into
+    // his feet, 6 of 11 WG3 crosses. LOB from wide is the cross into the box: no cut-back, and it goes even when it's tight)
+    const c = this.crossLook(p, true); if (!c) return false;
     this.aiCross(p, c, { crossErr: 0.9 }); this.passAim = c.q;                  // (K.crossErr at base is ~1.4 m: yours a little truer)
     return !!(this.pending && this.pending.p === p);
   },

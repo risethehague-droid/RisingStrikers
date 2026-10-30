@@ -275,7 +275,7 @@ function passTime(d) { const i = Math.round(clamp(d, 1, 50)), k = paceK().passAr
 // a 12 m lob peaked at 1.8 m and a 25 m one at 3.5 m, so the ball stayed at head height (under 2.7 m) for most of its
 // flight and anyone near the line headed it away (28 of 60 of your lobs). An open-play lob now climbs over the
 // players in between: 3.6 m for a short one up to 6 m for a long one; a held (power) lob 3.6 to 8 m.
-function lobApex(d, pow) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 3.0 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H * paceK().lobH; }   // (LOB_H: the Lab's lob-height knob, 1 in the game; arcade-2: ARCADE 0.85 = ~8% less hang time)
+function lobApex(d, pow, cross) { return (pow != null ? 3.6 + clamp(pow, 0, 1) * 3.0 : clamp(2.9 + d * 0.07, 3.6, 6.0)) * LOB_H * (cross ? paceK().crossH : paceK().lobH); }   // (LOB_H: the Lab's lob-height knob, 1 in the game; arcade-2: ARCADE 0.85 = ~8% less hang time)
 // (v0.10.3, Luca's OK on PR #8's call 3, "lean arcade": a full power lob peaks at 6.6 m and hangs ~2.35 s, was 8 m / 2.58 s)
 // lofted ball: the forward speed that makes it come down at `dist` for a given upward speed
 // (n: bisection steps - t-005's charge-arc preview asks for 12, about 1 cm; every kick keeps the full 22)
@@ -366,7 +366,7 @@ hc2Mix(Match, {
     if (mode === 'ground') { vz = 0.2; speed = solveGround(d, clamp(4.5 + d * 0.15, 5.5, 11) * paceK().passArrive, vz); }   // arrives firm, then dies (arcade-2: ARCADE 20% firmer)
     else if (mode === 'through') { vz = 0.25; speed = solveGround(d, 4.5 * paceK().passArrive, vz); }                          // slows into the runner's path
     else if (mode === 'lob' && k.info.aim) { const L = lobSolve(d, k.info.aim.apex); speed = L.speed; vz = L.vz; }   // t-008: the hold-aimed lob lands ON the ring (solved from where the ball is as it leaves the boot)
-    else if (mode === 'lob' && k.info.loft) { const L = this.loftLaunch(d, k.info.lobPow); speed = L.speed; vz = L.vz; }   // lob-mechanics: over their heads (t-005: really as high as lobApex says)
+    else if (mode === 'lob' && k.info.loft) { const L = this.loftLaunch(d, k.info.lobPow, false, !!k.info.cross); speed = L.speed; vz = L.vz; }   // (cross-goals: a floated cross keeps its own height on ARCADE, paceK().crossH)   // lob-mechanics: over their heads (t-005: really as high as lobApex says)
     else if (mode === 'lob' && k.info.lobPow != null) { const T = 1.0 + k.info.lobPow * 1.5; vz = G * T / 2; speed = solveLob(Math.max(4, d - 1), vz); }   // v0.8.5 power lob: up to ~8 m high
     else if (mode === 'lob') { const T = clamp(0.7 + d / 25, 0.9, 1.9); vz = G * T / 2 * 1.05; speed = solveLob(Math.max(4, d - 2), vz); }
     if (k.info.cross === 'whip') { const S = crossSolve(d, rnd(1.35, 1.85), 0.25 + d / 21); speed = S.speed; vz = S.vz; }   // t-012: the computer's whipped cross
@@ -390,7 +390,7 @@ hc2Mix(Match, {
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
     b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft; b.aimLob = !!k.info.aim;   // lob-mechanics: an open-play lob (its drop is a duel)
     if (k.info.curve) this.curveLaunch(b, k);                                     // t-011: the curving special pass (Test Lab only)
-    b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null;   // (t-012: the runners attack a cross until someone touches it)
+    b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null; b.xBlock = !k.info.cross || Math.random() < WING.crossBlock;   // (cross-goals: can the presser block this cross off the boot?)   // (t-012: the runners attack a cross until someone touches it)
     if (k.info.tap) this.tapSfx(); else if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
     k.p.hands = false;
     b.save = null; b.saveable = null;
@@ -664,7 +664,7 @@ hc2Mix(Match, {
   },
   // t-005: the launch of an open-play / power lob: it lands 2 m short of the man (1 m for a power lob - he meets it) and
   // really peaks at lobApex. The release and the charge arc's preview both use it, so the arc you see is the kick you get
-  loftLaunch(d, pow, quick) { return lobSolve(Math.max(4, d - (pow != null ? 1 : 2)), lobApex(d, pow), undefined, quick); },
+  loftLaunch(d, pow, quick, cross) { return lobSolve(Math.max(4, d - (pow != null ? 1 : 2)), lobApex(d, pow, cross), undefined, quick); },
   // t-005 (lob step 1): the power-lob charge arc follows the ball's real path (it was a fixed sine, 40-130 px high) -
   // the same launch the release will use, flown with ballStep. Returns the points in metres and where it comes down
   // (a chip: where it crosses the goal line). Cached, since it's asked every frame while you hold LOB.
@@ -1063,6 +1063,7 @@ hc2Mix(Match, {
         }
       }
       if (p.cool > 0 || p.stun > 0 || p.state === 'slide') { if (!(p.keeper && p.spSave && (b.special || b.saveable))) continue; }
+      if (b.crossBy && !b.xBlock && !p.keeper && p.team !== b.crossBy.team && (b.airT || 0) < 0.35) continue;   // (cross-goals: this cross got past the man on the crosser)
       if (b.lob && b.vz > 0 && b.z < 1.6 && p.team !== b.last) {                   // lob-mechanics: a lob leaving the boot - a presser could take it off his
         const sv = len(b.vx, b.vy) || 1, along = ((p.x - b.x) * b.vx + (p.y - b.y) * b.vy) / sv, lat = Math.abs(((p.x - b.x) * b.vy - (p.y - b.y) * b.vx) / sv);   // foot from
         if (!(along > 0.1 && lat < 0.45)) continue;                                // behind or the side (a third of the computer's lobs). Now only a man
