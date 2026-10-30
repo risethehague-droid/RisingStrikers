@@ -123,3 +123,9 @@ head SHA:
 Short, casual, direct, result first; always say where the work happens ([cloud], [your laptop], [PixelLab],
 [Aseprite], [claude.ai], [GitHub]). He's a beginner at game testing: plain words. He's asked to keep usage sensible:
 light checks for small changes, full checks before a merge.
+
+**Tell him the moment something happens** (Luca, 30 Oct: "did you automatically send a brief after I okd this PR?
+How was I supposed to know"). Whenever you merge, publish, or start or schedule an OK'd card (a worker session, a
+brief), post one line to Luca right away: what happened, and when the next step runs, in his time (Dutch time, not
+UTC). This holds during night runs too; it isn't an "interim check-in". The scheduled check does the same in its
+summary message.
