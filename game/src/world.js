@@ -4,7 +4,7 @@
 
 // t-042 the aerial battle's close-up (Match.camCloseTick): how tight (x the picked camera distance), how fast it eases
 // in / back out (1/s), and how far out the ball may sit before it pulls straight back (share of the close-up's half-view)
-const AERIAL_CAM = { on: true, zoom: 1.35, rateIn: 3.2, rateOut: 6, keep: 0.8 };
+const AERIAL_CAM = { on: true, zoom: 1.35, rateIn: 3.2, rateOut: 6, keep: 0.8, lift: 55, follow: 7 };   // (lift: px above their feet it centres on; follow: the camera's rate meanwhile, 1/s)
 
 // ------------------------------------------------------------------ world tiles that stream with the camera
 class Stadium {
@@ -261,12 +261,13 @@ hc2Mix(Match, {
       if (spc.kind === 'FREE KICK' || spc.kind === 'GOAL KICK') tx = clamp(tx, X - (VIEW_W / 2 - 150), X + (VIEW_W / 2 - 150));   // v0.8: the taker stays in shot (corners: the box matters more)
     }
     if (this.camTarget) { tx = this.camTarget.x; ty = this.camTarget.y; }      // v0.8.4 walk-out / half time
+    if (this.camCloseE && this.aerial) { const P = this.camCloseAim(); tx += (P.x - tx) * this.camCloseE; ty += (P.y - ty) * this.camCloseE; }   // (t-042: the close-up frames the pair)
     this.camCloseTick(dt, X, Y - b.z * PX_H);
     if (!window.__lab) {                                                        // camera-pov: hold the picked distance (a pause-menu change lands here)
       const z = camZoom() * this.camZoomK, ch = Math.abs(cam.zoom - z) > 1e-3; if (ch) cam.setZoom(z);   // (t-042: x the aerial close-up)
       if (ch || z !== 1) { this.uiFix = this.uiItems(); this.fixUi(z); }        // re-listed each frame: weather and a restarted scene make new screen items
     }
-    const k = 1 - Math.exp(-dt * (this.camFast ? 10 : this.camTarget ? 2.6 : 4.5));
+    const k = 1 - Math.exp(-dt * (this.camFast ? 10 : this.camCloseE ? AERIAL_CAM.follow : this.camTarget ? 2.6 : 4.5));   // (t-042: the close-up gets there inside the ~1.2 s battle)
     this.camX = (this.camX ?? tx) + (tx - (this.camX ?? tx)) * k; this.camY = (this.camY ?? ty) + (ty - (this.camY ?? ty)) * k;
     cam.centerOn(Math.round(this.camX), Math.round(this.camY));
     // cursor over the human player
@@ -291,6 +292,7 @@ hc2Mix(Match, {
   // as the header / clearance goes. Only the picture: no clock, no slow motion of its own, so it never holds play up.
   // And never the ball out of shot: a ball (or its height on screen) outside AERIAL_CAM.keep of the close-up's half-view
   // pulls straight back out. camZoomK: the factor the follow camera (and the Lab's zoom) multiply in.
+  camCloseAim() { const A = this.aerial; return { x: A.cam.x, y: wy(A.D.y) - AERIAL_CAM.lift }; },   // (heads to boots in shot: A.cam sits higher, for the whole box)
   camCloseTick(dt, bx, by) {
     const C = AERIAL_CAM, A = this.aerial, on = !!(C.on && A && A.kind !== 'ground' && !A.res && !this.replay);
     let k = this.camCloseE || 0;

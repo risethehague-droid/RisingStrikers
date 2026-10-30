@@ -3397,7 +3397,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       rnd(dt);
       const r = LAB.run;
       if (r && r.cam) {                                            // follow the player in the movement tests
-        const c = r.cam(), tx = wx(c.x, c.y) + (c.sx || 0), ty = wy(c.y) - 70;
+        const c = r.cam(), E = m.aerial && m.camCloseE || 0;                 // (t-042: the aerial close-up frames the pair, as in a match)
+        let tx = wx(c.x, c.y) + (c.sx || 0), ty = wy(c.y) - 70; if (E) { const P = m.camCloseAim(); tx += (P.x - tx) * E; ty += (P.y - ty) * E; }
         LAB.cx = LAB.cx == null ? tx : LAB.cx + (tx - LAB.cx) * 0.12; LAB.cy = LAB.cy == null ? ty : LAB.cy + (ty - LAB.cy) * 0.12;
         m.cameras.main.centerOn(Math.round(LAB.cx), Math.round(LAB.cy));
       }
