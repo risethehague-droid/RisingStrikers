@@ -7,6 +7,12 @@
 const KICK_CAP = { first: 250, step: 100, margin: 0.35 };
 // t-031 / t-042 the catch's soft hands: the ball eases from where it was into his gloves over this long (s)
 const GK_CATCH_EASE = 0.1;
+// t-045 THE NO-BARS CATCH (card design-q-keeper, Luca's pick 30 Oct: "rarely (~1 in 8)"): a keeper with no special save
+// up can still stop a special shot that beats him - about 1 in 8, only when he was SET as it was struck (on his line,
+// square, still, not stunned) and his guard holds. Inazuma Eleven's keeper without a hissatsu, Mario Strikers' keeper v a
+// Megastrike: rare, and a desperate parry, never a clean catch. A special stays exciting but never certain.
+const NOBAR_SAVE = 0.125;
+const NOBAR_SET = { depth: 6, wide: 4.66, still: 4 };   // set = within the six-yard box's depth (m) of his line, inside the posts + 1 m, moving under this (m/s)
 
 // ------------------------------------------------------------------ ball physics (shared by the game and by the pass maths)
 // In the air: gravity + quadratic drag. Bounce: loses ~45% height and ~20% pace. On the grass: a struck ball
@@ -401,6 +407,7 @@ hc2Mix(Match, {
       }
       const pen = this.penShot();
       this.planSave(k.p.team.opp.players[0]); if (!k.info.special) this.shotSaveCall(k.p.team.opp, k.p.team, pen);   // v0.9.0
+      b.noBar = k.info.special ? this.gkNoBarRead(k.p.team.opp.players[0]) : null;   // t-045: was he set as it was struck?
     }
   },
   // t-035: a penalty is not a shot in the match stats (as before), nor on target
@@ -1082,7 +1089,7 @@ hc2Mix(Match, {
       }
       if (b.save && b.save.gk === p) {                                           // a shot at this keeper: his body and gloves decide
         const hit = this.keeperTouch(p, pbx);
-        if (!hit) continue;                                                       // not at him yet - or it beat him
+        if (!hit) { if (this.gkNoBar(p, pbx)) return; continue; }                // not at him yet - or it beat him (t-045: a special, rarely, doesn't)
         // v0.8 KEEPER GUARD: power shots (held K) and specials wear him down; one that hits harder than what he has left goes through
         const dmg = b.special ? (GUARD_SP[b.special] || 0.5) * clamp((b.spP || SP_POWER[b.special - 1]) / SP_POWER[b.special - 1], 0.3, 1) : (b.power > 0.72 ? GUARD_POWER : 0);   // v0.8.6: a weakened special hits him less
         if (dmg) {
@@ -1158,6 +1165,40 @@ hc2Mix(Match, {
     b.z = Math.max(b.z, 0.3); b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.lob = false; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
     if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }          // (t-002 prototype; t-011 the curving pass)
     b.camUp = how !== 'parry' || b.vz > 3;                                       // t-007: the camera follows it up and out (world.js)
+  },
+  // t-045: the keeper as a special is struck - set (on his line, inside the posts, still, not knocked down or getting up) or
+  // caught out. Read once here, at the strike, like a real keeper who is set before the shot or isn't.
+  gkNoBarRead(gk) {
+    if (!gk || gk.sentOff || gk.spSave || gk.hands) return null;
+    // (not his stun: the special's wind-up stops everyone on his side to watch it - specials.js - a knock-down shows in
+    // his state and his cool instead)
+    const S = NOBAR_SET, set = gk.cool <= 0 && !/^(dive|slide|fall|blasted|getup)$/.test(gk.state)
+      && Math.abs(gk.x - gk.team.ownGoalX) <= S.depth && Math.abs(gk.y - 34) <= S.wide && len(gk.vx, gk.vy) < S.still;
+    return { gk, set, done: false };
+  },
+  // t-045 THE NO-BARS CATCH: a special has just beaten a keeper with no special save up (his body and gloves missed it).
+  // One roll per shot, as it passes him: set, his guard holding (the hit that would break it doesn't count) and the shot
+  // on target (gkSpOnTarget, as the special save's) - then NOBAR_SAVE of the time he gets across and parries it. No SP,
+  // no cut-in, no aura: a strained stretch that pushes it out (over, round the post or a spill back into play), and it
+  // knocks him down. The crowd's "ooh" and Rami's save line.
+  gkNoBar(p, pbx) {
+    const b = this.ball, N = b.noBar;
+    if (!N || N.done || N.gk !== p || p.spSave || !b.special || !b.spTeam || b.spTeam === p.team) return false;
+    if (!((pbx - p.x) * (b.x - p.x) <= 0)) return false;                         // (not level with him yet)
+    N.done = true;
+    const dmg = (GUARD_SP[b.special] || 0.5) * clamp((b.spP || SP_POWER[b.special - 1]) / SP_POWER[b.special - 1], 0.3, 1);
+    if (!N.set || p.stun > 0 || p.cool > 0 || dmg > (p.guard ?? 1) + 1e-6 || !this.gkSpOnTarget(p, b)) return false;
+    if (Math.random() >= NOBAR_SAVE) return false;
+    const lv = b.special, how = b.z > 1.3 ? 'tip' : Math.random() < 0.5 ? 'wide' : 'parry';
+    p.y = this.gkMeetY(b.y, b.y - Math.sign(b.y - p.y || 1) * 0.5, 29.6, 38.4); p.vx = p.vy = 0;   // (at full stretch: his fingertips, not his chest)
+    p.guard = Math.max(0, (p.guard ?? 1) - dmg); p.guardT = 0;
+    this.gkDeflect(p, how); b.special = 0; b.spP = 0; b.noBar = null;
+    if (lv >= 2 && MAN.kits[p.kit].anims['blasted-E']) { p.setState('blasted', 1.0); p.stun = 1.0; p.face = p.team.side > 0 ? 0 : 4; }   // (it still knocks him flat)
+    else if (p.state !== 'dive') this.gkSaveAnim(p);
+    this.gkCount(p.team, 'parried'); this.noBarLast = { lv, how }; this.noBarN = (this.noBarN || 0) + 1;
+    this.say('WHAT A SAVE!', how === 'tip' ? 'NO SPECIAL - HE TIPS IT OVER!' : how === 'wide' ? 'NO SPECIAL - ROUND THE POST!' : 'NO SPECIAL - HE PUSHES IT OUT!', 1.4);
+    SFX.ooh(); this.ramiSay('save', {}, 3); this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p);
+    return true;
   },
   // t-007: the keeper's frames for a save he makes on the spot (a special he gets a hand to): a dive if he's flying already
   gkSaveAnim(p) { if (p.state === 'dive') return; const K = MAN.kits[p.kit].anims; if (K['punch-S']) p.setState('punch', 0.45); },
