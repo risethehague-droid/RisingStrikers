@@ -1,1 +1,292 @@
-{}
+{
+ "air-bike": {
+  "at": 0,
+  "gif": "/_blob/f7d4a5c09d64525feb03647964ecbd41",
+  "ver": ""
+ },
+ "air-chest": {
+  "at": 0,
+  "gif": "/_blob/3783b8c0e4d34e6d6a900b5e2342f778",
+  "ver": ""
+ },
+ "air-dive": {
+  "at": 0,
+  "gif": "/_blob/8e0e69d2206caee32a0a68f86aa17b02",
+  "ver": ""
+ },
+ "air-head": {
+  "at": 0,
+  "gif": "/_blob/64dc9ae32381eb3ea074173a93a20bc2",
+  "ver": ""
+ },
+ "air-sp1": {
+  "at": 0,
+  "gif": "/_blob/d6ddf4d5a333d33e06ec0db99386d879",
+  "ver": ""
+ },
+ "air-sp2": {
+  "at": 0,
+  "gif": "/_blob/5aaace1ea6d4eab7abc2cbaa8315f0f5",
+  "ver": ""
+ },
+ "air-sp3": {
+  "at": 0,
+  "gif": "/_blob/b44031ec469e9b3e6dcb4a93b433054e",
+  "ver": ""
+ },
+ "air-volley": {
+  "at": 0,
+  "gif": "/_blob/70317cddcaf6978f542d6ad645f3efc4",
+  "ver": ""
+ },
+ "banana": {
+  "at": 0,
+  "gif": "/_blob/16a8eab40235e4604441067b0e8c1a6c",
+  "ver": ""
+ },
+ "battle-h": {
+  "at": 0,
+  "gif": "/_blob/fd22121f0e1ee9198a9c36e44ebfa927",
+  "ver": ""
+ },
+ "battle-v": {
+  "at": 0,
+  "gif": "/_blob/10801c64caf5e5e08dca8b48e373d482",
+  "ver": ""
+ },
+ "chhead": {
+  "at": 0,
+  "gif": "/_blob/1d03a7d5ac380618adfea3d45a27ae26",
+  "ver": ""
+ },
+ "chip": {
+  "at": 0,
+  "gif": "/_blob/79a66a90016fd2c37e8a46930f37a446",
+  "ver": ""
+ },
+ "chvol": {
+  "at": 0,
+  "gif": "/_blob/2fb69867bfdc7b620a339fc012f26662",
+  "ver": ""
+ },
+ "cross": {
+  "at": 0,
+  "gif": "/_blob/3a1402c09e8c794777dfb00d2476be1f",
+  "ver": ""
+ },
+ "curler": {
+  "at": 0,
+  "gif": "/_blob/db28668f81db7d5c45419575ba07c266",
+  "ver": ""
+ },
+ "def-jockey": {
+  "at": 0,
+  "gif": "/_blob/6219728db5e26e085657fd074ec2db53",
+  "ver": ""
+ },
+ "def-slide": {
+  "at": 0,
+  "gif": "/_blob/4f21ebecab70624362a3c71ce4984a36",
+  "ver": ""
+ },
+ "def-stand": {
+  "at": 0,
+  "gif": "/_blob/f57fce42ebdc9b4701928c0c5842b6d8",
+  "ver": ""
+ },
+ "feet": {
+  "at": 0,
+  "gif": "/_blob/264aa18eab65cc2dd0186e49ae088d4a",
+  "ver": ""
+ },
+ "gk-cl1": {
+  "at": 0,
+  "gif": "/_blob/e1ef9ace38d1196ebfcb1beb91142b97",
+  "ver": ""
+ },
+ "gk-cl2": {
+  "at": 0,
+  "gif": "/_blob/65150bea53604a4c3b0446de50d0f7e8",
+  "ver": ""
+ },
+ "gk-cl3": {
+  "at": 0,
+  "gif": "/_blob/408f5f5552ec6ff5af76deb89b24c353",
+  "ver": ""
+ },
+ "gk-high": {
+  "at": 0,
+  "gif": "/_blob/2e5f98c88fe8c6465ec79d9f1b100268",
+  "ver": ""
+ },
+ "gk-leap": {
+  "at": 0,
+  "gif": "/_blob/5ce7ea3f47fa279e6195a6f486dc6856",
+  "ver": ""
+ },
+ "gk-lowl": {
+  "at": 0,
+  "gif": "/_blob/4954758741a5601ee35e4d23699f7d3e",
+  "ver": ""
+ },
+ "gk-lowr": {
+  "at": 0,
+  "gif": "/_blob/e7b7f558090ff5710ea82a81ea84b94a",
+  "ver": ""
+ },
+ "gk-parry": {
+  "at": 0,
+  "gif": "/_blob/5845a6b60f49e5ccc490ae9d0859da01",
+  "ver": ""
+ },
+ "gk-punch": {
+  "at": 0,
+  "gif": "/_blob/9eb6f82f2d5d47f8e4c465f1ea194d35",
+  "ver": ""
+ },
+ "gk-punt": {
+  "at": 0,
+  "gif": "/_blob/0e551229b91a7214e5f382f30ada979b",
+  "ver": ""
+ },
+ "gk-roll": {
+  "at": 0,
+  "gif": "/_blob/4b3393147509b9ee44c1df6d0da44576",
+  "ver": ""
+ },
+ "gk-smother": {
+  "at": 0,
+  "gif": "/_blob/4ba287e7aada09383760089f23c0d20f",
+  "ver": ""
+ },
+ "gk-sv1": {
+  "at": 0,
+  "gif": "/_blob/f2f7bf8657e3c24ddbe8ca3e61b79eac",
+  "ver": ""
+ },
+ "gk-sv2": {
+  "at": 0,
+  "gif": "/_blob/416ebb385882f54ff4b9dbd01f5dc6a9",
+  "ver": ""
+ },
+ "gk-sv3": {
+  "at": 0,
+  "gif": "/_blob/8e11e60dc7678d48dd53bfc798367bd7",
+  "ver": ""
+ },
+ "gk-throw": {
+  "at": 0,
+  "gif": "/_blob/9a0c1e4b4cf1be9c61081715c947bf77",
+  "ver": ""
+ },
+ "gk-tip": {
+  "at": 0,
+  "gif": "/_blob/658dc9d012bfdbec4403f29891553b6e",
+  "ver": ""
+ },
+ "gk-walk": {
+  "at": 0,
+  "gif": "/_blob/f4253df4656ea661bab6433e05536c43",
+  "ver": ""
+ },
+ "head": {
+  "at": 0,
+  "gif": "/_blob/4bb48b0e6c366c47b03ead2f083aa1e1",
+  "ver": ""
+ },
+ "lob": {
+  "at": 0,
+  "gif": "/_blob/1338d18d5ee2db41532dee7bbb85dcf5",
+  "ver": ""
+ },
+ "outcurl": {
+  "at": 0,
+  "gif": "/_blob/d78a2f834f2cfc9215523c36796edf97",
+  "ver": ""
+ },
+ "pass": {
+  "at": 0,
+  "gif": "/_blob/7d9ce8630936115a1882d5c4675767aa",
+  "ver": ""
+ },
+ "plob100": {
+  "at": 0,
+  "gif": "/_blob/cabbba36a6baffef89b7879111b27e40",
+  "ver": ""
+ },
+ "plob30": {
+  "at": 0,
+  "gif": "/_blob/a1be615352ebb702dbe41e7e8e730cf1",
+  "ver": ""
+ },
+ "plob60": {
+  "at": 0,
+  "gif": "/_blob/576dc1d2678e21e1e8462a2aea56733c",
+  "ver": ""
+ },
+ "power": {
+  "at": 0,
+  "gif": "/_blob/9bb5b2f053b807ae224c4f8d3bf5ecab",
+  "ver": ""
+ },
+ "set-corner": {
+  "at": 0,
+  "gif": "/_blob/c7435e8195fa464af67211f59c88a038",
+  "ver": ""
+ },
+ "set-fk": {
+  "at": 0,
+  "gif": "/_blob/7a1f57d4f136da6fcafc877c27fb219f",
+  "ver": ""
+ },
+ "set-off": {
+  "at": 0,
+  "gif": "/_blob/c2f9c9f8f0d4be85530babf17b7a0533",
+  "ver": ""
+ },
+ "set-throw": {
+  "at": 0,
+  "gif": "/_blob/a7d4f1a15667595fcfc2e582c07c3829",
+  "ver": ""
+ },
+ "shot": {
+  "at": 0,
+  "gif": "/_blob/a6c94ca678c4f65def4da63a1e960435",
+  "ver": ""
+ },
+ "slide": {
+  "at": 0,
+  "gif": "/_blob/3518a41f126ef4ab9f89937263e42ba4",
+  "ver": ""
+ },
+ "sp1": {
+  "at": 0,
+  "gif": "/_blob/0cc4d5b53edba742f87a70fb26cfd9b5",
+  "ver": ""
+ },
+ "sp2": {
+  "at": 0,
+  "gif": "/_blob/47645e995f1d82f1a3164c85316cfb00",
+  "ver": ""
+ },
+ "sp3": {
+  "at": 0,
+  "gif": "/_blob/afdd2da244985a17f2236845c42c9381",
+  "ver": ""
+ },
+ "tap": {
+  "at": 0,
+  "gif": "/_blob/474ed5f945df1df95d514076efe894f0",
+  "ver": ""
+ },
+ "through": {
+  "at": 0,
+  "gif": "/_blob/c383fffacb568f9e097cd8f62c2010f1",
+  "ver": ""
+ },
+ "waist": {
+  "at": 0,
+  "gif": "/_blob/4454eca56d87a46d7cbfc526da2998f6",
+  "ver": ""
+ }
+}
