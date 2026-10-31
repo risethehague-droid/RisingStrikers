@@ -6,11 +6,12 @@
 //   RAINBOW FLICK: he rolls the ball up the back of his leg and flicks it over his own head and over the man in front;
 //                  it arcs down behind him trailing a band of rainbow colours, and he runs round the man onto it.
 //   SHADOW STEP:   he sinks into his own shadow - a dark double of him is left standing, and the man in front lunges at
-//                  that - glides past him as a dark blur with the ball, and steps back out of the shadow behind him.
+//                  that - glides round him as a dark blur in a faded purple haze, and steps out of the shadow right
+//                  behind his back (Luca's HQ note, 31 Oct: "more like he ends up behind the guy", darker, faded purple).
 // How you play them: the special dribble button (N / O, pad LT; arcadesp.js), one bar of SP. Which one is picked BY
 // POSITION (Luca, for the keeper's saves the same night: "the selection is automatic ... based on location
 // parameters"): a man square in front of you, close = the RAINBOW FLICK over him; a man at an angle, two men near, or
-// nobody = the SHADOW STEP (to the side your stick points, else the side with more room). On ARCADE with SKILL_DRIB off
+// nobody = the SHADOW STEP (to the side your stick points, else the side with more room). On ARCADE with SKILL_DRIB off (or nobody to beat)
 // the button is the co-designer's special dribble, untouched.
 // The base rig: no new art. The flick's wind-up is the PixelLab chip (batch 15) played as a quick stab under it; the run
 // is his own run / sprint; the trail is Phaser graphics lines in the ball's screen path; the shadow is his own PixelLab
@@ -21,7 +22,9 @@
 // same name; the shadow step is a body feint pushed to fantasy, like Inazuma Eleven's illusion and shadow dribbles where
 // the defender tackles an after-image. In real football a skill only works against a man who commits, so both only beat
 // the man squaring up to you, and only for a moment; the ball is yours again at the end, with nothing to spare.
-let SKILL_DRIB = false;                // Test Lab only (lab.js turns it on; FREE PLAY has its own switch)
+let SKILL_DRIB = window.HC2_CHANNEL === 'experimental';   // the Test Lab (lab.js turns it on; FREE PLAY has its own switch)
+                                       // and the EXPERIMENTAL game (channel.js, Luca 31 Oct: every new change goes live there
+                                       // first); the MAIN game only after Luca's OK
 const SKD = {
   bars: 1,                             // what one costs (the special dribble costs 1; 0 would make them plain skill moves)
   look: 6.5,                           // the man in front: within this many m, in a cone ahead of him
@@ -34,10 +37,12 @@ const SKD = {
                                        // it lands `past` m beyond the man (between min / max m from where it started);
                                        // round: m he swings out round the man; stun: s the man stands watching it go over;
                                        // fall: within this many m of the man's feet he's turned and falls; col: the bands, red .. violet
-  shadow: { sink: 0.12, glide: 0.32, rise: 0.1, side: 2.2, past: 1.8, stun: 0.95, lunge: 4.5, dark: 0x1c1030, glow: 0x9a6bff },
-                                       // sink / glide / rise: s; side: m he slips out sideways; past: m beyond the man he comes
-                                       // out; stun: s the man is fooled; lunge: m/s he dives in at the shadow double;
-                                       // dark: his silhouette; glow: the violet of the puffs and the rim
+  shadow: { sink: 0.12, glide: 0.34, rise: 0.1, side: 2.0, behind: 1.3, stun: 1.1, lunge: 4.5, dark: 0x0a0412, glow: 0x9a6bff, haze: 0xb48cff },
+                                       // sink / glide / rise: s; side: m out to the side as he goes round the man; behind: he
+                                       // comes out this many m straight behind the man's back (Luca's HQ note, 31 Oct: "more
+                                       // like he ends up behind the guy"); stun: s the man is fooled; lunge: m/s he dives in at
+                                       // the double; dark: his silhouette (near black: "make the shadow darker"); glow / haze:
+                                       // the violet of the burst and the faded purple round him ("add some faded purple")
 };
 const SKD_NAMES = { rainbow: 'RAINBOW FLICK!', shadow: 'SHADOW STEP!' };
 const SKD_RAMI = { rainbow: ['RAINBOW FLICK!!\nOVER HIS HEAD!', 'A RAINBOW!\nHE\'S HAD HIM THERE!'], shadow: ['SHADOW STEP!\nHE TACKLED A SHADOW!', 'WHERE DID HE GO?!\nA SHADOW STEP!'] };
@@ -60,7 +65,7 @@ hc2Mix(Match, {
   // which one, by position (the button's AUTO pick): returns 'rainbow' or 'shadow'
   skdPick(p, dir) {
     const f = this.skdDir(p, dir), o = this.skdFront(p, f.x, f.y);
-    if (!o) return 'shadow';
+    if (!o) return this.aspOn && this.aspOn() ? null : 'shadow';                // (nobody to beat on ARCADE: the team's own special dribble)
     const dx = o.x - p.x, dy = o.y - p.y, d = len(dx, dy) || 1, ang = Math.acos(clamp((dx * f.x + dy * f.y) / d, -1, 1)) * 180 / Math.PI;
     const crowd = p.team.opp.players.filter(q => q !== o && !q.sentOff && !q.keeper && len(q.x - p.x, q.y - p.y) < SKD.pick.crowd).length;
     return ang < SKD.pick.headOn && d < SKD.pick.close && !crowd ? 'rainbow' : 'shadow';
@@ -72,7 +77,7 @@ hc2Mix(Match, {
   // kind: 'rainbow' / 'shadow' / null (= pick by position); dir: your stick (null: the computer's / the Lab's own way)
   skillDrib(p, kind, dir) {
     if (!this.skdCan(p)) return false;
-    kind = kind || this.skdPick(p, dir);
+    kind = kind || this.skdPick(p, dir); if (!kind) return false;
     const f = this.skdDir(p, dir), o = this.skdFront(p, f.x, f.y);
     const mt = this.meterOf(p.team); mt.e -= SKD.bars; mt.flash = 0.3; if (mt.level() < 3) mt.risen = false;   // (back under 3 bars: RISE UP may come again)
     const s = p.skd = { kind, t: 0, x0: p.x, y0: p.y, fx: f.x, fy: f.y, o, gAt: 0, hist: [], done: false };
@@ -87,9 +92,7 @@ hc2Mix(Match, {
       if (MAN.kits[p.kit].anims[`chip-${DIRS[p.face]}`] || MAN.kits[p.kit].anims['chip-E']) { p.kickAnim = 'chip'; p.setState('kick', R.flick + 0.02); }
       SFX.flick();
     } else {
-      const S = SKD.shadow, od = o ? Math.max(1.2, (o.x - p.x) * f.x + (o.y - p.y) * f.y) : 2.4;
-      s.c = { x: p.x + f.x * od * 0.35 + -f.y * s.side * S.side, y: p.y + f.y * od * 0.35 + f.x * s.side * S.side };   // out to the side...
-      s.e = { x: clamp(p.x + f.x * (od + S.past) + -f.y * s.side * S.side * 0.45, 1, PITCH_L - 1), y: clamp(p.y + f.y * (od + S.past) + f.x * s.side * S.side * 0.45, 1, PITCH_W - 1) };   // ...and out behind him
+      const S = SKD.shadow; this.skdShadowAim(p, s);
       p.face = dirIndex(f.x, f.y); p.setState('sdribble', S.sink + S.glide + S.rise + 0.02);   // (the co-designer's spin frames while he's dark; his sprint without them)
       this.skdDouble(p, s);
       if (o) { const dx = p.x - o.x, dy = p.y - o.y, d = len(dx, dy) || 1; o.vx = dx / d * S.lunge; o.vy = dy / d * S.lunge; o.face = dirIndex(dx, dy); }   // he dives in at the double
@@ -146,9 +149,18 @@ hc2Mix(Match, {
       this.skdEnd(p, true);
     }
   },
+  // where the glide goes: round the man's side (c) and out right behind his back (e). Aimed at where he is NOW, every
+  // step, so his lunge at the double can't leave you beside him instead of behind him
+  skdShadowAim(p, s) {
+    const S = SKD.shadow, o = s.o && !s.o.sentOff ? s.o : null, f = { x: s.fx, y: s.fy }, n = { x: -f.y * s.side, y: f.x * s.side };
+    const ox = o ? o.x : s.x0 + f.x * 2.4, oy = o ? o.y : s.y0 + f.y * 2.4;
+    s.c = { x: ox - f.x * 0.4 + n.x * S.side, y: oy - f.y * 0.4 + n.y * S.side };
+    s.e = { x: clamp(ox + f.x * S.behind, 1, PITCH_L - 1), y: clamp(oy + f.y * S.behind, 1, PITCH_W - 1) };
+  },
   skdShadow(p, s, dt) {
     const S = SKD.shadow, b = this.ball, o = s.o, T1 = S.sink, T2 = S.sink + S.glide, T3 = T2 + S.rise;
     let nx = s.x0, ny = s.y0;
+    if (s.t < T2) this.skdShadowAim(p, s);
     if (s.t >= T1) {                                                              // the glide: out to the side and round, behind the man
       const u = clamp((s.t - T1) / S.glide, 0, 1), e = u * u * (3 - 2 * u), a = 1 - e;
       nx = a * a * s.x0 + 2 * a * e * s.c.x + e * e * s.e.x; ny = a * a * s.y0 + 2 * a * e * s.c.y + e * e * s.e.y;
@@ -164,7 +176,7 @@ hc2Mix(Match, {
       s.out = true; SFX.boom(0.5); this.cameras.main.shake(110, 0.004);
       if (this.textures.exists('fx')) { this.rigPop('impact', wx(p.x, p.y), wy(p.y) - 40, wy(p.y) + 1, { s: [0.5, 1.3], ms: 260, tint: S.glow });
         this.rigPop('ring', wx(p.x, p.y), wy(p.y) - 4, wy(p.y) - 0.5, { s: [0.4, 1.6], ms: 380, tint: S.glow, ky: 0.4 }); }
-      if (o && !o.sentOff && len(o.x - s.x0, o.y - s.y0) < 1.6 && o.state !== 'fall') o.setState('hit', 0.5);   // (he dived in at the double: he stumbles)
+      if (o && !o.sentOff && o.state !== 'fall') { if (len(o.x - s.x0, o.y - s.y0) < 1.6) o.setState('hit', 0.5); o.face = dirIndex(s.x0 - o.x, s.y0 - o.y); }   // (he dived in at the double: he stumbles, still facing the wrong way)
     }
     if (s.t >= T3) {
       p.vx = s.fx * RUN * 1.15; p.vy = s.fy * RUN * 1.15;                       // straight into his run, at pace
@@ -176,7 +188,7 @@ hc2Mix(Match, {
     p.skd = null;
     if (kept) { if (p.state !== 'run') p.setState('run', 0); p.sprinting = true; p.burst = 0.45; p.touchT = 0; }
     if (p.spr) { p.spr.setAlpha(1); if (p.spr.isTinted) p.spr.clearTint(); }
-    if (s.dbl) { const d = s.dbl; s.dbl = null; this.tweens.add({ targets: d, alpha: 0, y: d.y - 18, duration: 240, onComplete: () => d.destroy() }); }
+    for (const k of ['dbl', 'rim']) if (s[k]) { const d = s[k]; s[k] = null; this.tweens.add({ targets: d, alpha: 0, y: d.y - 18, duration: 240, onComplete: () => d.destroy() }); }
     const L = this.skdLast; if (L && L.by === p && L.kept == null) { L.kept = kept && this.ball.owner === p; L.t1 = this.time.now;
       L.past = L.o ? ((p.x - L.o.x) * s.fx + (p.y - L.o.y) * s.fy) : null; L.dist = len(p.x - s.x0, p.y - s.y0); }
     s.fade = 0.35; this.skdFade = s;                                              // (the rainbow fades out over a moment, not at once)
@@ -185,12 +197,13 @@ hc2Mix(Match, {
   skdDouble(p, s) {
     if (this.replay || !p.spr) return;
     const sp = p.spr;
-    s.dbl = this.add.image(sp.x, sp.y, sp.texture.key, sp.frame.name).setOrigin(sp.originX, sp.originY).setScale(sp.scaleX, sp.scaleY).setDepth(sp.depth - 0.2).setTintFill(SKD.shadow.dark).setAlpha(0.85);
+    s.dbl = this.add.image(sp.x, sp.y, sp.texture.key, sp.frame.name).setOrigin(sp.originX, sp.originY).setScale(sp.scaleX, sp.scaleY).setDepth(sp.depth - 0.2).setTintFill(SKD.shadow.dark).setAlpha(0.95);
+    s.rim = this.add.image(sp.x, sp.y + 2, sp.texture.key, sp.frame.name).setOrigin(sp.originX, sp.originY).setScale(sp.scaleX * 1.08, sp.scaleY * 1.05).setDepth(sp.depth - 0.25).setTintFill(SKD.shadow.haze).setAlpha(0.35);   // (a faded purple rim round it)
   },
   // every frame (from specials.js curveTick, after the ball and the men are drawn): what each one shows while it runs
   skdTick(dt) {
     const g = this.skdG || (this.skdG = this.add.graphics());
-    g.clear();
+    g.clear(); if (this.skdHaze) this.skdHaze.clear();
     if (this.replay) return;
     for (const p of this.all) {
       const s = p.skd; if (!s || !p.spr) continue;
@@ -222,18 +235,25 @@ hc2Mix(Match, {
   skdShadowLook(p, s, dt) {
     const S = SKD.shadow, T1 = S.sink, T2 = S.sink + S.glide, sp = p.spr;
     const dark = s.t < T1 ? s.t / T1 : s.t < T2 ? 1 : Math.max(0, 1 - (s.t - T2) / S.rise);
-    sp.setTintFill(S.dark).setAlpha(1 - 0.4 * dark);
+    sp.setTintFill(S.dark).setAlpha(1 - 0.12 * dark);
     if (dark < 0.15) { sp.clearTint(); sp.setAlpha(1); }
+    if (dark > 0.05) {                                                            // the faded purple: a soft haze round him and a dark pool at his feet
+      const h = this.skdHaze || (this.skdHaze = this.add.graphics()), X = sp.x, Y = sp.y, fl = 0.85 + Math.sin(s.t * 40) * 0.15;
+      h.setDepth(sp.depth - 0.35);
+      h.fillStyle(0x05020a, 0.5 * dark); h.fillEllipse(X, Y + 2, 56, 16);
+      for (const [w, hh, a] of [[84, 156, 0.14], [64, 132, 0.2], [44, 110, 0.26]]) { h.fillStyle(S.haze, a * dark * fl); h.fillEllipse(X, Y - 48, w, hh); }
+    }
     if (this.ballSpr) this.ballSpr.setTint(dark > 0.5 ? 0x7a60b0 : 0xffffff);
     if (s.t >= T1 && s.t < T2 && this.time.now - s.gAt > 30) {                    // the blur: violet after-images and a wisp of smoke
       s.gAt = this.time.now;
-      const im = this.add.image(sp.x, sp.y, sp.texture.key, sp.frame.name).setOrigin(sp.originX, sp.originY).setScale(sp.scaleX, sp.scaleY).setDepth(sp.depth - 0.3).setTintFill(Math.random() < 0.5 ? S.glow : 0x3a1d6e).setAlpha(0.5);
-      this.tweens.add({ targets: im, alpha: 0, duration: 200, onComplete: () => im.destroy() });
-      if (this.textures.exists('fx')) this.rigPop('dust', sp.x + rnd(-6, 6), sp.y - rnd(4, 20), sp.depth - 0.25, { s: [0.35, 0.8], ms: 360, dy: -10, tint: 0x2a1a48, a: 0.8 });
+      const im = this.add.image(sp.x, sp.y, sp.texture.key, sp.frame.name).setOrigin(sp.originX, sp.originY).setScale(sp.scaleX, sp.scaleY).setDepth(sp.depth - 0.3).setTintFill(Math.random() < 0.6 ? S.haze : 0x3a1d6e).setAlpha(0.5);
+      this.tweens.add({ targets: im, alpha: 0, duration: 260, onComplete: () => im.destroy() });
+      if (this.textures.exists('fx')) this.rigPop('dust', sp.x + rnd(-6, 6), sp.y - rnd(4, 20), sp.depth - 0.25, { s: [0.35, 0.9], ms: 420, dy: -12, tint: Math.random() < 0.5 ? 0x7a52b8 : 0x1a0e2c, a: 0.6 });
     }
     if (s.dbl) { const d = s.dbl;                                                 // the double: held a beat, then it dissolves upwards
       if (s.t > T2 - 0.05) d.setAlpha(Math.max(0, d.alpha - dt * 3)).setY(d.y - dt * 20);
-      if (this.textures.exists('fx') && Math.random() < 0.3) this.rigPop('dust', d.x + rnd(-8, 8), d.y - rnd(10, 40), d.depth + 0.05, { s: [0.3, 0.6], ms: 300, dy: -12, tint: 0x2a1a48, a: 0.6 }); }
+      if (s.rim) s.rim.setAlpha(Math.min(s.rim.alpha, d.alpha * 0.37)).setY(d.y + 2);
+      if (this.textures.exists('fx') && Math.random() < 0.3) this.rigPop('dust', d.x + rnd(-8, 8), d.y - rnd(10, 40), d.depth + 0.05, { s: [0.3, 0.6], ms: 300, dy: -12, tint: 0x7a52b8, a: 0.45 }); }
   },
 });
 {
@@ -248,7 +268,7 @@ hc2Mix(Match, {
     if (h && h.skd) return;
     if (SKILL_DRIB && h && this.inp.pressed('sdribble') && this.ball.owner === h) {
       if (this.skillDrib(h, null, this.inp.axis)) return;
-      if (this.meterOf(h.team).level() < SKD.bars) { this.say('', 'SP METER EMPTY', 0.6); return; }
+      if (this.meterOf(h.team).level() < SKD.bars) { this.say('', 'SP METER EMPTY', 0.6); return; }   // (otherwise: on to the ARCADE special dribble)
     }
     return human0.call(this, dt, ...a);
   };
