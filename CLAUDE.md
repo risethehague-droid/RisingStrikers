@@ -13,6 +13,16 @@ These rules apply to every session on this repo, on either account. If you're on
   - Never push to `main`.
   - Never merge.
   - Never publish to the official pages (the game, the Test Lab).
+- **Two versions of the game: MAIN and EXPERIMENTAL** (Luca, 31 Oct: "implement all new changes on a new version you can
+  select in game called experimental, and create the card for me to ok implementation ONLY for the main game version;
+  experimental is updated live each time something new is added"). The start screen's ⇄ button switches between them.
+  - **Experimental** = branch `experimental` = main + every open PR's work, published live as soon as it's built, no
+    HQ card: https://claude.ai/artifact/CjKrd5vBnAt8E6HRma29mZ (public link: `/experimental/`). Only the taskmaster (or
+    a thread it tells to) runs `bash tools/experimental.sh add <branch>` → `build` → publish, then posts Luca one line.
+  - **Main** = the official game. A PR still goes to *Needs OK*; Luca's OK on its HQ card promotes it into main. PRs are
+    merged into main on their own: never merge `experimental` into main.
+  - `game/channel.js` says which version a build is; on the `experimental` branch it stays `'experimental'`.
+  - Left out of experimental until Luca says so: LAN (t-044, needs his two-PC retest) and duplicates (PR #80).
 - **HC2 HQ is the exception** (Luca's OK, PR #39): the co-designer may publish HQ's page directly from his own
   account (his main session, or worker-f when he asks it to). The rules:
   - **HQ's page only:** its layout, sections and menus. Never the game or the Test Lab, and never HQ's card data by

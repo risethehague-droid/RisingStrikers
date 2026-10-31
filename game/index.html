@@ -318,7 +318,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     // game (only Luca-OK'd work); EXPERIMENTAL gets every new change as soon as it's built (may be buggy). channel.js says
     // which one this page is. On the public link both live side by side (/ and /experimental/), so it switches in place;
     // on claude.ai they are two pages, so it opens the other one in a new tab. Hidden on PR previews and when served locally.
-    const VER_URL = { main: 'https://claude.ai/artifact/AD1rvV13DR3nvQPzfsRojf', experimental: '' };
+    const VER_URL = { main: 'https://claude.ai/artifact/AD1rvV13DR3nvQPzfsRojf', experimental: 'https://claude.ai/artifact/CjKrd5vBnAt8E6HRma29mZ' };
     (() => {
       const ch = window.HC2_CHANNEL === 'experimental' ? 'experimental' : 'main', other = ch === 'main' ? 'experimental' : 'main';
       const vb = document.getElementById('verbtn'), vn = document.getElementById('vernote');
