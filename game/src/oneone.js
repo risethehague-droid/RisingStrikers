@@ -22,13 +22,16 @@
 
 const ONE_V_ONE = {
   on: false,          // the Lab's FREE PLAY buttons set it; nothing in a match does yet
-  far: [22, 0.85],    // [m from the keeper, game speed]: the slow-down starts gently...
-  close: [6, 0.55],   // ...and deepens as he closes in
+  far: [11, 0.9],     // [m from the keeper, game speed]: the slow-down starts gently... (v3, Luca 31 Oct 02:15: "start much closer to the goalie"; v2 was 22 m)
+  close: [3.5, 0.55], // ...and deepens as he closes in
   charge: 0.5,        // speed while he holds SHOOT on the ball
   windup: 0.3,        // speed from the kick starting to the boot meeting the ball
   dim: 0.12,          // a light dim (v1 was 0.45: "dont make it fully dark")
-  lines: 74,          // speed lines round the screen
-  hole: [0.46, 0.3],  // the clear middle (fraction of the screen's half-size): far -> close, it tightens
+  look: 'lines',      // 'lines' (the manga burst) or 'arrows' (v3: the RISE arrow, pointing in at the duel - Luca: "a second version where they are arrows")
+  lines: 60,          // speed lines round the screen
+  arrows: 30,         // RISE arrows round the screen
+  hole: [0.74, 0.62], // the clear middle (fraction of the screen's half-size): far -> close, it tightens (v3: "should not creep as much into the screen"; v2 0.46 -> 0.3)
+  thick: [3, 15],     // a line's width at the edge, px: [thinnest, + up to] (v3: "a bit thicker"; v2 1.5 + up to 11)
   near: 32,           // m from goal: closer than this and through = a 1 v 1
   hold: 0.15,         // s the picture must hold before it starts (no flicker on a heavy touch)
   inT: 0.3, outT: 0.45,    // s to fade in / out
@@ -129,19 +132,32 @@ hc2Mix(Match, {
   // strike the lines rush outwards and fade
   v1Lines(S, e) {
     const V = ONE_V_ONE, W = VIEW_W, H = VIEW_H, cam = this.cameras.main, z = cam.zoom || 1, g = S.lines, v = cam.worldView;
-    const mx = (S.p.x + S.gk.x) / 2, my = (S.p.y + S.gk.y) / 2;                    // the burst centres on the duel (pulled 60% of the way from the screen's middle)
+    const mx = (S.p.x + S.gk.x) / 2, my = (S.p.y + S.gk.y) / 2;                    // the burst centres on the duel (pulled 40% of the way from the screen's middle)
     const dx = clamp((wx(mx, my) - v.x) * z - W / 2, -W * 0.3, W * 0.3), dy = clamp((wy(my) - 30 - v.y) * z - H / 2, -H * 0.3, H * 0.3);
     S.cx = S.cx == null ? dx : S.cx + (dx - S.cx) * 0.15; S.cy = S.cy == null ? dy : S.cy + (dy - S.cy) * 0.15;
-    const ox0 = W / 2, oy0 = H / 2, cx = ox0 + S.cx * 0.6, cy = oy0 + S.cy * 0.6;
-    if (!S.rays || S.t - S.rayT > 0.07) {
+    const ox0 = W / 2, oy0 = H / 2, cx = ox0 + S.cx * 0.4, cy = oy0 + S.cy * 0.4;
+    const arrows = V.look === 'arrows' && this.textures.exists('coin') && this.textures.get('coin').has('rise-arrow'), n = arrows ? V.arrows : V.lines;
+    if (!S.rays || S.t - S.rayT > 0.07 || S.rays.length !== n) {
       S.rayT = S.t; S.rays = [];
-      for (let i = 0; i < V.lines; i++) S.rays.push({ a: (i + Math.random() * 0.8) / V.lines * Math.PI * 2, r: 0.8 + Math.random() * 0.45, w: 1.5 + Math.random() * Math.random() * 11 });
+      for (let i = 0; i < n; i++) S.rays.push({ a: (i + Math.random() * 0.8) / n * Math.PI * 2, r: 0.8 + Math.random() * 0.45, w: V.thick[0] + Math.random() * Math.random() * V.thick[1], s: 0.8 + Math.random() * 0.7 });
     }
     const bt = S.burst ? clamp((S.t - S.burst) / V.burstT, 0, 1) : 0, a = 0.9 * e * (1 - bt);
     g.clear().setPosition(ox0 * (1 - 1 / z), oy0 * (1 - 1 / z)).setScale(1 / z);    // (screen-fixed whatever the camera zoom, as the cut-ins)
+    if (S.arr) for (const im of S.arr) im.setVisible(false);
     if (a <= 0.01) return;
     const hole = (V.hole[0] + (V.hole[1] - V.hole[0]) * (S.c || 0)) * (1 + bt * 1.4) * (1 + 0.03 * Math.sin(S.t * 30));
     const R = Math.hypot(W, H) * 0.75;
+    if (arrows) {                                                                 // the RISE arrow (its own art, coin.png), stretched like a speed line, its tip at the oval
+      S.arr = S.arr || [];
+      while (S.arr.length < n) S.arr.push(this.add.image(0, 0, 'coin', 'rise-arrow').setOrigin(0.5, 0).setScrollFactor(0).setDepth(V1_D + 0.3));
+      S.rays.forEach((q, i) => {
+        const ca = Math.cos(q.a), sa = Math.sin(q.a), rr = 0.82 + (q.r - 0.8) * 0.35, ix = cx + ca * W / 2 * hole * rr, iy = cy + sa * H / 2 * hole * rr;   // (the tips sit just inside the oval)
+        const sc = (1.2 + q.w / 11) * q.s;
+        S.arr[i].setVisible(true).setAlpha(Math.min(1, a * 1.1)).setRotation(q.a - Math.PI / 2)   // (the art points up: turned to point in at the duel)
+          .setPosition(ox0 + (ix - ox0) / z, oy0 + (iy - oy0) / z).setScale(sc / z, sc * (2.2 + q.r) / z);
+      });
+      return;
+    }
     g.fillStyle(0x0c0a0e, a);
     for (const q of S.rays) {
       const ca = Math.cos(q.a), sa = Math.sin(q.a), ix = cx + ca * W / 2 * hole * q.r, iy = cy + sa * H / 2 * hole * q.r * 1.15;
@@ -152,6 +168,6 @@ hc2Mix(Match, {
   v1End() {
     const S = this.v1; this.v1 = null; this.v1Hold = 0; if (!S) return;
     for (const M of S.men) if (M.fx && M.q.spr.preFX) M.q.spr.preFX.remove(M.fx);
-    S.veil.destroy(); S.pool.destroy(); S.lines.destroy();
+    S.veil.destroy(); S.pool.destroy(); S.lines.destroy(); if (S.arr) for (const im of S.arr) im.destroy();
   },
 });
