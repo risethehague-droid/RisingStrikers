@@ -68,7 +68,7 @@ function rigGlovePt(s, fist, W) {
 }
 class Player {
   constructor(m, team, i, kit) {
-    this.m = m; this.team = team; this.i = i; this.kit = kit; this.keeper = i === 0;
+    this.m = m; this.team = team; this.i = i; this.role = roleFor(team, i); this.kit = kit; this.keeper = i === 0;   // (role-AI step 1: his role card, roles.js)
     const h = FORMATION[i]; this.home = team.side > 0 ? { x: h[0], y: h[1] } : { x: PITCH_L - h[0], y: h[1] };
     this.x = this.home.x; this.y = this.home.y; this.vx = 0; this.vy = 0;
     this.face = team.side > 0 ? 0 : 4; this.state = 'idle'; this.stateT = 0; this.cool = 0; this.stun = 0;
