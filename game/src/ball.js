@@ -61,7 +61,10 @@ function ballStep(b, h, owned) {
 // along it, and a ball low on the grass pops up (pop x the speed into it, more for a square hit). No dice, so the game's
 // predicted path (predict) and the real flight agree. Returns the board it hit ('T' touchline, 'B' byline) or null.
 // Only called on ARCADE (paceK().arcade).
-function boardBounce(b) {
+// out(left) (Luca 31 Oct, "ADD CORNERS INTO ARCADE BACK"): true when a ball over that byline is a CORNER instead
+// (ARCADE.boards.corners - the defenders touched it last), so the board lets it through and matchflow.js rules() gives
+// the corner; the attackers' misses still come back off the board (no goal kicks on ARCADE).
+function boardBounce(b, out) {
   const A = ARCADE.boards; let hit = null;
   const mouth = b.y > GOAL_Y0 && b.y < GOAL_Y1 && b.z < BAR_Z;
   const back = (vn, vt) => {                                                     // (vn: speed into the board, > 0)
@@ -72,7 +75,8 @@ function boardBounce(b) {
   if (!A.touch) { }                                                              // t-026: no touchline boards (Luca: throw-ins again)
   else if (b.y < 0 && b.vy <= 0) { b.y = Math.min(-b.y, 0.5); b.vy = back(-b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
   else if (b.y > PITCH_W && b.vy >= 0) { b.y = Math.max(2 * PITCH_W - b.y, PITCH_W - 0.5); b.vy = -back(b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
-  if (!mouth && b.x < 0 && b.vx <= 0) { b.x = Math.min(-b.x, 0.5); b.vx = back(-b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
+  if (out && !mouth && (b.x < 0 || b.x > PITCH_L) && out(b.x < 0)) { }          // a corner: it goes out
+  else if (!mouth && b.x < 0 && b.vx <= 0) { b.x = Math.min(-b.x, 0.5); b.vx = back(-b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
   else if (!mouth && b.x > PITCH_L && b.vx >= 0) { b.x = Math.max(2 * PITCH_L - b.x, PITCH_L - 0.5); b.vx = -back(b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
   if (hit) b.rollV = 0.8 * Math.hypot(b.vx, b.vy);
   return hit;
@@ -636,8 +640,8 @@ hc2Mix(Match, {
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
   predict() {
     const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
-    const ARC = paceK().arcade;                                                  // (t-020: ARCADE - the path comes back off the boards, so the AI reads the rebound)
-    for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (ARC) boardBounce(c); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
+    const ARC = paceK().arcade, cOut = ARC && this.cornerOut();                // (t-020: ARCADE - the path comes back off the boards, so the AI reads the rebound; 31 Oct: not a corner's)
+    for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (ARC) boardBounce(c, cOut); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
   },
   // t-005: where the landing ring sits - the ball's predicted first bounce while it flies, then the spot it came down
@@ -754,7 +758,7 @@ hc2Mix(Match, {
       ballStep(b, h, owned);
       if (!owned) { if (gp) this.gpWood(b, ox, oy, oz); else this.posts(b, ox); }   // t-013's round posts / bar (GOAL_PHYS) or v0.12.0's posts
       if (net) this.gpNet(b, h, oz);                                            // t-013's net with give (+ t-023's NET_FX): every match since t-025
-      if (ARC && !owned && !b.inNet && !this.dead) { const hit = boardBounce(b); if (hit) this.arcadeRebound(b, hit); }   // t-020: ARCADE's boards
+      if (ARC && !owned && !b.inNet && !this.dead) { const hit = boardBounce(b, this.cornerOut()); if (hit) this.arcadeRebound(b, hit); }   // t-020: ARCADE's boards (31 Oct: corners pass through)
       if (this.dead) {                                                          // out of play: the boards stop it
         if (b.x < -4 || b.x > PITCH_L + 4) { b.x = clamp(b.x, -4, PITCH_L + 4); b.vx *= -0.25; }
         if (b.y < -3 || b.y > PITCH_W + 3) { b.y = clamp(b.y, -3, PITCH_W + 3); b.vy *= -0.25; }
@@ -779,6 +783,15 @@ hc2Mix(Match, {
   // no keeper's plan, a special is spent), and if it pops up past head height it becomes a high ball "aimed" at the
   // nearest man of the side that touched it last (ARCADE.reb): the lob code then has him time his run under the drop,
   // their nearest man contest it, and the drop is a duel / the AERIAL BATTLE / a header / a volley / an aerial special.
+  // 31 Oct (Luca: "ADD CORNERS INTO ARCADE BACK"): on ARCADE a ball the DEFENDING side put over its own byline is a
+  // corner again, as in real football (IFAB Law 17) and the football games; one the attackers put there still comes
+  // back off the board (t-020's rebounds in front of goal, no goal kicks). Returns boardBounce's out(left), or null when
+  // ARCADE.boards.corners is off (the v0.12.0-v0.15 boards everywhere).
+  cornerOut() {
+    if (!ARCADE.boards.corners) return null;
+    const b = this.ball, L = this.home.side > 0 ? this.home : this.away;           // (the side defending the x = 0 goal, as in rules())
+    return left => !!b.last && b.last === (left ? L : L.opp);
+  },
   arcadeRebound(b, hit) {
     const N = this.arcN = this.arcN || { reb: 0, air: 0, rebShots: 0, sp: 0 }; N.reb++;
     Object.assign(b, { target: null, ring: null, lob: false, aimLob: false, tried: null, crossBy: null, save: null, saveable: null, special: 0, pierce: 0, chip: false, tap: false, duelTry: false });
