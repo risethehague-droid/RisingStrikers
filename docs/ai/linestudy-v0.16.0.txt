@@ -1,0 +1,25 @@
+IS v IRO seed 1: 1-2 goals [{"t":25.4,"gkMax":5.1,"lineMin":11.4,"spreadMax":14.6,"lob":false,"set":false},{"t":76.5,"gkMax":4.9,"lineMin":null,"spreadMax":null,"lob":false,"set":false},{"t":169.5,"gkMax":6.8,"lineMin":14.6,"spreadMax":7.8,"lob":false,"set":false}]
+IRO v IS seed 2: 0-1 goals [{"t":330.6,"gkMax":4.4,"lineMin":null,"spreadMax":null,"lob":false,"set":false}]
+IS v IRO seed 3: 3-1 goals [{"t":46.6,"gkMax":5.1,"lineMin":19.4,"spreadMax":11.7,"lob":false,"set":false},{"t":191.8,"gkMax":3.7,"lineMin":null,"spreadMax":null,"lob":false,"set":false},{"t":328.6,"gkMax":9.1,"lineMin":14.6,"spreadMax":15.2,"lob":false,"set":false},{"t":372.8,"gkMax":6.4,"lineMin":17.4,"spreadMax":9.5,"lob":false,"set":false}]
+IRO v IS seed 4: 2-2 goals [{"t":39.5,"gkMax":12.9,"lineMin":22.2,"spreadMax":11.7,"lob":false,"set":false},{"t":80.8,"gkMax":5.9,"lineMin":13,"spreadMax":14.1,"lob":false,"set":false},{"t":98,"gkMax":7.5,"lineMin":16.6,"spreadMax":13.6,"lob":false,"set":false},{"t":424.3,"gkMax":5,"lineMin":null,"spreadMax":null,"lob":false,"set":false}]
+IS v IRO seed 5: 3-1 goals [{"t":19.1,"gkMax":5.3,"lineMin":22.9,"spreadMax":15.3,"lob":false,"set":false},{"t":169,"gkMax":5.7,"lineMin":11.7,"spreadMax":6.1,"lob":false,"set":false},{"t":195.4,"gkMax":5.2,"lineMin":13.3,"spreadMax":15,"lob":false,"set":false},{"t":330.3,"gkMax":5.3,"lineMin":12.3,"spreadMax":8.7,"lob":false,"set":false}]
+IRO v IS seed 6: 1-0 goals [{"t":192,"gkMax":10.7,"lineMin":17.6,"spreadMax":16.6,"lob":false,"set":false}]
+
+SUMMARY {
+ "matches": 6,
+ "samples": 11699,
+ "backLineSpread": 7,
+ "flatLinePct": 44,
+ "deepestDefenderFromGoal": 34.2,
+ "keeperOffLine": 12.8,
+ "gapKeeperToLine": 21.5,
+ "oneDefenderPulled8mPct": 28,
+ "keeperOver14mPct": 43.1,
+ "goals": 17,
+ "goalsKeeper10mPlusOut": 2,
+ "goalsLobbed": 0,
+ "errors": 0
+}
+ball 20-35 m from our goal: keeper 6.2 m out (over 12 m 0%), deepest defender 18.5 m, line spread 11.0 m, carrier unpressured 10% (line then 18.2 m)
+ball 35-50 m: keeper 9.4 m out (over 12 m 23%), deepest defender 26.3 m, line spread 9.1 m, carrier unpressured 17% (line then 27.2 m)
+ball 50+ m: keeper 15.7 m out (over 12 m 74%), deepest defender 41.3 m, line spread 5.1 m, carrier unpressured 39% (line then 39.6 m)
