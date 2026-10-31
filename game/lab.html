@@ -133,6 +133,11 @@ i.tg.in{background:var(--good);color:var(--ink)} i.tg.lab{background:var(--pink)
 .fp-grid button.wide{grid-column:span 2;text-align:left}
 #fp .fp-grid button.air{background:#6b1a3d}
 .fp-seg{align-items:center}
+.fp-scn{display:grid;gap:6px}
+.fp-scn .fp-grid button.scn{font-size:16px!important;line-height:1.1!important;padding:6px 5px!important}
+.fp-sb{display:grid;gap:5px;margin:6px 0}
+.fp-sb .fp-seg span{min-width:92px}
+#fp .fp-sb button{font-size:15px;padding:3px 6px}
 .fp-seg span{font:8px var(--f-label);color:var(--dim);letter-spacing:.06em;margin-right:4px}
 #fp summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}
 #fp summary::-webkit-details-marker{display:none}
@@ -229,6 +234,21 @@ i.tg.in{background:var(--good);color:var(--ink)} i.tg.lab{background:var(--pink)
   <div class="fp-last" id="fp-last" aria-live="polite">READY · pick a move</div>
   <div class="fp-legend"><i class="tg in">IN THE GAME</i> in matches now <i class="tg lab">LAB ONLY</i> waiting for Luca's OK</div>
 
+  <!-- Luca 31 Oct 01:39: "for the test lab give more options for setup like scenarios in which you can try passes
+       dribbles etc". lab.js SCN builds the buttons: each one places you, your team-mates, their defenders and keeper,
+       the game's own AI plays everyone else, and it starts again by itself after each try. -->
+  <details class="fp-sec" data-k="scn" open>
+    <summary class="fp-lab">PRACTICE SCENARIOS · set it up, play it, again</summary>
+    <div class="fp-hint" id="fp-scn-tip"></div>
+    <div id="fp-scn" class="fp-scn"></div>
+    <details class="fp-sb-box">
+      <summary class="fp-lab">BUILD YOUR OWN</summary>
+      <div id="fp-sb" class="fp-sb"></div>
+      <div class="fp-row"><button type="button" class="hot" data-scn="custom" aria-pressed="false">&#9654; PLAY MY SET-UP</button></div>
+    </details>
+    <div class="fp-row"><button type="button" id="fp-scn-stop" hidden>&#10005; STOP · back to free play</button></div>
+  </details>
+
   <div id="fp-moves"></div>
 
   <div class="fp-sec">
@@ -262,6 +282,7 @@ i.tg.in{background:var(--good);color:var(--ink)} i.tg.lab{background:var(--pink)
       <button type="button" data-tog="gkv" aria-pressed="true" title="what the keeper is doing, where he wants to stand, the angle lines">GK VIEW</button>
       <button type="button" data-cyc="wx" class="wide" aria-pressed="false">WEATHER: DRY</button>
       <button type="button" data-cyc="cpu" class="wide" aria-pressed="false" title="their keeper plays at this difficulty">CPU LEVEL: NORMAL</button>
+      <button type="button" data-cyc="flair" class="wide" aria-pressed="false" title="gkstyle.js: how showy his situational saves are - BY LEVEL follows CPU LEVEL (EASY plain, NORMAL clean, HARD after-images + glove flash + a little more reach, RISE the hang at the top + the save's name)">SAVE FLAIR: BY LEVEL</button><i class="tg lab">LAB ONLY</i>
       <button type="button" data-cyc="save" class="wide" aria-pressed="false" title="their keeper answers your shots (specials and normal shots) with a special save">KEEPER SAVE: OFF</button>
     </div>
   </div>
@@ -365,6 +386,7 @@ i.tg.in{background:var(--good);color:var(--ink)} i.tg.lab{background:var(--pink)
 <script src="src/difficulty.js"></script>
 <script src="src/brain.js"></script>
 <script src="src/specials.js"></script>
+<script src="src/gkstyle.js"></script>
 <script src="src/matchflow.js"></script>
 <script src="src/penalties.js"></script>
 <script src="src/cup.js"></script>

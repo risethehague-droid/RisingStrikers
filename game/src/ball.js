@@ -61,6 +61,15 @@ function ballStep(b, h, owned) {
 // along it, and a ball low on the grass pops up (pop x the speed into it, more for a square hit). No dice, so the game's
 // predicted path (predict) and the real flight agree. Returns the board it hit ('T' touchline, 'B' byline) or null.
 // Only called on ARCADE (paceK().arcade).
+// ARCADE CORNERS: a ball past a byline that's a corner rather than a board rebound (ARCADE.boards.corners)
+function cornerOff(b) {
+  const C = ARCADE.boards.corners; if (!C || !b.last || (b.x >= 0 && b.x <= PITCH_L)) return false;
+  if (b.x < 0 ? !(b.last.side > 0) : !(b.last.side < 0)) return false;              // (off an attacker: the board)
+  // ('outfield': the keeper's parry still rebounds. A parry sets b.last to his side but leaves b.lastP on the shooter,
+  // so it's his touch while b.gkTouch still matches: the next kick anywhere changes b.lastP and ends it)
+  const gk = b.gkTouch && b.gkTouch.p.team === b.last && b.gkTouch.lastP === b.lastP;
+  return C !== 'outfield' || !gk;
+}
 function boardBounce(b) {
   const A = ARCADE.boards; let hit = null;
   const mouth = b.y > GOAL_Y0 && b.y < GOAL_Y1 && b.z < BAR_Z;
@@ -72,7 +81,11 @@ function boardBounce(b) {
   if (!A.touch) { }                                                              // t-026: no touchline boards (Luca: throw-ins again)
   else if (b.y < 0 && b.vy <= 0) { b.y = Math.min(-b.y, 0.5); b.vy = back(-b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
   else if (b.y > PITCH_W && b.vy >= 0) { b.y = Math.max(2 * PITCH_W - b.y, PITCH_W - 0.5); b.vy = -back(b.vy, b.vx); b.vx *= A.tang; hit = 'T'; }
-  if (!mouth && b.x < 0 && b.vx <= 0) { b.x = Math.min(-b.x, 0.5); b.vx = back(-b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
+  // (ARCADE CORNERS, 30 Oct: off a defender it goes out for a corner instead - b.last is the side that touched it last,
+  // side > 0 = it attacks the right goal, so it defends the left byline)
+  const corner = cornerOff(b);
+  if (corner) { }
+  else if (!mouth && b.x < 0 && b.vx <= 0) { b.x = Math.min(-b.x, 0.5); b.vx = back(-b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
   else if (!mouth && b.x > PITCH_L && b.vx >= 0) { b.x = Math.max(2 * PITCH_L - b.x, PITCH_L - 0.5); b.vx = -back(b.vx, b.vy); b.vy *= A.tang; hit = hit || 'B'; }
   if (hit) b.rollV = 0.8 * Math.hypot(b.vx, b.vy);
   return hit;
@@ -635,7 +648,7 @@ hc2Mix(Match, {
   // where the loose ball will be over the next 3 seconds (for receivers and chasers). t-005: plus `land`, where a ball
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
   predict() {
-    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
+    const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, last: b.last, lastP: b.lastP, gkTouch: b.gkTouch, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
     const ARC = paceK().arcade;                                                  // (t-020: ARCADE - the path comes back off the boards, so the AI reads the rebound)
     for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (ARC) boardBounce(c); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
@@ -1057,8 +1070,7 @@ hc2Mix(Match, {
       const box = p.keeper && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
       const reach = box ? 1.3 : (b.target === p && b.last === p.team ? 1.25 : 0.8), zmax = box ? 2.6 : 0.9;   // v0.7: the man you passed to reaches for it
       if (p.keeper && p.spSave && ((b.special && b.spTeam && p.team !== b.spTeam) || (!b.special && b.saveable && b.saveable !== p.team))) {   // v0.8.6 SPECIAL SAVE v SPECIAL SHOT, on his line (v0.9.0: or v a normal shot)
-        if (!((pbx - p.x) * (b.x - p.x) <= 0 || Math.abs(b.x - p.x) < 0.3)) continue;
-        if (!this.gkSpOnTarget(p, b)) { p.spSave = 0; continue; }   // off target: nothing to save (flag-mvo4pchr-368: judged at the goal line, so a keeper off his line still meets an angled shot)
+        if (!this.gkCoverMeet(p, pbx)) continue;                                   // gk-cover (specials.js): met on his line as before, or - over him, past him, pressed late - at the goal line; off target: nothing to save
         const K = SAVE_POWER[p.spSave - 1], ok = this.clash(p);
         if (ok === 'clash') return;                                                // t-028: a special v his special save - the ball is held on his gloves, power decides after (specials.js clashTick / clashEnd)
         if (!ok) { this.guardBreak(p); if (this.gpPop(p, 'break', len(b.vx, b.vy))) return; continue; }   // (t-013: or it loops up off him)
@@ -1156,6 +1168,7 @@ hc2Mix(Match, {
       b.vx = side * rnd(1.5, 3.5) - b.vx * 0.1; b.vy = s * rnd(5, 9) + b.vy * 0.15; b.vz = rnd(1.5, 4) + (b.z > 1.6 ? 2 : 0);
     }
     b.z = Math.max(b.z, 0.3); b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.lob = false; p.cool = 0.5; b.ring = null;   // (t-005: touched - no landing ring)
+    b.gkTouch = { p, lastP: b.lastP };                                          // (ARCADE corners 'outfield': his touch was the last one while b.lastP is still the shooter's)
     if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }          // (t-002 prototype; t-011 the curving pass)
     b.camUp = how !== 'parry' || b.vz > 3;                                       // t-007: the camera follows it up and out (world.js)
   },
@@ -1168,7 +1181,7 @@ hc2Mix(Match, {
   gkAerial(p) {
     const b = this.ball, side = p.team.side, H = (b.x - p.team.ownGoalX) * side, sp = len(b.vx, b.vy, b.vz);
     const up = p.state === 'dive' && (p.saveKind === 'leap' || p.saveKind === 'tip');
-    if (b.z > (up ? 3.1 : 2.95)) return 'skip';                                 // (over him even with a jump)
+    if (b.z > (up ? 3.1 : 2.95) + (this.gsReach ? this.gsReach(p) : 0)) return 'skip';   // (over him even with a jump; gkstyle.js: a little higher at HARD / RISE, 0 unless on)
     if (p.state === 'dive' && !up) return 'skip';                                 // (on the grass from another save)
     const opp = p.team.opp.players.filter(o => !o.keeper && !o.sentOff);
     const crowd = opp.some(o => len(o.x - b.x, o.y - b.y) < 0.7) || opp.filter(o => Math.min(len(o.x - b.x, o.y - b.y), len(o.x - p.x, o.y - p.y)) < 1.8).length >= 2;   // (one of theirs right under it, or two around him)

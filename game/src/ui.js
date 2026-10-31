@@ -167,7 +167,12 @@ hc2Mix(Match, {
         #flow .menu button{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left} #flow .menu button.on{background:#ffde1e;outline:3px solid #f4f0e4;outline-offset:1px}
         #flow .menu kbd{font:8px "Press Start 2P",monospace;background:#0c0a0e;color:#f4f0e4;padding:3px 5px}
         #flow table.mv{max-width:min(620px,100%);text-align:left} #flow table.mv th{color:#ffde1e;white-space:nowrap;vertical-align:top} #flow table.mv td{font-size:9px}
-        @media (max-width:560px){ #flow .opt{grid-template-columns:1fr} }`;
+        #flow .pnl{background:#1d1a22;border:3px solid #0c0a0e;box-shadow:6px 6px 0 #0c0a0e;padding:14px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;max-width:100%;box-sizing:border-box}
+        #flow .pnl.in{animation:hc2pop .16s ease-out} #flow .pnl .sc{font-size:12px} #flow .pnl small{max-width:520px}
+        #flow .menu.two{grid-template-columns:1fr 1fr;width:min(640px,100%)} #flow .menu button.quit{background:#ff2878;color:#fff} #flow .menu button.quit.on{background:#ffde1e;color:#0c0a0e}
+        @keyframes hc2pop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
+        @media (prefers-reduced-motion:reduce){ #flow .pnl.in{animation:none} }
+        @media (max-width:560px){ #flow .opt{grid-template-columns:1fr} #flow .menu.two{grid-template-columns:1fr} }`;
       el.appendChild(st); }
     el.dataset.kind = kind; el.style.display = 'flex';
     [...el.children].forEach(c => { if (c.tagName !== 'STYLE') c.remove(); });
@@ -338,7 +343,7 @@ hc2Mix(Match, {
   // ---- PAUSE MENU: resume, team + subs, the moves, options (sound, meter look, team AI), replays, quit
   openPause() {
     this.paused = true; this.say('PAUSED', this.pauseLine(), 9999); this.msg.setVisible(false); this.sub.setVisible(false); SFX.click();   // (the menu says it)
-    this.pm = { page: 'main', i: 0 }; this.drawPause();
+    this.pm = { page: 'main', i: 0, pop: true }; this.drawPause();
   },
   closePause() { this.pm = null; this.closeFlowEl(); this.paused = false; this.say('', '', 0.01); this.msg.setVisible(true); this.sub.setVisible(true); },
   pauseItems() {
@@ -354,20 +359,23 @@ hc2Mix(Match, {
       { k: 'bwon', l: `BUG WATCH: ${BW_ON ? 'ON' : 'OFF'}`, act: () => setBwOn(!BW_ON) },
       { k: 'ptr', l: `POINTER: ${PTR_ON ? 'ON' : 'OFF'}`, act: () => setPtrOn(!PTR_ON) },   // t-009: the direction chevron on the grass
       { k: 'offside', l: `OFFSIDE: ${OFFSIDE_ON ? 'ON' : 'OFF (TESTING)'}`, act: () => setOffside(!OFFSIDE_ON) },   // t-024: the rule is mandatory; OFF only for testing
-      { k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 3; } }];
+      { k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 3; P.pop = true; } }];
     const BWn = this.bw ? this.bw.list.length : 0, BWnew = this.bw ? this.bw.list.filter(x => !x.review).length : 0;
-    if (P.page === 'moves') return [{ k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 2; } }];
+    if (P.page === 'moves') return [{ k: 'back', l: '◀ BACK', act: () => { P.page = 'main'; P.i = 2; P.pop = true; } }];
     return [
       { k: 'resume', l: 'RESUME', key: 'ENTER', act: () => this.closePause() },
       { k: 'team', l: `TEAM · SUBS (${3 - Q.subs} LEFT)`, act: () => this.openSheet('pause') },
-      { k: 'moves', l: 'MOVES', act: () => { P.page = 'moves'; P.i = 0; } },
-      { k: 'opts', l: 'OPTIONS', act: () => { P.page = 'opts'; P.i = 0; } },
+      { k: 'moves', l: 'MOVES', act: () => { P.page = 'moves'; P.i = 0; P.pop = true; } },
+      { k: 'opts', l: 'OPTIONS', act: () => { P.page = 'opts'; P.i = 0; P.pop = true; } },
       ...((this.rec || []).length >= 60 ? [{ k: 'rec', l: 'REPLAY (LAST 10 S)', act: () => this.pauseReplay('rec') }] : []),   // t-006: the replay player on the last 10 seconds
       ...(this.lastReplay ? [{ k: 'last', l: 'LAST GOAL', key: k.lob, act: () => this.pauseReplay('last') }] : []),
       ...(H ? [{ k: 'hl', l: `HIGHLIGHTS (${H})`, key: k.pass, act: () => this.pauseReplay('hl') }] : []),
       ...(this.watch ? this.watchItems() : []),                                    // watch mode: speed, mark this moment
       { k: 'bw', l: `BUG WATCH (${BWn}${BWnew ? ` · ${BWnew} TO CHECK` : ''})`, act: () => this.bwOpen('pause') },
-      { k: 'quit', l: P.quit ? 'SURE? PRESS AGAIN TO QUIT' : 'QUIT TO MENU', act: () => { if (P.quit) { this.resumeSave(); try { location.reload(); } catch (e) {} } else P.quit = true; } }];   // (v0.10.2: kept for RESUME on the start screen)
+      // LEAVE GAME (menu-training, Luca 31 Oct: "you have the ability to leave game, resume last game played if continuing"): it was
+      // QUIT TO MENU. A match against the computer is kept (resume.js) and CONTINUE on the start screen picks it up; the
+      // second press says which it is, so nobody leaves a cup game thinking it's saved.
+      { k: 'quit', l: P.quit ? (this.resumeOk() ? 'LEAVE? IT\'S SAVED: CONTINUE IN THE MENU' : 'LEAVE? THIS ONE ISN\'T SAVED') : 'LEAVE GAME', act: () => { if (P.quit) { this.resumeSave(); try { location.reload(); } catch (e) {} } else P.quit = true; } }];   // (v0.10.2: kept for RESUME on the start screen)
   },
   drawPause() {
     const P = this.pm; if (!P) return; const el = this.flowEl('pause'), items = this.pauseItems(); P.i = clamp(P.i, 0, items.length - 1);
@@ -378,10 +386,13 @@ hc2Mix(Match, {
       ['1 BAR', SP_NAMES[0]], ['2 BARS', SP_NAMES[1]], ['3 BARS', SP_NAMES[2]],
       [`${k.ud} + ${k.shoot}`, 'AIM HIGH / LOW'], [`${k.pass} / ${k.shoot}`, 'BALL IN THE AIR: HEADER · VOLLEY · DIVING HEADER'],
       [`SHIFT + ${k.shoot}`, 'HIGH BALL NEAR GOAL: OVERHEAD KICK'], ['T', 'SP METER LOOK'], ['M', 'SOUND ON / OFF'], ['F', 'FLAG A PROBLEM: THE LAST 8 S + YOUR NOTE'], ['ENTER', 'PAUSE']].map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join('')}</table>`;
-    el.innerHTML = `<h2>${P.page === 'opts' ? 'OPTIONS' : P.page === 'moves' ? 'THE MOVES' : 'PAUSED'}</h2>
+    // (menu-training, Luca 31 Oct: "make sure the option menu pops up cleanly"): one panel that pops in when it opens or
+    // changes page (not on every arrow press), OPTIONS in two columns so it fits the screen without scrolling
+    const pop = P.pop; P.pop = false;
+    el.innerHTML = `<div class="pnl${pop ? ' in' : ''}"><h2>${P.page === 'opts' ? 'OPTIONS' : P.page === 'moves' ? 'THE MOVES' : 'PAUSED'}</h2>
       <div class="sc">${this.home.name} ${this.home.score} - ${this.away.score} ${this.away.name} · ${this.halfLabel()} ${String(Math.floor(this.clock / 60)).padStart(2, '0')}'</div>${moves}
-      <div class="menu">${items.map((it, j) => `<button type="button" data-j="${j}" class="${j === P.i ? 'on' : ''}">${it.l}${it.key ? `<kbd>${it.key}</kbd>` : ''}</button>`).join('')}</div>
-      <small>&#8593;&#8595; PICK · ENTER: OK · ESC: ${P.page === 'main' ? 'RESUME' : 'BACK'}</small>`;
+      <div class="menu${P.page === 'opts' ? ' two' : ''}">${items.map((it, j) => `<button type="button" data-j="${j}" class="${j === P.i ? 'on' : ''}${it.k === 'quit' ? ' quit' : ''}">${it.l}${it.key ? `<kbd>${it.key}</kbd>` : ''}</button>`).join('')}</div>
+      <small>&#8593;&#8595; PICK · ENTER: OK · ESC: ${P.page === 'main' ? 'RESUME' : 'BACK'}</small></div>`;
     el.querySelectorAll('.menu button').forEach(b => b.onclick = () => { P.i = +b.dataset.j; this.pauseAct(); });
   },
   pauseAct() { const P = this.pm, it = this.pauseItems()[P.i]; if (!it) return; if (it.k !== 'quit') P.quit = false; SFX.click(); it.act(); if (this.pm && !this.sheet && !this.replay && !this.bwUI) this.drawPause(); },
@@ -395,7 +406,7 @@ hc2Mix(Match, {
     const P = this.pm; if (!P) { this.pm = { page: 'main', i: 0 }; return this.drawPause(); }
     if (this.sheet) { if (Input.pressed('start') || Input.pressed('pass')) this.closeSheet(); return; }   // team sheet open (subs)
     const esc = Input.taps.has('Escape') || Input.taps.has('KeyP');
-    if (esc) { if (P.page === 'main') this.closePause(); else { P.page = 'main'; P.i = 0; this.drawPause(); } return; }
+    if (esc) { if (P.page === 'main') this.closePause(); else { P.page = 'main'; P.i = 0; P.pop = true; this.drawPause(); } return; }
     if (P.page === 'main' && Input.pressed('lob') && this.lastReplay) return this.pauseReplay('last');
     if (P.page === 'main' && Input.pressed('pass') && this.highlights && this.highlights.length) return this.pauseReplay('hl');
     const n = Input.nav(), items = this.pauseItems();
