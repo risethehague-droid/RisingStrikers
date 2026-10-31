@@ -75,7 +75,7 @@ called, but nobody reorganised before the free kick.)
 - **Units:** the world is in metres (x along the pitch, y across, z up). The stadium art is pre-projected: `tools/stadium/cfg.py` and `docs/lanes/stadiums-maps.md` have the geometry.
 - **Layout:**
   - the game lives in `game/`
-  - the code is split by area into 21 files under `game/src/`; `game/src/README.md` says which file is which and which lane edits it
+  - the code is split by area into 22 files under `game/src/`; `game/src/README.md` says which file is which and which lane edits it
   - new `Match` methods go inside the file's `hc2Mix(Match, { ... })` block
   - a new file goes into all three pages (`index.html`, `lab.html`, `test.html`) in load order
 - **PC first.** The phone version is on pause; don't break it, don't extend it.
