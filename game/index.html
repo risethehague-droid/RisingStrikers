@@ -133,6 +133,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
       <button id="resumebtn" type="button" hidden>CONTINUE &#9654;</button>
       <button id="play" type="button">PLAY <span>&#9654;</span></button>
       <button id="cupbtn" type="button">HAGUE CUP <span>&#9654;</span></button>
+      <button id="tutbtn" type="button">TUTORIAL <em id="tutnew">NEW HERE? START HERE</em> <span>&#9654;</span></button>
       <button id="trainbtn" type="button">TRAINING <span>&#9654;</span></button>
       <button id="battle" type="button">1V1 PENALTY BATTLE <span>&#9654;</span></button>
       <button id="watchbtn" type="button">WATCH: CPU V CPU <span>&#9654;</span></button>
@@ -160,6 +161,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     <small>THE TEST LAB: PRACTISE ANY MOVE, NO MATCH, NO CLOCK</small>
     <div class="list">
       <a id="lab-free" target="_blank" rel="noopener"><button type="button" tabindex="-1">FREE PLAY <em>YOU, THE BALL + A KEEPER &middot; EVERY MOVE ON A BUTTON</em></button></a>
+      <a id="lab-tut" target="_blank" rel="noopener"><button type="button" tabindex="-1">TUTORIAL <em>THE BASICS, THEN THE ADVANCED MOVES &middot; ONE STEP AT A TIME</em></button></a>
       <a id="lab-all" target="_blank" rel="noopener"><button type="button" tabindex="-1">TEST LAB <em>EVERY TEST, GROUP BY GROUP</em></button></a>
     </div>
     <small id="lab-note">OPENS IN A NEW TAB</small>
@@ -314,12 +316,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     const LAB_URL = 'https://claude.ai/artifact/Goa4b8PepGxbqv9877pPCV';
     const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
     const labHref = id => window.HC2_PREVIEW ? '#lab' + (id ? '-' + id : '') : local ? 'lab.html' + (id ? '#' + id : '') : LAB_URL + (id ? '#' + id : '');
-    for (const [el, id] of [['lab-free', 'FP1'], ['lab-all', '']]) {
+    for (const [el, id] of [['lab-free', 'FP1'], ['lab-tut', 'TUT'], ['lab-all', '']]) {
       const a = document.getElementById(el); a.href = labHref(id);
       if (window.HC2_PREVIEW) a.target = '_self';                                  // (the preview swaps to its Lab in place)
     }
     if (window.HC2_PREVIEW) document.getElementById('lab-note').textContent = 'THIS PREVIEW\'S OWN TEST LAB';
     document.getElementById('trainbtn').addEventListener('click', e => openPop('pop-train', e.currentTarget));
+    // THE TUTORIAL (Luca, 31 Oct: "a simple tutorial in which you can try the basics and then the advanced stuff before you
+    // play, make it optional to skip or return back to"): src/tutorial.js, played in the Test Lab page (#TUT), like
+    // TRAINING's links. It's never forced on you: the button says NEW HERE? until you've done PART 1 (hc2-tut in this browser).
+    { const tb = document.getElementById('tutbtn'), tn = document.getElementById('tutnew'); let td = {};
+      try { td = (JSON.parse(localStorage.getItem('hc2-tut') || 'null') || {}).done || {}; } catch (e) {}
+      if (td.basics && td.adv) tn.textContent = '\u2713 DONE \u00b7 TRY AGAIN ANY TIME'; else if (td.basics) tn.textContent = 'PART 2: THE ADVANCED MOVES'; else if (resb.hidden === false) tn.textContent = 'LEARN EVERY MOVE';
+      tb.addEventListener('click', () => { const h = labHref('TUT'); if (window.HC2_PREVIEW) location.hash = h; else if (local) location.href = h; else window.open(h, '_blank', 'noopener'); }); }
     // keys: ENTER = PLAY (off a button), ESC closes a pop-up, UP / DOWN walk the mode buttons
     s.addEventListener('keydown', e => {
       if (e.key === 'Escape') { closePops(); return; }
@@ -368,4 +377,5 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 <script src="src/watch.js"></script>
 <script src="src/resume.js"></script>
 <script src="src/movesfx.js"></script>
+<script src="src/tutorial.js"></script>
 <script src="src/boot.js"></script>

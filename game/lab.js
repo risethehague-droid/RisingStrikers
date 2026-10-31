@@ -3542,6 +3542,50 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       tkTest('TK6', 'the computer, an open goal from 5 m', 'the computer\'s striker on the ball 5 m out, their keeper stranded 14 m out: it taps it in', { from: [100, 31], gk: [91, 40], face: 0, cpu: true }),
     ];
   }
+  // ---------- THE TUTORIAL (src/tutorial.js, Luca 31 Oct: "a simple tutorial in which you can try the basics and then the
+  // advanced stuff before you play"): its steps set the pitch up with these helpers - the same ones FREE PLAY's moves use
+  function tutApi() {
+    const on = () => m.all.filter(p => !p.sentOff), add = q => { cast(on().concat([q])); return q; };
+    const A = {
+      get m() { return m; }, LAB, STEP, put, atFeet, receive, cpRun, sit, dribbleTo, freePlay, fpTick,
+      fpSet: (r, kind) => fpSet(r, kind),
+      base(r, o) {                                                               // a clean pitch: you on your own (+ their keeper)
+        csClean(); if (m.cutIn) m.cutInEnd(); m.cutInQ = null; if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null;
+        Object.assign(m, { aerial: null, lobAim: null, slowMo: 0, camTarget: null, cvFx: null, clashLast: null, gkSpLast: null, acLast: null, airCh: null, headBuf: 0,
+          setPiece: null, pending: null, diving: null, freeze: 0, hitStop: 0, path: null, passRing: null, nextHuman: null, charge: -1, lobCharge: -1, spHeld: 0,
+          penaltyKick: false, dead: null, saveAsk: null, spPassLast: null, curveLast: null, skdLast: null });
+        m.msg.setText(''); m.sub.setText(''); window.__labPace = null;
+        fpBase(r); Object.assign(r, { out: null, resetAt: 0, held: 0, why: null, air: null, marks: [], noAuto: true });
+        const p = r.human; if (p.busy()) p.setState('idle', 0); Object.assign(p, { stun: 0, cool: 0, sdrib: null, skd: null, injury: null });
+        m.ball.inNet = false; for (const mt of m.meters || []) mt.e = 0;
+        const gk = m.home.players[0]; gk.spSave = 0;
+        if (o && o.gk) fpKeeper(r.gk); else cast([p]);
+        return p;
+      },
+      mate: (r, i) => add(m.home.players[i]), opp: (r, i) => add(m.away.players[i]),
+      ballLast(c) { m.ball.last = c.team; m.ball.lastP = c; },
+      spot: (r, x, y) => fpSpot(r, x, y),
+      bars(n) { m.meters[0].e = n; },
+      got: q => m.ball.owner === q,
+      lost: (r, S, secs) => (S.kicked && S.t - S.kickT > secs && !m.ball.owner) || (S.kicked && m.ball.owner && m.ball.owner.team !== r.human.team) || r.out ? { fail: 'Missed! Try again.' } : null,
+      fouled: (r, S) => r.events.slice(S.e0 || 0).some(e => /FOUL|FREE KICK|YELLOW|PENALTY/i.test(e)),
+      special(r, lv) { const k = m.pending, b = m.ball; return !!((k && k.p === r.human && (k.info.special || 0) >= lv) || ((b.special || 0) >= lv && b.lastP === r.human)); },
+      spPassSet(r, mode) {                                                       // as FREE PLAY's TORNADO DRILL / BURROW BLAST / ANGEL GLIDE buttons, you press the keys
+        const S = FP_CURVE[mode], p = A.base(r, { gk: false }), q = A.mate(r, 8), o = A.opp(r, 3);
+        put(p, S.from[0], S.from[1], 0); atFeet(p); put(q, S.mate[0], S.mate[1], 0); put(o, S.opp[0], S.opp[1], 4);
+        r.bots.set(q, cpRun(S.mate[2] || 0, S.mate[3] || 0)); m.meters[0].e = Math.max(1, SPP.bars);
+      },
+      spPassed: kind => !!(m.spPassLast && m.spPassLast.kind === kind),
+      saveSet(r, S) {                                                            // SM10's set-up: their striker shoots at YOUR keeper, you press SPECIAL
+        A.base(r, { gk: false }); const s = A.opp(r, 9), gk = A.mate(r, 0), me = A.mate(r, 5);
+        put(s, 17.5, 34, 4); atFeet(s); put(gk, PITCH_L - LINE_X, 31, 0); put(me, 40, 20, 4);
+        Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0, spSave: 0, rig: null, hands: false, walk: undefined, hold: 0 });
+        m.meters[0].e = 1; m.meters[1].e = 0; r.human = me; m.human = me;
+        r.fx = { step(r, p, F) { if (!F.shot && F.t >= 1.3) { F.shot = true; m.doShot(s, 0.82, 1); } return F.t < 9; } };
+      },
+    };
+    return A;
+  }
   function buildTests() {
     const G = [];
     const add = (id, name, blurb, tests) => G.push({ id, name, blurb, tests });
@@ -3685,6 +3729,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('BW', 't-021 · BUG WATCH CHECKS', 'Each new Bug Watch check tripped on purpose (the Lab breaks the game for it: a frozen clock, a ball shot through a keeper who can\'t touch it, a man who won\'t move...). BW9: normal play, where none of them may trip. Nothing here is saved as a clip.', bwTests());
     add('CL', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai), real bugs first. 1 = the game was right · 2 = it\'s a bug.', [{ id: 'CL0', group: 'CL', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,
       setup(r) { cast([]); r.fired = true; r.human = m.home.players[9]; }, check() { return { o: 'NOTHING TO WATCH YET' }; } }]);   // (t-021: a human to draw the cursor on - with none the Lab threw in drawCursor, on main too)
+    if (typeof TUTORIAL !== 'undefined') add('TUT', 'TUTORIAL', 'The guided tutorial from the game\'s menu (src/tutorial.js): PART 1 the basics, PART 2 the advanced moves, one action per step. #TUT opens it.', [TUTORIAL.test(tutApi())]);
     return G;
   }
 
@@ -3692,6 +3737,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   function current() { return LAB.groups[LAB.g].tests[LAB.i]; }
   function start(fresh) {
     const sc = current(), prev = LAB.run;
+    if (LAB.tut && sc.group !== 'TUT') LAB.tut.leave();                         // (out of the tutorial: its card goes, the Lab panel comes back)
     const replays = prev && prev.sc === sc ? prev.replays + 1 : 0;
     const seed = fresh ? (Math.random() * 4294967296) >>> 0 : (prev && prev.sc === sc ? prev.seed : hash(sc.id));   // R = the same dice again
     const r = LAB.run = { sc, t: 0, events: [], result: null, endT: 0, frozen: false, you: !!sc.you, bots: new Map(), seed, fresh: !!fresh, replays,
@@ -4124,7 +4170,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   // (Luca + the co-designer, 24 Oct: "Try it in the Test Lab" on every Needs OK card) a link ending in a test's id opens
   // that test and starts it: …#CH1, also #lab-CH1 (from a PR preview page), or a whole group: #CH. Ids ignore case.
   function fromHash() {
-    const id = decodeURIComponent((location.hash || '').slice(1)).replace(/^lab-?/i, '').toLowerCase(); if (!id) return false;
+    const id = decodeURIComponent((location.hash || '').slice(1)).replace(/^lab-?/i, '').toLowerCase().replace(/^tut-?(basics|adv)$/, 'tut'); if (!id) return false;   // (#TUT-basics / #TUT-adv: the tutorial, at that part)
     for (let g = 0; g < LAB.groups.length; g++) { const i = LAB.groups[g].tests.findIndex(t => t.id.toLowerCase() === id); if (i >= 0) { LAB.g = g; LAB.i = i; return true; } }
     const g = LAB.groups.findIndex(x => x.id.toLowerCase() === id); if (g >= 0) { LAB.g = g; LAB.i = 0; return true; }
     return false;
@@ -4134,6 +4180,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     addEventListener('keydown', e => {
       if (!LAB.active || e.repeat) return;
       const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (LAB.tut) { LAB.tut.key(e); return; }                                   // the tutorial (src/tutorial.js): its own keys; the game still reads its own
       const k = e.key.toLowerCase();
       const free = LAB.run && LAB.run.sc.kind === 'free';
       if (free && e.isTrusted && (k === 'b' || k === 'u')) return;                  // B / U = SPECIAL in the game (the BACK button still works)
