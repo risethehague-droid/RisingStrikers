@@ -397,6 +397,7 @@
     ['pass', 'PASSING'], ['shoot', 'SHOOTING'], ['air', 'IN THE AIR · a ball comes in, he does it'],
     ['gk', 'THEIR KEEPER · a shot or a ball at him, he does it'], ['def', 'DEFENDING · a dribbler comes at you'],
     ['set', 'SET PIECES · both teams, the setup runs, then you take it'], ['you', 'BALL TO YOU · then you press the key'],
+    ['calls', 'MOVE CALLS · every special\'s name pop-up (movecall.js)'],
   ];
   const FP_MOVES = [
     { mv: 'pass', sec: 'pass', n: 'PASS', game: true },
@@ -408,6 +409,9 @@
     { mv: 'curler', sec: 'pass', n: 'CURLER!', hot: true, tip: 't-011: SPECIAL + PASS - bends round the man on the line to your team-mate\'s feet (fills a bar of SP first)', go: r => fpCurve(r, 'ground') },
     { mv: 'outcurl', sec: 'pass', n: 'OUTSIDE CURL!', hot: true, tip: 't-011: SPECIAL + THROUGH - outside of the boot, curls into your runner\'s path', go: r => fpCurve(r, 'through') },
     { mv: 'banana', sec: 'pass', n: 'BANANA LOB!', hot: true, tip: 't-011: SPECIAL + LOB - the scoop over a defender, bending down into the run', go: r => fpCurve(r, 'lob') },
+    { mv: 'drill', sec: 'pass', n: 'TORNADO DRILL!', hot: true, tip: 'LV1 (Luca 30-31 Oct): SPECIAL + PASS, 1 bar - into the grass, it spins, then curls round the defender on your receiver\'s side into his feet (fills a bar first)', go: r => fpCurve(r, 'ground', true) },
+    { mv: 'burrow', sec: 'pass', n: 'BURROW BLAST!', hot: true, tip: 'LV1 (Luca 30 Oct): SPECIAL + THROUGH, 1 bar - under the grass, it pops out at your runner', go: r => fpCurve(r, 'through', true) },
+    { mv: 'angel', sec: 'pass', n: 'ANGEL GLIDE!', hot: true, tip: 'LV1 (Luca 30 Oct): SPECIAL + LOB, 1 bar - a golden lob that glides down onto him, feathers drifting off it', go: r => fpCurve(r, 'lob', true) },
     { mv: 'shot', sec: 'shoot', n: 'SHOT', game: true },
     { mv: 'power', sec: 'shoot', n: 'POWER SHOT', game: true },
     { mv: 'tap', sec: 'shoot', n: 'TAP KICK', game: true, tip: 't-010: SHOOT tapped - OK\'d by Luca on 26 Oct, going into matches (t-037)' },
@@ -478,6 +482,7 @@
     { mv: 'head', sec: 'you', n: 'HEAD', game: true },
     { mv: 'waist', sec: 'you', n: 'WAIST', game: true },
     { mv: 'feet', sec: 'you', n: 'FEET', game: true },
+    { mv: 'mcall', sec: 'calls', n: 'EVERY NAME', hot: true, tip: 'Luca 31 Oct: every special\'s name pops up in its own element\'s lettering - this plays them all in a row (the real moves show theirs when you do them)', go: fpMoveCalls },
   ];
   const FP_BY = Object.fromEntries(FP_MOVES.map(x => [x.mv, x]));
   // the move buttons, built from the list (so a new move is one line above)
@@ -519,28 +524,38 @@
   const FP_CURVE = { ground: { n: 'CURLER!', from: [60, 34], mate: [78, 34], opp: [69, 33.6] },
                      through: { n: 'OUTSIDE CURL!', from: [62, 26], mate: [78, 38, 6, 0], opp: [73, 30.6] },
                      lob: { n: 'BANANA LOB!', from: [57, 34], mate: [82, 29, 3, 0], opp: [67, 32] } };
-  function fpCurve(r, mode) {
+  // MOVE CALLS (movecall.js, Luca 31 Oct): every name in MOVE_THEME, one after another, 1.7 s each (incl. the moves on
+  // open branches, so they can be judged before they merge)
+  function fpMoveCalls(r) {
+    const names = Object.keys(MOVE_THEME); r.last = `MOVE CALLS · ${names.length} names`;
+    r.fx = { step(r, p, F) {
+      const i = Math.floor(F.t / 1.7); if (i >= names.length) return false;
+      if (F.i !== i) { F.i = i; m.moveCall(names[i], `${MOVE_THEME[names[i]].toUpperCase()} · ${i + 1} / ${names.length}`); r.last = `MOVE CALLS · ${names[i]}`; }
+      return true; } };
+  }
+  function fpCurve(r, mode, lv2) {                                               // (lv2: the new LV1 special pass instead: sppass.js)
     const S = FP_CURVE[mode], p = r.human, q = m.home.players[8], o = m.away.players[3];
     fpCast(r, [q, o]); put(p, S.from[0], S.from[1], 0); atFeet(p); put(q, S.mate[0], S.mate[1], 0); put(o, S.opp[0], S.opp[1], 4);
     r.bots.set(q, cpRun(S.mate[2] || 0, S.mate[3] || 0));
-    Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0 });
-    if (m.meters[0].e < 1) m.meters[0].e = 1;                                 // it costs a bar: the button fills one first
-    r.last = `${S.n} · a bar of SP in the bank`;
+    Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0, spPassLast: null });
+    const N = lv2 ? SPP_NAMES[SPP_KIND[mode]] : S.n, bars = lv2 ? SPP.bars : 1;
+    if (lv2) m.meters[0].e = Math.max(SPP.bars, Math.floor(m.meters[0].e)); else if (m.meters[0].e < 1) m.meters[0].e = 1;   // it costs a bar: the button fills one first
+    r.last = `${N} · ${bars === 1 ? 'a bar' : bars + ' bars'} of SP in the bank`;
     r.fx = { step(r, p, F) {
       const b = m.ball;
       if (!F.kicked) {
         if (F.t < 0.45) return true; F.kicked = true;
-        const c0 = CURVE_PASS; CURVE_PASS = true;                                // (the button works with the CURVE PASS switch off too, like TAP KICK's)
-        try { const d = len(q.x - p.x, q.y - p.y) || 1; F.ok = m.curvePass(p, mode, { x: (q.x - p.x) / d, y: (q.y - p.y) / d }); } finally { CURVE_PASS = c0; }
-        if (!F.ok) { r.last = `${S.n} · not played (no SP?)`; return false; }
+        const c0 = CURVE_PASS, s0 = SPP_ON; CURVE_PASS = true; SPP_ON = true;   // (the button works with the CURVE PASS switch off too, like TAP KICK's)
+        try { const d = len(q.x - p.x, q.y - p.y) || 1, dv = { x: (q.x - p.x) / d, y: (q.y - p.y) / d }; F.ok = lv2 ? m.spPass(p, mode, dv) : m.curvePass(p, mode, dv); } finally { CURVE_PASS = c0; SPP_ON = s0; }
+        if (!F.ok) { r.last = `${N} · not played (no SP?)`; return false; }
         return true;
       }
       if (!F.start) { if (b.owner || m.pending) return F.t < 3; F.start = { x: b.x, y: b.y }; F.v = len(b.vx, b.vy, b.vz); F.C = m.curveLast; F.bend = 0; }
       const A = F.C ? { x: F.C.tx, y: F.C.ty } : { x: q.x, y: q.y }, dx = A.x - F.start.x, dy = A.y - F.start.y, d = len(dx, dy) || 1;
       if (!F.touch) { const lat = ((b.x - F.start.x) * dy - (b.y - F.start.y) * dx) / d; if (Math.abs(lat) > Math.abs(F.bend)) F.bend = lat; }
       const tp = b.owner && b.owner !== p ? b.owner : b.lastP && b.lastP !== p ? b.lastP : null; if (tp && !F.touch) F.touch = tp;
-      r.last = `${S.n} · bend ${Math.abs(F.bend).toFixed(1)} m · ${kmh(F.v)} km/h${F.touch ? ' · ' + (F.touch === q ? `to your #${q.num}` : F.touch.team === p.team ? `your #${F.touch.num}` : `cut out by their #${F.touch.num}`) : ''}`;
-      return !F.touch && F.t < 5;
+      r.last = `${N} · ${lv2 ? `peak ${(F.pk = Math.max(F.pk || 0, b.z)).toFixed(1)} m` : `bend ${Math.abs(F.bend).toFixed(1)} m · ${kmh(F.v)} km/h`}${F.touch ? ' · ' + (F.touch === q ? `to your #${q.num}` : F.touch.team === p.team ? `your #${F.touch.num}` : `cut out by their #${F.touch.num}`) : ''}`;
+      return !F.touch && F.t < (lv2 ? 7 : 5);
     } };
   }
 
@@ -2016,7 +2031,7 @@
   const cpRead = (d, dt) => { const b = m.ball;                                  // a defender who reads it: goes where the game's predicted path says he can meet it
     if (!b.owner && b.last !== d.team && m.pending == null) { const pt = m.intercept(d, d.top(true, false), 0.2, 1.0); d.moveTo(pt.x, pt.y, d.top(true, false), dt); } else d.steer(0, 0, dt); };
   function cpTest(id, name, sub, o) {
-    return { id, group: 'CP', name, sub, kind: 'cp', you: true,
+    return { id, group: o.group || 'CP', name, sub, kind: 'cp', you: true,
       setup(r) {
         Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
         const H = m.home.players, A = m.away.players, K = H[6], list = [K];
@@ -2026,8 +2041,8 @@
         put(K, o.from[0], o.from[1], 0); atFeet(K);
         for (const [q, x, y, vx, vy] of mates) { put(q, x, y, 0); r.bots.set(q, cpRun(vx, vy)); }
         for (const [q, x, y, read] of opps) { put(q, x, y, 4); if (read) r.bots.set(q, cpRead); }
-        Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0 });
-        m.meters[0].e = o.sp ?? 1;
+        Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0, spPassLast: null });
+        m.meters[0].e = o.sp ?? 1; SPP_ON = !!o.spp;                          // (the CP tests show the t-011 curlers; PS the new passes)
         Object.assign(r, { human: K, kicker: K, o, rcv: mates[0][0], opps: opps.map(x => x[0]), sp0: m.meters[0].e, bend: 0, minD: 1e9 });
       },
       check: cpCheck };
@@ -2036,7 +2051,7 @@
     const b = m.ball, o = r.o, K = r.kicker, T = Input.touch, f1 = v => v.toFixed(1), who = p => `${p.team === m.home ? 'your' : 'their'} #${p.num}`;
     const done = res => { Object.assign(T, { x: 0, y: 0, btn: {} }); return res; };
     if (r.t >= 0.4 && r.t < 0.7) { T.btn.special = true; if (r.t >= 0.5) T.btn[o.btn] = true; } else if (r.t >= 0.7) T.btn = {};
-    if (r.kickT == null) { if (!b.owner && !m.pending && b.lastP === K && r.t > 0.5) { r.kickT = r.t; r.start = { x: b.x, y: b.y }; r.C = m.curveLast; r.anim = K.kickAnim; r.tgt = b.target;
+    if (r.kickT == null) { if (!b.owner && !m.pending && b.lastP === K && r.t > 0.5) { r.kickT = r.t; r.start = { x: b.x, y: b.y }; r.C = m.curveLast; r.S2 = m.spPassLast; r.anim = K.kickAnim; r.tgt = b.target;
         r.aimAt = r.C ? { x: r.C.tx, y: r.C.ty } : null; r.sp1 = m.meters[0].e; }
       else return r.t > 4 ? done({ o: `NO KICK (anim ${K.kickAnim || '-'}, ${r.events.join(' / ') || 'no banner'})` }) : null; }
     // the ball's sideways distance from the straight line start -> target, and how close it came to the man in the way
@@ -2044,9 +2059,12 @@
     if (!r.touch) { const dx = A.x - r.start.x, dy = A.y - r.start.y, d = len(dx, dy) || 1, lat = ((b.x - r.start.x) * dy - (b.y - r.start.y) * dx) / d;
       if (Math.abs(lat) > Math.abs(r.bend)) r.bend = lat; r.maxZ = Math.max(r.maxZ, b.z);
       if (r.opps[0]) r.minD = Math.min(r.minD, len(b.x - r.opps[0].x, b.y - r.opps[0].y)); }
+    const S2 = r.S2; if (S2 && S2.from && !r.touch) { const dx = S2.tx - S2.from.x, dy = S2.ty - S2.from.y, d = len(dx, dy) || 1;   // (the tornado: its bend off the line hole -> receiver)
+      r.bend2 = Math.max(r.bend2 || 0, Math.abs(((b.x - S2.from.x) * dy - (b.y - S2.from.y) * dx) / d)); }
     const tp = b.owner && b.owner !== K ? b.owner : b.lastP && b.lastP !== K ? b.lastP : null;   // (gain() names the owner; a deflection the last man)
     if (!r.touch && tp) r.touch = { p: tp, own: b.owner === tp, t: ft, z: b.z };
-    const C = r.C, head = C ? `${C.mode === 'ground' ? 'CURLER' : C.mode === 'through' ? 'OUTSIDE CURL' : 'BANANA LOB'} (${r.anim}) · set off ${Math.round(C.th * 180 / Math.PI)}° ${C.s > 0 ? 'right' : 'left'} of the line, bent back ${f1(Math.abs(r.bend))} m at most`
+    const C = r.C, head = S2 ? `${SPP_NAMES[S2.kind]} (${r.anim}) · LV1${S2.curve ? ` · curled ${S2.curve.s > 0 ? 'right' : 'left'} of their man, bent ${f1(r.bend2 || 0)} m` : ''} · peak ${f1(r.maxZ)} m · SP ${r.sp0} -> ${r.sp1} · `   // (the LV2 special passes: sppass.js)
+      : C ? `${C.mode === 'ground' ? 'CURLER' : C.mode === 'through' ? 'OUTSIDE CURL' : 'BANANA LOB'} (${r.anim}) · set off ${Math.round(C.th * 180 / Math.PI)}° ${C.s > 0 ? 'right' : 'left'} of the line, bent back ${f1(Math.abs(r.bend))} m at most`
         + `${C.block ? ` · passed ${f1(r.minD)} m from ${who(r.opps[0])}${C.clear ? '' : ' (no angle cleared him)'}` : ''}${C.mode === 'lob' ? ` · peak ${f1(r.maxZ)} m` : ''} · SP ${r.sp0} -> ${r.sp1} · `
       : `STRAIGHT ${r.anim === 'pass' ? 'pass' : r.anim} (no curve) · bend ${f1(Math.abs(r.bend))} m · SP ${r.sp0} -> ${r.sp1} · `;
     if (r.touch) { const p = r.touch.p;
@@ -2066,6 +2084,22 @@
         { btn: 'pass', from: [40, 34], mates: [[9, 58, 34]], opps: [[3, 49, 33.6], [4, 51, 37.6, true]] }),
       cpTest('CP5', 'NO SP in the bank: the normal pass', 'the same SPECIAL + PASS with an empty meter: the ordinary pass, straight, no banner, nothing spent',
         { btn: 'pass', sp: 0, from: [40, 34], mates: [[9, 58, 34]], opps: [[3, 49, 33.6]] }),
+    ];
+  }
+  // the LV1 SPECIAL PASSES (Luca 30-31 Oct, sppass.js): the same chord as CP1-3, one bar. Each line: the pass's name,
+  // its peak, the bar spent, who got it. PS1 TORNADO DRILL (into the grass, spins, curls round their man to feet; PS4 the
+  // same with your man on the other side, so it curls the other way), PS2 BURROW BLAST (under the grass, pops out at the
+  // runner), PS3 ANGEL GLIDE (floats up into the light, glides down onto him).
+  function psTests() {
+    return [
+      cpTest('PS1', 'TORNADO DRILL: spin, then round their man to feet', 'SPECIAL + PASS, 1 bar: driven into the grass a step ahead, it spins there, then curls round their man on the side your striker is, into his feet',
+        { group: 'PS', spp: true, btn: 'pass', sp: 1, from: [40, 34], mates: [[9, 58, 34]], opps: [[3, 49, 33.6]] }),
+      cpTest('PS2', 'BURROW BLAST: under the grass to the runner', 'SPECIAL + THROUGH, 1 bar: it dives into the pitch, a dust trail runs under the grass, it bursts out at your runner',
+        { group: 'PS', spp: true, btn: 'through', sp: 1, from: [50, 26], mates: [[9, 66, 38, 6, 0]], opps: [[3, 61, 30.6]] }),
+      cpTest('PS3', 'ANGEL GLIDE: the golden lob', 'SPECIAL + LOB, 1 bar: it floats up into a golden light and glides down onto your man, feathers drifting off it',
+        { group: 'PS', spp: true, btn: 'lob', sp: 1, from: [45, 34], mates: [[9, 70, 29, 3, 0]], opps: [[3, 55, 32]] }),
+      cpTest('PS4', 'TORNADO DRILL: your man on the other side', 'PS1 with your striker 5 m further across: their man is now on the other side of the line, so it curls round him the other way',
+        { group: 'PS', spp: true, btn: 'pass', sp: 1, from: [40, 34], mates: [[9, 58, 29]], opps: [[3, 49, 32.2]] }),
     ];
   }
   // ======================================================================= t-012 WING PLAY (Luca 24 Oct: "make the attacking ai look for
@@ -3616,6 +3650,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
     add('RS', 't-029 · SET-PIECE SETUP', 'Every restart gets a short setup, as on TV: the whistle / flag and a caption, the players JOG into the restart\'s shape (anyone too far is moved under a quick TV wipe, never in plain sight), the taker walks up and places the ball, then you aim / the computer takes it. One time per kind, CLASSIC and ARCADE (quicker); your own set piece: PASS / SHOOT / LOB skips to aiming once the shape is mostly in.', rsTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
+    add('PS', 'LV1 SPECIAL PASSES (Luca, 30-31 Oct)', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: TORNADO DRILL (into the grass, it spins, then curls round their man on your receiver\'s side into his feet), BURROW BLAST (under the grass, it pops out at the runner), ANGEL GLIDE (a golden lob that glides down onto him). Spends 1 bar. The t-011 curlers stay as FREE PLAY buttons and the CP tests. Test Lab only for now.', psTests());
     add('LB', 't-008 · LOB REMAKE + AERIAL BATTLE', 'Hold LOB: a landing ring you walk with the stick, let go = the kick, landing on the ring. A tap is still the instant lob. The ring settles on a team-mate, who times his run. A clear contest at the drop = the AERIAL BATTLE: MASH! SHOOT against the computer.', lbTests());
     add('LV', 't-019 · LOB AIM: AUTO / RING', 'Two versions to compare (Pause > Options > LOB AIM). AUTO: LOB goes to the team-mate your arrow points at (the nearest free one in a ~38° cone), landing a step ahead on his run; hold = a little longer, tap = the quick one, nobody there = into space. RING: the ring without the arc, slower and steadier. Both: the camera no longer rides up with a lob.', lvTests());
     add('LC', 't-005 · LOB + CHIP, STEP 1', 'Lobs that really reach their height, a shadow that shrinks as the ball climbs, a landing ring that stays until someone touches the ball, and their keeper reading a lob over him (a delay by level).', lcTests());
@@ -3674,7 +3709,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; }           // (t-012: a WG test plays the computer on both sides)
     TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
     GOAL_PHYS = sc.kind === 'free' ? !!LAB.fp.gp : null;                        // t-038: FREE PLAY's GOAL PHYSICS / CURVE PASS switches; the tests as before
-    CURVE_PASS = sc.kind === 'free' ? !!LAB.fp.curve : true;                    //   (GOAL_PHYS null = on in the Lab; the curving pass on since t-011)
+    CURVE_PASS = sc.kind === 'free' ? !!LAB.fp.curve : true; SPP_ON = true;     // (SPP_ON: the chord plays the LV1 special passes; the CP tests switch it off)                    //   (GOAL_PHYS null = on in the Lab; the curving pass on since t-011)
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
     if (LAB.lobAim0 == null) LAB.lobAim0 = LOB_AIM_MODE;                        // t-019: LB / LV set LOB AIM per test; every other test plays the picked one
     LOB_AIM_MODE = LAB.lobAim0; LOB_AIM.camOld = LOB_AIM.ringOld = false; Object.assign(m, { lobCamBlend: null, camLead: undefined, camLeadOn: false });

@@ -52,7 +52,7 @@ class Match extends Phaser.Scene {
       this.foulScene = null; this.goalQ = null; if (this.ref) { this.ref.goTo = null; this.ref.t = 0; this.ref.state = 'idle'; this.ref.hidden = false; } this.freeze = 0;
       this.mstats = {}; this.ht = null; this.intro = null; this.sheet = null; this.pre = false; this.camTarget = null; this.camFast = false; this.closeFlowEl(); this.resetHalfTime(); this.htAiSubs = ''; for (const q of this.all || []) q.hide = false;
       if (this.toss) { this.toss = null; this.tossUi(false); } this.setup = null; this.pm = null; this.msg.setVisible(true); this.sub.setVisible(true); this.firstKick = null; this.etFirst = null; this.golden = false; this.matchPens = false; this.cameras.main.setZoom(this.baseZoom()); this.fixUi(this.baseZoom()); this.lastReplayEnd = -1e9;   // v0.8.5
-      if (this.bw) this.bw.reset(); if (this.bwUI) { this.bwUI = null; } this.demo = false; this.demoT = 0; this.highlights = []; this.lastReplay = null; this.rec = []; this.evReplay = null; this.ramiHello = false; this.paused = false;
+      if (this.bw) this.bw.reset(); if (this.bwUI) { this.bwUI = null; } this.demo = false; this.demoT = 0; this.highlights = []; this.lastReplay = null; this.rec = []; this.recAllReset(); this.evReplay = null; this.ramiHello = false; this.paused = false;   // (Luca 31 Oct: + the whole-match replay starts again)
       if (this.rami) { this.rami.line = null; this.rami.c.setVisible(false); }
       this.buildTeams(h, a, clash); this.applyLineup(this.home); this.home.score = this.away.score = 0; this.clock = 0; this.half = 1; this.over = false;   // (new Player objects: no injuries carried over)
       for (const mt of this.meters || []) mt.reset(); this.riseQ = null;
@@ -94,6 +94,9 @@ class Match extends Phaser.Scene {
       if (window.HC2_STARTED && (!this.demo || this.watch)) this.openPause();   // (watch mode pauses too)
     }
     if (this.over && !this.paused && this.bw && this.bw.list.length && Input.taps.has('KeyB') && !(this.so && !this.so.done)) { this.bwOpen('ft'); return; }   // v0.8.7: B at full time = BUG WATCH
+    if (this.over && !this.paused && (this.recAll || []).length >= 60 && Input.taps.has('KeyR') && !(this.so && !this.so.done)) {   // Luca 31 Oct: R at full time = the WHOLE MATCH replay
+      this.msg.setText(''); this.sub.setText(''); this.startReplay('REPLAY', () => this.say('FULL TIME', this.ftLine(), 99999), this.recAll.map(f => Object.assign({}, f)), { caption: 'REPLAY \u00b7 THE WHOLE MATCH', ctl: true, full: true }); return;
+    }
     if (this.over && this.highlights && this.highlights.length && Input.pressed('pass')) {
       this.msg.setText(''); this.sub.setText(''); this.playHighlights(() => this.say('FULL TIME', this.ftLine(), 99999)); return;
     }
@@ -116,7 +119,7 @@ class Match extends Phaser.Scene {
     }
     if (this.watch) { if (!this.paused && !this.bwUI && !this.replay) this.watchInput(); this.watchTick(dt); }   // watch mode: speed keys, N = mark, the review at full time
     if (this.demo && !this.watch && this.over && (this.demoOver = (this.demoOver || 0) + dt) > 7) {   // the demo just starts again (watch mode waits for you)
-      this.demoOver = 0; this.over = false; this.home.score = this.away.score = 0; this.clock = 0; this.half = 1; this.highlights = []; this.resetHalfTime(); this.mstats = {};
+      this.demoOver = 0; this.over = false; this.home.score = this.away.score = 0; this.clock = 0; this.half = 1; this.highlights = []; this.recAllReset(); this.resetHalfTime(); this.mstats = {};
       for (const mt of this.meters || []) mt.reset();
       for (const p of this.all) if (!p.sentOff) p.setState('idle', 0); this.kickoff(this.home);
     }

@@ -75,7 +75,7 @@ called, but nobody reorganised before the free kick.)
 - **Units:** the world is in metres (x along the pitch, y across, z up). The stadium art is pre-projected: `tools/stadium/cfg.py` and `docs/lanes/stadiums-maps.md` have the geometry.
 - **Layout:**
   - the game lives in `game/`
-  - the code is split by area into 21 files under `game/src/`; `game/src/README.md` says which file is which and which lane edits it
+  - the code is split by area into 26 files under `game/src/`; `game/src/README.md` says which file is which and which lane edits it
   - new `Match` methods go inside the file's `hc2Mix(Match, { ... })` block
   - a new file goes into all three pages (`index.html`, `lab.html`, `test.html`) in load order
 - **PC first.** The phone version is on pause; don't break it, don't extend it.
@@ -126,7 +126,7 @@ Tests use Node with Playwright and Chromium, run headless; time is stepped by ha
   - test results
   - any PixelLab generations it used
   - a `## Preview` section (below)
-- Then put the PR link on the card and move the card to *Needs OK*.
+- Then put the PR link on the card and move the card to *Needs OK*: write `status: "review"` exactly (the key, not the label; `"needs-ok"` used to hide cards in To do). Status keys are listed in docs/taskmaster.md, "Card status keys".
   - Exception: PRs from `friend/` branches get their Needs OK card automatically (the "HC2 taskmaster check" scheduled task on Luca's account, 3 times a day at 08:39, 13:39 and 20:39 Dutch time, every 2 hours when Luca switches TURBO on in HQ; it also reviews the agents' reports). The co-designer's account can't write to the board.
 
 ### The `## Preview` section (every PR, every agent)

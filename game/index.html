@@ -150,6 +150,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     <div class="pick" id="pick-cam" role="group" aria-label="Camera distance"><span>CAMERA</span></div>
     <div class="pick" id="pick-pace" role="group" aria-label="Pace"><span>PACE</span></div>
     <div class="pick" id="pick-lobaim" role="group" aria-label="Lob aim"><span>LOB AIM</span></div>
+    <div class="pick" id="pick-vol" role="group" aria-label="Sound volume"><span>SOUND</span></div>
     <small>SAVED ON THIS BROWSER &middot; MOST OF THESE ARE IN THE PAUSE MENU TOO</small>
     <button class="close" type="button" data-close>DONE &#10003;</button>
   </div></div>
@@ -271,6 +272,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     const setLa = k => { la = k; for (const b of lrow.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k)); try { localStorage.setItem('hc2-lobaim', k); } catch (e) {} if (typeof setLobAim === 'function') setLobAim(k); };
     for (const k of Object.keys(LAIMS)) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = LAIMS[k]; btn.addEventListener('click', () => setLa(k)); lrow.appendChild(btn); }
     setLa(la);
+    // MOVE SOUNDS (Luca, 31 Oct: "develop a sound effect for all new moves and interactions"): the volume, OFF = muted;
+    // in a match M mutes, - / = change it, and PAUSE > OPTIONS has it too
+    const vrow = document.getElementById('pick-vol'), VOLS = [['0', 'OFF'], ['0.25', '25%'], ['0.5', '50%'], ['0.75', '75%'], ['1', '100%']];
+    let vk = '1'; try { if (localStorage.getItem('hc2-mute') === '1') vk = '0'; else { const v = parseFloat(localStorage.getItem('hc2-vol')); if (v >= 0 && v <= 1) vk = String(VOLS.map(x => +x[0]).reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a)); } } catch (e) {}
+    const setV = (k, live) => { vk = k; for (const b of vrow.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k)); if (!live) return;
+      SFX.init(); const off = +k === 0; if (!off) SFX.setVol(+k); if (SFX.muted !== off) SFX.toggle(); if (!off) MSFX.play('select', 0.05); };
+    for (const [k, n] of VOLS) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = n; btn.addEventListener('click', () => setV(k, true)); vrow.appendChild(btn); }
+    setV(vk, false);
     const play = document.getElementById('play'), battle = document.getElementById('battle'), cupb = document.getElementById('cupbtn'), watchb = document.getElementById('watchbtn');
     // v0.10.2 RESUME (Luca, 24 Oct): the match you left last time, kept by resume.js in this browser - the button shows the score + minute
     const resb = document.getElementById('resumebtn'); let snap = null;
@@ -352,8 +361,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 <script src="src/penalties.js"></script>
 <script src="src/cup.js"></script>
 <script src="src/arcadesp.js"></script>
+<script src="src/sppass.js"></script>
 <script src="src/ui.js"></script>
+<script src="src/movecall.js"></script>
 <script src="src/replay.js"></script>
 <script src="src/watch.js"></script>
 <script src="src/resume.js"></script>
+<script src="src/movesfx.js"></script>
 <script src="src/boot.js"></script>
