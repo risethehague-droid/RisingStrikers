@@ -419,6 +419,10 @@
     { mv: 'sp1', sec: 'shoot', n: 'LV1 BLAZE', game: true, hot: true },
     { mv: 'sp2', sec: 'shoot', n: 'LV2 THUNDER', game: true, hot: true },
     { mv: 'sp3', sec: 'shoot', n: 'LV3 PHOENIX', game: true, hot: true },
+    { mv: 'v1-watch', sec: 'shoot', n: '1 V 1 · WATCH IT', hot: true, tip: 'PREVIEW (Luca 30 Oct): through on goal, only the keeper to beat - speed lines close in, time slows more the closer he gets and nearly stops as he strikes it, both glow in their team colours. Your striker runs in and shoots by himself', go: r => fp1v1(r, true) },
+    { mv: 'v1-play', sec: 'shoot', n: '1 V 1 · YOU PLAY IT', hot: true, tip: 'PREVIEW (Luca 30 Oct): the same break, their centre-back chasing - you run at the keeper (arrows) and finish it (X shot, C chip, B special)', go: r => fp1v1(r, false) },
+    { mv: 'v1-arrows', sec: 'shoot', n: '1 V 1 · ARROWS · WATCH IT', hot: true, tip: 'PREVIEW v3 (Luca 31 Oct): the same 1 V 1, with RISE arrows pointing in at the duel instead of speed lines', go: r => fp1v1(r, true, 'arrows') },
+    { mv: 'v1-arrows-play', sec: 'shoot', n: '1 V 1 · ARROWS · YOU PLAY IT', hot: true, tip: 'PREVIEW v3: the arrows look, you play it (arrows, X shot)', go: r => fp1v1(r, false, 'arrows') },
     { mv: 'air-head', sec: 'air', n: 'HEADER', game: true },
     { mv: 'air-volley', sec: 'air', n: 'VOLLEY', game: true },
     { mv: 'air-dive', sec: 'air', n: 'DIVE HEADER', game: true },
@@ -509,6 +513,8 @@
       Object.assign(m, { offSide: null, offFlag: null, offLast: null, offGK: null, passAim: null, gkSetup: null }); }
     r.human = s; m.human = s; r.nogk = !!LAB.fp.nogk;
     cast(r.nogk ? [s] : [s, gk]); if (!r.nogk) fpKeeper(gk);
+    if (r.cam0) { r.cam = r.cam0; r.cam0 = null; }
+    ONE_V_ONE.on = false;                                                       // (the 1 V 1 preview: only while its button's scene runs)
     r.bots.clear(); r.extra = false; r.fx = null; r.noAuto = false; s.watch = null;
     if (r.cam0) { r.cam = r.cam0; r.cam0 = null; } r.scn = null; scnMark();         // (a practice scenario's camera and its button go too)
     Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
@@ -725,6 +731,29 @@
       if (gk.state === 'dive' && gk.saveKind === 'smother' && !F.forced) { F.forced = true; gk.smU = 0; }   // (the gather made to happen, as GH3)
       r.last = 'SMOTHER · ' + fpGk(r, F, gk);
       return F.t < 6;
+    } };
+  }
+  // the 1 V 1 PREVIEW (src/oneone.js): a break from just inside their half, their centre-back a yard behind and chasing,
+  // only their keeper ahead. WATCH IT: your man runs in and shoots (far corner, once the keeper is ~7 m away); YOU PLAY IT: he's already running, then the arrows and keys are yours
+  function fp1v1(r, auto, look = 'lines') {
+    const p = r.human, gk = r.gk, c = m.away.players[4]; fpCast(r, [c]);
+    put(p, 69, 29, 0); atFeet(p); put(c, 65.5, 30.2, 0); fpKeeper(gk);
+    r.bots.set(c, (q, dt) => q.moveTo(p.x - 1.4, p.y + 0.5, RUN * 0.9, dt));     // chasing, never quite catching him
+    ONE_V_ONE.on = true; ONE_V_ONE.look = look;
+    const cam0 = r.cam0 = r.cam0 || r.cam;                                       // (while it's on, the camera frames the two of them; fpBase puts FREE PLAY's back)
+    r.cam = () => { const S = m.v1; if (!S) return cam0(); const b = m.ball, q = b.owner || !S.p ? S.p : b; return { x: clamp((q.x + gk.x) / 2, q.x - 6, q.x + 6), y: (q.y + gk.y) / 2, sx: 0 }; };
+    r.last = '1 V 1 · through on goal';
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      const b = m.ball, T = Input.touch, S = m.v1;
+      if (!auto && !F.free) { if (F.t < 0.9) { T.x = 1; T.y = 0.15; } else { F.free = true; T.x = T.y = 0; } }   // (YOU PLAY IT: he's already on the break, then it's yours)
+      if (auto && !F.shot) {
+        const dx = GX - p.x, dy = 34 - p.y, d = len(dx, dy) || 1;
+        if (b.owner === p && (d < 12 || len(gk.x - p.x, gk.y - p.y) < 7.5)) { F.shot = true; T.x = T.y = 0; m.doShot(p, 0.85, 1.0); }
+        else if (F.t > 0.25) { T.x = dx / d; T.y = dy / d; }
+      }
+      if (!F.done && (b.owner === gk || b.inNet || (F.shot || b.lastP !== p) && !S && F.t > 1)) { F.done = true; F.dt = F.t; }
+      r.last = `1 V 1 · ${S ? `ON · time ${Math.round(S.k * 100)}%${S.burst ? ' · STRUCK' : m.pending && m.pending.p === p ? ' · winding up' : ''}` : F.done ? 'over' : 'through on goal'}${F.done ? ' · ' + fpGk(r, F, gk) : ''}`;
+      return F.done ? F.t - F.dt < 1.6 : F.t < (auto ? 7 : 14);
     } };
   }
   function fpPunch(r) {                                                         // your lob into a crowded six-yard box (GKX7): he punches it
