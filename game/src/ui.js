@@ -350,6 +350,7 @@ hc2Mix(Match, {
     const P = this.pm, k = keyset(), H = (this.highlights || []).length, Q = this.squadOf(this.home);
     if (P.page === 'opts') return [
       { k: 'snd', l: `SOUND: ${SFX.muted ? 'OFF' : 'ON'}`, act: () => SFX.toggle() },
+      { k: 'vol', l: `VOLUME: ${Math.round(SFX.vol * 100)}%`, act: () => { SFX.stepVol(); if (SFX.muted) SFX.toggle(); } },   // 31 Oct: also - / = in play
       { k: 'meter', l: `SP METER LOOK: ${SP_STYLE.toUpperCase()}`, act: () => setSpStyle(SP_STYLE === 'wild' ? 'basic' : 'wild') },
       { k: 'ai', l: `TEAM AI: ${AI_MODE === 'classic' ? 'CLASSIC (v0.7.6)' : 'NEW'}`, act: () => setAiMode(AI_MODE === 'classic' ? 'new' : 'classic') },
       { k: 'diff', l: `DIFFICULTY: ${(DIFF_OPTS.find(o => o[0] === DIFF_LEVEL) || DIFF_OPTS[1])[1]}${AI_MODE === 'classic' ? ' (NEEDS THE NEW AI)' : ''}`, act: () => setDiff(DIFF_OPTS[(DIFF_OPTS.findIndex(o => o[0] === DIFF_LEVEL) + 1) % DIFF_OPTS.length][0]) },   // v0.9.2
