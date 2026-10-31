@@ -142,12 +142,7 @@ const ARCADE = {
     // t-026 (Luca 25 Oct 14:42, after playing v0.12.0: "scrap the board for throws, that's bad"): the touchline boards are
     // off - a ball over a touchline is a throw-in again, on ARCADE too. The byline boards (no goal kicks / corners, the
     // rebounds in front of goal that go up for headers) stay. true = the v0.12.0 touchline boards back.
-    touch: false,
-    // Luca 31 Oct ("please ADD CORNERS INTO ARCADE BACK"): a ball the DEFENDING side put over its own byline (a block,
-    // a keeper's tip or parry, a clearance) is a CORNER again on ARCADE, as in real football (Law 17) and every arcade
-    // football game that keeps them (Sensible Soccer, Mario Strikers' quick restarts aside). Only the ATTACKERS' balls over
-    // the byline still come back off the board (no goal kicks: the rebounds for headers stay). false = no corners (v0.12.x).
-    corners: true },
+    touch: false },
   // 2 AERIALS: a rebound that will go up past headZ becomes a loose high ball "aimed" at the nearest man of the side that
   // touched it last (the way a lob is), so the game's own lob machinery takes over: he times his run under the drop,
   // their nearest man contests it, the drop is a duel / the AERIAL BATTLE, headers, volleys, the aerial specials.
