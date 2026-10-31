@@ -59,6 +59,31 @@ plus a `t-NNN` card. Every brief has a "How real football and other games do it"
 football"). Keep two open tasks off the same files. `assign ... --replace` rewrites a brief nobody has
 reported on yet.
 
+## Card status keys (HQ `tasks`, every writer)
+
+HQ shows a card in a column by its `status` **key**. Write the key, never the column's label:
+
+| Write `status:` | Column on HQ | When |
+| --- | --- | --- |
+| `"inbox"` | To do (New) | a new card nobody has sorted |
+| `"ready"` | To do | sorted, briefed, or sent back by Luca |
+| `"doing"` | In progress | a worker or the taskmaster is on it |
+| `"review"` | **Needs OK** (and YOUR MOVE) | waits for Luca's OK: every new PR card, every question for him |
+| `"approved"` | In progress (OK'd) | only HQ's OK button writes this |
+| `"done"` / `"dropped"` | Done | merged and live / said no |
+
+- **Needs OK is `"review"`.** On 30-31 Oct cards were saved as `"needs-ok"`, which isn't a key, so HQ showed them as
+  New in To do and Luca had to hunt for them (#70, #75, and #72, #74, #76-#79 before he found and OK'd them). HQ now
+  reads common misspellings and flags any unknown status in red on the card, but write the key anyway.
+- **A PR that gets new code after Luca's OK goes back to `"review"`** with a log line saying what changed (t-044 / #68,
+  31 Oct). A merge of main into the branch with no change of its own doesn't count.
+- **`next` is who acts after the OK.** When the OK means "merge", `next.agent` is `"taskmaster"`, never `"luca"`
+  (otherwise the OK'd card sits in In progress with nobody on it). Use `"luca"` only when his OK hands him a step
+  himself, such as a 2-PC test.
+- **After writing a card, read it back** (ArtifactData `get`) and check the status is one of the keys above.
+- Before every check ends: list the open PRs and make sure each one has a card in `review`, `approved` or `ready`
+  (sent back). An open PR with no card, or a card with an unknown status, gets fixed in the same run.
+
 ## Merging a pull request (after Luca's OK on its card)
 
 0. **Read the PR's card on HQ first: merge only if its status is `approved`** (Luca's OK through HQ's button, with
