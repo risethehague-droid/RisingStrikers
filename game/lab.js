@@ -305,6 +305,7 @@
   }
   function fpReset(r) {                                                          // the ball comes back to you where you are (E)
     r = r || LAB.run; if (!r || r.sc.kind !== 'free') return;
+    if (r.scn) { scnPlay(r, r.scn); return; }                                    // (a practice scenario: E sets the same one up again)
     if (r.extra || r.real || r.fx) fpBase(r);                                    // (t-038: a move's men / set piece / script go first)
     const p = r.human, gk = r.gk, b = m.ball;
     Object.assign(m, { setPiece: null, pending: null, diving: null, freeze: 0, hitStop: 0, path: null, passRing: null, nextHuman: null, charge: -1, penaltyKick: false, dead: null });
@@ -503,6 +504,7 @@
     r.human = s; m.human = s; r.nogk = !!LAB.fp.nogk;
     cast(r.nogk ? [s] : [s, gk]); if (!r.nogk) fpKeeper(gk);
     r.bots.clear(); r.extra = false; r.fx = null; r.noAuto = false; s.watch = null;
+    if (r.cam0) { r.cam = r.cam0; r.cam0 = null; } r.scn = null; scnMark();         // (a practice scenario's camera and its button go too)
     Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
   }
   // what their keeper did, for the readout: the move he picked (dive low / high, leap, smother ...) and what came of it
@@ -779,6 +781,157 @@
       return F.done ? F.t - F.doneT < 6 : F.t < 30;
     } };
   }
+  // ---------- PRACTICE SCENARIOS (Luca 31 Oct 01:39: "for the test lab give more options for setup like scenarios in
+  // which you can try passes dribbles etc"). The drills of the reference games' training modes: FIFA / EA FC's Skill
+  // Games and Practice Arena set-ups (a 2 v 1, beat the man, crossing, the keeper off his line), PES's training challenges,
+  // and the rondos and 1 v 1 / 2 v 1 drills real coaches run. A scenario puts you, your team-mates, their defenders and
+  // their keeper where the drill needs them, then everybody but you plays the GAME'S OWN team AI (as a match; LAB's set
+  // pieces do the same), so the defender presses, tackles and reads the pass for real. The ball switches you to whoever
+  // gets it on your side, as in a match. When the try ends (a goal, a save, lost it, out, time up) the same set-up comes
+  // back by itself and the tally counts: try, score, again - short reps. E sets it up again, any move button or STOP ends it.
+  // One line per scenario: you [x, y] (you attack the right-hand goal, x 0-105, y 0-68 top to bottom), mates [x, y, run
+  // x, run y] (a run he makes until the ball comes to him), opps [x, y], gk 'line' / 'off' / 'none', stand = the
+  // defenders hold their spots (cones that still stick a leg out), def = you defend the left-hand goal, sp / save = the
+  // FULL SP / KEEPER SAVE switches it turns on.
+  const SCN_SECS = [['pass', 'PASSING'], ['drib', 'DRIBBLING · beat your man'], ['shoot', 'SHOOTING'], ['gk', 'BEAT THE KEEPER · watch his saves'], ['def', 'DEFENDING']];
+  const SCN = [
+    { id: 'p-2v1', sec: 'pass', n: '2 v 1 BREAK', you: [62, 29], mates: [[62, 43, 1.6, 0]], opps: [[79, 36]], gk: 'line',
+      tip: 'You and a team-mate break on one defender. Draw him to you, then pass (Z) or keep going. The ball switches you to whoever gets it.' },
+    { id: 'p-wall', sec: 'pass', n: 'WALL PASS AT THE BOX', you: [72, 31], mates: [[87, 38]], opps: [[79, 33], [93, 37]], gk: 'line',
+      tip: 'Pass into your team-mate at the box (Z), and you are him: play it straight back into space for a one-two, or turn and go.' },
+    { id: 'p-thru', sec: 'pass', n: 'THROUGH BALL IN BEHIND', you: [56, 34], mates: [[73, 25, 3.2, 0.9]], opps: [[78, 30], [78, 40]], gk: 'line',
+      tip: 'Your striker runs past their back two. Slip it in behind them with THROUGH (V), then finish. (Offside is off in the Lab.)' },
+    { id: 'p-switch', sec: 'pass', n: 'SWITCH THE PLAY', you: [60, 10], mates: [[72, 57, 2, -0.4]], opps: [[66, 15], [71, 30], [73, 44]], gk: 'line',
+      tip: 'Crowded on your wing, your winger free on the far side. Hit it long: LOB (C, hold it for more), or SPECIAL + LOB for the BANANA LOB.' },
+    { id: 'p-cross', sec: 'pass', n: 'CROSS FROM THE BYLINE', you: [92, 7], mates: [[87, 29, 1.6, 0.3], [83, 39, 2, -0.3]], opps: [[96, 30], [94, 39]], gk: 'line',
+      tip: 'You\'re at the byline with two men in the box. Cross it (C), then you are whoever attacks it: SHOOT for the header or volley.' },
+    { id: 'd-1v1', sec: 'drib', n: 'TAKE ON YOUR MAN', you: [68, 34], opps: [[81, 34]], gk: 'line',
+      tip: 'One defender comes to meet you. Beat him: change of pace, a turn, or SPECIAL (B) for the special dribble when you\'re 30 m+ from goal. New dribbles (rainbow flick, shadow step) get tried here as they land.' },
+    { id: 'd-cones', sec: 'drib', n: 'SLALOM · 4 DEFENDERS', you: [54, 34], opps: [[63, 31], [70, 37], [77, 31], [84, 37]], gk: 'line', stand: true,
+      tip: 'Four defenders hold their spots like cones (but stick a leg out if you run into them). Weave through and finish.' },
+    { id: 'd-wing', sec: 'drib', n: 'WING 1 v 1 · THE FULL-BACK', you: [70, 8], mates: [[89, 36, 0.8, -0.3]], opps: [[81, 11]], gk: 'line',
+      tip: 'Their full-back on you on the wing. Go round him to the byline and cross, or cut inside and shoot.' },
+    { id: 'd-back', sec: 'drib', n: 'MAN ON YOUR BACK · TURN', you: [82, 34], face: 'back', mates: [[71, 44]], opps: [[83.6, 34]], gk: 'line',
+      tip: 'Ball at your feet, back to goal, a defender tight behind you. Spin him and go, or lay it off to your team-mate (Z).' },
+    { id: 'd-two', sec: 'drib', n: 'BEAT TWO', you: [64, 34], opps: [[76, 30], [83, 38]], gk: 'line',
+      tip: 'Two defenders, one behind the other. Get past both, or pick your moment to shoot.' },
+    { id: 's-1v1', sec: 'shoot', n: '1 v 1 · THROUGH ON GOAL', you: [72, 34], opps: [[65, 39]], gk: 'line',
+      tip: 'Clean through, a defender chasing you. Shoot early, go round the keeper, or CHIP him (C in the box facing goal).' },
+    { id: 's-edge', sec: 'shoot', n: 'EDGE OF THE BOX · CLOSED DOWN', you: [86, 30], opps: [[94, 33]], gk: 'line',
+      tip: 'A defender is coming to block. Get it off quick: TAP KICK (X tapped) or a POWER SHOT (X held).' },
+    { id: 's-angle', sec: 'shoot', n: 'TIGHT ANGLE', you: [97, 15], mates: [[90, 37, 0.6, 0]], opps: [[101, 25]], gk: 'line',
+      tip: 'Close to the byline. Beat him at his near post, or cut it back to your team-mate (Z).' },
+    { id: 's-long', sec: 'shoot', n: 'FROM DISTANCE', you: [76, 41], opps: [[87, 35], [88, 43]], gk: 'line', stand: true,
+      tip: '29 m out, their defenders sat deep. Find a gap: POWER SHOT, or a special (B) with SP in the bank.' },
+    { id: 'k-off', sec: 'gk', n: 'KEEPER OFF HIS LINE · LOB HIM', you: [80, 30], gk: 'off',
+      tip: 'Their keeper is 9 m off his line. LOB or CHIP him (C). Watch what he does: back-pedal, leap, tip it over.' },
+    { id: 'k-far', sec: 'gk', n: 'FAR CORNER · FULL STRETCH', you: [91, 15], gk: 'line',
+      tip: 'Wide in the box: shoot across him for the far post (arrow down + X). He has to dive the whole way.' },
+    { id: 'k-rush', sec: 'gk', n: 'HE RUSHES OUT', you: [80, 34], gk: 'out',
+      tip: 'Through on goal and the keeper charges you. Shoot early, go round him, or chip him. Too close with a heavy touch: he smothers it.' },
+    { id: 'k-spec', sec: 'gk', n: 'SPECIAL v SPECIAL SAVE', you: [85, 34], gk: 'line', sp: true, save: 2,
+      tip: 'FULL SP and his SPECIAL SAVE LV2 come on. SPECIAL (B) for your special shot, X for a normal one: he answers with his special save either way.' },
+    { id: 'f-1v1', sec: 'def', n: 'STOP THE DRIBBLER', def: true, you: [26, 34], opps: [[45, 34]], maxT: 12,
+      tip: 'Their striker runs at your goal. Jockey him, then tackle: Z the standing tackle, X the slide. Win it or hold him up for 12 s.' },
+    { id: 'f-2v1', sec: 'def', n: 'STOP THE 2 v 1', def: true, you: [28, 34], opps: [[47, 30], [47, 42]], maxT: 12,
+      tip: 'Two of them break at you, your keeper behind. Stay between them, cut the pass out, tackle at the right moment.' },
+  ];
+  const SCN_BY = Object.fromEntries(SCN.map(x => [x.id, x]));
+  // BUILD YOUR OWN: where you start, how many team-mates and defenders, their keeper, defenders live or standing
+  const SB_FROM = { half: [55, 34, 'HALFWAY'], mid: [71, 34, '35 M OUT'], edge: [85, 34, 'EDGE OF THE BOX'], wt: [74, 9, 'WING ▲'], wb: [74, 59, 'WING ▼'] };
+  function scnCustom(B) {
+    const [x, y] = SB_FROM[B.from], w = Math.abs(y - 34) > 10, sg = y < 34 ? -1 : 1, cx = v => Math.min(v, 99);
+    const M = w ? [[cx(x + 14), 34 - sg * 4, 1.5, 0], [cx(x + 8), 34 + sg * 8, 1.4, 0], [cx(x + 19), 34 + sg * 2, 0.8, 0]]
+                : [[cx(x + 11), 22, 1.6, 0.3], [cx(x + 11), 46, 1.6, -0.3], [cx(x + 17), 34, 1, 0]];
+    const oy = y + (34 - y) * 0.35, O = [[cx(x + 9), oy], [cx(x + 15), oy - 6], [cx(x + 15), oy + 6], [cx(x + 21), 34], [cx(x + 21), w ? oy : 26]];
+    return { id: 'custom', key: JSON.stringify(B), sec: 'custom', n: `YOUR SET-UP · ${SB_FROM[B.from][2]}`, you: [x, y], mates: M.slice(0, B.mates), opps: O.slice(0, B.opps), gk: B.gk, stand: B.stand,
+      tip: `${B.mates} team-mate${B.mates === 1 ? '' : 's'}, ${B.opps} defender${B.opps === 1 ? '' : 's'}${B.stand ? ' holding their spots' : ''}, ${{ line: 'their keeper on his line', off: 'their keeper off his line', none: 'no keeper' }[B.gk]}.` };
+  }
+  function scnTally(S, st) { return `try ${st.tries} · ${S.def ? 'stopped' : 'goals'} ${S.def ? st.wins : st.goals}`; }
+  function scnPlay(r, S) {
+    const st = r.scn && r.scn.id === S.id && r.scn.key === S.key && r.scnSt ? r.scnSt : { tries: 0, goals: 0, wins: 0 };   // (the same one again: the tally keeps counting)
+    csClean(); if (m.cutIn) m.cutInEnd(); m.cutInQ = null;
+    if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null;
+    Object.assign(m, { aerial: null, lobAim: null, slowMo: 0, camTarget: null, cvFx: null, clashLast: null, gkSpLast: null, acLast: null, airCh: null, headBuf: 0 });
+    fpBase(r); fpReset(r); r.air = null; r.marks = []; r.why = null; LAB.cx = null;
+    if (S.sp && !LAB.fp.sp) { LAB.fp.sp = true; syncTog(); }
+    if (S.save != null && LAB.fp.save !== S.save) { LAB.fp.save = S.save; syncCyc(); }
+    const H = m.home.players, A = m.away.players, D = !!S.def;
+    const you = D ? H[3] : H[9], gk = D ? H[0] : S.gk === 'none' ? null : A[0];
+    const mates = (S.mates || []).map((o, i) => [(D ? [H[4], H[2]] : [H[8], H[7], H[10]])[i], o]);
+    const opps = (S.opps || []).map((o, i) => [(D ? [A[9], A[8], A[10]] : [A[3], A[4], A[2], A[5], A[6]])[i], o]);
+    cast([you, ...mates.map(x => x[0]), ...opps.map(x => x[0]), ...(gk ? [gk] : [])]);
+    for (const k of [H[0], A[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, up: null, walk: undefined, saveKind: '', leap: 0, gkN: null, hands: false, hold: 0, smAt: 0 });
+    for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: (t === m.home) !== D ? 1 : 0, inPoss: (t === m.home) !== D, airSpAt: null, offBy: null, mood: null });
+    for (const p of m.all) Object.assign(p, { aiTgt: null, openFrom: null, lastMove: null, goRun: null });
+    const [x, y] = S.you, gx = D ? 0 : GX;
+    put(you, x, y, D ? dirIndex(1, 0) : S.face === 'back' ? dirIndex(-1, 0) : dirIndex(gx - x, 34 - y));
+    for (const [q, [qx, qy, vx, vy]] of mates) { put(q, qx, qy, dirIndex(D ? -1 : 1, 0)); if (vx || vy) r.bots.set(q, cpRun(vx || 0, vy || 0)); }
+    for (const [q, [qx, qy]] of opps) { put(q, qx, qy, D ? dirIndex(-1, 0) : dirIndex(x - qx, y - qy)); if (S.stand) r.bots.set(q, sit()); }
+    if (D) { put(gk, 1.3, 34, 0); atFeet(opps[0][0]); }
+    else { if (gk) fpKeeper(gk, S.gk === 'off' ? 96 : S.gk === 'out' ? 99 : LINE_X, 34 + (y - 34) * (S.gk === 'line' ? 0.3 : 0.15)); atFeet(you); }
+    r.sc = Object.assign({}, r.sc0, { realAi: true }); r.real = true; r.extra = true; r.noAuto = true;   // (the game's team AI for everyone else; the Lab's own restarts)
+    LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = false; m.ball.crossBy = null; window.HC2_NO_OFFSIDE = true;
+    r.human = you; m.human = you; r.nogk = D || !gk;
+    r.cam0 = r.cam; r.cam = () => { const b = m.ball, p = r.human, q = b.owner === p || !b.owner && len(b.x - p.x, b.y - p.y) < 5 ? p : b;
+      return { x: q.x + (q === b ? clamp(b.vx * 0.35, -10, 10) : 0), y: q.y, sx: D ? 0 : fpShift() }; };
+    r.scn = S; r.scnSt = st; st.tries++; scnMark();
+    r.last = `${S.n} · GO! · ${scnTally(S, st)}`;
+    r.fx = { step: (r, p, F) => scnStep(r, S, st, F, D) };
+  }
+  function scnStep(r, S, st, F, D) {
+    const b = m.ball, o = b.owner, me = r.human;
+    if (F.end != null) { if (F.t >= F.end) scnPlay(r, S); return true; }
+    const to = o || b.target;                                                    // the ball's going to (or is with) a team-mate: he's you now
+    if (to && to !== me && to.team === me.team && !to.keeper && !to.sentOff) { r.human = to; m.human = to; r.bots.delete(to); }
+    const gk = D ? null : r.nogk ? null : r.gk;
+    if (o && o.team !== me.team && !o.keeper) F.lost = (F.lost || 0) + STEP; else F.lost = 0;
+    if (gk && o === gk && gk.hands) F.held = (F.held || 0) + STEP; else F.held = 0;
+    let out = null, win = false;
+    if (b.inNet) { win = (b.x > PITCH_L / 2) !== D; out = D ? 'THEY SCORED' : win ? 'GOAL!' : 'OWN GOAL'; if (win && !D) st.goals++; }
+    else if (D) {
+      if (o && o.team === me.team) { out = o.keeper ? 'YOUR KEEPER HAS IT ✓' : 'WON IT ✓'; win = true; }
+      else if (r.out) { out = 'OUT · the attack is over ✓'; win = true; }
+      else if (F.t > (S.maxT || 12)) { out = 'HELD THEM UP ✓'; win = true; }
+    } else if (F.held > 0.5) out = 'SAVED · he holds it';
+    else if (F.lost > 0.4) out = 'LOST IT';
+    else if (r.out) out = r.out === 'CORNER' ? 'OUT · corner' : r.out === 'GOAL KICK' ? 'OUT · wide or over' : 'OUT · ' + String(r.out).toLowerCase();
+    else if (F.t > (S.maxT || 20)) out = 'TIME UP';
+    if (!out) return true;
+    if (win) st.wins++;
+    r.out = null; F.end = F.t + (b.inNet ? 1.8 : 1.3);
+    r.last = `${S.n} · ${out} · ${scnTally(S, st)} · again…`;
+    return true;
+  }
+  // the scenario buttons, built from the list (a new scenario is one line in SCN), and BUILD YOUR OWN
+  function scnMark() {
+    const r = LAB.run, id = r && r.scn ? r.scn.id : null;
+    for (const b of document.querySelectorAll('#fp [data-scn]')) b.setAttribute('aria-pressed', b.dataset.scn === id);
+    const tip = $('fp-scn-tip'); if (tip) tip.textContent = r && r.scn ? r.scn.tip : 'Pick a scenario: it sets up, you play it, then it starts again by itself. E = again now.';
+    const stop = $('fp-scn-stop'); if (stop) stop.hidden = !id;
+  }
+  function scnStart(id) {
+    const r = LAB.run; if (!r || r.sc.kind !== 'free') return;
+    const S = id === 'custom' ? scnCustom(LAB.scnB) : SCN_BY[id]; if (!S) return;
+    scnPlay(r, S);
+  }
+  function scnUI() {
+    LAB.scnB = { from: 'mid', mates: 1, opps: 1, gk: 'line', stand: false };
+    $('fp-scn').innerHTML = SCN_SECS.map(([sec, title]) => `<div class="fp-lab">${title}</div><div class="fp-grid">${SCN.filter(x => x.sec === sec).map(x =>
+      `<button type="button" class="scn" data-scn="${x.id}" aria-pressed="false" title="${x.tip.replace(/"/g, '&quot;')}">${x.n}</button>`).join('')}</div>`).join('');
+    const rows = [['from', 'START', Object.entries(SB_FROM).map(([k, v]) => [k, v[2]])], ['mates', 'TEAM-MATES', [[0, '0'], [1, '1'], [2, '2'], [3, '3']]],
+      ['opps', 'DEFENDERS', [[0, '0'], [1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']]], ['gk', 'THEIR KEEPER', [['line', 'ON HIS LINE'], ['off', 'OFF HIS LINE'], ['none', 'NONE']]],
+      ['stand', 'THEY', [[false, 'DEFEND FOR REAL'], [true, 'HOLD THEIR SPOTS']]]];
+    $('fp-sb').innerHTML = rows.map(([k, lab, opts]) => `<div class="fp-row fp-seg" role="group" aria-label="${lab}"><span>${lab}</span>${opts.map(([v, n]) =>
+      `<button type="button" data-sb="${k}" data-v="${v}" aria-pressed="${LAB.scnB[k] === v}">${n}</button>`).join('')}</div>`).join('');
+    for (const b of document.querySelectorAll('#fp [data-sb]')) b.addEventListener('click', () => {
+      const k = b.dataset.sb, v = k === 'from' || k === 'gk' ? b.dataset.v : k === 'stand' ? b.dataset.v === 'true' : +b.dataset.v; LAB.scnB[k] = v;
+      for (const c of document.querySelectorAll(`#fp [data-sb="${k}"]`)) c.setAttribute('aria-pressed', c === b); b.blur(); });
+    for (const b of document.querySelectorAll('#fp [data-scn]')) b.addEventListener('click', () => { scnStart(b.dataset.scn); b.blur(); });
+    $('fp-scn-stop').addEventListener('click', () => { const r = LAB.run; if (r && r.scn) { fpBase(r); fpReset(r); r.last = 'READY · pick a move'; } $('fp-scn-stop').blur(); });
+    scnMark();
+  }
   // tuning (lab only - the real game keeps its values until we copy yours over)
   // v0.9.9 (Luca 02:50: "add the sliders from the training ground to the classic version"): the knobs of the Test Lab v3
   // prototype's training ground, in 5 tabs, each in plain words: what it does, what the number means on the pitch, Less /
@@ -891,6 +1044,7 @@
     for (const b of document.querySelectorAll('#fp [data-tog]')) b.addEventListener('click', () => { const k = b.dataset.tog; LAB.fp[k] = !LAB.fp[k]; b.setAttribute('aria-pressed', LAB.fp[k]); b.blur(); });
     syncTog = () => { for (const b of document.querySelectorAll('#fp [data-tog]')) b.setAttribute('aria-pressed', !!LAB.fp[b.dataset.tog]); };
     fpMovesUI();                                                                 // t-038: one button per move in FP_MOVES
+    scnUI();                                                                     // the practice scenarios (SCN) and BUILD YOUR OWN
     for (const b of document.querySelectorAll('#fp [data-mv]')) b.addEventListener('click', () => { fpMove(b.dataset.mv); b.blur(); });
     // v0.8.8 cycling switches: WEATHER (dry / rain / snow - the ball physics and the look) and KEEPER SAVE (off / LV1-3)
     const CYC = { wx: { vals: ['clear', 'rain', 'snow'], label: v => `WEATHER: ${{ clear: 'DRY', rain: 'RAIN', snow: 'SNOW' }[v]}`,
@@ -3788,7 +3942,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     });
   }
   window.__lab = LAB;                                   // for automated checks
-  LAB.api = { start, next, jump, goTo, goFree, menu, fpMove, fpReset, current, summary, buildTests, clipTest, FP_MOVES };
+  LAB.api = { start, next, jump, goTo, goFree, menu, fpMove, fpReset, current, summary, buildTests, clipTest, FP_MOVES, scnStart, SCN };
   (async () => {
     try { LAB.db = (window.claude && window.claude.use) ? await window.claude.use('db') : null; } catch (e) { LAB.db = null; }
     if (LAB.db) {
