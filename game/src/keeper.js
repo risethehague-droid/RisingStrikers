@@ -60,6 +60,30 @@ const GK_1V1 = {
   gap0: 1.2, gapK: 0.22, gapMin: 1.6, gapMax: 5.5,   // while closing a breakaway, he waits gap0 + gapK x (ball to goal) in front of the ball [1.4 + 0.3x, 1.9-7]
                                                      // (anyone else: t-017's gap, unchanged)
 };
+// ROLE-AI STEP 3: THE KEEPER TIED TO THE BALL, NOT ONLY THE LINE (docs/role-ai-plan.md 6.3; Luca OK'd the plan, PR #74).
+// Step 0's exploit tests (PR #86) showed it: E4, a square pass in a 2-on-the-keeper, went in 20 of 20, because he charged
+// the man on the ball 8-9 m off his line and left the net empty; and with the ball 35-50 m away he stood 9-14 m out,
+// set only by his deepest defender. Real keepers (FIFA Training Centre, World Cup 2022 keeper analysis; standard
+// "2v1 against the keeper" coaching): with a second attacker free for a square ball he stops short, stays set on the
+// line between ball and goal a few metres out, and makes the carrier decide - a
+// keeper who commits to the carrier gives the tap-in away. As the ball comes into chipping range he drops back.
+// EA FC / eFootball keepers do the same (the "stay" keeper in a 2v1). A lone striker still gets t-027's engagement.
+const GK_HOME = {
+  supNear: 2.5, supFar: 22,  // a "support" attacker: this far from the carrier (m)...
+  supAhead: 6,               // ...no more than this further from goal than the carrier (m; a man well behind is a cut-back, not a square ball)
+  supBox: 34,                // ...within this of the goal line (m) and 18 m of the middle
+  supMark: 2.2,              // ...and nobody of ours goal-side of him within this (m): a marked man isn't a pass option
+  out0: 1.0, outK: 0.1, outMin: 1.5, outMax: 4,      // with support, how far off his line he stays: out0 + outK x (ball to goal), outMin-outMax m
+                             // (E4, 40 runs each: ~4 m out 60%, ~5.6 m out 73%, ~2.2 m out 38% - deeper gives him time to dive
+                             // for the shot after the square ball, which real keepers trade for the angle in a 2v1)
+  nearPost: 0.5,             // ...a little towards his near post (m), with the ball 6 m+ off the middle
+  block: 2.2,                // ...and he only attacks the ball if the carrier brings it this close (m)
+  // height by ball (plan 6.3): how far off his line he may stand with the ball this far out (m from goal), when they have it
+  // or it's loose. 20-35 m: about 6 m out (real keepers 1-7 m); 35-50 m: up to 10 m; further: sweeper height grows again
+  cap: [[35, 6], [50, 10], [70, 22]],
+  passLead: 0.35,            // a pass of theirs near goal: he moves for where the ball will be this long from now (s)...
+  passNear: 30,              // ...when it's within this of his goal (m)
+};
 // t-031 KEEPER HANDS (Luca 25 Oct 15:41: "new physics for the hands and animation to be able to dive with the hands to
 // grab the ball, also be able to hold it in his hands while he moves - keep it simple and smooth tho"). The ball used to
 // sit 0.6 m to his side on a diving catch and snap into the hold pose as he stood up; now it is drawn IN his gloves.
@@ -426,6 +450,19 @@ hc2Mix(Match, {
         k.smWant = want ? (k.smWant || 0) + dt : 0;
         if (want && k.smWant >= react * 0.5) return { mode: 'SMOTHER', x: b.x, y: b.y, v: kv, dive: true };   // (a weaker keeper reads it a beat later)
         const still = carrier.speed < 1.2 && od < 0.6;                               // he's stopped with it under control: don't charge in, be set
+        // ROLE-AI STEP 3: a second attacker free for a square ball - he stops short and stays set (GK_HOME), doesn't charge
+        const sup = this.gkSupport(k, carrier, defs, atk);
+        k.gkSup = !!sup;
+        if (sup && gapNow > GK_HOME.block) {
+          const G = GK_HOME, out = clamp(G.out0 + bdd * G.outK, G.outMin, G.outMax);
+          const u = this.gkBisector(bx, by, gx, side, Math.min(out, Math.max(1.0, bdd - 2)));
+          // (no shading towards the free man: once the square ball's in, the man who played it becomes "the free man" and a
+          // shade pulled him off the new shooter's angle - the trace had him 1 m off it and beaten by a shot straight at goal)
+          // (a touch towards his near post, as keepers are coached: never be beaten at the near post - the far one takes longer)
+          const uy = clamp(u.y + Math.sign(by - 34) * G.nearPost * clamp(Math.abs(by - 34) / 6, 0, 1), GOAL_Y0 + 0.3, GOAL_Y1 - 0.3);
+          const D = len(u.x - k.x, uy - k.y);
+          return { mode: 'STAY', x: u.x, y: uy, v: clamp(1.4 + D * 3.2, 0, kv), set: D < 0.6, track: true, urgent: true };
+        }
         let g, mode;
         if (gapNow < GK_1V1.blockGap && bdd < GK_1V1.blockFrom && deep && !still) {                 // close: step up to ~1.4 m in front of the ball and make him commit (he used to back off to his line)
           const u = this.gkBisector(bx, by, gx, side, clamp(bdd - 1.4, 0.6, GK_1V1.blockMax)); g = u; mode = 'BLOCK';   // (t-027: never past the edge of his box)
@@ -444,21 +481,48 @@ hc2Mix(Match, {
     }
     // ANGLE + SWEEPER: stand on the angle's bisector at a depth set by how close the ball is; with the ball far away,
     // walk up behind the defence (top of the box and beyond)
-    const depth = clamp(1.2 + bd * 0.14, 1.2, 5.2);
-    const g = bh > 0.8 ? this.gkBisector(b.x, b.y, gx, side, depth) : { x: gx + side * 1.0, y: b.y < 34 ? GOAL_Y0 + 0.6 : GOAL_Y1 - 0.6 };   // (ball by the byline: his near post)
+    // ROLE-AI STEP 3: a pass of theirs near his goal (a square ball, a cut-back): he goes for where it's going, at speed -
+    // he used to walk (1.9 m/s) while it crossed in front of him, as nobody had it
+    const theirPass = !b.owner && b.last === opp && !b.save && len(b.vx, b.vy) > 4 && bd < GK_HOME.passNear;
+    // (a short lead, not the receiver's spot: moving him onto the receiver's angle early let the shooter pick the other
+    // side - 80% in the E4 test against ~60% for the lead; the depth below is what brought it down)
+    const lead = theirPass ? GK_HOME.passLead : 0, pbx = b.x + b.vx * lead, pby = b.y + b.vy * lead, pbd = len(pbx - gx, pby - 34);
+    const depth = clamp(1.2 + (theirPass ? pbd : bd) * 0.14, 1.2, 5.2);
+    const g = bh > 0.8 ? this.gkBisector(theirPass ? pbx : b.x, theirPass ? pby : b.y, gx, side, depth) : { x: gx + side * 1.0, y: b.y < 34 ? GOAL_Y0 + 0.6 : GOAL_Y1 - 0.6 };   // (ball by the byline: his near post)
     let sh = clamp(lastH - 18, 8, 17) + (ours && bh > 60 ? 3 : 0);                // how far up he walks with the ball far away
     sh = Math.min(sh, Math.max(6, lastH - 6), 21);                                 // (always behind his last man)
     const w = clamp((bh - 30) / 22, 0, 1), sy = 34 + (b.y - 34) * 0.18;
     if (KD.gkPos > 0 && (!k.gkN || this.time.now > k.gkN.t)) k.gkN = { x: rnd(-1, 1) * KD.gkPos, y: rnd(-1, 1) * KD.gkPos * 0.7, t: this.time.now + rnd(1500, 3000) };   // v0.9.2: a weaker keeper stands a bit off
     const nx = KD.gkPos > 0 && k.gkN ? k.gkN.x : 0, ny = KD.gkPos > 0 && k.gkN ? k.gkN.y : 0;
-    const tx = g.x + (gx + side * sh - g.x) * w + nx * side * 0.5, ty = g.y + (sy - g.y) * w + ny;
-    const threat = carrier && len(carrier.x - gx, carrier.y - 34) < 32;
+    let tx = g.x + (gx + side * sh - g.x) * w + nx * side * 0.5, ty = g.y + (sy - g.y) * w + ny;
+    if (!ours) { const cap = this.gkHeightCap(bh); if (H(tx) > cap) tx = gx + side * cap; }   // ROLE-AI STEP 3: never further out than the ball allows (chipping range)
+    const threat = (carrier && len(carrier.x - gx, carrier.y - 34) < 32) || theirPass;
     const cdC = carrier ? len(carrier.x - gx, carrier.y - 34) : 99, breaking = carrier && cdC < 55 && ((gx - carrier.x) * carrier.vx + (34 - carrier.y) * carrier.vy) / (cdC || 1) > 2.5;   // they're running at his goal
     const shot = carrier && len(carrier.x - gx, carrier.y - 34) < 25 && Math.abs(carrier.y - 34) < 18;   // a shot could come any moment
     const D = len(tx - k.x, ty - k.y);
     // t-017: with a threat on he gets there at a speed set by how far he has to go (it was 5.4 or 2.6 m/s: a lurch, then a crawl)
-    const v = threat || breaking ? clamp(1.0 + D * 2.8, 0, 5.4) : (D > 6 ? JOG : 1.9);   // walk when nothing is on; jog back into place; run when they break
-    return { mode: w > 0.5 ? (ours ? 'UP' : 'SWEEPER') : shot ? 'SET' : 'ANGLE', x: tx, y: ty, v, set: !!shot && D < 0.8, track: bd < 32 };
+    const v = theirPass ? clamp(2.0 + D * 4, 0, kv) : threat || breaking ? clamp(1.0 + D * 2.8, 0, 5.4) : (D > 6 ? JOG : 1.9);   // walk when nothing is on; jog back into place; run when they break (step 3: and across with a pass of theirs); run when they break
+    return { mode: w > 0.5 ? (ours ? 'UP' : 'SWEEPER') : shot ? 'SET' : 'ANGLE', x: tx, y: ty, v, set: !!shot && D < 0.8, track: bd < 32, urgent: theirPass };
+  },
+  // ROLE-AI STEP 3: the furthest off his line he stands with the ball bh m from his goal (GK_HOME.cap, straight lines between)
+  gkHeightCap(bh) {
+    const C = GK_HOME.cap; if (bh <= C[0][0]) return C[0][1];
+    for (let i = 1; i < C.length; i++) if (bh <= C[i][0]) { const a = C[i - 1], z = C[i]; return a[1] + (z[1] - a[1]) * (bh - a[0]) / (z[0] - a[0]); }
+    return C[C.length - 1][1];
+  },
+  // ROLE-AI STEP 3: the attacker a carrier through on goal could square it to (GK_HOME), or null. Free = in front of goal,
+  // near the carrier, not well behind him, and none of ours goal-side of him close enough to cut it out
+  gkSupport(k, carrier, defs, atk) {
+    const G = GK_HOME, side = k.team.side, gx = k.team.ownGoalX, H = x => (x - gx) * side, ch = H(carrier.x);
+    let best = null, bd = 99;
+    for (const o of atk) {
+      if (o === carrier || o.sentOff) continue;
+      const oh = H(o.x), d = len(o.x - carrier.x, o.y - carrier.y);
+      if (oh < 0.5 || oh > G.supBox || Math.abs(o.y - 34) > 18 || d < G.supNear || d > G.supFar || oh > ch + G.supAhead) continue;
+      if (defs.some(p => H(p.x) < oh + 1 && len(p.x - o.x, p.y - o.y) < G.supMark)) continue;   // (marked)
+      const og = len(o.x - gx, o.y - 34); if (og < bd) { bd = og; best = o; }
+    }
+    return best;
   },
   // a point on the bisector of the angle between the ball and his two posts, `depth` m out from his goal line
   gkBisector(bx, by, gx, side, depth) {
