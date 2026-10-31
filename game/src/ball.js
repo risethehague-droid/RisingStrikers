@@ -1070,8 +1070,7 @@ hc2Mix(Match, {
       const box = p.keeper && Math.abs(p.x - p.team.ownGoalX) < 16.5 && Math.abs(p.y - 34) < 20.2;
       const reach = box ? 1.3 : (b.target === p && b.last === p.team ? 1.25 : 0.8), zmax = box ? 2.6 : 0.9;   // v0.7: the man you passed to reaches for it
       if (p.keeper && p.spSave && ((b.special && b.spTeam && p.team !== b.spTeam) || (!b.special && b.saveable && b.saveable !== p.team))) {   // v0.8.6 SPECIAL SAVE v SPECIAL SHOT, on his line (v0.9.0: or v a normal shot)
-        if (!((pbx - p.x) * (b.x - p.x) <= 0 || Math.abs(b.x - p.x) < 0.3)) continue;
-        if (!this.gkSpOnTarget(p, b)) { p.spSave = 0; continue; }   // off target: nothing to save (flag-mvo4pchr-368: judged at the goal line, so a keeper off his line still meets an angled shot)
+        if (!this.gkCoverMeet(p, pbx)) continue;                                   // gk-cover (specials.js): met on his line as before, or - over him, past him, pressed late - at the goal line; off target: nothing to save
         const K = SAVE_POWER[p.spSave - 1], ok = this.clash(p);
         if (ok === 'clash') return;                                                // t-028: a special v his special save - the ball is held on his gloves, power decides after (specials.js clashTick / clashEnd)
         if (!ok) { this.guardBreak(p); if (this.gpPop(p, 'break', len(b.vx, b.vy))) return; continue; }   // (t-013: or it loops up off him)
