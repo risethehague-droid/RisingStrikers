@@ -778,7 +778,7 @@
     for (const p of m.all) put(p, clamp(p.home.x + att, 2, PITCH_L - 2), p.home.y, p.team === m.home ? 0 : 4);
     for (const k of [H[0], A[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, walk: undefined });
     for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
     LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = false; m.ball.crossBy = null; window.HC2_NO_OFFSIDE = false;
     const n = { corner: 'CORNER', fk: 'FREE KICK', throw: 'THROW-IN', off: 'OFFSIDE' }[kind];
     if (kind === 'corner') { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; }
@@ -878,7 +878,7 @@
     cast([you, ...mates.map(x => x[0]), ...opps.map(x => x[0]), ...(gk ? [gk] : [])]);
     for (const k of [H[0], A[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, up: null, walk: undefined, saveKind: '', leap: 0, gkN: null, hands: false, hold: 0, smAt: 0 });
     for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: (t === m.home) !== D ? 1 : 0, inPoss: (t === m.home) !== D, airSpAt: null, offBy: null, mood: null });
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: (t === m.home) !== D ? 1 : 0, inPoss: (t === m.home) !== D, airSpAt: null, offBy: null, mood: null });
     for (const p of m.all) Object.assign(p, { aiTgt: null, openFrom: null, lastMove: null, goRun: null });
     const [x, y] = S.you, gx = D ? 0 : GX;
     put(you, x, y, D ? dirIndex(1, 0) : S.face === 'back' ? dirIndex(-1, 0) : dirIndex(gx - x, 34 - y));
@@ -1497,7 +1497,7 @@
         put(man, 48, 34, 0); put(from, 74, 34, 4); atFeet(from); put(blk, 49.8, 34, mate ? 0 : 4);
         r.bots.set(from, sit); r.bots.set(blk, runTo(49.8, 34, RUN));            // he holds his spot: the straight line is shut
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true;
         Object.assign(r, { human: man, shooter: from, man, blk, marks: [{ x: 56, y: 34, r: 0.5 }], still: 0, off: 0, px: man.x, py: man.y });
         r.action = { at: 0.4, fire: () => m.kick(from, 56, 34, 0, 0, 0.12, { mode: 'lob', target: man, loft: true }) };
@@ -2116,7 +2116,7 @@
         put(A[0], LINE_X, 36, 4); put(A[4], 88, 49, 4); put(A[3], 88, 41, 4); put(A[2], 88, 30, 4); put(A[1], 85, 17, 4); put(A[7], 78, 45, 4); put(A[6], 77, 32, 4);
         Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         if (o.sp) m.meters[0].e = o.sp; m.ball.crossBy = null;
         LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = !o.you;
         Object.assign(r, { human: w, shooter: w, gk: A[0], marks: [], o, touches: [] });
@@ -2182,7 +2182,7 @@
     for (const k of [m.home.players[0], m.away.players[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, up: null });
     const hp = o.poss ?? true;
     for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: (t === m.home) === hp ? 1 : 0, inPoss: (t === m.home) === hp, airSpAt: null, offBy: null, mood: null });
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: (t === m.home) === hp ? 1 : 0, inPoss: (t === m.home) === hp, airSpAt: null, offBy: null, mood: null });
     for (const p of m.all) Object.assign(p, { aiTgt: null, openFrom: null, lastMove: null, goRun: null });
     LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = !o.you; m.ball.crossBy = null;
     window.__styles = o.styles || null; window.__readOn = o.read ?? null; m.read = null;
@@ -2534,7 +2534,7 @@
         put(k, o.from[0] - 2, o.from[1], 0); for (const [p, x, y] of [[H[9], ...o.h9], [H[10], ...o.h10], [H[8], ...o.h8], [A[3], ...o.a3], [A[4], ...o.a4], [A[2], ...o.a2], [A[7], ...o.a7]]) put(p, x, y, 4);
         put(A[0], LINE_X, 34, 4); Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null, rebFor: null, rebMan: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null, rebFor: null, rebMan: null });
         if (o.sp) m.meters[0].e = o.sp;
         LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true; m.aerialAt = -1e9; m.duelAt = -1e9;
         arBall(o.from[0], o.from[1], 0.1, o.v[0], o.v[1], o.v[2] || 0.5, k);
@@ -2753,7 +2753,7 @@
         put(A[0], LINE_X, 34, 4); put(A[1], 85, 14, 4); put(A[2], 85, 28, 4); put(A[3], 85, 40, 4); put(A[4], 85, 54, 4); put(A[6], 75, 30, 4); put(A[7], 75, 42, 4);
         Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         m.ball.crossBy = null; LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true;
         Object.assign(r, { human: H[6], shooter: H[6], gk: A[0], marks: [], st: [H[9], H[10]], passes: [], lastK: H[6] });
         r.start = (m.aiFrame(m.home, H[9].x) - m.offLine(m.home)).toFixed(1);
@@ -2805,7 +2805,7 @@
         for (const p of m.all) { put(p, clamp(p.home.x + att, 2, PITCH_L - 2), p.home.y, p.team === m.home ? 0 : 4); }
         Object.assign(m.away.players[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); Object.assign(m.home.players[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = !o.you; m.ball.crossBy = null;
         Object.assign(r, { human: m.home.players[9], gk: m.away.players[0], marks: [], o, pos: null, path: new Map(), jumps: { wipe: 0, view: 0, off: 0 }, t0: null });
         o.go(r);
@@ -3389,7 +3389,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
         cast(m.all.filter(p => !p.benched)); m.all.forEach(p => { put(p, p.home.x, p.home.y, p.team.side > 0 ? 0 : 4); });
         Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); Object.assign(H[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         put(H[9], 52, 34, 0); atFeet(H[9]); LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true; r.human = H[9]; }, null, 10, { realAi: true, demo: true }),
     ];
   }
