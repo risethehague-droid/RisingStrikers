@@ -68,7 +68,7 @@ function rigGlovePt(s, fist, W) {
 }
 class Player {
   constructor(m, team, i, kit) {
-    this.m = m; this.team = team; this.i = i; this.kit = kit; this.keeper = i === 0;
+    this.m = m; this.team = team; this.i = i; this.role = roleFor(team, i); this.kit = kit; this.keeper = i === 0;   // (role-AI step 1: his role card, roles.js)
     const h = FORMATION[i]; this.home = team.side > 0 ? { x: h[0], y: h[1] } : { x: PITCH_L - h[0], y: h[1] };
     this.x = this.home.x; this.y = this.home.y; this.vx = 0; this.vy = 0;
     this.face = team.side > 0 ? 0 : 4; this.state = 'idle'; this.stateT = 0; this.cool = 0; this.stun = 0;
@@ -112,6 +112,7 @@ class Player {
       lift = this.leap * (age < f ? Math.sin(Math.PI / 2 * age / f) : Math.max(0, 1 - (age - f) / 0.3)); }
     this.spr.setPosition(Math.round(X), Math.round(Y - lift * PX_H)).setDepth(Y);
     this.bob = 0;                                                                // (t-031: carryPlay sets it while he walks with the ball)
+    if (this.keeper && this.m.gkAuraGlow) this.m.gkAuraGlow(this);              // gk-cover: the glow in his save's colour while it's on
     if (this.keeper && this.spSave && !this.sentOff && (this.m.ball.special || this.m.ball.saveable)) this.m.auraFx(this);   // v0.8.9 his special save is ready: he burns in its colour
     if (this.rig && !this.sentOff) { const P = this.m.rigAt(this, this.rig.n, this.rig.t, this.rig.d, this.rig); if (P) { this.rigShow(P); return; } this.rig = null; }
     if (this._turned) { this._turned = false; this.spr.setRotation(0); }         // (t-033: a dive turned flat is turned again each frame it shows)
@@ -382,6 +383,7 @@ class Player {
     this.stamina = clamp(this.stamina, 0, 1);
     if (this.stamina < 0.02) this.tired = true; else if (this.tired && this.stamina > 0.3) this.tired = false;
     this.x = clamp(this.x + this.vx * dt, -3, PITCH_L + 3); this.y = clamp(this.y + this.vy * dt, -3, PITCH_W + 3);
+    if (this.keeper && this.spSave && this.m.gkCoverTick) this.m.gkCoverTick(this, dt);   // gk-cover: his special save on - the aura dash to a ball he can't reach (specials.js)
     this.speed = len(this.vx, this.vy);
     const b = this.m.ball, human = this.m.isHuman(this);                         // (t-043: either side's human)
     // v0.8.7 (BUG WATCH found it: keepers + slow players flickered between idle / walk / shuffle and two facings several

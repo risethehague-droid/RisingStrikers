@@ -63,7 +63,7 @@ hc2Mix(Match, {
     if (this.inp.pressed('special')) this.spHeld = 1;
     if (this.spHeld && this.inp.held('special')) {
       const md = this.inp.pressed('pass') ? 'ground' : this.inp.pressed('through') ? 'through' : this.inp.pressed('lob') ? 'lob' : null;
-      if (md) { this.spHeld = 2; if (this.curvePass(p, md, dir)) return true; }
+      if (md) { this.spHeld = 2; if (this.spPass(p, md, dir) || this.curvePass(p, md, dir)) return true; }   // (2+ bars: the LV1 special pass, sppass.js; 1 bar: the curler)
     } else if (this.spHeld && this.inp.released('special')) {
       const solo = this.spHeld === 1; this.spHeld = 0;
       if (solo) { if (this.special(p)) return true; this.say('', 'SP METER EMPTY', 0.6); }
@@ -128,6 +128,7 @@ hc2Mix(Match, {
       if (this.inp.released('shoot') && this.charge >= 0) { if (!this.tapKickTry(p, ax, this.charge)) this.doShot(p, this.charge, this.aimY); this.charge = -1; }   // (t-010: a quick tap = the tap kick)
     } else {
       this.charge = -1; this.lobCharge = -1; this.lobAim = null;
+      if (b.sx) return;                                                           // (an LV1 special pass doing its trick can't be met: sppass.js)
       // v0.8.6 AERIAL SPECIAL: a ball dropping to you at volley / head height in their half, near enough to goal, SP in the bank
       // (t-014: or a low driven ball with one bar: TIDE CUTTER's window, specials.js tideWin)
       const mtA = this.meterOf(team), dA = len(b.x - p.x, b.y - p.y), toG = len(team.goalX - p.x, 34 - p.y);
@@ -185,6 +186,7 @@ hc2Mix(Match, {
   headers() {
     const b = this.ball, bsp = len(b.vx, b.vy);
     if (b.special && b.pierce > 0) return;                                      // v0.8.6: nobody heads / volleys a special that still blows through people
+    if (b.sx) return;                                                           // (nor an LV1 special pass doing its trick: sppass.js)
     if (this.aerial || this.aerialCheck() || this.looseDuelCheck()) return;                               // t-008: a clear contest at the drop = the AERIAL BATTLE
     if (this.lobDuel()) return;                                                  // lob-mechanics: a lob's drop is a duel first
     // AI: a fast ball across the box at his feet / knees -> hit it first time (a volley if it's off the ground)
@@ -621,7 +623,11 @@ hc2Mix(Match, {
     const b = this.ball, C = AERIAL, n0 = { x: att.x - def.x, y: att.y - def.y }, nl = len(n0.x, n0.y) || 1;
     const hs = (p, o) => { const dp = len(p.x - D.x, p.y - D.y), dq = len(o.x - D.x, o.y - D.y), f = dirVec(p.face), ux = (D.x - p.x) / (dp || 1), uy = (D.y - p.y) / (dp || 1);
       return clamp((dq - dp) * C.hsDist + Math.max(0, f.x * ux + f.y * uy) * C.hsFace + (p === b.target ? C.hsRun : 0) + (p.stamina ?? 1) * C.hsSpring, -C.hsMax, C.hsMax); };
-    const side = (p, q, sg) => ({ p, hs: o.hs ? o.hs[sg > 0 ? 0 : 1] : hs(p, q), n: 0, acc: 0, x0: p.x, y0: p.y, tx: D.x + n0.x / nl * 0.45 * sg, ty: D.y + n0.y / nl * 0.45 * sg, push: 0,
+    // (corners, 30 Oct: off a corner the defender has been goal-side, facing it, since before the kick - in real football
+    // defenders win most corner headers. AERIAL.hsSet: his head start on a corner ball; whipped ARCADE corners otherwise
+    // went the attacker's way 4 in 5 and scored 27%)
+    const setD = sg => sg < 0 && this.time.now - (this.cornerAt ?? -1e9) < C.setT * 1000 ? C.hsSet : 0;
+    const side = (p, q, sg) => ({ p, hs: o.hs ? o.hs[sg > 0 ? 0 : 1] : clamp(hs(p, q) + setD(sg), -C.hsMax, C.hsMax), n: 0, acc: 0, x0: p.x, y0: p.y, tx: D.x + n0.x / nl * 0.45 * sg, ty: D.y + n0.y / nl * 0.45 * sg, push: 0,
       cpu: !this.demo && this.hasHuman(p.team) ? null : C.cpuRate * this.dk(p.team).mash * (1 + rnd(-1, 1) * C.cpuJit) });   // (you mash yourself; the computer at its rate)
     const A = this.aerial = { t: 0, phase: 'intro', kind: o.kind || 'air', D, b0: { x: b.x, y: b.y, z: b.z }, att: side(att, def, 1), def: side(def, att, -1), sp: false, res: null, cam: { x: wx(D.x, D.y), y: wy(D.y) - 110 } };
     if (A.kind === 'ground') { b.owner = null; b.target = null; this.duelN = (this.duelN || 0) + 1; }   // (the ball is nobody's while they fight for it)

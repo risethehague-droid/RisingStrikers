@@ -75,7 +75,7 @@ called, but nobody reorganised before the free kick.)
 - **Units:** the world is in metres (x along the pitch, y across, z up). The stadium art is pre-projected: `tools/stadium/cfg.py` and `docs/lanes/stadiums-maps.md` have the geometry.
 - **Layout:**
   - the game lives in `game/`
-  - the code is split by area into 22 files under `game/src/`; `game/src/README.md` says which file is which and which lane edits it
+  - the code is split by area into 27 files under `game/src/`; `game/src/README.md` says which file is which and which lane edits it
   - new `Match` methods go inside the file's `hc2Mix(Match, { ... })` block
   - a new file goes into all three pages (`index.html`, `lab.html`, `test.html`) in load order
 - **PC first.** The phone version is on pause; don't break it, don't extend it.
@@ -108,6 +108,11 @@ called, but nobody reorganised before the free kick.)
    updates) its line in `FP_MOVES` in `game/lab.js`: the button sets the moment up and the game plays the move, tagged
    `game: true` (IN THE GAME) or not (LAB ONLY, until Luca's OK). Say which button in "How to try it". Check it with
    `ONLY=<mv> VIEWS=none node tools/labnav.js` (the whole Lab: `node tools/labnav.js`).
+7. **Every new or changed move gets its clip on HQ** (Luca, 30 Oct: "keep the hq updated with all new animations you
+   add, as short previews (shots, passes, mash etc)"). Record the move's FREE PLAY button:
+   `MOVE=<mv> FPS=10 WIDTH=320 OUT=docs/previews/pr<N>-move-<mv>.gif node tools/preview.js` (a set piece: add
+   `SKIP=6 MOVEKEY=KeyC`), commit it with the PR and name it in the description (`Move clips: <mv>, ...`). The
+   taskmaster puts it in HQ's MOVES section when it merges.
 
 Tests use Node with Playwright and Chromium, run headless; time is stepped by hand, so a 5-minute match takes seconds.
 
@@ -121,7 +126,7 @@ Tests use Node with Playwright and Chromium, run headless; time is stepped by ha
   - test results
   - any PixelLab generations it used
   - a `## Preview` section (below)
-- Then put the PR link on the card and move the card to *Needs OK*.
+- Then put the PR link on the card and move the card to *Needs OK*: write `status: "review"` exactly (the key, not the label; `"needs-ok"` used to hide cards in To do). Status keys are listed in docs/taskmaster.md, "Card status keys".
   - Exception: PRs from `friend/` branches get their Needs OK card automatically (the "HC2 taskmaster check" scheduled task on Luca's account, 3 times a day at 08:39, 13:39 and 20:39 Dutch time, every 2 hours when Luca switches TURBO on in HQ; it also reviews the agents' reports). The co-designer's account can't write to the board.
 
 ### The `## Preview` section (every PR, every agent)

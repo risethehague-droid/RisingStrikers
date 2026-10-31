@@ -11,12 +11,17 @@ const KEYSETS = {
 const keyset = () => KEYSETS[window.HC2_KEYS] || KEYSETS.arrows;
 // ---------- SOUND: tiny 16-bit-console style effects made in code (Web Audio, no files): kicks, whistle, net, post,
 // catches and a crowd that bed + roars. Starts on the first key / click (browsers need that), M mutes (remembered).
+// Luca, 31 Oct 2026 ("develop a sound effect for all new moves and interactions"): a VOLUME too (vol 0-1, remembered;
+// - / = keys and the pause menu's OPTIONS), and every special's own element sound lives in movesfx.js.
 const SFX = {
-  ctx: null, out: null, crowd: null, muted: false,
+  ctx: null, out: null, crowd: null, muted: false, vol: 1,
+  gainNow() { return this.muted ? 0 : 0.5 * this.vol; },
+  setVol(v) { this.vol = Math.round(clamp(v, 0, 1) * 20) / 20; try { localStorage.setItem('hc2-vol', String(this.vol)); } catch (e) {} if (this.out) this.out.gain.value = this.gainNow(); return this.vol; },
+  stepVol() { return this.setVol(this.vol <= 0.25 ? 1 : this.vol - 0.25); },        // the pause menu: 100 > 75 > 50 > 25 > 100
   init() {
     if (this.ctx) return; const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-    try { this.muted = localStorage.getItem('hc2-mute') === '1'; } catch (e) {}
-    this.ctx = new AC(); this.out = this.ctx.createGain(); this.out.gain.value = this.muted ? 0 : 0.5; this.out.connect(this.ctx.destination);
+    try { this.muted = localStorage.getItem('hc2-mute') === '1'; const v = parseFloat(localStorage.getItem('hc2-vol')); if (v >= 0 && v <= 1) this.vol = v; } catch (e) {}
+    this.ctx = new AC(); this.out = this.ctx.createGain(); this.out.gain.value = this.gainNow(); this.out.connect(this.ctx.destination);
     const n = this.ctx.sampleRate * 2, buf = this.ctx.createBuffer(1, n, this.ctx.sampleRate), d = buf.getChannelData(0);
     let l = 0; for (let i = 0; i < n; i++) { l = (l + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = l * 3.5; }   // brown-ish noise
     this.noise = buf;
@@ -29,7 +34,7 @@ const SFX = {
   // open the speakers/headphones ("Failed to start the audio device", e.g. a Bluetooth headset switching). Nobody caught
   // it, so it counted as a game crash. The game just stays silent and tries again on the next key or click.
   resume() { this.init(); if (this.ctx && this.ctx.state === 'suspended') { const p = this.ctx.resume(); if (p && p.catch) p.catch(() => {}); } },
-  toggle() { this.init(); if (!this.ctx) return; this.muted = !this.muted; this.out.gain.value = this.muted ? 0 : 0.5; try { localStorage.setItem('hc2-mute', this.muted ? '1' : '0'); } catch (e) {} return this.muted; },
+  toggle() { this.init(); if (!this.ctx) return; this.muted = !this.muted; this.out.gain.value = this.gainNow(); try { localStorage.setItem('hc2-mute', this.muted ? '1' : '0'); } catch (e) {} return this.muted; },
   ok() { return this.ctx && !this.muted && this.ctx.state === 'running'; },
   tone(type, f0, f1, dur, vol, delay = 0) {
     if (!this.ok()) return; const t = this.ctx.currentTime + delay, o = this.ctx.createOscillator(), g = this.ctx.createGain();
@@ -68,7 +73,10 @@ const SFX = {
   special(lv = 1) { this.tone('sawtooth', 80 + lv * 30, 1400, 0.35, 0.1); this.hiss(1200 + lv * 600, 0.5, 0.5, 0.3); this.boom(0.8 + lv * 0.1); },
   ooh() { if (!this.ok()) return; const t = this.ctx.currentTime, g = this.crowd.gain; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0.16, t + 0.2); g.setTargetAtTime(0.05, t + 0.6, 0.5); },
 };
-addEventListener('keydown', e => { SFX.resume(); if (e.code === 'KeyM' && !e.repeat) { const m = SFX.toggle(); const s = window.__hc2; if (s && s.say) s.say(m ? 'SOUND OFF' : 'SOUND ON', 'M TO SWITCH', 0.9); } });
+addEventListener('keydown', e => { SFX.resume(); if (e.code === 'KeyM' && !e.repeat) { const m = SFX.toggle(); const s = window.__hc2; if (s && s.say) s.say(m ? 'SOUND OFF' : 'SOUND ON', 'M TO SWITCH', 0.9); }
+  if ((e.code === 'Minus' || e.code === 'Equal') && !e.repeat && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) {   // - / = : volume down / up
+    SFX.init(); const v = SFX.setVol(SFX.vol + (e.code === 'Minus' ? -0.1 : 0.1)); if (SFX.muted && v > 0) SFX.toggle(); SFX.click();
+    const s = window.__hc2; if (s && s.say && !s.paused) s.say(`VOLUME ${Math.round(v * 100)}%`, '- / = TO CHANGE · M MUTES', 0.9); } });
 addEventListener('pointerdown', () => SFX.resume());
 
 const Input = {

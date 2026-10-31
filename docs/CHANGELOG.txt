@@ -1,3 +1,34 @@
+HC2 WEB GAME - v0.17.0 (31 Oct) - WHOLE-MATCH REPLAY + MOVE CALLS + MOVE SOUNDS + FLAG FIX + ROLE CARDS (PRs #70, #81, #83-#87, Luca's OK)
+- MOVE CALL (#85, movecall.js): every special's name pops up big at the top in its element's lettering (fire burns,
+  thunder zaps, rainbow cycles, shadow glitches ...), keeper saves included. Lab: FREE PLAY > MOVE CALLS > EVERY NAME.
+- REPLAY: WHOLE MATCH (#83): the pause menu replays the whole game from kick-off (scrub, [ / ] 10 s jumps, G next
+  goal, END the last 10 s, goals ticked on the bar), next to REPLAY: LAST 10 S.
+- MOVE SOUNDS (#87, movesfx.js): every special gets its own element sound (fire, thunder, shadow, ...), plus keeper
+  saves, 1 V 1, corners, replays and the menu. SOUND volume (OFF / 25-100%) in the start menu's OPTIONS.
+- INSTA FLAG FIX (#81, flag-mvwailzc-pm3): a flag sent right after a goal / foul replay keeps the 8 s before it
+  (the goal), not only the kick-off.
+- ROLE CARDS (#84, roles.js, role-AI step 1): every player carries a role (GK, CB, FB, W, CM, CF); shirt-number checks
+  became role checks. Identical play (seeded soak + line study the same before / after).
+- Test Lab only: LV1 SPECIAL PASSES (#70, sppass.js) TORNADO DRILL, BURROW BLAST, ANGEL GLIDE - SPECIAL + PASS /
+  THROUGH / LOB, 1 bar; the RL exploit tests E1-E6 + tools/rlrates.js (#86, role-AI step 0).
+- Docs: HQ cards waiting for an OK always land in Needs OK (#82); HQ v15 timeline + LIVE NOW rule, Strike Barge HQ (#88).
+
+HC2 WEB GAME - v0.16.0 (31 Oct) - ARCADE CORNERS + KEEPER SAVES + PRACTICE SCENARIOS + NEW MENU (PRs #69, #76-#79, Luca's OK)
+- CORNERS ON ARCADE (#69, the co-designer): a ball the defending side puts over its own byline (a parry, a clearance,
+  a block) is a corner again; off an attacker it still comes back off the board. ARCADE corners are whipped in at head
+  height, never inside 7 m, and the defender gets a head start in a corner's aerial battle. Knob: ARCADE.boards.corners.
+- SITUATIONAL KEEPER SAVES (#76, gkstyle.js, in matches): the keeper picks a save for the moment - SKY SNATCH (one hand
+  on a dropping lob), FLYING STRETCH, TOP-CORNER STRETCH, LOW SCRAMBLE, STARFISH WALL. More flair by level (NORMAL
+  dust, HARD after-images + a little extra reach, RISE a beat of slow-mo). Switch: GK_STYLE.on. Lab: THEIR KEEPER moves.
+- SPECIAL SAVE COVERS THE GOAL (#77): with the special save on, a normal shot on target can't slip past him (lobbed
+  over him, pressed late, caught out wide: he dashes in his aura). He glows while it's on. No full-screen cut-in for
+  saves: a slow-mo beat and a small tag over his head. Special v special is unchanged (power decides).
+- PRACTICE SCENARIOS (#78, Test Lab only): FREE PLAY opens with 20 drills (passing, dribbling, shooting, beat the
+  keeper, defending) and BUILD YOUR OWN. Check: tools/scenarios.js.
+- NEW MENU (#79): one centred column - CONTINUE, PLAY, HAGUE CUP, TRAINING (opens the Test Lab), PENALTY BATTLE, WATCH;
+  settings in an OPTIONS pop-up, keys in HOW TO PLAY. Pause menu: one panel, QUIT TO MENU is now LEAVE GAME and says
+  whether the match is kept.
+
 HC2 WEB GAME - v0.15.3 (30 Oct) - SMALL FIXES PACK (PR #61, Luca's OK)
 - AERIAL BATTLE CLOSE-UP (t-042): while an aerial battle is on, the camera eases in to 1.35x and frames the pair, then
   eases back out once it's decided. Picture only: no slow-mo, play never waits. Knobs: AERIAL_CAM in world.js.
