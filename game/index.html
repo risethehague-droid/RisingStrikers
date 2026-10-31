@@ -43,6 +43,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 #start #battle{background:var(--pink);color:#fff}
 #start .modes button em,#start .pop .list button em{font-style:normal;font-size:8px;opacity:.8}
 #start .tools{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+#start #vernote{font-size:8px;line-height:1.8;color:#ffd23f;max-width:560px;text-align:center}
 #start .tools button,#start .pop .close{font:10px "Press Start 2P",monospace;background:#1d1a22;color:var(--paper);padding:9px 12px;border:3px solid var(--paper);box-shadow:3px 3px 0 var(--ink);cursor:pointer}
 #start .tools button:hover,#start .tools button:focus-visible,#start .pop .close:hover,#start .pop .close:focus-visible{background:var(--paper);color:var(--ink);outline:none}
 #start .ver{font-size:7px;opacity:.6}
@@ -121,6 +122,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     addEventListener('unhandledrejection', function (e) { show('ERROR (promise): ' + (e.reason && e.reason.message || e.reason)); window.HC2_CRUMB('error (promise): ' + (e.reason && e.reason.message || e.reason)); });   // (t-021: the crumb too, like an error; Bug Watch keeps the clip - replay.js)
   })();
 </script>
+<script src="channel.js"></script>
 <div id="game"></div>
 
 <div id="start">
@@ -137,7 +139,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
       <button id="battle" type="button">1V1 PENALTY BATTLE <span>&#9654;</span></button>
       <button id="watchbtn" type="button">WATCH: CPU V CPU <span>&#9654;</span></button>
     </div>
-    <div class="tools"><button id="optbtn" type="button">&#9881; OPTIONS</button><button id="helpbtn" type="button">? HOW TO PLAY</button></div>
+    <div class="tools"><button id="optbtn" type="button">&#9881; OPTIONS</button><button id="helpbtn" type="button">? HOW TO PLAY</button><button id="verbtn" type="button" hidden></button></div>
+    <div id="vernote" hidden></div>
     <div id="safebox" hidden style="font-size:9px;line-height:1.8;max-width:560px"></div>
   </div>
 
@@ -311,6 +314,24 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     }
     if (window.HC2_PREVIEW) document.getElementById('lab-note').textContent = 'THIS PREVIEW\'S OWN TEST LAB';
     document.getElementById('trainbtn').addEventListener('click', e => openPop('pop-train', e.currentTarget));
+    // VERSION SWITCH (Luca, 31 Oct: "a new version you can select in game called experimental"): MAIN is the official
+    // game (only Luca-OK'd work); EXPERIMENTAL gets every new change as soon as it's built (may be buggy). channel.js says
+    // which one this page is. On the public link both live side by side (/ and /experimental/), so it switches in place;
+    // on claude.ai they are two pages, so it opens the other one in a new tab. Hidden on PR previews and when served locally.
+    const VER_URL = { main: 'https://claude.ai/artifact/AD1rvV13DR3nvQPzfsRojf', experimental: '' };
+    (() => {
+      const ch = window.HC2_CHANNEL === 'experimental' ? 'experimental' : 'main', other = ch === 'main' ? 'experimental' : 'main';
+      const vb = document.getElementById('verbtn'), vn = document.getElementById('vernote');
+      if (ch === 'experimental') { vn.hidden = false; vn.textContent = 'EXPERIMENTAL VERSION \u00b7 THE NEWEST STUFF AS SOON AS IT\'S BUILT \u00b7 MAY BE BUGGY'; }
+      const pages = /\.github\.io$/.test(location.hostname);
+      let href = '';
+      if (pages) href = location.pathname.replace(/\/experimental\/?(index\.html)?$/, '/').replace(/\/(index\.html)?$/, '/') + (other === 'experimental' ? 'experimental/' : '');
+      else if (!local && !(window.HC2_PREVIEW && ch === 'main')) href = VER_URL[other];
+      if (!href) return;
+      vb.hidden = false; vb.textContent = other === 'experimental' ? '\u21c4 EXPERIMENTAL' : '\u21c4 MAIN GAME';
+      vb.title = other === 'experimental' ? 'The newest stuff, as soon as it is built (may be buggy)' : 'The official game';
+      vb.addEventListener('click', () => { if (pages) location.href = href; else window.open(href, '_blank', 'noopener'); });
+    })();
     // keys: ENTER = PLAY (off a button), ESC closes a pop-up, UP / DOWN walk the mode buttons
     s.addEventListener('keydown', e => {
       if (e.key === 'Escape') { closePops(); return; }

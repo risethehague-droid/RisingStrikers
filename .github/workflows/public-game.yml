@@ -11,6 +11,9 @@ on:
     branches: [main]
     paths: ['game/**', '.github/workflows/public-game.yml']
   workflow_dispatch: {}
+  # EXPERIMENTAL (Luca, 31 Oct): the experimental build lives at /experimental/ next to the official game. Pages only
+  # deploys from main, so after a push to the `experimental` branch tools/experimental.sh runs this workflow on main
+  # (gh workflow run / API dispatch with ref main); main's own pushes refresh both.
 
 permissions:
   contents: read
@@ -29,10 +32,21 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: experimental
+          path: _exp
+        continue-on-error: true                                        # (no experimental branch: main alone)
       - name: Pick the game's files (no Test Lab, no test pages, no previews)
         run: |
           mkdir -p _site
           cp -r game/index.html game/src game/assets game/assets-lo game/phaser.min.js _site/
+          if [ -f game/channel.js ]; then cp game/channel.js _site/; fi
+          if [ -f _exp/game/index.html ]; then
+            mkdir -p _site/experimental
+            cp -r _exp/game/index.html _exp/game/src _exp/game/assets _exp/game/assets-lo _exp/game/phaser.min.js _site/experimental/
+            if [ -f _exp/game/channel.js ]; then cp _exp/game/channel.js _site/experimental/; fi
+          fi
           find _site -name '*.md' -delete
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
