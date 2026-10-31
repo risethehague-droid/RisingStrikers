@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>HC2 Football</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,13 +23,48 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
   cursor:pointer;box-shadow:3px 3px 0 var(--ink);display:inline-flex;align-items:center;gap:6px}
 #start .pick button i{width:10px;height:10px;border:2px solid var(--ink);display:inline-block}
 #start .pick button[aria-pressed="true"]{background:var(--yellow);transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
-#start #play{font:16px "Press Start 2P",monospace;background:var(--yellow);color:var(--ink);padding:10px 16px;border:3px solid var(--ink);
-  box-shadow:4px 4px 0 var(--ink);cursor:pointer}
-#start #play:disabled,#start #battle:disabled,#start #cupbtn:disabled{opacity:.6}
-#start #cupbtn{font:12px "Press Start 2P",monospace;background:var(--cyan);color:var(--ink);padding:12px 14px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);cursor:pointer}
-#start #resumebtn{font:12px "Press Start 2P",monospace;background:#4cff7a;color:var(--ink);padding:12px 14px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);cursor:pointer}
-#start #resumebtn[hidden]{display:none} #start #resumebtn:disabled{opacity:.6}
-#start #battle{font:12px "Press Start 2P",monospace;background:var(--pink);color:#fff;padding:12px 14px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);cursor:pointer}
+/* menu-training (Luca, 31 Oct: "revamp the menu just so it looks a little cleaner but not too crazy ... I just want things
+   centralized"): one centred card - the title, who plays who, then the modes in one column (CONTINUE on top when there is a
+   match to go back to). The settings rows moved into OPTIONS and the key list into HOW TO PLAY, both pop-ups. TRAINING
+   opens the Test Lab. The ids (#play, #resumebtn, #pick-...) stay the same, so the tests and the code that use them don't change. */
+#start .card{background:rgba(29,26,34,.94);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);padding:18px 16px;width:min(680px,100%);box-sizing:border-box;
+  display:flex;flex-direction:column;align-items:center;gap:12px}
+#start .sub{font-size:9px;color:var(--cyan);margin-top:-2px}
+#start .modes{display:grid;gap:9px;width:min(360px,100%);margin-top:4px}
+#start .modes button,#start .pop .list button{font:12px "Press Start 2P",monospace;background:var(--paper);color:var(--ink);padding:12px 14px;border:3px solid var(--ink);
+  box-shadow:4px 4px 0 var(--ink);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;transition:transform .08s,box-shadow .08s}
+#start .modes button:hover,#start .modes button:focus-visible,#start .pop .list button:hover,#start .pop .list button:focus-visible{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--ink);outline:3px solid var(--paper);outline-offset:2px}
+#start .modes button:disabled{opacity:.6;cursor:default}
+#start .modes button[hidden]{display:none}
+#start #play{font-size:16px;padding:14px;background:var(--yellow)}
+#start #resumebtn{background:#4cff7a;font-size:10px;line-height:1.6}
+#start #cupbtn{background:var(--cyan)}
+#start #trainbtn{background:#ff7a1e;color:#fff}
+#start #battle{background:var(--pink);color:#fff}
+#start .modes button em,#start .pop .list button em{font-style:normal;font-size:8px;opacity:.8}
+#start .tools{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+#start .tools button,#start .pop .close{font:10px "Press Start 2P",monospace;background:#1d1a22;color:var(--paper);padding:9px 12px;border:3px solid var(--paper);box-shadow:3px 3px 0 var(--ink);cursor:pointer}
+#start .tools button:hover,#start .tools button:focus-visible,#start .pop .close:hover,#start .pop .close:focus-visible{background:var(--paper);color:var(--ink);outline:none}
+#start .ver{font-size:7px;opacity:.6}
+/* the pop-ups: a dimmed screen + a panel that pops in (no motion for people who switch it off) */
+#start .pop{position:fixed;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(12,10,14,.7);animation:hc2fade .14s ease-out}
+#start .pop[hidden]{display:none}
+#start .pop .panel{background:#1d1a22;border:3px solid var(--ink);box-shadow:6px 6px 0 var(--ink);padding:16px;width:min(680px,100%);box-sizing:border-box;max-height:calc(100vh - 32px);overflow-y:auto;
+  display:flex;flex-direction:column;align-items:center;gap:10px;animation:hc2pop .18s ease-out}
+#start .pop h2{margin:0 0 4px;font-size:14px;font-weight:normal;background:var(--yellow);color:var(--ink);padding:10px 14px;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+#start .pop .pick span{min-width:110px}
+#start .pop .list{display:grid;gap:9px;width:min(440px,100%)}
+#start .pop .list a{text-decoration:none}
+#start .pop .list button{width:100%;flex-direction:column;align-items:flex-start;gap:6px}
+#start .pop .list button em{line-height:1.6}
+#start .pop small{max-width:600px}
+#start .pop .help{text-align:left;font-size:8px;line-height:1.9;max-width:620px}
+#start .pop .help p{margin:0 0 8px}
+#start .pop .help b{all:unset;color:var(--yellow)}
+@keyframes hc2pop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
+@keyframes hc2fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){#start .pop,#start .pop .panel{animation:none}}
+@media (max-height:560px){#start .card{padding:12px;gap:8px}#start .modes{gap:7px}#start .modes button{padding:9px 12px}#start #play{padding:11px}}
 #touch{position:fixed;inset:0;z-index:4;touch-action:none;pointer-events:none}
 #touch[hidden]{display:none}
 #stickzone{position:absolute;left:0;top:0;bottom:0;width:50%;pointer-events:auto;touch-action:none}
@@ -88,19 +124,59 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 <div id="game"></div>
 
 <div id="start">
-  <b>HELP OUT HAGUE CUP II &middot; HET KLEINE LOO</b>
-  <div class="pick" id="pick-home" role="group" aria-label="Home team (you)"><span>YOU</span></div>
-  <div class="pick" id="pick-away" role="group" aria-label="Away team (computer)"><span>VS</span></div>
-  <div class="pick" id="pick-keys" role="group" aria-label="Controls"><span>KEYS</span></div>
-  <div class="pick" id="pick-pen" role="group" aria-label="Penalty style"><span>PENALTIES</span></div>
-  <div class="pick" id="pick-ai" role="group" aria-label="Team AI"><span>TEAM AI</span></div>
-  <div class="pick" id="pick-diff" role="group" aria-label="Difficulty"><span>DIFFICULTY</span></div>
-  <div class="pick" id="pick-cam" role="group" aria-label="Camera distance"><span>CAMERA</span></div>
-  <div class="pick" id="pick-pace" role="group" aria-label="Pace"><span>PACE</span></div>
-  <div class="pick" id="pick-lobaim" role="group" aria-label="Lob aim"><span>LOB AIM</span></div>
-  <div id="safebox" hidden style="font-size:9px;line-height:1.8;max-width:640px"></div>
-  <div class="pick"><button id="resumebtn" type="button" hidden>RESUME &#9654;</button><button id="play">PLAY &#9654;</button><button id="cupbtn" type="button">HAGUE CUP &#9654;</button><button id="battle" type="button">1V1 PENALTY BATTLE &#9654;</button><button id="watchbtn" type="button">WATCH: COMPUTER v COMPUTER &#9654;</button></div>
-  <small><span id="keyhelp"></span><br>WATCH: THE COMPUTER PLAYS BOTH SIDES &middot; ENTER PAUSES &middot; 1-4 = SPEED 0.5X / 1X / 2X / 4X &middot; N MARKS A MOMENT &middot; AT FULL TIME YOU REVIEW YOUR MARKS + WHAT BUG WATCH CAUGHT (BUG / FINE / NOT SURE + A NOTE) &middot; CLAUDE READS THEM<br>HAGUE CUP: ALL SIX TEAMS, TWO GROUPS OF THREE, GROUP WINNERS PLAY THE FINAL (LEVEL = PENALTIES) &middot; YOU PLAY AS YOUR 'YOU' TEAM<br>1V1 PENALTY BATTLE: P1 = WASD + K &middot; P2 = ARROWS + . (OR RIGHT SHIFT) &middot; BOTH PICK IN SECRET, THEN IT PLAYS OUT<br>A GAMEPAD WORKS TOO: A PASS, B SHOOT, X THROUGH, Y LOB, RB SPRINT, LB SPECIAL, BACK FLAG<br>v0.8.8 &middot; FIX: A HEADER OFF A SPENT SPECIAL FLIES LIKE A NORMAL BALL &middot; TEST LAB: EVERY MOVE ON A BUTTON &middot; v0.8.7 &middot; NEW: BUG WATCH - THE GAME CHECKS ITS OWN FOOTAGE AND KEEPS A CLIP OF ANYTHING WRONG (PAUSE MENU &rarr; BUG WATCH, OR B AT FULL TIME) &middot; FIXED: PLAYERS / KEEPERS FLICKERING, AERIAL SPECIALS MISSING THE BALL &middot; v0.8.6 &middot; POWER SPECIALS GO THROUGH DEFENDERS (LV1 ONE, LV2 TWO, LV3 FIVE) AND FADE WITH DISTANCE &middot; KEEPER SPECIAL SAVES (PRESS SPECIAL WHEN SAVE! FLASHES) &middot; AERIAL SPECIALS OFF A HIGH BALL &middot; v0.8.5 &middot; MATCH SETTINGS (ARENA, TIME OF DAY, WEATHER, WHAT HAPPENS IF IT'S LEVEL: EXTRA TIME / GOLDEN GOAL / PENALTIES) &middot; COIN TOSS FOR KICK-OFF &middot; PAUSE MENU (TEAM + SUBS, MOVES, OPTIONS) &middot; WIDER CAMERA &middot; HOLD L FOR A HIGH LOB &middot; INJURIES &middot; v0.8.4 &middot; TEAM SHEET BEFORE KICK-OFF &middot; WALK-OUT &middot; ADDED TIME + THE REF LETS AN ATTACK FINISH &middot; HALF TIME WITH STATS + SUBS &middot; v0.8.3 &middot; FIXES: THE COMPUTER TACKLES YOU WHEN YOU SHIELD THE BALL (NO MORE STALLED MATCHES) &middot; YOUR KEEPER STAYS IN HIS BOX WITH THE BALL &middot; THE COMPUTER ATTACKS PROPERLY (SHOOTS THROUGH OPEN LANES, SAFE PASSES, TAKES MEN ON) &middot; DEFENDERS JOCKEY YOU (PIXELLAB) &middot; WON CHALLENGES STAY WON &middot; HEAD-ON SLIDE = BLOCK TACKLE &middot; THE COMPUTER FOULS TOO &middot; REPLAY FIXES (AGAIN, PAUSE, 120/144 HZ SCREENS)</small>
+  <div class="card">
+    <b>HELP OUT HAGUE CUP II</b>
+    <div class="sub">HET KLEINE LOO</div>
+    <div class="pick" id="pick-home" role="group" aria-label="Home team (you)"><span>YOU</span></div>
+    <div class="pick" id="pick-away" role="group" aria-label="Away team (computer)"><span>VS</span></div>
+    <div class="modes">
+      <button id="resumebtn" type="button" hidden>CONTINUE &#9654;</button>
+      <button id="play" type="button">PLAY <span>&#9654;</span></button>
+      <button id="cupbtn" type="button">HAGUE CUP <span>&#9654;</span></button>
+      <button id="trainbtn" type="button">TRAINING <span>&#9654;</span></button>
+      <button id="battle" type="button">1V1 PENALTY BATTLE <span>&#9654;</span></button>
+      <button id="watchbtn" type="button">WATCH: CPU V CPU <span>&#9654;</span></button>
+    </div>
+    <div class="tools"><button id="optbtn" type="button">&#9881; OPTIONS</button><button id="helpbtn" type="button">? HOW TO PLAY</button></div>
+    <div id="safebox" hidden style="font-size:9px;line-height:1.8;max-width:560px"></div>
+  </div>
+
+  <div class="pop" id="pop-opts" hidden role="dialog" aria-modal="true" aria-labelledby="pop-opts-h"><div class="panel">
+    <h2 id="pop-opts-h">OPTIONS</h2>
+    <div class="pick" id="pick-keys" role="group" aria-label="Controls"><span>KEYS</span></div>
+    <div class="pick" id="pick-pen" role="group" aria-label="Penalty style"><span>PENALTIES</span></div>
+    <div class="pick" id="pick-ai" role="group" aria-label="Team AI"><span>TEAM AI</span></div>
+    <div class="pick" id="pick-diff" role="group" aria-label="Difficulty"><span>DIFFICULTY</span></div>
+    <div class="pick" id="pick-cam" role="group" aria-label="Camera distance"><span>CAMERA</span></div>
+    <div class="pick" id="pick-pace" role="group" aria-label="Pace"><span>PACE</span></div>
+    <div class="pick" id="pick-lobaim" role="group" aria-label="Lob aim"><span>LOB AIM</span></div>
+    <small>SAVED ON THIS BROWSER &middot; MOST OF THESE ARE IN THE PAUSE MENU TOO</small>
+    <button class="close" type="button" data-close>DONE &#10003;</button>
+  </div></div>
+
+  <div class="pop" id="pop-train" hidden role="dialog" aria-modal="true" aria-labelledby="pop-train-h"><div class="panel">
+    <h2 id="pop-train-h">TRAINING</h2>
+    <small>THE TEST LAB: PRACTISE ANY MOVE, NO MATCH, NO CLOCK</small>
+    <div class="list">
+      <a id="lab-free" target="_blank" rel="noopener"><button type="button" tabindex="-1">FREE PLAY <em>YOU, THE BALL + A KEEPER &middot; EVERY MOVE ON A BUTTON</em></button></a>
+      <a id="lab-all" target="_blank" rel="noopener"><button type="button" tabindex="-1">TEST LAB <em>EVERY TEST, GROUP BY GROUP</em></button></a>
+    </div>
+    <small id="lab-note">OPENS IN A NEW TAB</small>
+    <button class="close" type="button" data-close>&#9664; BACK</button>
+  </div></div>
+
+  <div class="pop" id="pop-help" hidden role="dialog" aria-modal="true" aria-labelledby="pop-help-h"><div class="panel">
+    <h2 id="pop-help-h">HOW TO PLAY</h2>
+    <div class="help">
+      <p><b>KEYS</b> &middot; <span id="keyhelp"></span></p>
+      <p><b>GAMEPAD</b> &middot; A PASS, B SHOOT, X THROUGH, Y LOB, RB SPRINT, LB SPECIAL, BACK FLAG</p>
+      <p><b>HAGUE CUP</b> &middot; ALL SIX TEAMS, TWO GROUPS OF THREE, GROUP WINNERS PLAY THE FINAL (LEVEL = PENALTIES) &middot; YOU PLAY AS YOUR 'YOU' TEAM</p>
+      <p><b>1V1 PENALTY BATTLE</b> &middot; P1 = WASD + K &middot; P2 = ARROWS + . (OR RIGHT SHIFT) &middot; BOTH PICK IN SECRET, THEN IT PLAYS OUT</p>
+      <p><b>WATCH</b> &middot; THE COMPUTER PLAYS BOTH SIDES &middot; ENTER PAUSES &middot; 1-4 = SPEED 0.5X / 1X / 2X / 4X &middot; N MARKS A MOMENT &middot; AT FULL TIME YOU REVIEW YOUR MARKS + WHAT BUG WATCH CAUGHT &middot; CLAUDE READS THEM</p>
+      <p><b>LEAVE A MATCH</b> &middot; PAUSE (ENTER) &rarr; LEAVE GAME. A MATCH AGAINST THE COMPUTER IS KEPT: CONTINUE PICKS IT UP HERE</p>
+    </div>
+    <button class="close" type="button" data-close>DONE &#10003;</button>
+  </div></div>
 </div>
 
 <div id="rotate" role="status"><i>&#128241;</i>TURN YOUR PHONE SIDEWAYS<br>TO PLAY</div>
@@ -148,7 +224,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     try { const k = localStorage.getItem('hc2-keys'); if (KEYS[k]) keys = k; } catch (e) {}
     const krow = document.getElementById('pick-keys'), khelp = document.getElementById('keyhelp');
     const setKeys = k => {
-      keys = k; window.HC2_KEYS = k; khelp.innerHTML = 'KEYS: ' + KEYS[k][1];
+      keys = k; window.HC2_KEYS = k; khelp.innerHTML = KEYS[k][1];
       for (const b of krow.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k));
       try { localStorage.setItem('hc2-keys', k); } catch (e) {}
     };
@@ -200,10 +276,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     const resb = document.getElementById('resumebtn'); let snap = null;
     try { const S = JSON.parse(localStorage.getItem('hc2-resume') || 'null'); if (S && S.fmt === 1 && S.t && S.t.h && S.t.a && TEAMS.some(t => t[0] === S.h) && TEAMS.some(t => t[0] === S.a)) snap = S; } catch (e) {}
     if (snap) { const m = Math.floor(snap.clock / 60) + 1, end = [45, 90, 105, 120][snap.half - 1] || 90;
-      resb.textContent = 'RESUME ' + snap.h + ' ' + snap.t.h.score + '-' + snap.t.a.score + ' ' + snap.a + ' \u00b7 ' + (m > end ? end + '+' + (m - end) : m) + "' \u25b6"; resb.hidden = false; }
+      resb.textContent = 'CONTINUE ' + snap.h + ' ' + snap.t.h.score + '-' + snap.t.a.score + ' ' + snap.a + ' \u00b7 ' + (m > end ? end + '+' + (m - end) : m) + "' \u25b6"; resb.hidden = false; }
     const go = () => { s.remove(); window.focus(); window.HC2_STARTED = true; if (window.__hc2) window.__hc2.freeze = Math.max(window.__hc2.freeze, 0.6); };
     const start = (shootout, cup, watch, resume) => {
-      if (play.disabled) return; play.disabled = battle.disabled = cupb.disabled = watchb.disabled = resb.disabled = true; (resume ? resb : watch ? watchb : cup ? cupb : shootout ? battle : play).textContent = 'LOADING THE KITS...';
+      if (play.disabled) return; play.disabled = battle.disabled = cupb.disabled = watchb.disabled = resb.disabled = true; (resume ? resb : watch ? watchb : cup ? cupb : shootout ? battle : play).textContent = 'LOADING THE KITS...'; closePops();
       const tryIt = () => { if (!window.__hc2) return setTimeout(tryIt, 200); if (resume) { window.__hc2.setTeams(snap.h, snap.a, () => { go(); window.__hc2.resumeMatch(snap); }); return; } if (cup) { go(); window.__hc2.cupStart(pick.home); return; } if (watch) { window.__hc2.setTeams(pick.home, pick.away, () => { go(); window.__hc2.watchStart(); }); return; }   /* watch mode: the computer plays both sides */ window.__hc2.setTeams(pick.home, pick.away, () => { go(); if (shootout) window.__hc2.startShootout(); else window.__hc2.preMatch(); /* v0.8.4: team sheet + walk-out */ }); };
       tryIt();
     };
@@ -212,8 +288,41 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     cupb.addEventListener('click', () => start(false, true));
     watchb.addEventListener('click', () => start(false, false, true));
     resb.addEventListener('click', () => start(false, false, false, true));
-    s.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') start(false); });
-    setTimeout(() => play.focus(), 50);
+    // the pop-ups (OPTIONS, TRAINING, HOW TO PLAY): ESC or a click on the dim area closes them, focus goes back to the button
+    const pops = [...s.querySelectorAll('.pop')]; let opener = null;
+    const closePops = () => { const was = pops.some(p => !p.hidden); pops.forEach(p => p.hidden = true); if (was && opener) opener.focus(); opener = null; };
+    const openPop = (id, btn) => { closePops(); opener = btn; const p = document.getElementById(id); p.hidden = false;
+      const f = p.querySelector('.list a, [aria-pressed="true"], button'); if (f) f.focus(); };
+    for (const p of pops) {
+      p.addEventListener('click', e => { if (e.target === p || e.target.closest('[data-close]')) closePops(); });
+    }
+    document.getElementById('optbtn').addEventListener('click', e => openPop('pop-opts', e.currentTarget));
+    document.getElementById('helpbtn').addEventListener('click', e => openPop('pop-help', e.currentTarget));
+    // TRAINING (Luca, 31 Oct: "add a training button in the main menu and (add the test lab there)"): the Test Lab is its
+    // own page. On a PR preview page it is this same page with #lab-... (tools/prpreview.sh); served from the repo it is
+    // lab.html next to this file; on the official game (claude.ai) and the public link it is the official Test Lab page.
+    // #FP1 opens FREE PLAY (lab.js fromHash), where PRACTICE SCENARIOS live too once PR #78 is in.
+    const LAB_URL = 'https://claude.ai/artifact/Goa4b8PepGxbqv9877pPCV';
+    const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    const labHref = id => window.HC2_PREVIEW ? '#lab' + (id ? '-' + id : '') : local ? 'lab.html' + (id ? '#' + id : '') : LAB_URL + (id ? '#' + id : '');
+    for (const [el, id] of [['lab-free', 'FP1'], ['lab-all', '']]) {
+      const a = document.getElementById(el); a.href = labHref(id);
+      if (window.HC2_PREVIEW) a.target = '_self';                                  // (the preview swaps to its Lab in place)
+    }
+    if (window.HC2_PREVIEW) document.getElementById('lab-note').textContent = 'THIS PREVIEW\'S OWN TEST LAB';
+    document.getElementById('trainbtn').addEventListener('click', e => openPop('pop-train', e.currentTarget));
+    // keys: ENTER = PLAY (off a button), ESC closes a pop-up, UP / DOWN walk the mode buttons
+    s.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closePops(); return; }
+      if (pops.some(p => !p.hidden)) return;
+      if (e.key === 'Enter' && e.target.tagName !== 'BUTTON') start(false);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const L = [...s.querySelectorAll('.modes button, .tools button')].filter(b => !b.hidden && !b.disabled), i = L.indexOf(document.activeElement);
+        if (i < 0 && !e.target.closest('.modes, .tools')) return;
+        e.preventDefault(); L[(i + (e.key === 'ArrowDown' ? 1 : -1) + L.length) % L.length].focus();
+      }
+    });
+    setTimeout(() => (resb.hidden ? play : resb).focus(), 50);
     // v0.7.6 safe mode note + switch
     const sb = document.getElementById('safebox'), touch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
     if (touch || window.HC2_SAFE || window.HC2_LAST) {
