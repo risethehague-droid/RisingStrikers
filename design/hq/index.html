@@ -1,4 +1,3 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>HC2 HQ</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -156,6 +155,7 @@ dialog.pvdlg .bar2 { display: flex; justify-content: space-between; align-items:
 .card b { font-size: 14px; line-height: 1.3; overflow-wrap: anywhere }
 .card .who { font-size: 12px; color: var(--muted) }
 .card.closed { opacity: .78 }
+.card .warn { font-size: 12px; font-weight: 700; color: var(--pink-text) }
 .col .none { margin: 0; color: var(--muted); font-style: italic; font-size: 14px }
 .more { background: none; border: 0; color: var(--muted); font-size: 13px; padding: 2px 0; text-align: left; text-decoration: underline; text-underline-offset: 3px }
 
@@ -303,6 +303,34 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
 .mv .tip { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere }
 .chip.new { background: var(--pink); color: var(--on-acc); border-color: var(--edge) }
 @media (max-width: 560px) { .ver > summary { grid-template-columns: minmax(0, 1fr) } .ver .vmeta { grid-column: 1 } .le dl { grid-template-columns: minmax(0, 1fr) } }
+
+/* LIVE NOW (Luca, 31 Oct: "a hud which shows me what each agent is working on live"): collection `hud`, one doc per
+   agent or thread, written by the threads and the scheduled check when they start or finish a task */
+.hud { padding: 12px 14px; display: grid; gap: 8px }
+.hud .hdl { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; align-items: baseline }
+.hud .row { display: grid; grid-template-columns: 12px minmax(0, 11em) minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; font-size: 14px; padding: 6px 0; border-top: 1px solid var(--line) }
+.hud .row .dot { width: 10px; height: 10px; border: 2px solid var(--edge); border-radius: 50%; align-self: center }
+.hud .row.working .dot { background: var(--cyan); animation: hudp 1.6s ease-in-out infinite }
+.hud .row.waiting .dot { background: var(--yellow) } .hud .row.blocked .dot { background: var(--pink) } .hud .row.done .dot { background: var(--green) }
+.hud .row.done, .hud .row.stale { color: var(--muted) }
+.hud .row b { overflow-wrap: anywhere } .hud .row .t { font-size: 12px; color: var(--muted); white-space: nowrap }
+.hud .row .d { overflow-wrap: anywhere }
+@keyframes hudp { 50% { opacity: .35 } }
+@media (prefers-reduced-motion: reduce) { .hud .row.working .dot { animation: none } }
+@media (max-width: 560px) { .hud .row { grid-template-columns: 12px minmax(0, 1fr) auto } .hud .row .d, .hud .row .t { grid-column: 2 / -1 } }
+/* TIMELINE (Luca, 31 Oct: "a time line of each version of the game i can visually see"): the versions, oldest left */
+.tl { overflow-x: auto; padding: 4px 2px 10px; scroll-snap-type: x proximity }
+.tl ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 0; min-width: max-content; position: relative }
+.tl ol::before { content: ""; position: absolute; left: 0; right: 0; top: 33px; border-top: 3px solid var(--edge) }
+.tl li { width: 168px; flex: none; scroll-snap-align: start; display: grid; grid-template-rows: 22px 24px auto; justify-items: start; padding-right: 12px }
+.tl .dt { font: 600 12px/22px var(--f-mono); color: var(--muted); white-space: nowrap }
+.tl .dot { width: 18px; height: 18px; border: 3px solid var(--edge); background: var(--paper); border-radius: 50%; position: relative; z-index: 1; margin-top: 3px }
+.tl li.big .dot { background: var(--yellow) } .tl li.top .dot { background: var(--pink) }
+.tl button { all: unset; cursor: pointer; display: grid; gap: 3px; padding: 6px 8px; margin-top: 4px; border: 2px solid transparent; width: 100%; box-sizing: border-box }
+.tl button:hover, .tl button:focus-visible { border-color: var(--edge); background: var(--panel) }
+.tl button:focus-visible { outline: 3px solid var(--cyan) }
+.tl .v { font: 11px/1.6 var(--f-display) } .tl .hl { font-size: 13px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden }
+.tl .n { font-size: 12px; color: var(--muted) }
 </style>
 
 <div class="shell">
@@ -341,6 +369,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
         <span><span class="sw" style="border-style:dashed"></span>Idle</span>
       </div>
     </div>
+    <div class="hud box" id="hudBox" aria-live="polite"><p class="loading">Loading…</p></div>
     <div class="agents" id="agentGrid"><p class="loading">Loading…</p></div>
     <div class="status-line" id="checks"></div>
   </section>
@@ -382,6 +411,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
 
   <section id="versions" aria-labelledby="vh" style="display:flex;flex-direction:column;gap:12px">
     <div class="sec-h"><h2 class="sec" id="vh">VERSIONS</h2><span class="muted" style="font-size:13px" id="vsub"></span></div>
+    <div class="tl box" id="tlBox" aria-label="Timeline of every version, oldest on the left"></div>
     <div id="verBox"><p class="loading">Loading…</p></div>
   </section>
 
@@ -453,7 +483,13 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
   let laneFilter = store.get('hq-lane') || 'all', showClosed = false, openId = null, renderN = 0, ps = {};
   let tab = TABS.some(t => t[0] === location.hash.slice(1)) ? location.hash.slice(1) : (store.get('hq-tab') || 'roadmap'), assetQ = '', assetKind = 'all';
 
-  const norm = (id, d) => ({ id, title: d.title || '(untitled)', lane: d.lane || 'lead', status: STATUS[d.status] ? d.status : 'inbox', kind: KIND[d.kind] ? d.kind : 'task',
+  // (Luca, 31 Oct: "many of the things waiting okay ... are stuck on the board, i had to find it manually") cards saved
+  // with a status name that isn't one of STATUS's keys (e.g. "needs-ok" instead of "review") used to fall into To do as
+  // New. Common spellings are now read as the status they mean; anything else still lands in To do but says so loudly.
+  const STATUS_ALIAS = { 'needs-ok': 'review', 'needsok': 'review', 'needs-your-ok': 'review', 'waiting-for-ok': 'review', 'ok': 'approved', 'okd': 'approved', 'ok-d': 'approved',
+    'in-progress': 'doing', 'working': 'doing', 'todo': 'ready', 'to-do': 'ready', 'new': 'inbox', 'merged': 'done', 'closed': 'done' };
+  const fixStatus = s => { const k = String(s || '').trim().toLowerCase(); if (STATUS[k]) return k; const a = k.replace(/['’]/g, '').replace(/[\s_]+/g, '-'); return STATUS_ALIAS[a] || null; };
+  const norm = (id, d) => ({ id, title: d.title || '(untitled)', lane: d.lane || 'lead', status: fixStatus(d.status) || 'inbox', badStatus: d.status && !fixStatus(d.status) ? String(d.status).slice(0, 30) : '', kind: KIND[d.kind] ? d.kind : 'task',
     owner: d.owner || '', where: d.where || '', okBy: d.okBy || 'luca', notes: d.notes || '', result: d.result || '', createdBy: d.createdBy || null, stage: num(d.stage),
     createdAt: d.createdAt || 0, updatedAt: d.updatedAt || d.createdAt || 0, decision: d.decision || null, log: Array.isArray(d.log) ? d.log : [],
     preview: d.preview && typeof d.preview === 'object' ? d.preview : null,
@@ -601,10 +637,48 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
   function cardBtn(t) {
     return h('button', { class: 'card ' + t.status + (isClosed(t) ? ' closed' : ''), type: 'button', style: laneVar(t.lane), onclick: () => openDrawer(t.id) },
       h('span', { class: 'id', text: [label(t.id), laneName(t.lane), t.preview && (t.preview.gif || t.preview.page) ? '▶ preview' : ''].filter(Boolean).join(' · ') }), h('b', { text: title(t) }),
+      t.badStatus ? h('span', { class: 'warn', text: '⚠ unknown status "' + t.badStatus + '": open it and pick one' }) : null,
       h('span', { class: 'who', text: [OWNER[t.owner] || t.owner, t.status === 'approved' ? 'OK\'d → ' + agentName(nextOf(t).agent) : t.status === 'review' ? 'if OK → ' + agentName(nextOf(t).agent) : t.status === 'inbox' ? 'new' : '', isClosed(t) ? STATUS[t.status] + ' ' + ago(t.updatedAt) : ''].filter(Boolean).join(' · ') }),
       progNode(t));
   }
 
+
+  // ---- LIVE NOW (Luca, 31 Oct): collection `hud`, one doc per agent or thread {who, doing, state: working | waiting |
+  // blocked | done, card, pr, at (ms), by}. Threads and the scheduled check set their own doc when they start or finish a
+  // task (docs/taskmaster.md "LIVE NOW"). HQ shows it live; a doc older than 6 h while "working" shows as gone quiet.
+  let hud = [];
+  const normHud = (id, d) => ({ id, who: String(d.who || id), doing: String(d.doing || ''), state: ['working', 'waiting', 'blocked', 'done'].includes(d.state) ? d.state : 'working',
+    card: String(d.card || ''), pr: num(d.pr), at: num(d.at), by: String(d.by || '') });
+  function renderHud() {
+    const B = $('#hudBox'); if (!B) return;
+    if (!db) { B.replaceChildren(h('p', { class: 'loading', text: 'Open HQ on claude.ai, signed in, to see who is doing what.' })); return; }
+    const day = Date.now() - 864e5, R = { working: 0, blocked: 1, waiting: 2, done: 3 };
+    const list = hud.filter(x => x.state !== 'done' || x.at > day).sort((a, b) => R[a.state] - R[b.state] || b.at - a.at);
+    const last = hud.reduce((m, x) => Math.max(m, x.at), 0), busy = list.filter(x => x.state === 'working').length;
+    const word = { working: 'working', waiting: 'waiting for OK', blocked: 'stuck, needs you', done: 'done' };
+    B.replaceChildren(h('div', { class: 'hdl' }, h('h3', { class: 'sec', style: 'margin:0;font:11px/1.6 var(--f-display)', text: 'LIVE NOW' }),
+        h('span', { class: 'muted', style: 'font-size:13px', text: `${busy} working · last update ${last ? ago(last) : 'none yet'}` })),
+      ...(list.length ? list.map(x => { const stale = x.state === 'working' && x.at < Date.now() - 6 * 36e5;
+        return h('div', { class: 'row ' + x.state + (stale ? ' stale' : '') }, h('span', { class: 'dot', 'aria-hidden': 'true' }), h('b', { text: x.who }),
+          h('span', { class: 'd' }, x.doing || '…', x.pr ? h('span', { class: 'mono', text: ' · PR #' + x.pr }) : null, x.card && !x.pr ? h('span', { class: 'mono', text: ' · ' + x.card }) : null),
+          h('span', { class: 't', text: (stale ? 'quiet ' : word[x.state] + ' · ') + ago(x.at) })); })
+        : [h('p', { class: 'muted', style: 'margin:0', text: 'Nobody has checked in yet. Threads post here when they start or finish a task.' })]));
+  }
+  // ---- TIMELINE: the Versions as one line, oldest on the left; click a version to open it in the list below
+  function renderTimeline() {
+    const B = $('#tlBox'); if (!B) return;
+    if (!db || !versions.length) { B.hidden = true; return; }
+    B.hidden = false;
+    const list = [...versions].sort((a, b) => a.n - b.n), topN = list[list.length - 1].n;
+    let prev = '';
+    const ol = h('ol', {}, ...list.map(v => { const dt = v.date !== prev ? v.date : ''; prev = v.date;
+      return h('li', { class: (v.n === topN ? 'top' : '') + (/\.0$/.test(v.ver) ? ' big' : '') },
+        h('span', { class: 'dt', text: dt || '\u00a0' }), h('span', { class: 'dot', 'aria-hidden': 'true' }),
+        h('button', { type: 'button', title: v.headline, 'aria-label': `${v.ver}, ${v.date}: ${v.headline}`, onclick: () => { verQ = v.ver; verNew = false; renderVersions(); $('#verBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
+          h('span', { class: 'v', text: v.ver }), h('span', { class: 'hl', text: v.headline || '(no headline)' }),
+          h('span', { class: 'n', text: v.bullets.length + (v.bullets.length === 1 ? ' change' : ' changes') + (v.prs.length ? ' · ' + v.prs.length + ' PR' + (v.prs.length > 1 ? 's' : '') : '') }))); }));
+    const first = !B.firstChild; B.replaceChildren(ol); if (first) B.scrollLeft = B.scrollWidth;
+  }
   async function render() {
     const n = ++renderN;
     const ids = [...new Set([...tasks.flatMap(t => [t.createdBy, t.decision && t.decision.by, ...t.log.map(l => l.by)]), ...loose.map(L => L.closedBy)].filter(x => x && x !== 'claude'))];
@@ -613,6 +687,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     $('#addBtn').hidden = !canWrite;
     $('#ver').textContent = meta.gameVer || '…';
     $('#agentGrid').replaceChildren(...AGENTS.map(agentCard));
+    renderHud(); renderTimeline();
     $('#checks').textContent = nextChecks();
     // your move
     const ok = tasks.filter(t => t.status === 'review').sort((a, b) => a.updatedAt - b.updatedAt), dec = ok.filter(t => t.kind === 'question');
@@ -996,7 +1071,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     const lOpen = loose.filter(L => L.status !== 'closed').length, mOpen = messages.filter(m => !m.re && !m.answered).length, top = [...versions].sort((a, b) => b.n - a.n)[0], fresh = versions.filter(isNew).length;
     const live = hub.tasks.filter(t => t.status !== 'parked'), all = live.reduce((s, t) => s + num(t.est_h), 0), done = live.filter(t => t.status === 'done').reduce((s, t) => s + num(t.est_h), 0);
     if (!db) return {};
-    return { agents: [busy + ' busy'], 'your-move': [nOk + ' to OK', nOk > 0], board: [tasks.filter(t => !isClosed(t)).length + ' open'],
+    return { agents: [Math.max(busy, hud.filter(x => x.state === 'working').length) + ' busy'], 'your-move': [nOk + ' to OK', nOk > 0], board: [tasks.filter(t => !isClosed(t)).length + ' open'],
       'loose-ends': [lOpen + ' open', loose.some(L => L.status === 'open')], messages: [mOpen + ' waiting', messages.some(m => !m.re && !m.answered && m.urgent)], moves: [moves.length + ' clips', moves.some(m => m.at > Date.now() - 7 * 864e5)], versions: [fresh ? fresh + ' new' : (meta.gameVer || (top && top.ver) || '…'), fresh > 0],
       project: [all ? Math.round(100 * done / all) + '%' : '…'] };
   }
@@ -1167,7 +1242,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     const [d, u] = await Promise.all([C && C.use ? C.use('db').catch(() => null) : null, C && C.use ? C.use('user').catch(() => null) : null]);
     db = d; user = u;
     if (!db) { $('#sync').textContent = 'Offline'; $('#agentGrid').replaceChildren(h('p', { class: 'loading', text: 'Open HQ inside Claude to see the agents and the cards.' }));
-      $('#movetext').textContent = 'Open HQ on claude.ai, signed in.'; $('#addBtn').hidden = true; renderProject(); renderLoose(); renderMessages(); renderMoves(); renderVersions(); renderNav(); land(); return; }
+      $('#movetext').textContent = 'Open HQ on claude.ai, signed in.'; $('#addBtn').hidden = true; renderProject(); renderLoose(); renderMessages(); renderMoves(); renderVersions(); renderHud(); renderTimeline(); renderNav(); land(); return; }
     if (user) { try { me = await user.me(); } catch (e) {} try { const c = await user.can('data.write'); if (c === false) canWrite = false; } catch (e) {} }
     try { if (user && await user.isOwner()) mcp = await C.use('mcp'); } catch (e) { mcp = null; }   // Check now: Luca's page only
     checkUI(); turboUI();
@@ -1182,9 +1257,10 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     db.collection('loose').onSnapshot(snap => { loose = snap.docs.map(s => normLoose(s.id, s.data() || {})); soon(); }, () => {});
     db.collection('messages').onSnapshot(snap => { messages = snap.docs.map(s => normMsg(s.id, s.data() || {})); soon(); }, () => {});
     db.collection('moves').onSnapshot(snap => { moves = snap.docs.map(s => normMove(s.id, s.data() || {})); soon(); }, () => {});
+    db.collection('hud').onSnapshot(snap => { hud = snap.docs.map(s => normHud(s.id, s.data() || {})); soon(); }, () => {});
     db.collection('versions').onSnapshot(snap => { versions = snap.docs.map(s => normVer(s.id, s.data() || {})); soon(); }, () => {});
     db.doc('meta/hq').onSnapshot(s => { meta = (s && s.exists !== false && s.data && s.data()) || {}; checkUI(); turboUI(); soon(); }, () => {});
-    setInterval(() => { $('#checks').textContent = nextChecks(); checkUI(); turboUI(); }, 60000);
+    setInterval(() => { renderHud(); $('#checks').textContent = nextChecks(); checkUI(); turboUI(); }, 60000);
   })();
 })();
 </script>

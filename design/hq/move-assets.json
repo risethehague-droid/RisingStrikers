@@ -25,9 +25,9 @@
   "ver": ""
  },
  "air-sp2": {
-  "at": 0,
-  "gif": "/_blob/5aaace1ea6d4eab7abc2cbaa8315f0f5",
-  "ver": ""
+  "gif": "/_blob/1f51f94ecbfe696b74a68c19729ea027",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "air-sp3": {
   "at": 0,
@@ -75,9 +75,9 @@
   "ver": ""
  },
  "curler": {
-  "at": 0,
-  "gif": "/_blob/db28668f81db7d5c45419575ba07c266",
-  "ver": ""
+  "gif": "/_blob/db6c473b4af4294ee50b19c027872cd7",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "def-jockey": {
   "at": 0,
@@ -130,9 +130,9 @@
   "ver": "v0.16.0"
  },
  "gk-high": {
-  "at": 0,
-  "gif": "/_blob/2e5f98c88fe8c6465ec79d9f1b100268",
-  "ver": ""
+  "gif": "/_blob/e8011748effb57bd1255949aa866009e",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "gk-leap": {
   "at": 0,
@@ -140,9 +140,9 @@
   "ver": ""
  },
  "gk-lowl": {
-  "at": 0,
-  "gif": "/_blob/4954758741a5601ee35e4d23699f7d3e",
-  "ver": ""
+  "gif": "/_blob/ab897cb3736836d0e43450e9f80437ae",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "gk-lowr": {
   "at": 0,
@@ -150,14 +150,14 @@
   "ver": ""
  },
  "gk-parry": {
-  "at": 0,
-  "gif": "/_blob/5845a6b60f49e5ccc490ae9d0859da01",
-  "ver": ""
+  "gif": "/_blob/8e456a462e87c7696e9bf2d24d5a4d3f",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "gk-punch": {
-  "at": 0,
-  "gif": "/_blob/9eb6f82f2d5d47f8e4c465f1ea194d35",
-  "ver": ""
+  "gif": "/_blob/f767ab0b6c66279b43118c3f0e5b6d37",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "gk-punt": {
   "at": 0,
@@ -170,9 +170,9 @@
   "ver": ""
  },
  "gk-smother": {
-  "at": 0,
-  "gif": "/_blob/4ba287e7aada09383760089f23c0d20f",
-  "ver": ""
+  "gif": "/_blob/e04a5898d0038d021f713fd0dcc309f1",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "gk-st-fly": {
   "at": 1793448550086,
@@ -200,9 +200,9 @@
   "ver": "v0.16.0"
  },
  "gk-sv1": {
-  "at": 0,
-  "gif": "/_blob/f2f7bf8657e3c24ddbe8ca3e61b79eac",
-  "ver": ""
+  "gif": "/_blob/82bbd20b765d471ca44547f56bcc58bc",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "gk-sv2": {
   "at": 0,
@@ -220,9 +220,9 @@
   "ver": ""
  },
  "gk-tip": {
-  "at": 0,
-  "gif": "/_blob/658dc9d012bfdbec4403f29891553b6e",
-  "ver": ""
+  "gif": "/_blob/5cdecec7d2f6781e3539fdaf00672198",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "gk-walk": {
   "at": 0,
@@ -300,19 +300,19 @@
   "ver": ""
  },
  "sp1": {
-  "at": 0,
-  "gif": "/_blob/0cc4d5b53edba742f87a70fb26cfd9b5",
-  "ver": ""
+  "gif": "/_blob/9800e169362636738ca3a14107e8ea32",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "sp2": {
-  "at": 0,
-  "gif": "/_blob/47645e995f1d82f1a3164c85316cfb00",
-  "ver": ""
+  "gif": "/_blob/a32f47dc0281b1f272b66a8bdae4f0ac",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "sp3": {
-  "at": 0,
-  "gif": "/_blob/afdd2da244985a17f2236845c42c9381",
-  "ver": ""
+  "gif": "/_blob/6bad91c8b6e0ab83fe3951ce1ddcf399",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  },
  "tap": {
   "at": 0,
@@ -328,5 +328,25 @@
   "at": 0,
   "gif": "/_blob/4454eca56d87a46d7cbfc526da2998f6",
   "ver": ""
+ },
+ "drill": {
+  "gif": "/_blob/e63dd15f37a7a372a03119648875b46b",
+  "ver": "v0.17.0",
+  "at": 1793454000000
+ },
+ "burrow": {
+  "gif": "/_blob/f4f44b50f6801a63e84516c898f4af17",
+  "ver": "v0.17.0",
+  "at": 1793454000000
+ },
+ "angel": {
+  "gif": "/_blob/4881e0e791b0d2a9dd7dafbacf6b1e1f",
+  "ver": "v0.17.0",
+  "at": 1793454000000
+ },
+ "mcall": {
+  "gif": "/_blob/f5935721e51e8b536f44d38f85143b46",
+  "ver": "v0.17.0",
+  "at": 1793454000000
  }
 }
