@@ -397,6 +397,7 @@
     ['pass', 'PASSING'], ['shoot', 'SHOOTING'], ['air', 'IN THE AIR · a ball comes in, he does it'],
     ['gk', 'THEIR KEEPER · a shot or a ball at him, he does it'], ['def', 'DEFENDING · a dribbler comes at you'],
     ['set', 'SET PIECES · both teams, the setup runs, then you take it'], ['you', 'BALL TO YOU · then you press the key'],
+    ['calls', 'MOVE CALLS · every special\'s name pop-up (movecall.js)'],
   ];
   const FP_MOVES = [
     { mv: 'pass', sec: 'pass', n: 'PASS', game: true },
@@ -478,6 +479,7 @@
     { mv: 'head', sec: 'you', n: 'HEAD', game: true },
     { mv: 'waist', sec: 'you', n: 'WAIST', game: true },
     { mv: 'feet', sec: 'you', n: 'FEET', game: true },
+    { mv: 'mcall', sec: 'calls', n: 'EVERY NAME', hot: true, tip: 'Luca 31 Oct: every special\'s name pops up in its own element\'s lettering - this plays them all in a row (the real moves show theirs when you do them)', go: fpMoveCalls },
   ];
   const FP_BY = Object.fromEntries(FP_MOVES.map(x => [x.mv, x]));
   // the move buttons, built from the list (so a new move is one line above)
@@ -519,6 +521,15 @@
   const FP_CURVE = { ground: { n: 'CURLER!', from: [60, 34], mate: [78, 34], opp: [69, 33.6] },
                      through: { n: 'OUTSIDE CURL!', from: [62, 26], mate: [78, 38, 6, 0], opp: [73, 30.6] },
                      lob: { n: 'BANANA LOB!', from: [57, 34], mate: [82, 29, 3, 0], opp: [67, 32] } };
+  // MOVE CALLS (movecall.js, Luca 31 Oct): every name in MOVE_THEME, one after another, 1.7 s each (incl. the moves on
+  // open branches, so they can be judged before they merge)
+  function fpMoveCalls(r) {
+    const names = Object.keys(MOVE_THEME); r.last = `MOVE CALLS · ${names.length} names`;
+    r.fx = { step(r, p, F) {
+      const i = Math.floor(F.t / 1.7); if (i >= names.length) return false;
+      if (F.i !== i) { F.i = i; m.moveCall(names[i], `${MOVE_THEME[names[i]].toUpperCase()} · ${i + 1} / ${names.length}`); r.last = `MOVE CALLS · ${names[i]}`; }
+      return true; } };
+  }
   function fpCurve(r, mode) {
     const S = FP_CURVE[mode], p = r.human, q = m.home.players[8], o = m.away.players[3];
     fpCast(r, [q, o]); put(p, S.from[0], S.from[1], 0); atFeet(p); put(q, S.mate[0], S.mate[1], 0); put(o, S.opp[0], S.opp[1], 4);
