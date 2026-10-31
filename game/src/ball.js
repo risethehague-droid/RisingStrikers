@@ -1182,7 +1182,7 @@ hc2Mix(Match, {
   gkAerial(p) {
     const b = this.ball, side = p.team.side, H = (b.x - p.team.ownGoalX) * side, sp = len(b.vx, b.vy, b.vz);
     const up = p.state === 'dive' && (p.saveKind === 'leap' || p.saveKind === 'tip');
-    if (b.z > (up ? 3.1 : 2.95)) return 'skip';                                 // (over him even with a jump)
+    if (b.z > (up ? 3.1 : 2.95) + (this.gsReach ? this.gsReach(p) : 0)) return 'skip';   // (over him even with a jump; gkstyle.js: a little higher at HARD / RISE, 0 unless on)
     if (p.state === 'dive' && !up) return 'skip';                                 // (on the grass from another save)
     const opp = p.team.opp.players.filter(o => !o.keeper && !o.sentOff);
     const crowd = opp.some(o => len(o.x - b.x, o.y - b.y) < 0.7) || opp.filter(o => Math.min(len(o.x - b.x, o.y - b.y), len(o.x - p.x, o.y - p.y)) < 1.8).length >= 2;   // (one of theirs right under it, or two around him)

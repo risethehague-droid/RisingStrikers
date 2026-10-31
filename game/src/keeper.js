@@ -156,9 +156,9 @@ hc2Mix(Match, {
   // t-007: straight up for a ball over his head (a shot or a chip dropping under the bar): he times the leap so he's
   // at the top as it arrives; 'leap' to catch it, 'tip' when it's too high or too hard to hold (over the bar)
   gkLeap(k, sv, dy, left) {
-    const fly = clamp(left, 0.18, 0.5), kind = sv.z > 2.75 || (sv.sp > 22 && sv.z > 2.2) ? 'tip' : 'leap';   // (hard and right under the bar: over it, not held)
-    k.setState('dive', fly + 0.4); k.diveLen = fly + 0.4; k.diveFly = fly; k.diveDir = 0; k.diveZ = clamp(sv.z, 1.8, 2.9);
-    k.vx = 0; k.vy = dy / Math.max(fly, 0.25); k.saveKind = kind; k.leap = clamp(sv.z - 1.9, 0.25, 0.7);
+    const RX = this.gsReach ? this.gsReach(k) : 0, fly = clamp(left, 0.18, 0.5), kind = sv.z > 2.75 + RX || (sv.sp > 22 && sv.z > 2.2) ? 'tip' : 'leap';   // (RX: gkstyle.js)   // (hard and right under the bar: over it, not held)
+    k.setState('dive', fly + 0.4); k.diveLen = fly + 0.4; k.diveFly = fly; k.diveDir = 0; k.diveZ = clamp(sv.z, 1.8, 2.9 + RX);
+    k.vx = 0; k.vy = dy / Math.max(fly, 0.25); k.saveKind = kind; k.leap = clamp(sv.z - 1.9, 0.25, 0.7 + RX);
     k.diveAnim = gkMoveAnim(k, kind, dy > 0); k.gkMode = kind === 'tip' ? 'TIP' : 'LEAP';
   },
   // t-017: down at the striker's feet - a dive at where the ball will be in a quarter of a second, hands first. He
@@ -275,8 +275,9 @@ hc2Mix(Match, {
         // t-007: the save is read from where the ball will cross him: how far to the side (dy) and how high (sv.z)
         const ady = Math.abs(dy), z = sv.z;
         k.saveKind = ''; k.leap = 0;
+        const RX = this.gsReach ? this.gsReach(k) : 0;                         // (gkstyle.js: a better keeper's snatch reaches a little higher - 0 unless on)
         if (sv.off && ady > 0.8 && !sv.close) sv.act = 'leave';
-        else if (z > 3.1 && ady < 1.3) sv.act = 'leave';                      // over him: out of reach whatever he does
+        else if (z > 3.1 + RX && ady < 1.3) sv.act = 'leave';                 // over him: out of reach whatever he does
         else if (ady < 1.1 && z > 2.05) {                                     // over his head: jump for it - timed, so he's at the top as it arrives
           if (left > 0.5) { k.moveTo(k.x, sv.y, 6.5, dt); return; }
           sv.act = 'leap'; this.gkLeap(k, sv, dy, left); return; }
@@ -284,6 +285,7 @@ hc2Mix(Match, {
         else if (ady < 0.45) sv.act = 'set';
         else if (ady < 1.3 && left > 0.4) sv.act = 'step';
         else {
+          if (this.gsLate && this.gsLate(k, ady, left)) { k.steer(0, 0, dt); return; }   // (gkstyle.js: a full-length dive waits, set, so he flies as it arrives - not decided yet)
           sv.act = 'dive';
           // fly so the ball meets his hands (0.4 m past his centre) as it arrives; the air slows him a little
           const fly = clamp(left, 0.2, 0.5), v = Math.min(GK_DIVE_V, Math.max(0, ady - 0.4) / (fly * (1 - 0.2 * fly)));
@@ -484,8 +486,9 @@ hc2Mix(Match, {
       touch = Math.abs(rel) < 1.15 && b.z < 0.9;
       clean = false;
     } else if (up) {                                                                 // jumping: hands up to ~3 m
-      touch = Math.abs(rel) < 0.8 && b.z > 1.1 && b.z < 3.1;
-      clean = p.saveKind === 'leap' && Math.abs(rel) < 0.6 && b.z < 2.8;
+      const RX = this.gsReach ? this.gsReach(p) : 0;                            // (gkstyle.js: a little higher at HARD / RISE - 0 unless on)
+      touch = Math.abs(rel) < 0.8 && b.z > 1.1 && b.z < 3.1 + RX;
+      clean = p.saveKind === 'leap' && Math.abs(rel) < 0.6 && b.z < 2.8 + RX;
     } else if (diving) {
       const along = rel * (p.diveDir || 1), zc = p.diveZ ?? 0.8, out = GK_REACH - Math.max(0, b.z - 1.7) * 0.6;
       touch = along > -0.35 && along < out && b.z < Math.max(zc + 0.9, 1.1) && b.z > zc - 1.0 && b.z < 2.75;
