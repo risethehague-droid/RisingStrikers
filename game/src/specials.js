@@ -779,7 +779,7 @@ hc2Mix(Match, {
   },
   tickRise(dt) {
     this.curveTick(dt);                                                           // (t-011: the curving pass's trail and camera)
-    this.spPassTick(dt);                                                          // (the LV2 special passes' looks: sppass.js)
+    this.spPassTick(dt);                                                          // (the LV1 special passes' looks: sppass.js)
     const R = this.rise; if (!R) return; R.t += dt; const T = 2.3;
     if (R.wild) {
       const fire = ['#ffffff', '#ffde1e', '#ffb02e', '#ffde1e'];

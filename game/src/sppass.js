@@ -1,17 +1,18 @@
 'use strict';
-// HC2 Football · sppass.js: the LV2 SPECIAL PASSES - TORNADO DRILL, BURROW BLAST, ANGEL GLIDE.
+// HC2 Football · sppass.js: the LV1 SPECIAL PASSES - TORNADO DRILL, BURROW BLAST, ANGEL GLIDE.
 // Luca, 30 Oct 2026: "make 3 new passes but make them more exciting with their effects, but also keep them not too
 // advanced its still a base rig: a pass that shoots into the ground, rotates and then flies towards the person you
 // wanted to pass to; one that burrows into the ground and pops out to the player; and a lob that glides angelically
 // towards the person you are passing to (golden ray, small feathers)".
 // How they fit: the same chord as t-011's curving passes (SPECIAL held + PASS / THROUGH / LOB, actions.js curveInput),
-// one tier up. With 2+ bars in the bank the chord plays the LV2 pass and spends TWO bars; with one bar it's still the
-// LV1 curler. Behind CURVE_PASS (core.js): Test Lab only, like the curlers, until Luca's OK.
-//   PASS    -> TORNADO DRILL: driven into the grass a step ahead, it bores and spins there, then rockets to his feet
+// in their place. Luca, 31 Oct: "these passes are not level two, they are level 1 and they use one bar" - so with a bar
+// in the bank the chord plays these and spends ONE bar (SPP_ON; the Test Lab's CP tests turn it off to keep showing the
+// t-011 curlers, which stay as FREE PLAY buttons). Behind CURVE_PASS (core.js): Test Lab only, until Luca's OK.
+//   PASS    -> TORNADO DRILL: driven into the grass a step ahead, it spins there, then curls round the man to his feet
 //   THROUGH -> BURROW BLAST:  dives into the pitch, a dust trail runs under the grass, it bursts out at the runner
 //   LOB     -> ANGEL GLIDE:   floats up into a golden light and glides down onto him, feathers drifting off it
 // The base rig: no new art. The wind-up is t-011's PixelLab move; the ball is scripted (b.sx) only while it does its
-// trick - nobody can touch it then - and is a normal ball again for the last part (the drill's drive, the burrow's pop,
+// trick - nobody can touch it then - and is a normal ball again for the last part (the drill's curl, the burrow's pop,
 // the glide's drop onto his chest), so the receive and the defending around it are the game's own. The effects are the
 // PixelLab fx atlas (dust, impact, ring, whoosh, sparkle, orb) moved / tinted by code, the t-011 tinted trail, and one
 // Phaser graphics beam (the golden ray), as arcadesp.js draws its bands.
@@ -19,11 +20,11 @@
 // its burrowing shots, Captain Tsubasa's drive shot that dips into the turf and kicks up, Mario Strikers' charged
 // passes; in real football a pass is never untouchable, so the trick is short and the end is a real ball.
 const SPP = {
-  bars: 2,                            // what one costs (a curler costs 1, a special shot spends them all)
+  bars: 1,                            // what one costs: one bar (Luca, 31 Oct: "these are level 1 and they use one bar")
   fxK: 2.2,                           // the fx frames are small (~30 px): every pop's scale x this (the rigs use 0.6-2.4 too)
-  drill: { ahead: 2.2, down: 0.14, spin: 0.75, watch: 1.6, flyZ: [1.2, 2.0], col: [0xffffff, 0xd8f6ff, 0xa8ecff, 0x78dcff, 0x50c8ff, 0x3ca8f0, 0x2c88dc, 0x2468c0, 0x1e4ca0] },
+  drill: { ahead: 2.2, down: 0.14, spin: 0.75, watch: 0.9, arrive: 9, col: [0xffffff, 0xd8f6ff, 0xa8ecff, 0x78dcff, 0x50c8ff, 0x3ca8f0, 0x2c88dc, 0x2468c0, 0x1e4ca0] },
                                       // ahead: m in front of the ball where it bores in; down / spin: s; watch: their men stop
-                                      // to look this long, until it has flown past them (as for a special shot); flyZ: the drive's peak (m), low .. over a man
+                                      // to look while it spins (as for a special shot); arrive: m/s at his feet when it can't curl
   burrow: { ahead: 1.0, down: 0.14, v: 20, near: 1.6, lead: 0.35, maxT: 2.6, popVz: 5.2, popV: 2.6, puff: 0.05 },
                                       // v: its speed under the grass; it pops out `near` m short of where he'll be in `lead` s,
                                       // jumping up popVz m/s (about 1.4 m) and on at him popV m/s; puff: s between dust clouds
@@ -32,15 +33,16 @@ const SPP = {
                                       // up to apex m in the first `rise` of its flight, then a glide down to his chest (endZ);
                                       // sway: m it drifts side to side; T: flight time range (s); feather: s between feathers
 };
+let SPP_ON = true;                    // the chord plays these (true) or the t-011 curlers (false: the Lab's CP tests). let: the Lab sets it
 const SPP_KIND = { ground: 'drill', through: 'burrow', lob: 'angel' };
 const SPP_NAMES = { drill: 'TORNADO DRILL!', burrow: 'BURROW BLAST!', angel: 'ANGEL GLIDE!' };
 const SPP_RAMI = { drill: 'TORNADO DRILL!\nIT SPINS IN THE GRASS - AND GOES!', burrow: 'BURROW BLAST!\nWHERE DID THE BALL GO?!', angel: 'ANGEL GLIDE!\nIT FLOATS DOWN FROM HEAVEN!' };
 
 hc2Mix(Match, {
-  // the chord (actions.js curveInput) asks here first: 2+ bars = the LV2 pass, otherwise false (the curler goes instead)
+  // the chord (actions.js curveInput) asks here first: a bar in the bank = this pass, otherwise false (then the curler, or nothing)
   spPass(p, mode, dir) {
     const mt = this.meterOf(p.team), b = this.ball;
-    if (!CURVE_PASS || mt.level() < SPP.bars || p.keeper || b.owner !== p || p.busy() || this.pending || this.setPiece) return false;
+    if (!CURVE_PASS || !SPP_ON || mt.level() < SPP.bars || p.keeper || b.owner !== p || p.busy() || this.pending || this.setPiece) return false;
     this.doPass(p, dir, mode);                                                   // who it goes to: the normal pass's pick
     const k = this.pending; if (!k || k.p !== p) return false;
     const kind = SPP_KIND[mode];
@@ -48,7 +50,7 @@ hc2Mix(Match, {
     const A = CURVE_MOVE[mode], east = k.tx >= p.x;
     k.info.sp2 = { kind };
     if (MAN.kits[p.kit].anims[`${A}-E`]) { p.face = east ? 0 : 4; p.kickAnim = A; p.setState('kick', 8 / kickRate(A) + 0.05); k.t = (KICK_HIT[A] + 0.6) / kickRate(A); }
-    this.say(SPP_NAMES[kind], `${p.team.name} · LV2 SPECIAL PASS`, 1.3);
+    this.say(SPP_NAMES[kind], `${p.team.name} · LV1 SPECIAL PASS`, 1.3);
     this.ramiSay('skill', { text: SPP_RAMI[kind], expr: 'laugh' }, 2);
     SFX.special(1); this.flagReplay(SPP_NAMES[kind]);
     this.spPassLast = { kind, by: p, to: k.info.target, played: false };
@@ -82,13 +84,22 @@ hc2Mix(Match, {
       b.x = S.sx + Math.sin(S.t * 63) * 0.04; b.y = S.sy + Math.cos(S.t * 51) * 0.03; b.z = 0.06 + Math.abs(Math.sin(S.t * 38)) * 0.07;
       b.vx = b.vy = b.vz = 0; b.roll += dt * 55;                                 // (the PixelLab ball's own frames, spun fast)
       if (S.t < T.spin) return true;
-      const q = S.q && !S.q.sentOff ? S.q : null;                                 // ...then it rockets to him, where he'll be
+      const q = S.q && !S.q.sentOff ? S.q : null;                                 // ...then it goes to him, where he'll be
       let tx = S.tx, ty = S.ty;
       if (q) { const tt = len(q.x - b.x, q.y - b.y) / 20; tx = q.x + q.vx * tt * 0.6; ty = q.y + q.vy * tt * 0.6; }
-      // it FLIES there (Luca: "then flies towards the person"): a rising drive just high enough to clear a man in the way
-      // (the t-008 lob's height for this spot, kept between flyZ), landing 2.5 m short so it skips into his feet
-      const dx = tx - b.x, dy = ty - b.y, d = len(dx, dy) || 1, L = lobSolve(Math.max(4, d - 2.5), clamp(this.lobAimApex(S.by, tx, ty), T.flyZ[0], T.flyZ[1])), v = Math.min(32, L.speed);
-      Object.assign(b, { vx: dx / d * v, vy: dy / d * v, vz: L.vz, z: 0.1, skid: true, rollV: 0.8 * v, target: q, last: S.by.team, lastP: S.by });
+      // Luca, 31 Oct: "change the tornado so that it shoots to the side of the defender, either side depending on where the
+      // person receiving is, and then it shoots at their feet". Out of the spin it goes as the t-011 curler on the grass
+      // (ball.js curveSolve, solved from the hole): it sets off wide of the man in the lane on the side your receiver is
+      // (curveSolve goes round a man away from the side he stands off the line, and the line runs to the receiver) and
+      // bends back into his feet. Nobody in the lane: the curler's natural bend. Nothing solvable: straight at his feet.
+      const dx = tx - b.x, dy = ty - b.y, d = len(dx, dy) || 1, ux = dx / d, uy = dy / d;
+      const opps = S.by.team.opp.players.filter(o => !o.sentOff).map(o => ({ a: (o.x - b.x) * ux + (o.y - b.y) * uy, l: (o.y - b.y) * ux - (o.x - b.x) * uy, o }));
+      const C = curveSolve('ground', d, opps, 1, 0);
+      if (C) { const a = C.th * C.s, c = Math.cos(a), sn = Math.sin(a);
+        Object.assign(b, { vx: (ux * c - uy * sn) * C.speed, vy: (ux * sn + uy * c) * C.speed, vz: C.vz, cv: -C.k * C.s, rollV: 0.8 * C.speed }); }
+      else { const v = solveGround(d, T.arrive, 0.2); Object.assign(b, { vx: ux * v, vy: uy * v, vz: 0.2, rollV: 0.8 * v }); }
+      Object.assign(b, { z: 0.05, skid: true, target: q, last: S.by.team, lastP: S.by });
+      S.curve = C; if (this.spPassLast) Object.assign(this.spPassLast, { curve: C, from: { x: b.x, y: b.y }, tx, ty });   // (the Lab's readout)
       b.sx = null; this.spPassGo(S, tx, ty);
       return false;                                                              // (this step it flies as a ball)
     }
