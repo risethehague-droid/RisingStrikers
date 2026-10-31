@@ -266,7 +266,7 @@ class BugWatch {
       const nb = !o && b.z < 0.3 && len(b.vx, b.vy) < 0.6 ? this.nearest(b) : null;
       if (this.hold('bop', !!(nb && nb.d < 0.45 && !nb.p.busy() && !(nb.p.stun > 0) && !(nb.p.cool > 0)), dt, 1.5)) this.flag('BALL_ON_PLAYER', `the ball sat ${bwF2(nb.d)} m from ${this.who(nb.p)} for 1.5 s and he never took it (${nb.p.state})`, { p: nb.p });
       if (this.pos && this.wasLive) {                       // only between two live frames: restarts place players on purpose
-        A.forEach((p, i) => { const q = this.pos[i]; if (!q || p.sentOff || p.hide) return; const d = len(p.x - q[0], p.y - q[1]);
+        A.forEach((p, i) => { const q = this.pos[i], ok = p.bwJumpOk; p.bwJumpOk = false; if (!q || p.sentOff || p.hide || ok) return; const d = len(p.x - q[0], p.y - q[1]);   // (gk-cover: a keeper put on his line on purpose)
           if (d > Math.max(2, 25 * dt)) this.flag('TELEPORT', `${this.who(p)} moved ${bwF1(d)} m in one frame (${bwF1(q[0])}, ${bwF1(q[1])} → ${bwF1(p.x)}, ${bwF1(p.y)}, ${p.state})`, { p }); });
         const bd = this.bpos ? len(b.x - this.bpos[0], b.y - this.bpos[1]) : 0;
         if (bd > Math.max(3.5, 60 * dt)) this.flag('TELEPORT', `the ball moved ${bwF1(bd)} m in one frame (${bwF1(this.bpos[0])}, ${bwF1(this.bpos[1])} → ${bwF1(b.x)}, ${bwF1(b.y)})`, { p: b.owner });
