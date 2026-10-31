@@ -18,6 +18,7 @@ the class body. A new file goes into all three pages, after `match.js` if it add
 | 9 | `keeper.js` | Keeper AI: positioning plan, saves, dives, claims, distribution | Gameplay & AI |
 | 10 | `difficulty.js` | Difficulty levels: trained traits, knobs, the edges against you (`DIFF_YOU`), `dk` / `dkY` | Gameplay & AI |
 | 11 | `brain.js` | The team brain (smarter-ai stage 2): the computer's move list on the ball (`AI_MOVES`: a new move joins with one entry), the match state (score + clock), team styles (`STYLES`, `TEAM_STYLE`), Rise Warrior reading your habits | Gameplay & AI |
+| 23 | `roles.js` | Role-based AI (docs/role-ai-plan.md): the role cards (`ROLES`: GK, CB, FB, W, CM, CF ...), the formations (`FORMATIONS`, every team 4-4-2 for now), `p.role`, and the helpers the AI asks (`lineOf`, `isBack`) instead of shirt numbers. Loaded after brain.js | Gameplay & AI |
 | 12 | `specials.js` | Special shots and special saves: meters, power, rigs, cut scenes, keeper guard | Gameplay & AI, Art |
 | 13 | `matchflow.js` | Referee and the laws: kick-off, restarts, set pieces, fouls, cards, injuries, subs, halves, extra time, coin toss | Gameplay & AI |
 | 14 | `penalties.js` | The penalty scene and shoot-outs | Gameplay & AI |
