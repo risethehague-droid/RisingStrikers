@@ -36,6 +36,7 @@ class Match extends Phaser.Scene {
     this.home = new Team(h, 1, TEAMS[h].kit, TEAMS[h].gk);
     this.away = new Team(a, -1, awayKit, A.gk);
     this.home.opp = this.away; this.away.opp = this.home;
+    this.home.formation = formationFor(this.home, this.hSide !== 'away'); this.away.formation = formationFor(this.away, this.hSide === 'away');   // role-ai step 4: each side's shape (roles.js SHAPES)
     for (const t of [this.home, this.away]) for (let i = 0; i < 11; i++) t.players.push(new Player(this, t, i, i === 0 ? t.gk : t.kit));
     this.all = [...this.home.players, ...this.away.players];
     this.human = this.home.players[9];

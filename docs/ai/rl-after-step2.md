@@ -26,7 +26,7 @@ tests) on top of v0.16.0. **After** = the same plus this branch. Same tools and 
 | E3 drag a CB out | 5% | 0% | **CB followed #9 5.0 m out → 2.1 m** (hand-off) |
 | E4 square pass on the keeper | 100% | 100% | the keeper, step 3 |
 | E5 walk round the keeper | 30% (20 runs) / 0% (40 runs) | 40% / 0% | no defenders in this test: keeper-only, the same on both builds; it swings with the dice order |
-| **E6 counter down the flank** | **75%** | **15%** (10-25% over 3 runs) | target ≤ 35% |
+| **E6 counter down the flank** | **75%** | **15%** (10-35% over 4 runs; 35% once v0.17.0 was merged in) | target ≤ 35% |
 
 ## Line study (6 seeded CPU v CPU matches, `node tools/linestudy.js`)
 

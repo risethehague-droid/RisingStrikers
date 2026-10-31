@@ -40,8 +40,10 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
   const list = process.env.ONE ? [parseOne(process.env.ONE)] : Array.from({ length: +(process.env.MATCHES || 12) }, (_, i) => setup(i + +(process.env.FROM || 0)));   // (t-007: FROM=12 = the next 12 set-ups)
   const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const page = await br.newPage({ viewport: { width: 640, height: 360 } }); const errs = []; let cur = -1;
+  if (process.env.FORM) await page.addInitScript(f => { window.FORMATION_FORCE = f; }, process.env.FORM);   // role-ai step 4: FORM=4-4-2 / 4-2-3-1 / 4-3-3 = every team in that shape
   page.on('pageerror', e => errs.push({ match: cur, msg: e.message, stack: String(e.stack || '').split('\n').slice(1, 4).join(' | ') }));
   await page.goto(`http://localhost:${process.env.PORT || 8765}/test.html#flow`); await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
+  if (process.env.TUNE) await page.evaluate(js => { (0, eval)(js); }, process.env.TUNE);   // role-ai step 4: TUNE='MID.TRACK_DEEP = 10' tries a number before it goes in the code
   const ver = await page.evaluate(TAPON => { const m = window.__hc2, g = m.game; if (TAPON) TAP_KICK = true; g.loop.sleep(); window.__T = 1e6; window.HC2_NO_DEMO = true; window.HC2_SOAK = true;
     for (const id of ['start', 'flow']) { const e = document.getElementById(id); if (e) e.remove(); }
     m.cameras.main.setVisible(false); window.HC2_STARTED = true; window.__soakInc = [];
