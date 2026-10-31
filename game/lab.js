@@ -7,7 +7,7 @@
   const GX = PITCH_L, LINE_X = PITCH_L - 1.3;
   const LAB = { groups: [], g: 0, i: 0, run: null, slow: 1, boxes: true, rated: {}, log: [], db: null, reasons: null,
     menu: false, acc: 0, rand: Math.random, active: false, zoom: (() => { try { return clamp(+localStorage.getItem('hc2-lab-zoom') || 1, 0.5, 2); } catch (e) { return 1; } })(),
-    fp: { tap: true, gp: true, curve: true, sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', loop: false, anim: '' }, tune: null, base: null };
+    fp: { tap: true, gp: true, curve: true, sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', flair: 'lvl', loop: false, anim: '' }, tune: null, base: null };
   let m = null;
   const $ = id => document.getElementById(id);
 
@@ -440,6 +440,18 @@
       go: r => fpShotAt(r, 'PARRY', { spot: [88, 34], dy: -2.3, speed: 24, power: 0.8, u: 0.999 }) },
     { mv: 'gk-tip', sec: 'gk', n: 'TIP OVER', game: true, gk: true, tip: 'a hard shot under the bar: he jumps and tips it over',
       go: r => fpShotAt(r, 'TIP OVER', { spot: [87, 34], dy: 0, z: 2.3, speed: 25, power: 0.8 }) },
+    // gkstyle.js SITUATIONAL SAVES (Luca 31 Oct 02:39, a preview): the save's look is picked from where the ball crosses him.
+    // CPU LEVEL (or SAVE FLAIR) sets how showy: NORMAL clean, HARD after-images + glove flash, RISE the hang + the name
+    { mv: 'gk-st-snatch', sec: 'gk', n: 'SKY SNATCH · lob', gk: true, hot: true, tip: 'gkstyle.js: a lob dropping on him just under the bar - he leaps up and back and takes it ONE-HANDED, then pulls it in and lands',
+      go: r => fpSnatch(r, 2.45) },
+    { mv: 'gk-st-fly', sec: 'gk', n: 'FLYING STRETCH', gk: true, hot: true, tip: 'gkstyle.js: a shot 3 m wide of him at waist height - the full-length flying dive',
+      go: r => fpStyle(r, 'FLYING STRETCH', { spot: [89, 35], dy: 3.0, z: 0.55, speed: 16, u: 0 }) },
+    { mv: 'gk-st-top', sec: 'gk', n: 'TOP-CORNER STRETCH', gk: true, hot: true, tip: 'gkstyle.js: a shot for the top corner - up and across',
+      go: r => fpStyle(r, 'TOP-CORNER STRETCH', { spot: [89, 33], dy: -3.0, z: 1.95, speed: 17, u: 0 }) },
+    { mv: 'gk-st-low', sec: 'gk', n: 'LOW SCRAMBLE', gk: true, hot: true, tip: 'gkstyle.js: a low shot just beside him - down on it, dust flying',
+      go: r => fpStyle(r, 'LOW SCRAMBLE', { spot: [93, 34], dy: 1.6, speed: 22, u: 0 }) },
+    { mv: 'gk-st-wall', sec: 'gk', n: 'STARFISH WALL', gk: true, hot: true, tip: 'gkstyle.js: a shot from close, straight at him - big, the starfish',
+      go: r => fpStyle(r, 'STARFISH WALL', { spot: [95, 33.6], dy: 0.5, z: 1.3, speed: 25, u: 0.999 }) },
     { mv: 'gk-punch', sec: 'gk', n: 'PUNCH', game: true, gk: true, tip: 'your lob into a crowded six-yard box: he punches it clear', go: fpPunch },
     { mv: 'gk-walk', sec: 'gk', n: 'CATCH + WALK OUT', game: true, gk: true, tip: 't-031: a soft shot, nobody near him: he holds it, carries it a few steps out, then plays it', go: fpWalkOut },
     { mv: 'gk-roll', sec: 'gk', n: 'ROLL OUT', game: true, gk: true, tip: 'the ball in his hands, a team-mate 15 m away: underarm roll', go: r => fpRelease(r, 'roll') },
@@ -599,6 +611,24 @@
       r.last = `${n} · ${o.read ? o.read(r, F, gk) : fpGk(r, F, gk)}`;
       if (r.marks.length && F.t > 2.5) r.marks = [];
       return F.t < (o.T || 4);
+    } };
+  }
+  // gkstyle.js: a shot at their keeper with the situational saves on, the readout says which style he picked and why
+  function fpStyle(r, n, o) {
+    GK_STYLE.on = true; GK_STYLE.tier = LAB.fp.flair === 'lvl' ? null : LAB.fp.flair; m.gsLast = null;
+    fpShotAt(r, n, { ...o, read: (r, F, gk) => { const S = m.gsLast, L = ['EASY', 'NORMAL', 'HARD', 'RISE'];
+      return S ? `${GS_NAMES[S.n]} · flair ${L[S.tier]} · ${S.side} m to his side, ${S.z} m up${S.drop ? ', dropping' : ''}${gk.hands ? ' · HELD' : m.ball.inNet ? ' · GOAL' : S.res ? ' · ' + S.res.toUpperCase() : ''}` : fpGk(r, F, gk); } });
+  }
+  // ...and the lob it's made for: your lob from 20 m dropping on him (an open-play lob: ball.js gkAerial takes it, as in a match)
+  function fpSnatch(r, z) {
+    const p = r.human, gk = r.gk; GK_STYLE.on = true; GK_STYLE.tier = LAB.fp.flair === 'lvl' ? null : LAB.fp.flair; m.gsLast = null;
+    fpCast(r, []); put(p, 85, 31, 0); atFeet(p); fpKeeper(gk, LINE_X - 1.2, 33.6);
+    r.last = `SKY SNATCH · your lob, ${z} m up as it drops on him`;
+    r.fx = { e0: r.events.length, step(r, p, F) {
+      const b = m.ball;
+      if (!F.k) { if (F.t < 0.6) return true; F.k = true; const a = aimAir(p.x, p.y, gk.x + 0.2, gk.y + 0.2, z, 1.25); m.kick(p, gk.x + 0.2, gk.y + 0.2, a.speed, a.vz, 0.12, { loft: true }); return true; }
+      const S = m.gsLast, L = ['EASY', 'NORMAL', 'HARD', 'RISE'];
+      r.last = 'SKY SNATCH · ' + (S ? `${GS_NAMES[S.n]} · flair ${L[S.tier]}${gk.hands ? ' · HELD' : ''}` : fpGk(r, F, gk)); return F.t < 4.5;
     } };
   }
   function fpSpSave(r, lv) {                                                    // his special save v a normal shot (KC1 / KS)
@@ -842,6 +872,7 @@
                   gp: { vals: [false, true], label: v => `GOAL PHYSICS: ${v ? 'ON' : 'OFF'}`, set: v => { GOAL_PHYS = v; } },   // t-038: t-013's posts + pop-ups, FREE PLAY only
                   curve: { vals: [false, true], label: v => `CURVE PASS: ${v ? 'ON' : 'OFF'}`, set: v => { CURVE_PASS = v; } },   // t-038: t-011's SPECIAL + pass chord, FREE PLAY only
                   save: { vals: [0, 1, 2, 3], label: v => `KEEPER SAVE: ${v ? 'LV' + v : 'OFF'}`, set: () => {} },
+                  flair: { vals: ['lvl', 0, 1, 2, 3], label: v => `SAVE FLAIR: ${v === 'lvl' ? 'BY LEVEL' : ['EASY (PLAIN)', 'NORMAL', 'HARD', 'RISE WARRIOR'][v]}`, set: v => { GK_STYLE.tier = v === 'lvl' ? null : v; } },   // gkstyle.js
                   cpu: { vals: ['normal', 'hard', 'rise', 'easy'], label: v => `CPU LEVEL: ${{ easy: 'EASY', normal: 'NORMAL', hard: 'HARD', rise: 'RISE WARRIOR' }[v]}`, set: () => {} } };   // v0.9.2 their keeper at each difficulty
     const cycShow = [];
     for (const b of document.querySelectorAll('#fp [data-cyc]')) {
