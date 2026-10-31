@@ -182,7 +182,12 @@ const FWD = {
   SHADOW: 0.5,         // the screen stands this far along the pass from the receiver back towards the man on the ball
   SHADOW_R: 26,        // m: only a pass this short is screened (a longer one is the long ball we're forcing)
   SHADOW_MAX: 28,      // m: the screening striker goes no further than this from his zone spot (18 m: he rarely got there - back passes went UP)
-  SHORT_X: 20,         // our man on the ball behind this (team frame m) = the target man comes short for him
+  SHORT_X: -15,        // our man on the ball behind this (team frame m: our own third) = the target man comes short for him.
+                       // Step 6: it was 20 (all the build-up up to their third) and that was most of step 5's drop in
+                       // shots (soak, 96 matches: step 4 14.4 a match, step 5 13.2): while he came short there was only one
+                       // man up front when the ball got forward. Own third only = he's the link from the back, then he's a
+                       // striker again: 14.4 shots, goals 1.58 -> 1.76, your points share within the dice of step 4. Real
+                       // target men do the same: they drop to give the keeper / CBs a ball out, not in every phase.
   SHORT_GAP: 7,        // m: in front of their line he comes short to
   SHORT_REACH: 18,     // m: ... and no further than this in front of the ball (a pass he can be found with; 24 left him 30 m off it)
   HOLD_BACK: 0.35,     // the target man with a man tight behind him: he shields, easing back this much (of his heading)
