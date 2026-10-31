@@ -1,4 +1,6 @@
-HC2 WEB GAME - v0.17.0 (31 Oct) - WHOLE-MATCH REPLAY + MOVE SOUNDS + FLAG FIX + ROLE CARDS (PRs #70, #81, #83, #84, #86, #87, Luca's OK)
+HC2 WEB GAME - v0.17.0 (31 Oct) - WHOLE-MATCH REPLAY + MOVE CALLS + MOVE SOUNDS + FLAG FIX + ROLE CARDS (PRs #70, #81, #83-#87, Luca's OK)
+- MOVE CALL (#85, movecall.js): every special's name pops up big at the top in its element's lettering (fire burns,
+  thunder zaps, rainbow cycles, shadow glitches ...), keeper saves included. Lab: FREE PLAY > MOVE CALLS > EVERY NAME.
 - REPLAY: WHOLE MATCH (#83): the pause menu replays the whole game from kick-off (scrub, [ / ] 10 s jumps, G next
   goal, END the last 10 s, goals ticked on the bar), next to REPLAY: LAST 10 S.
 - MOVE SOUNDS (#87, movesfx.js): every special gets its own element sound (fire, thunder, shadow, ...), plus keeper
