@@ -44,8 +44,8 @@ const SHAPES = {
     ['W', [33, 12], -19, -26], ['CM', [31, 28], -6, -8], ['CM', [31, 40], 6, 8], ['W', [33, 56], 19, 26], ['CF', [46, 29], -4, -7], ['CF', [46, 40], 5, 7]]),
   // the holding pair: the CDM anchors, the CM goes box to box; the 10 in the hole behind the one striker
   '4-2-3-1': SHAPE([['GK', [3, 34], 0, 0], ['FB', [17, 10], -18, -27], ['CB', [15, 26], -6, -9], ['CB', [15, 42], 6, 9], ['FB', [17, 58], 18, 27],
-    ['W', [35, 12], -19, -26], ['CDM', [26, 29], -5, -6, -3, -6], ['CM', [28, 39], 5, 7, -1, -2], ['W', [35, 56], 19, 26],
-    ['CF', [46, 34], -1, -2], ['CAM', [39, 34], 1, 1, 4, 7]]),
+    ['W', [35, 12], -19, -26], ['CDM', [26, 29], -5, -6, -3, -6], ['CM', [28, 39], 5, 7, -1, 2], ['W', [35, 56], 19, 26],
+    ['CF', [46, 34], -1, -2], ['CAM', [39, 34], 1, 1, 4, 10]]),
   // one anchor, two CMs either side of him, a front three: the wide forwards high and wide
   '4-3-3': SHAPE([['GK', [3, 34], 0, 0], ['FB', [17, 10], -18, -27], ['CB', [15, 26], -6, -9], ['CB', [15, 42], 6, 9], ['FB', [17, 58], 18, 27],
     ['WF', [42, 10], -21, -28, -4, -3], ['CDM', [25, 34], 0, 0, -3, -6], ['CM', [31, 24], -10, -12], ['WF', [42, 58], 21, 28, -4, -3],
@@ -55,7 +55,7 @@ const FORMATIONS = Object.fromEntries(Object.entries(SHAPES).map(([k, v]) => [k,
 const FORMATION_LIST = Object.keys(SHAPES);
 // every team plays FORMATION_DEFAULT until step 6 gives each team its own pick; OPTIONS > FORMATION changes YOUR side's
 // shape (kept in localStorage 'hc2-form', like the TEAM AI switch)
-const FORMATION_DEFAULT = '4-2-3-1';
+const FORMATION_DEFAULT = '4-4-2';
 let FORMATION_MINE = (() => { try { const f = localStorage.getItem('hc2-form'); return SHAPES[f] ? f : null; } catch (e) { return null; } })();
 function setMyFormation(f) { FORMATION_MINE = SHAPES[f] ? f : null; try { localStorage.setItem('hc2-form', FORMATION_MINE || ''); } catch (e) {} }
 const shapeOf = team => SHAPES[(team && team.formation) || '4-4-2'] || SHAPES['4-4-2'];
@@ -132,7 +132,8 @@ const MID = {
   HOLE: 6,             // m a back man is in front of the line = he's out of it: the anchor drops into his spot
   TRACK_X: 4,          // their full-back this close to level with the winger (m) or past him = the winger follows him
   TRACK_GAP: 2.5,      // m the winger stays goal-side of him
-  TRACK_DEEP: 5,       // m in front of our line: the deepest the winger goes (he doesn't become a fifth defender)
+  TRACK_DEEP: 14,      // m in front of our line: the deepest the winger goes - level with our midfield, not a fifth defender
+                       // (5 m took a 4-2-3-1's shots a match from 14.8 to 12.0 in the soak: nobody left to break with)
   TRACK_Y: 0.6,        // how much he moves across onto him
   TRACK_WF: -8,        // a 4-3-3's wide forward tracks only to here (team frame m: just inside our half) - he's the outlet
 };
