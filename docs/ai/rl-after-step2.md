@@ -51,8 +51,8 @@ full-back or the stopper stepping out to press is right. The men left on the lin
 | Rise Warrior | 2.00 | 1.83 | 0-4-8 | 1-4-7 |
 | **All** | **2.60** | **2.23** | **17-15-16** | **16-13-19** |
 
-- Goals a match stay in the plan's 2-4 range, slightly down. Both sides defend better now, and the shot count is the
-  same (742 v 697).
+- Goals a match stay in the plan's 2-4 range, slightly down. Both sides defend better now, with a few fewer shots
+  (742 → 697).
 - Wins about the same overall (17 → 16). Per level, 12 matches is too few to read much. Easy has the biggest swing
   (10 wins → 7), so it's the one to watch when the difficulty card retunes the levels.
 - A first version dropped 5 m for an uncovered ball and took goals to 1.98 a match. That's why it's 3 m now.
