@@ -1261,8 +1261,8 @@
     return null;
   }
   function gpTests(smSave) {
-    const gp8 = smSave('GP8', 1, 3, [84, 34], 'lose');
-    Object.assign(gp8, { group: 'GP', forcePop: true, name: 'a LV3 special breaks his guard: the ball loops UP', sub: 'his LV1 save loses; the pop-up is forced here (in a match: about 45%)',
+    const gp8 = smSave('GP8', 1, 2, [84, 34], 'lose');                         // (fair-finishing: an LV2 - an LV3 that beats him always goes in now)
+    Object.assign(gp8, { group: 'GP', forcePop: true, name: 'a LV2 special breaks his guard: the ball loops UP', sub: 'his LV1 save loses; the pop-up is forced here (in a match: about 45%; never an LV3)',
       check(r) { const b = m.ball; if (r.shotT == null && !b.owner && r.fired && b.lastP === r.shooter && !m.pending && r.o.save) { r.gk.spSave = r.o.save; m.saveFx(r.gk); }   // (as SM7: his save, made to lose)
         return gpCheck(r); } });
     { const s0 = gp8.setup; gp8.setup = r => { s0(r); m.gpLast = null; m.gpLastPop = null; r.gp0 = (m.gpT || 0) + 0.01; }; }

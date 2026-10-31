@@ -184,6 +184,7 @@ const ARCADE = {
 // Power decides most of it: with jit 0.15, LV2 v LV1 is a bounce about 1 in 7, LV3 v LV1 always the body.
 const CLASH = {
   bands: [[0.85, 'held'], [1.25, 'bounce'], [1.65, 'hands'], [Infinity, 'body']], jit: 0.15,
+  place: 1.3, placeY: 1.5,   // fair-finishing: x power for a special placed away from his middle (crossing the line over placeY m off centre: the outer thirds; the posts are 3.66)
   tip: 0.5,                   // of the bounces: tipped over / round the post (a corner); else parried back out
   hold: 0.6, holdArcade: 0.4, // s (real time) the ball grinds against his gloves - Inazuma's beat, never a wait (ENTER cuts it)
   skip: 0.12,                 // ENTER skips it after this (the same key as the cut scene)

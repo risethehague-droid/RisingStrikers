@@ -967,6 +967,10 @@ hc2Mix(Match, {
   // function so the keeper work (t-007) only has to keep the one call. kind 'parry' | 'break'; true when it popped.
   gpPop(gk, kind, spd) {
     if (!gpOn() || !gk || gk.sentOff) return false;
+    // fair-finishing (Luca 31 Oct: "lvl3 shot was saved by the gk"): an LV3 that beats him (guard broken, or through his
+    // hands in the clash) goes in - it used to loop up off him 45% of the time, right after "IT GOES THROUGH HIM!".
+    // LV1 / LV2 and power shots keep the pop-up (t-013, Lab GP8).
+    if (kind === 'break' && (this.ball.special || 0) >= 3) return false;
     const b = this.ball, lvl = this.gpLvl(kind === 'parry' ? gk.team.opp : gk.team);   // the side the pop-up helps
     const ch = (kind === 'parry' ? GP.parryPop * clamp((spd - 12) / 14, 0.25, 1) : GP.breakPop) * (lvl === 'easy' ? GP.easyK : 1);   // fair: on EASY the computer gets fewer
     if (Math.random() >= ch) return false;
