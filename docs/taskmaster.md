@@ -9,6 +9,7 @@ here, in the repo, on the Taskboard and in the agents folder; nothing depends on
 | --- | --- |
 | Official game (Luca's page) | https://claude.ai/artifact/AD1rvV13DR3nvQPzfsRojf (published from `game/index.html`) |
 | Official Test Lab | https://claude.ai/artifact/Goa4b8PepGxbqv9877pPCV (published from `game/lab.html`) |
+| EXPERIMENTAL game + its Test Lab (every new change, live, no HQ card) | https://claude.ai/artifact/CjKrd5vBnAt8E6HRma29mZ (built from branch `experimental` by `tools/experimental.sh`; on the public link: `/experimental/`) |
 | HC2 HQ, the Taskboard (cards: collection `tasks`, each with `next` = who picks it up after Luca's OK; status lines: `meta/hq`; ↻ Check now = a quick run of the scheduled check, Luca only; ⚡ Turbo = the check every 2 hours instead of 3 times a day, Luca only) | https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 |
 | Test Lab classic (frozen at v0.9.7, a fallback) | https://claude.ai/artifact/UA1KSu38xBxmQe5eEBToTk |
 | PR previews | one "HC2 PR #N preview" page per PR, linked from its card (`preview.page`); see "Previews" below |
@@ -58,6 +59,25 @@ co-designer runs his own lanes; QA runs at night. Give work with `bash tools/age
 plus a `t-NNN` card. Every brief has a "How real football and other games do it" section (CLAUDE.md "Think like
 football"). Keep two open tasks off the same files. `assign ... --replace` rewrites a brief nobody has
 reported on yet.
+
+## EXPERIMENTAL: new work goes live there first (Luca, 31 Oct)
+
+Luca: "implement all new changes on a new version you can select in game called experimental, and create the card for
+me to ok implementation ONLY for the main game version, for experimental it is updated live each time something new
+is added / or slowly passively improving".
+1. **When a PR is ready** (tests pass, preview done): `bash tools/experimental.sh add <branch>` (it brings in the
+   latest main too), `bash tools/experimental.sh build $TMP/exp`, publish to the experimental page (the header of the
+   script has the exact call), refresh the public link (`gh api -X POST .../actions/workflows/public-game.yml/dispatches
+   -f ref=main`). No HQ card for this, no OK needed.
+2. **Tell Luca in one line** right away: what's new in EXPERIMENTAL + the link (Dutch time if you name a time).
+3. **The HQ card is for MAIN only:** the PR still gets its Needs OK card. His OK = merge that PR into main (below),
+   never the `experimental` branch.
+4. **After every merge into main:** `bash tools/experimental.sh sync`, rebuild, republish, so experimental stays
+   main + the extras. A clash: keep `game/channel.js` = `'experimental'`.
+5. A fix pushed to a PR's branch: run `add <branch>` again. A PR closed without merging: rebuild `experimental` from
+   main + the open PRs (`git checkout -B experimental origin/main`, `add` each, keep channel.js) and push with
+   `--force-with-lease`.
+6. Out until Luca says so: LAN (t-044, his two-PC retest), duplicates (PR #80).
 
 ## Merging a pull request (after Luca's OK on its card)
 

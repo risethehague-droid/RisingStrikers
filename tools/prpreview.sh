@@ -24,6 +24,7 @@ if git -C "$TMP/wt" -c user.name=preview -c user.email=preview@local merge -q --
 else git -C "$TMP/wt" merge --abort 2>/dev/null || true; git -C "$TMP/wt" checkout -q --detach "$SHA"; BASE="the branch as it is (it clashes with main)"; fi
 G="$TMP/wt/game"
 cp -r "$G/src" "$G/lab.js" "$G/assets" "$OUT/"
+[ -f "$G/channel.js" ] && cp "$G/channel.js" "$OUT/"                           # MAIN / EXPERIMENTAL (channel.js: the version switch)
 find "$OUT/assets" -type f -name '*-pre*' -delete                               # old manifests / sheets the game never loads
 find "$OUT" -type f -name '*.md' -delete                                         # notes (src/README.md) aren't part of the page
 python3 -I - "$G" "$OUT" "$NUM" "$SHA" "$TITLE" "$BASE" <<'PY'
