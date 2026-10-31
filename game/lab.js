@@ -2239,6 +2239,223 @@
           return { o: `READ: ${fb < 0 ? 'the FAR side' : fb > 0 ? 'the NEAR side' : 'nothing yet (!)'} (${R.a.toFixed(0)} s far / ${R.b.toFixed(0)} s near) · Rami: ${R.said.flank ? 'said it' : 'quiet (!)'} · their block ${(on - off).toFixed(1)} m towards it` }; } },
     ];
   }
+  // ======================================================================= role-ai step 0: THE EXPLOIT TESTS (group RL, "roles & line").
+  // Luca, 31 Oct: "the defenders are not thinking like defenders (not holding a defensive line etc) which then make the
+  // goalkeeper go too far out leaving a big gap behind him" (docs/role-ai-plan.md, sections 3 + 7). The computer never
+  // goes for these gaps in a soak (2 of 27 goals came with the keeper 10 m+ out), a human does - so each test is a
+  // human's move, scripted: YOUR side (home, attacking the right-hand goal) plays the exploit, THEIR side is the real
+  // team AI and the real keeper AI, set up where its own AI wants to stand at the start (aiZone / gkPlan), so the test
+  // measures today's brain and nothing the Lab placed. Every line starts WORKED (the exploit beat them) or STOPPED, then
+  // the numbers behind it: their back line at the key moment (spread, deepest man, a man pulled out) and the keeper's
+  // height. tools/rlrates.js runs each one 20 times on fresh dice and writes the rates (docs/ai/rl-baseline.md);
+  // steps 2-3 of the plan must bring them down to real-football levels, never to zero (a good chip still scores).
+  const RL = { GX: PITCH_L, gh: x => PITCH_L - x };                                // (their goal: metres out from it)
+  // their back four now: deepest / highest (m from their goal), spread, the man furthest out of the line (m past the others' mean)
+  function rlLine() {
+    const B = m.away.players.filter(p => p.i >= 1 && p.i <= 4 && !p.sentOff), hs = B.map(p => RL.gh(p.x));
+    if (!hs.length) return null;
+    const mn = Math.min(...hs), mx = Math.max(...hs), sum = hs.reduce((a, x) => a + x, 0);
+    const pull = hs.length > 1 ? Math.max(...hs.map(h => h - (sum - h) / (hs.length - 1))) : 0;
+    return { mn, mx, spread: mx - mn, pull, gk: RL.gh(m.away.players[0].x) };
+  }
+  const rlTxt = L => L ? `their line: deepest ${L.mn.toFixed(1)} m, spread ${L.spread.toFixed(1)} m${L.pull > 6 ? `, one man ${L.pull.toFixed(1)} m out of it` : ''} · keeper ${L.gk.toFixed(1)} m out` : 'no back line';
+  // full teams, the real AI on both sides; you (home) have the ball with `c` = [index, x, y]; `put` = your scripted men;
+  // everyone else where his own AI wants him for this ball (the formation spot / the keeper's plan), so nothing stands
+  // where a match wouldn't put him. o.only = just these men on the pitch (a breakaway); o.away = their side had it last.
+  function rlSetup(r, o) {
+    const H = m.home.players, A = m.away.players;
+    aiFull(r, { you: true, poss: true });
+    if (o.only) cast(o.only());
+    const c = H[o.c[0]]; put(c, o.c[1], o.c[2], 0); atFeet(c);
+    const fixed = new Set([c]); for (const [i, x, y] of o.put || []) { put(H[i], x, y, 0); fixed.add(H[i]); }
+    for (const t of [m.home, m.away]) { t.fx = m.aiFrame(t, m.ball.x); t.fy = m.ball.y - 34; }
+    if (o.away) { Object.assign(m.away, { poss: 1, inPoss: true }); Object.assign(m.home, { poss: 0, inPoss: false }); }   // (where they stood while they had it)
+    for (const p of m.all) if (!p.sentOff && !p.keeper && !fixed.has(p)) { const z = m.aiZone(p, p.team); put(p, z.x, z.y, p.team === m.home ? 0 : 4); }
+    if (o.away) { o.away(); Object.assign(m.away, { poss: 1, inPoss: false }); Object.assign(m.home, { poss: 0, inPoss: true }); }   // (the turnover: it's yours now, their shape is still the attacking one)
+    for (const k of [H[0], A[0]]) if (!k.sentOff) { const T = m.gkPlan(k, STEP); put(k, T.x, T.y, k.team === m.home ? 0 : 4); Object.assign(k, { gkS: null, rushT: 0, oneDeep: false, smWant: 0 }); }
+    if (o.gk) put(A[0], RL.GX - o.gk, A[0].y, 4);
+    Object.assign(r, { human: c, c, gk: A[0], L0: rlLine() });
+  }
+  // (the scripted man is m.human with no keys pressed: the team AI leaves him alone and the Lab's bot moves him - the way
+  // your own player only moves when you move him; switching to the man on the ball, as the game does)
+  const rlMe = (r, p) => { r.human = p; m.human = p; };
+  const rlGo = (p, tx, ty, v, dt) => { const dx = tx - p.x, dy = ty - p.y, d = len(dx, dy) || 1; if (m.ball.owner === p) { p.wantDir = { x: dx / d, y: dy / d }; m.carrySteer(p, dx / d, dy / d, v, dt); } else if (d < 0.4) p.steer(0, 0, dt); else p.moveTo(tx, ty, v, dt); };
+  const rlFetch = (p, dt) => { const b = m.ball; if (b.owner || b.inNet) { p.steer(0, 0, dt); return; } const pt = m.intercept(p, p.top(true, false), 0.12, 1.9); p.sprinting = true; p.moveTo(pt.x, pt.y, p.top(true, false), dt); };
+  // the runner a ball is played in behind for: he keeps going to where it was aimed (a man meeting it early, still in
+  // front of their line, isn't through - nor would a human stop his run there); close to it, or past their line, he takes it
+  const rlRunOn = (r, p, A, dt) => { const b = m.ball, L = rlLine();
+    if (b.owner || len(b.x - p.x, b.y - p.y) < 3 || (L && RL.gh(p.x) < L.mn - 1)) { rlFetch(p, dt); return; }
+    p.sprinting = true; rlGo(p, A.x, A.y, p.top(true, false), dt); };
+  // is he through: nobody of theirs (outfield) goal-side of him within 12 m (a full-back 25 m away on the far side
+  // doesn't stop him), nor right on him (within 2 m, level)
+  const rlBlock = p => { const q = m.away.players.filter(q => !q.keeper && !q.sentOff && RL.gh(q.x) < RL.gh(p.x) + 1).sort((a, c) => len(a.x - p.x, a.y - p.y) - len(c.x - p.x, c.y - p.y))[0];
+    return q ? `their #${q.num} ${len(q.x - p.x, q.y - p.y).toFixed(1)} m away, ${(RL.gh(p.x) - RL.gh(q.x)).toFixed(1)} m goal-side` : 'nobody goal-side'; };
+  const rlThrough = p => !m.away.players.some(q => !q.keeper && !q.sentOff && len(q.x - p.x, q.y - p.y) < 12 && (RL.gh(q.x) < RL.gh(p.x) - 0.5 || (RL.gh(q.x) < RL.gh(p.x) + 1 && len(q.x - p.x, q.y - p.y) < 2)));
+  // after he's through: the finish a human goes for - into the box, then a firm shot across the keeper (the keeper decides)
+  const rlFinish = (r, p, dt) => {
+    const b = m.ball; if (b.owner !== p || p.busy() || r.shot) { if (!b.owner && !r.shot) rlFetch(p, dt); else p.steer(0, 0, dt); return; }
+    const gk = r.gk, d = len(RL.GX - p.x, 34 - p.y);
+    if (d < 14 || len(gk.x - p.x, gk.y - p.y) < 5) { r.shot = { t: r.t, d, gk: RL.gh(gk.x) }; m.doShot(p, 0.72, gk.y > 34 ? -0.7 : 0.7); return; }
+    p.sprinting = true; rlGo(p, RL.GX - 11, 34 + (p.y - 34) * 0.5, p.top(true, true) * 0.9, dt);
+  };
+  // how the move ended, once it's done: GOAL / SAVED / ... (r.from = when the exploit was played)
+  function rlEnd(r) {
+    const b = m.ball;
+    if (b.inNet) return 'GOAL';
+    if (b.owner && b.owner.team === m.away) return b.owner.keeper ? 'keeper has it' : `their #${b.owner.num} won it`;
+    if (r.ev('PARRIED') || r.ev('SAVED')) return 'saved';
+    if (r.ev('OFFSIDE')) return 'OFFSIDE';
+    if (r.out) return 'out (' + r.out.toLowerCase() + ')';
+    return null;
+  }
+  const rlRes = (worked, what, r, extra) => ({ o: `${worked ? 'WORKED' : 'STOPPED'} · ${what}${extra ? ' · ' + extra : ''} · ${rlTxt(r.at || r.L0)}`, hold: 1.2 });
+
+  const rlJ = a => (LAB.rand() * 2 - 1) * a;                                     // (a little spread per run: F / tools/rlrates.js's fresh dice move the start)
+  // E1: the chip over a keeper who's off his line. tools/linestudy.js found him 12 m+ out a quarter of the time with the
+  // ball 35-50 m away (docs/role-ai-plan.md 2) - a match puts him there (a high line, the ball just turned over), the
+  // Lab's start from his own plan doesn't (~7 m). So he starts 10-14 m out (a new height each run), you have it 36-46 m
+  // out, take a touch and hold LOB at the goal: does he get back? WORKED = a goal.
+  function rlE1() {
+    return { id: 'E1', group: 'RL', name: 'CHIP over a keeper 10-14 m off his line', sub: 'their keeper is 10-14 m out (where matches have him with the ball 35-50 m away); you have it 36-46 m out, take a touch and hold LOB at the goal. WORKED = a goal (fix: step 3, the keeper by the ball + the lob read)', kind: 'ai', realAi: true, ownBots: true, demo: false, maxT: 9,
+      setup(r) { const D = 36 + LAB.rand() * 10, K = 10 + LAB.rand() * 4; rlSetup(r, { c: [6, RL.GX - D - 1.5, 34 + rlJ(5)], gk: K }); r.D = D; r.gkMax = 0;
+        r.bots.set(r.c, (p, dt) => { const b = m.ball;
+          if (r.chip || b.owner !== p || p.busy()) { p.steer(0, 0, dt); return; }
+          const gd = len(RL.GX - p.x, 34 - p.y);
+          if (gd <= r.D || r.t > 0.6) { r.chip = { t: r.t, d: gd, gk: RL.gh(r.gk.x) }; r.at = rlLine();
+            const c = clamp((gd - 12) / (LOB_MAX - 12), 0, 1); m.powerLob(p, { x: (RL.GX - p.x) / gd, y: (34 - p.y) / gd }, c); return; }
+          rlGo(p, RL.GX, 34, 4.5, dt); }); },
+      check(r) { r.gkMax = Math.max(r.gkMax, RL.gh(r.gk.x));
+        if (!r.chip) { const e = rlEnd(r); if (e || r.t > 5) return rlRes(false, `NO CHIP: ${e || 'never got there'}`, r); return null; }
+        const e = rlEnd(r), C = r.chip, tag = `chipped from ${C.d.toFixed(0)} m, keeper ${C.gk.toFixed(1)} m out at the chip`;
+        if (e === 'GOAL') return rlRes(true, 'GOAL', r, tag);
+        if (e) return rlRes(false, e, r, tag);
+        if (r.t - C.t > 4.5) return rlRes(false, 'no goal (ball dead / loose)', r, tag);
+        return null; } };
+  }
+  // E2: the ball in behind while your man has time. You have it ~50 m out, the nearest man ~6 m off you; your #9 waits
+  // between their centre-backs on the last man's shoulder, sets off, and you play it into the space behind their line:
+  // E2 on the grass (THROUGH), E2b in the air (held LOB). A real line drops when the ball is uncovered, so the ball has
+  // nowhere to go. WORKED = he's in behind (only the keeper to beat); then he finishes.
+  function rlE2(id, lob) {
+    return { id, group: 'RL', name: lob ? 'BALL OVER THE TOP (held LOB) while you have time' : 'THROUGH BALL behind their line while you have time', sub: `you have it ~50 m out, nobody on you; your #9 is between their centre-backs on the last man\'s shoulder, sets off, and you ${lob ? 'hold LOB over the line' : 'play THROUGH between them'} into the space behind. WORKED = he\'s through on the keeper (fix: step 2, the line drops when the ball is uncovered)`, kind: 'ai', realAi: true, ownBots: true, demo: false, maxT: 10,
+      setup(r) { const sy = 34 + rlJ(2); rlSetup(r, { c: [6, 55 + rlJ(3), sy + rlJ(5)] }); const s = m.home.players[9]; r.s = s; r.free = 99;   // (#9 between their centre-backs, not on one's back)
+        { const L = rlLine(); put(s, RL.GX - L.mn - 0.8, sy, 0); }
+        r.bots.set(r.c, (p, dt) => { const b = m.ball; if (b.owner !== p || p.busy() || r.ball) { p.steer(0, 0, dt); return; }
+          if (r.t > 0.55) { const L = rlLine(), tx = RL.GX - clamp(L.mn - 10, 12, 30), ty = sy, d = len(tx - p.x, ty - p.y);   // (into the gap between their line and their keeper)
+            r.ball = { t: r.t, land: RL.GX - tx, x: tx, y: ty }; r.at = rlLine(); r.free = Math.min(...m.away.players.filter(q => !q.keeper && !q.sentOff).map(q => len(q.x - p.x, q.y - p.y)));
+            if (lob) m.powerLob(p, { x: (tx - p.x) / d, y: (ty - p.y) / d }, clamp((d - 12) / (LOB_MAX - 12), 0, 1)); else m.kick(p, tx, ty, 0, 0, 0.12, { mode: 'through', target: s }); return; }
+          rlGo(p, p.x + 2, p.y, 1.2, dt); });                                       // (a step on, head up: he plays it before anyone gets to him)
+        r.bots.set(s, (p, dt) => { if (r.ball) { if (m.ball.owner === p) { rlMe(r, p); rlFinish(r, p, dt); } else rlRunOn(r, p, r.ball, dt); return; }
+          if (r.t < 0.2) { const L = rlLine(); rlGo(p, RL.GX - L.mn - 0.8, sy, 3, dt); return; }      // (on the shoulder: onside, ready)
+          p.sprinting = true; rlGo(p, RL.GX - 8, sy, p.top(true, false), dt); });   // (and goes)
+      },
+      check(r) { const b = m.ball, s = r.s;
+        if (!r.ball) { const e = rlEnd(r); return e || r.t > 6 ? rlRes(false, `NO BALL PLAYED: ${e || 'held it'}`, r) : null; }
+        const tag = `played from ${len(RL.GX - r.c.x, 34 - r.c.y).toFixed(0)} m, nearest man ${r.free.toFixed(1)} m off you, aimed ${r.ball.land.toFixed(0)} m out`;
+        if (r.got == null && b.owner === s) { r.got = { t: r.t, thr: rlThrough(s), d: len(RL.GX - s.x, 34 - s.y) }; if (!r.got.thr) return rlRes(false, `#9 got it ${r.got.d.toFixed(0)} m out, not through (${rlBlock(s)})`, r, tag); }
+        const e = rlEnd(r);
+        if (r.got) { if (e || r.t - r.got.t > 5) return rlRes(true, `THROUGH (got it ${r.got.d.toFixed(0)} m out) → ${e || 'no finish'}`, r, tag); return null; }
+        if (e === 'GOAL' && m.ball.lastP === s) return rlRes(true, 'THROUGH → GOAL first time', r, tag);
+        if (e) return rlRes(false, e, r, tag);
+        return r.t - r.ball.t > 4 ? rlRes(false, 'nobody of yours got to it', r, tag) : null; } };
+  }
+  // E3: drag a centre-back out. Your #9 starts on their CB and drops between their lines; whoever marks him follows. Your
+  // #11 runs from midfield into the hole the CB left, and you hold LOB into it over their midfield once nobody's right in
+  // front of you (a man 2-3 m in front heads it as it leaves your foot; on the grass their midfield cut it out every
+  // time; a lay-off from #9 runs into the CB on his back). No clear lane by 3 s = their midfield screened it: STOPPED -
+  // the line still says how far their CB followed #9 (step 2: he hands him on and holds). A real back four passes the #9 on to a midfielder, or the CDM drops into the gap; ours leaves the hole.
+  // WORKED = #11 is through on the keeper.
+  function rlE3() {
+    return { id: 'E3', group: 'RL', name: 'DRAG A CENTRE-BACK OUT, run into his hole', sub: 'your #9 drops off their centre-back, who follows; your #11 runs from midfield into the gap he left and you hold LOB into it once nobody is right in front of you. WORKED = #11 is through on the keeper (fix: step 2, hand-off marking + cover)', kind: 'ai', realAi: true, ownBots: true, demo: false, maxT: 10,
+      setup(r) { const H = m.home.players, A = m.away.players, sy = 30 + rlJ(3);
+        rlSetup(r, { c: [6, 52 + rlJ(2), 38 + rlJ(4)], only: () => [H[0], H[6], H[9], H[10], H[5], H[7], A[0], A[1], A[2], A[3], A[4], A[5], A[6], A[7], A[8]] });   // (their back four + midfield four, no strikers: their #9 / #11 closed you down from behind and won it in the wind-up of every pass; this test is about the back line)
+        r.s = H[9]; r.run = H[10];
+        const L = rlLine(); put(r.s, RL.GX - L.mn - 1.2, sy, 0); put(r.run, 64 + rlJ(2), sy - 9 + rlJ(2), 0);
+        { const M = m.away.players.filter(q => q.i >= 5 && q.i <= 8 && !q.sentOff); r.dropX = (M.reduce((a, q) => a + q.x, 0) / M.length + RL.GX - L.mn) / 2 - 3; }   // (between their midfield and their back line)
+        r.cb = m.away.players.filter(p => p.i === 2 || p.i === 3).sort((a, b) => len(a.x - r.s.x, a.y - r.s.y) - len(b.x - r.s.x, b.y - r.s.y))[0]; r.cb0 = { x: r.cb.x, y: r.cb.y }; r.cbOut = 0;
+        r.bots.set(r.c, (p, dt) => { const b = m.ball; if (b.owner !== p || p.busy() || r.ball) { p.steer(0, 0, dt); return; }
+          const o = m.away.players.filter(q => !q.sentOff && !q.keeper).sort((a, c) => len(a.x - p.x, a.y - p.y) - len(c.x - p.x, c.y - p.y))[0], od = len(o.x - p.x, o.y - p.y), front = o.x > p.x - 1 && od < 3.8;
+          if (r.t > 1.7 && !front) { const R = r.run, tx = clamp(r.cb0.x + 5, 0, RL.GX - 8), ty = clamp(r.cb0.y + 1, 20, 48), d = len(tx - p.x, ty - p.y); r.ball = { t: r.t, x: tx, y: ty }; r.at = rlLine();
+            r.hole = m.away.players.filter(q => !q.sentOff && !q.keeper && q !== r.cb).reduce((a, q) => Math.min(a, len(q.x - r.cb0.x, q.y - r.cb0.y)), 99);
+            m.powerLob(p, { x: (tx - p.x) / d, y: (ty - p.y) / d }, clamp((d - 12) / (LOB_MAX - 12), 0, 1)); return; }
+          const sd = p.y >= o.y ? 1 : -1; rlGo(p, p.x, p.y + sd * 3, od < 7 ? 3 : 0.8, dt); });   // (side-steps the man closing him, to keep the lane forward open)
+        r.bots.set(r.s, (p, dt) => rlGo(p, r.dropX, sy + 1, r.ball ? 2 : 5.6, dt));  // (comes short, as if for the ball)
+        r.bots.set(r.run, (p, dt) => { if (r.ball) { if (m.ball.owner === p) { rlMe(r, p); rlFinish(r, p, dt); } else rlRunOn(r, p, r.ball, dt); return; }
+          if (r.t < 1.2) { p.steer(0, 0, dt); return; } p.sprinting = true; rlGo(p, r.cb0.x + 6, r.cb0.y + 1, p.top(true, false), dt); });   // (then into the hole, at a sprint)
+      },
+      check(r) { const b = m.ball, R = r.run; r.cbOut = Math.max(r.cbOut, RL.gh(r.cb.x) - RL.gh(r.cb0.x));
+        if (!r.ball) { const e = rlEnd(r); return e || r.t > 3 ? rlRes(false, `NO BALL PLAYED: ${e || 'never a clear lane (their midfield in front of you)'}`, r, `their #${r.cb.num} followed your #9 ${r.cbOut.toFixed(1)} m out`) : null; }
+        const tag = `their #${r.cb.num} followed your #9 ${r.cbOut.toFixed(1)} m out · nearest of theirs to his old spot at the pass ${r.hole.toFixed(1)} m`;
+        if (r.got == null && b.owner === R) { r.got = { t: r.t, thr: rlThrough(R), d: len(RL.GX - R.x, 34 - R.y) }; if (!r.got.thr) return rlRes(false, `#11 got it ${r.got.d.toFixed(0)} m out, not through (${rlBlock(R)})`, r, tag); }
+        const e = rlEnd(r);
+        if (r.got) { if (e || r.t - r.got.t > 5) return rlRes(true, `THROUGH (got it ${r.got.d.toFixed(0)} m out) → ${e || 'no finish'}`, r, tag); return null; }
+        if (e === 'GOAL' && m.ball.lastP === R) return rlRes(true, 'THROUGH → GOAL first time', r, tag);
+        if (e) return rlRes(false, e, r, tag);
+        return r.t - r.ball.t > 4 ? rlRes(false, 'the pass didn\'t find him', r, tag) : null; } };
+  }
+  // E4: the square pass in a 1v1. Your #9 breaks through with your #11 level on his right and two centre-backs chasing; the
+  // keeper charges your #9, who squares it, and #11 taps it into the empty net. A real keeper with a second attacker there
+  // stops short and sets; a CB drops onto the line. WORKED = a goal.
+  function rlE4() {
+    return { id: 'E4', group: 'RL', name: 'SQUARE PASS in a 2-on-the-keeper', sub: 'your #9 breaks with #11 level beside him, two centre-backs chasing; as the keeper comes, #9 squares it and #11 taps it in. WORKED = a goal (fix: step 3, 1v1 with support + goal-line cover)', kind: 'ai', realAi: true, ownBots: true, demo: false, maxT: 9,
+      setup(r) { const H = m.home.players, A = m.away.players;
+        const y0 = 31 + rlJ(3); rlSetup(r, { c: [9, 72 + rlJ(3), y0], put: [[10, 71, y0 + 8 + rlJ(1.5)]], only: () => [H[0], H[9], H[10], A[0], A[2], A[3]] });
+        put(A[2], 63, 31, 0); put(A[3], 62, 38, 0); r.mate = H[10];
+        r.bots.set(r.c, (p, dt) => { const b = m.ball; if (b.owner !== p || p.busy() || r.sq) { p.steer(0, 0, dt); return; }
+          const kd = len(r.gk.x - p.x, r.gk.y - p.y), gd = len(RL.GX - p.x, 34 - p.y);
+          if (kd < 6.5 || gd < 11) { r.sq = { t: r.t, gk: RL.gh(r.gk.x), kd, gd }; r.at = rlLine(); m.doPass(p, { x: (r.mate.x - p.x) / len(r.mate.x - p.x, r.mate.y - p.y), y: (r.mate.y - p.y) / len(r.mate.x - p.x, r.mate.y - p.y) }, 'ground', r.mate); return; }
+          p.sprinting = true; rlGo(p, RL.GX, 33, 6.0, dt); });
+        r.bots.set(r.mate, (p, dt) => { const b = m.ball;
+          if (b.owner === p) { rlMe(r, p); rlFinish(r, p, dt); return; }            // (into the empty net)
+          if (r.sq) { rlFetch(p, dt); return; }
+          p.sprinting = true; rlGo(p, Math.min(r.c.x - 0.8, RL.GX - 4), y0 + 8, p.top(true, false), dt); });   // (level, a step behind: onside)
+      },
+      check(r) { const e = rlEnd(r);
+        if (!r.sq) { return e || r.t > 6 ? rlRes(false, `NO SQUARE BALL: ${e || 'never got close'}`, r) : null; }
+        const tag = `squared ${r.sq.gd.toFixed(0)} m out with the keeper ${r.sq.kd.toFixed(1)} m from #9 (${r.sq.gk.toFixed(1)} m off his line)`;
+        if (e === 'GOAL') return rlRes(true, 'GOAL', r, tag);
+        if (e) return rlRes(false, e, r, tag);
+        return r.t - r.sq.t > 4 ? rlRes(false, 'no goal', r, tag) : null; } };
+  }
+  // E5: walk round the keeper (closed in t-017 / t-027; kept so it never comes back). A breakaway from 30 m at a sprint, round
+  // him 3.5 m away, then into the empty net - the KP7 move with the real team AI on. WORKED = a goal.
+  function rlE5() {
+    return { id: 'E5', group: 'RL', name: 'WALK ROUND THE KEEPER (keep it closed)', sub: 'a breakaway from 30 m at a sprint, round him from 3.5 m, into the empty net (t-017 / t-027 fixed it; it stays here so it doesn\'t come back). WORKED = a goal', kind: 'ai', realAi: true, ownBots: true, demo: false, maxT: 10,
+      setup(r) { const H = m.home.players, A = m.away.players; rlSetup(r, { c: [9, 75, 34], only: () => [H[0], H[9], A[0]] }); r.out = null;
+        r.bots.set(r.c, kpRound({ v: 6.0, cut: 3.5, side: 1 })()); r.gkMax = 0; },
+      check(r) { r.gkMax = Math.max(r.gkMax, RL.gh(r.gk.x)); const e = rlEnd(r), tag = `keeper furthest out ${r.gkMax.toFixed(1)} m`;
+        if (e === 'GOAL') return rlRes(true, 'GOAL (walked round him)', r, tag);
+        if (e) return rlRes(false, e, r, tag);
+        if (!m.ball.owner && m.ball.lastP === r.gk && r.t > 0.3) return rlRes(false, 'keeper got to it', r, tag);
+        return r.t > 9 ? rlRes(false, 'no goal', r, tag) : null; } };
+  }
+  // E6: the counter down the flank their full-back left. They were attacking, their right-back (#5) had gone on the
+  // overlap; you win it in midfield and play it straight down that flank for your #7. Real teams keep 2-3 men behind the
+  // ball (rest defence) for exactly this. WORKED = your #7 gets into their box with the ball.
+  function rlE6() {
+    return { id: 'E6', group: 'RL', name: 'COUNTER down the flank their full-back left', sub: 'they were attacking with their #5 up on the overlap; you win it in midfield and play it down that empty flank for your #7, who runs at goal. WORKED = #7 gets into their box with it (fix: step 2, rest defence)', kind: 'ai', realAi: true, ownBots: true, demo: false, maxT: 12,
+      setup(r) { const H = m.home.players, A = m.away.players;
+        rlSetup(r, { c: [7, 37 + rlJ(3), 45 + rlJ(3)], put: [[8, 49 + rlJ(2), 62]], away: () => { put(A[4], 30, 60, 4); } });
+        r.w = H[8]; r.fb = A[4]; r.behind = m.away.players.filter(q => !q.keeper && !q.sentOff && q.x > m.ball.x).length;
+        r.bots.set(r.c, (p, dt) => { const b = m.ball; if (b.owner !== p || p.busy() || r.ball) { p.steer(0, 0, dt); return; }
+          if (r.t > 0.15) { const tx = 66 + rlJ(3), ty = 62; r.ball = { t: r.t }; r.at = rlLine();   // (first time: THROUGH down the empty flank, into his run)
+            m.kick(p, tx, ty, 0, 0, 0.12, { mode: 'through', target: r.w }); return; }
+          rlGo(p, 47, 46, 3, dt); });
+        r.bots.set(r.w, (p, dt) => { const b = m.ball;
+          if (b.owner === p) { rlMe(r, p); if (r.box) { rlFinish(r, p, dt); return; } p.sprinting = true; rlGo(p, 92, 44, p.top(true, true) * 0.95, dt); return; }
+          if (r.ball && !b.owner) { rlFetch(p, dt); return; }
+          p.sprinting = true; rlGo(p, 72, 62, p.top(true, false), dt); });
+      },
+      check(r) { const b = m.ball, w = r.w;
+        if (!r.ball) { const e = rlEnd(r); return e ? rlRes(false, `NO BALL PLAYED: ${e}`, r) : null; }
+        const tag = `their men behind the ball when you won it: ${r.behind} · their #5 ${r.fb.sentOff ? '-' : RL.gh(r.fb.x).toFixed(0) + ' m from his goal now'}`;
+        if (!r.box && b.owner === w && RL.gh(w.x) < 16.5 && Math.abs(w.y - 34) < 20.2) { r.box = { t: r.t, def: m.away.players.filter(q => !q.keeper && !q.sentOff && RL.gh(q.x) < RL.gh(w.x)).length }; }
+        const e = rlEnd(r);
+        if (r.box) { if (e || r.t - r.box.t > 4) return rlRes(true, `#7 IN THE BOX (${r.box.def} of theirs goal-side) → ${e || 'no finish'}`, r, tag); return null; }
+        if (e) return rlRes(false, e, r, tag);
+        return r.t > 11 ? rlRes(false, 'never got into the box', r, tag) : null; } };
+  }
+  function rlTests() { return [rlE1(), rlE2('E2', false), rlE2('E2b', true), rlE3(), rlE4(), rlE5(), rlE6()]; }
   // ======================================================================= t-020 ARCADE GETS INTENSE (Luca 25 Oct: "more rebounds that
   // lead into aerials, more energy sp, make the game feel incredibly intense"). Every AR test plays ARCADE (pace: 'arcade').
   // AR1-2 a loose ball driven at a line: what comes back (speed, height, where); AR3 the real team AI attacking a rebound
@@ -3393,6 +3610,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('CH', 'v0.9.2 · CHIP SHOT', 'LOB in their box while facing the goal = a CHIP: fast, low arc, a hard dip under the bar. Facing away = a normal lob. Watch it go over a keeper off his line.', chipTests());
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
     add('AI', 'smarter-ai · THE TEAM BRAIN', 'The real team AI on both sides (smarter-ai stage 2, docs/smarter-ai.md): a support man who keeps his job, one presser + one cover, no lob into a marked man, chasing late (and the keeper up for the last corner), the four example styles, Rise Warrior reading your flank, the 1-2 (open and covered).', aiTests());
+    add('RL', 'role-ai step 0 · EXPLOITS (ROLES & LINE)', 'A human\'s moves against the real team AI and keeper (docs/role-ai-plan.md): E1 the chip over a keeper off his line, E2 the ball over a line that doesn\'t drop, E3 dragging a centre-back out, E4 the square pass past a charging keeper, E5 walking round him (closed, kept), E6 the counter down the flank their full-back left. Each line: WORKED or STOPPED, their back line and the keeper at that moment. tools/rlrates.js runs each 20 times for the rates.', rlTests());
     add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
     add('SX', 'ARCADE SPECIALS (co-designer, 28 Oct)', 'ARCADE only: the special dribble (its own button N / O / pad LT, or SPECIAL far from goal), combo specials (the 1-2 and the lob + volley, 2 or 3 bars, two portraits), the team signature names, the computer\'s dribble.', sxTests());
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
@@ -3551,7 +3769,12 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     const realAi = m.ai.bind(m);                                               // t-012: the WG tests play the real team AI
     m.ai = function (dt) {
       const r = LAB.run; if (!r) return;
-      if (r.sc.realAi) { realAi(dt); for (const [p, bot] of r.bots) if (!p.sentOff && p.stun <= 0) bot(p, dt); return; }
+      if (r.sc.realAi) {
+        // (role-ai RL: a scripted man the team AI also steered moved at a crawl - both steer the same velocity each frame and
+        // cancel out. ownBots = the bot alone moves its men, as your stick alone moves yours)
+        const own = r.sc.ownBots ? [...r.bots.keys()].map(p => [p, p.vx, p.vy, p.face, p.sprinting]) : null;
+        realAi(dt); if (own) for (const [p, vx, vy, face, sprinting] of own) Object.assign(p, { vx, vy, face, sprinting });
+        for (const [p, bot] of r.bots) if (!p.sentOff && p.stun <= 0) bot(p, dt); return; }
       for (const p of m.all) {
         if (p.sentOff || (r.you && p === r.human)) continue;
         if (p.state === 'kick' || p.state === 'catch' || p.state === 'dive' || p.state === 'slide' || p.state === 'dheader' || p.state === 'chance' || p.state === 'celebrate' || p.state === 'tackle' || p.state === 'dejected' || p.state === 'roar' || p.state === 'beaten' || p.state === 'protest' || p.state === 'hurt' || p.stun > 0) continue;
