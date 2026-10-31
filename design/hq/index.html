@@ -1,3 +1,4 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>HC2 HQ</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -290,6 +291,16 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
 .ver .gifs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px }
 .ver .gifs .pv-gif { width: min(240px, 100%) }
 .ver mark { background: var(--yellow); color: var(--on-acc) }
+/* MOVES (Luca, 30 Oct: "keep the hq updated with all new animations you add, as short previews"): every FREE PLAY move as a short clip */
+.mv-sec { display: grid; gap: 8px }
+.mv-sec h3 { font: 12px/1.6 var(--f-display); margin: 6px 0 0; letter-spacing: .02em }
+.mv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 10px }
+.mv { display: grid; gap: 6px; padding: 8px; min-width: 0 }
+.mv .pv-gif { width: 100% }
+.mv .pv-gif img { width: 100%; height: auto; display: block; image-rendering: pixelated }
+.mv b { font-size: 14px; overflow-wrap: anywhere }
+.mv .mvmeta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.mv .tip { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere }
 .chip.new { background: var(--pink); color: var(--on-acc); border-color: var(--edge) }
 @media (max-width: 560px) { .ver > summary { grid-template-columns: minmax(0, 1fr) } .ver .vmeta { grid-column: 1 } .le dl { grid-template-columns: minmax(0, 1fr) } }
 </style>
@@ -363,6 +374,12 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     <div id="msgBox"><p class="loading">Loading…</p></div>
   </section>
 
+ <section id="moves" aria-labelledby="mvh" style="display:flex;flex-direction:column;gap:12px">
+    <div class="sec-h"><h2 class="sec" id="mvh">MOVES</h2><span class="muted" style="font-size:13px" id="mvsub"></span></div>
+    <p class="muted" style="margin:0;max-width:78ch">Every move in the game as a short clip: shots, passes, the aerial mash, keeper saves, tackles and set pieces. Each one is the move's FREE PLAY button in the Test Lab, recorded. A new or changed move gets its clip here when it's merged. Click a clip to see it bigger.</p>
+    <div id="mvBox"><p class="loading">Loading…</p></div>
+  </section>
+
   <section id="versions" aria-labelledby="vh" style="display:flex;flex-direction:column;gap:12px">
     <div class="sec-h"><h2 class="sec" id="vh">VERSIONS</h2><span class="muted" style="font-size:13px" id="vsub"></span></div>
     <div id="verBox"><p class="loading">Loading…</p></div>
@@ -432,7 +449,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
   const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
 
   let db = null, user = null, me = { id: null }, canWrite = true, tasks = [], hub = { phases: [], tasks: [], assets: [], decisions: [], refs: [] }, meta = {}, creative = [];
-  let loose = [], versions = [], messages = [], agentState = {};   // (q-hq-sections) Loose Ends, Versions, and each agent's state for the menu
+  let loose = [], versions = [], messages = [], moves = [], mvQ = '', mvOnly = 'all', agentState = {};   // (moves: the MOVES section)   // (q-hq-sections) Loose Ends, Versions, and each agent's state for the menu
   let laneFilter = store.get('hq-lane') || 'all', showClosed = false, openId = null, renderN = 0, ps = {};
   let tab = TABS.some(t => t[0] === location.hash.slice(1)) ? location.hash.slice(1) : (store.get('hq-tab') || 'roadmap'), assetQ = '', assetKind = 'all';
 
@@ -617,7 +634,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
       h('div', { class: 'ch' }, h('span', { text: name }), h('span', { text: String(list.length) })),
       list.length ? (i === 3 && !showClosed ? list.slice(0, 6) : list).map(cardBtn) : h('p', { class: 'none', text: none }),
       i === 3 && (list.length > 6 || drop) ? h('button', { class: 'more', type: 'button', text: showClosed ? 'Show fewer' : `Show all${drop ? ` + ${drop} dropped` : ''}`, onclick: () => { showClosed = !showClosed; render(); } }) : null)));
-    renderLoose(); renderMessages(); renderVersions();
+    renderLoose(); renderMessages(); renderMoves(); renderVersions();
     renderProject();
     const sb = $('#samplebar'); sb.hidden = !meta.sample; sb.textContent = meta.sample ? String(meta.sample) : '';   // a preview copy says so (meta/hq.sample)
     renderNav();
@@ -919,6 +936,33 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
         v.play ? h('div', { class: 'pv-links' }, h('a', { class: 'btn small', href: v.play, target: '_blank', rel: 'noopener', text: '▶ Play ' + v.ver, title: 'This version as a game (on a computer)' })) : null));
     return d;
   }
+  // ---- MOVES: one clip per FREE PLAY move ({mv, n, sec, secTitle, gif, game, tip, ver, order, at}), grouped as the Lab groups them
+  const normMove = (id, d) => ({ mv: String(d.mv || id), n: String(d.n || id), sec: String(d.sec || 'other'), secTitle: String(d.secTitle || d.sec || 'OTHER'),
+    gif: typeof d.gif === 'string' && /^(https:|\/)/.test(d.gif) ? d.gif : null, game: !!d.game, tip: String(d.tip || ''), ver: String(d.ver || ''), order: num(d.order), at: num(d.at) });
+  function renderMoves() {
+    const B = $('#mvBox'), keep = document.activeElement && document.activeElement.id === 'mvq';
+    $('#mvsub').textContent = moves.length ? `${moves.length} moves · ${moves.filter(m => m.game).length} in the game` : '';
+    if (!db) { B.replaceChildren(h('p', { class: 'loading', text: 'Open HQ on claude.ai, signed in, to see the moves.' })); return; }
+    if (!moves.length) { B.replaceChildren(h('p', { class: 'loading', text: 'No clips here yet. The taskmaster adds them when a move is merged.' })); return; }
+    const q = mvQ.trim().toLowerCase(), week = Date.now() - 7 * 864e5;
+    const ok = m => (mvOnly === 'all' || (mvOnly === 'game') === m.game) && (!q || [m.n, m.mv, m.tip, m.secTitle].join(' ').toLowerCase().includes(q));
+    const list = [...moves].sort((a, b) => a.order - b.order).filter(ok), secs = [];
+    for (const m of list) { let s = secs.find(x => x.sec === m.sec); if (!s) secs.push(s = { sec: m.sec, title: m.secTitle, items: [] }); s.items.push(m); }
+    const tile = m => h('div', { class: 'mv box' },
+      m.gif ? h('button', { class: 'pv-gif', type: 'button', 'aria-label': 'Enlarge the clip: ' + m.n, onclick: () => zoomGif(m.gif, m.n) }, h('img', { src: m.gif, alt: 'Clip: ' + m.n, loading: 'lazy' })) : h('span', { class: 'muted', text: 'no clip yet' }),
+      h('b', { text: m.n }),
+      h('div', { class: 'mvmeta' }, h('span', { class: 'chip' + (m.game ? ' ok' : ''), text: m.game ? 'IN THE GAME' : 'LAB ONLY' }),
+        m.at > week ? h('span', { class: 'chip new', text: 'new' }) : null, m.ver ? h('span', { class: 'chip', text: m.ver }) : null),
+      m.tip ? h('p', { class: 'tip', text: m.tip }) : null);
+    const fb = (v, t) => h('button', { type: 'button', 'aria-pressed': String(mvOnly === v), text: t, onclick: () => { mvOnly = v; renderMoves(); } });
+    B.replaceChildren(h('div', { style: 'display:grid;gap:12px' },
+      h('div', { class: 'vbar' }, h('label', { for: 'mvq', class: 'grp', text: 'Search' }),
+        h('input', { id: 'mvq', type: 'search', value: mvQ, placeholder: 'header, lob, keeper, mash…', oninput: e => { mvQ = e.target.value; renderMoves(); } }),
+        h('div', { class: 'filters', role: 'group', 'aria-label': 'Which moves' }, fb('all', 'All'), fb('game', 'In the game'), fb('lab', 'Lab only'))),
+      secs.length ? h('div', { style: 'display:grid;gap:14px' }, ...secs.map(s => h('div', { class: 'mv-sec' }, h('h3', { text: s.title }), h('div', { class: 'mv-grid' }, ...s.items.map(tile)))))
+        : h('p', { class: 'loading', text: 'No move matches that.' })));
+    if (keep) { const i = $('#mvq'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+  }
   function renderVersions() {
     const B = $('#verBox'), keep = document.activeElement && document.activeElement.id === 'vq';
     const top = [...versions].sort((a, b) => b.n - a.n)[0];
@@ -945,7 +989,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
   }
 
   // ---- the side menu: each section with a small count; the one on screen is lit up; HQ's link + #section opens it
-  const SECTIONS = [['agents', 'Agents'], ['your-move', 'Your move'], ['board', 'Board'], ['loose-ends', 'Loose ends'], ['messages', 'Messages'], ['versions', 'Versions'], ['project', 'Project'], ['how', 'How HQ works']];
+  const SECTIONS = [['agents', 'Agents'], ['your-move', 'Your move'], ['board', 'Board'], ['loose-ends', 'Loose ends'], ['messages', 'Messages'], ['moves', 'Moves'], ['versions', 'Versions'], ['project', 'Project'], ['how', 'How HQ works']];
   let curSec = 'agents';
   function navCounts() {
     const busy = Object.values(agentState).filter(s => s !== 'idle').length, nOk = tasks.filter(t => t.status === 'review').length;
@@ -953,7 +997,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     const live = hub.tasks.filter(t => t.status !== 'parked'), all = live.reduce((s, t) => s + num(t.est_h), 0), done = live.filter(t => t.status === 'done').reduce((s, t) => s + num(t.est_h), 0);
     if (!db) return {};
     return { agents: [busy + ' busy'], 'your-move': [nOk + ' to OK', nOk > 0], board: [tasks.filter(t => !isClosed(t)).length + ' open'],
-      'loose-ends': [lOpen + ' open', loose.some(L => L.status === 'open')], messages: [mOpen + ' waiting', messages.some(m => !m.re && !m.answered && m.urgent)], versions: [fresh ? fresh + ' new' : (meta.gameVer || (top && top.ver) || '…'), fresh > 0],
+      'loose-ends': [lOpen + ' open', loose.some(L => L.status === 'open')], messages: [mOpen + ' waiting', messages.some(m => !m.re && !m.answered && m.urgent)], moves: [moves.length + ' clips', moves.some(m => m.at > Date.now() - 7 * 864e5)], versions: [fresh ? fresh + ' new' : (meta.gameVer || (top && top.ver) || '…'), fresh > 0],
       project: [all ? Math.round(100 * done / all) + '%' : '…'] };
   }
   function renderNav() {
@@ -1123,7 +1167,7 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     const [d, u] = await Promise.all([C && C.use ? C.use('db').catch(() => null) : null, C && C.use ? C.use('user').catch(() => null) : null]);
     db = d; user = u;
     if (!db) { $('#sync').textContent = 'Offline'; $('#agentGrid').replaceChildren(h('p', { class: 'loading', text: 'Open HQ inside Claude to see the agents and the cards.' }));
-      $('#movetext').textContent = 'Open HQ on claude.ai, signed in.'; $('#addBtn').hidden = true; renderProject(); renderLoose(); renderMessages(); renderVersions(); renderNav(); land(); return; }
+      $('#movetext').textContent = 'Open HQ on claude.ai, signed in.'; $('#addBtn').hidden = true; renderProject(); renderLoose(); renderMessages(); renderMoves(); renderVersions(); renderNav(); land(); return; }
     if (user) { try { me = await user.me(); } catch (e) {} try { const c = await user.can('data.write'); if (c === false) canWrite = false; } catch (e) {} }
     try { if (user && await user.isOwner()) mcp = await C.use('mcp'); } catch (e) { mcp = null; }   // Check now: Luca's page only
     checkUI(); turboUI();
@@ -1137,9 +1181,12 @@ section[id], details[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px)
     db.collection('creative').onSnapshot(snap => { creative = snap.docs.map(s => ({ id: s.id, ...(s.data() || {}) })); soon(); }, () => {});
     db.collection('loose').onSnapshot(snap => { loose = snap.docs.map(s => normLoose(s.id, s.data() || {})); soon(); }, () => {});
     db.collection('messages').onSnapshot(snap => { messages = snap.docs.map(s => normMsg(s.id, s.data() || {})); soon(); }, () => {});
+    db.collection('moves').onSnapshot(snap => { moves = snap.docs.map(s => normMove(s.id, s.data() || {})); soon(); }, () => {});
     db.collection('versions').onSnapshot(snap => { versions = snap.docs.map(s => normVer(s.id, s.data() || {})); soon(); }, () => {});
     db.doc('meta/hq').onSnapshot(s => { meta = (s && s.exists !== false && s.data && s.data()) || {}; checkUI(); turboUI(); soon(); }, () => {});
     setInterval(() => { $('#checks').textContent = nextChecks(); checkUI(); turboUI(); }, 60000);
   })();
 })();
 </script>
+
+</body></html>

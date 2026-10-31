@@ -14,12 +14,15 @@
 //   SEED=7 (the match's dice), VS=IS,IRO (the match's teams), SETUP='js run in the page just before recording'
 //   (window.__hc2 is the match, window.__lab the Lab), KEEP=1 keeps the PNG frames next to the GIF, PORT=8765,
 //   NOCUT=1 skips cut-ins and replays (a moment from tools/aistudy.js replays at the same SKIP),
+//   MOVE=curler OUT=docs/moves/curler.gif node tools/preview.js        a FREE PLAY move (its button in FP_MOVES, game/lab.js):
+//     Luca, 30 Oct: "keep the hq updated with all new animations you add, as short previews (shots, passes, mash etc)".
+//     MOVEKEY=KeyC presses that key once recording starts (a set piece: after SKIP lets the setup run, you take it).
 //   MARK=away,10 rings that man (MARK=ball,0: the man on the ball) on every frame of the GIF (drawn on the GIF only, not in the game).
 // Serve the game first: python3 -m http.server 8765 --directory game
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), os = require('os'), { execFileSync } = require('child_process');
 const E = process.env, OUT = E.OUT, SECS = +(E.SECS || 4), SKIP = +(E.SKIP || 0), FPS = +(E.FPS || 12), WIDTH = +(E.WIDTH || 480);
-if (!OUT || !(E.TEST || E.MATCH)) { console.error('usage: TEST=<Lab test id> or MATCH=1, plus OUT=docs/previews/pr<N>-<topic>.gif'); process.exit(2); }
+if (!OUT || !(E.TEST || E.MATCH || E.MOVE)) { console.error('usage: TEST=<Lab test id>, MOVE=<FREE PLAY move> or MATCH=1, plus OUT=docs/previews/pr<N>-<topic>.gif'); process.exit(2); }
 const PORT = E.PORT || 8765, STEP = Math.max(1, Math.round(60 / FPS));
 
 (async () => {
@@ -44,8 +47,14 @@ const PORT = E.PORT || 8765, STEP = Math.max(1, Math.round(60 / FPS));
       [id, +(E.ZOOM || 1.6)]);
     if (!ok) { console.error(`no Test Lab test called ${id}`); await br.close(); process.exit(1); }
   };
-  const TESTS = E.TEST ? E.TEST.split(',').map(t => t.trim()).filter(Boolean) : [null];
-  if (E.TEST) {
+  // a FREE PLAY move: the Lab's FREE PLAY page, a clean start, then the move's own set-up and script (as its button)
+  const startMove = async mv => {
+    const ok = await page.evaluate(([mv, zoom]) => { const L = window.__lab; if (!L.api.FP_MOVES.some(x => x.mv === mv)) return false;
+      L.boxes = false; L.zoom = zoom; L.api.goFree(); L.api.fpMove(mv); if (L.run) L.run.marks = []; return true; }, [mv, +(E.ZOOM || 1.6)]);
+    if (!ok) { console.error(`no FREE PLAY move called ${mv}`); await br.close(); process.exit(1); }
+  };
+  const TESTS = E.TEST ? E.TEST.split(',').map(t => t.trim()).filter(Boolean) : E.MOVE ? E.MOVE.split(',').map(t => t.trim()).filter(Boolean) : [null];
+  if (E.TEST || E.MOVE) {
     await page.goto(`http://localhost:${PORT}/labtest.html`);
     await page.waitForFunction(() => window.__lab && window.__lab.active, null, { timeout: 120000 });
     await page.evaluate(() => { window.__hc2.game.loop.sleep(); window.__T = 5e6; }); await preload();
@@ -71,9 +80,10 @@ const PORT = E.PORT || 8765, STEP = Math.max(1, Math.round(60 / FPS));
   fs.mkdirSync(dir, { recursive: true });
   const n = Math.max(2, Math.round(SECS * FPS)); let fno = 0; const marks = {};
   for (const id of TESTS) {                                                     // (one test, a match, or several tests in a row)
-    if (id) await startTest(id);
+    if (id) await (E.MOVE ? startMove(id) : startTest(id));
     if (SKIP > 0) await step(Math.round(SKIP * 60));
     if (E.SETUP) await page.evaluate(E.SETUP);
+    if (E.MOVEKEY) await page.keyboard.press(E.MOVEKEY);
     await step(1);
     const box = await page.evaluate(() => { const r = document.querySelector('#game canvas').getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
     for (let f = 0; f < n; f++) {
