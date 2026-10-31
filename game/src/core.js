@@ -142,7 +142,10 @@ const ARCADE = {
     // t-026 (Luca 25 Oct 14:42, after playing v0.12.0: "scrap the board for throws, that's bad"): the touchline boards are
     // off - a ball over a touchline is a throw-in again, on ARCADE too. The byline boards (no goal kicks / corners, the
     // rebounds in front of goal that go up for headers) stay. true = the v0.12.0 touchline boards back.
-    touch: false },
+    touch: false,
+    // Luca 31 Oct: "ADD CORNERS INTO ARCADE BACK". A ball the defending side puts over its own byline is a corner again
+    // (ball.js cornerOut); the attackers' misses still come back off the byline board. false = no corners (v0.12.0-v0.15).
+    corners: true },
   // 2 AERIALS: a rebound that will go up past headZ becomes a loose high ball "aimed" at the nearest man of the side that
   // touched it last (the way a lob is), so the game's own lob machinery takes over: he times his run under the drop,
   // their nearest man contests it, the drop is a duel / the AERIAL BATTLE, headers, volleys, the aerial specials.
