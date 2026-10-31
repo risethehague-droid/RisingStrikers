@@ -53,18 +53,38 @@ const SHAPES = {
 };
 const FORMATIONS = Object.fromEntries(Object.entries(SHAPES).map(([k, v]) => [k, v.roles]));
 const FORMATION_LIST = Object.keys(SHAPES);
-// every team plays FORMATION_DEFAULT until step 6 gives each team its own pick; OPTIONS > FORMATION changes YOUR side's
-// shape (kept in localStorage 'hc2-form', like the TEAM AI switch)
+// THE TEAMS' OWN PICKS (role-based AI, step 6 - docs/role-ai-plan.md 7: "a formation and roles per team"). Until step 6
+// every computer side played FORMATION_DEFAULT, so both teams always shared one shape. Now each of the six teams has its
+// own card: its formation and, if it wants, its strikers' kinds (cf: { slot: 'advanced' | 'target' | 'poacher' }, over
+// FWD.KINDS). Real football: a club has its own system and the striker it's built around (a Giroud target man, a
+// Lewandowski poacher); EA FC / eFootball give every team its own default formation and player roles. LUCA PICKS each
+// team's card with the co-designer (together with the style cards, brain.js TEAM_STYLE); until then every card is the
+// 4-4-2 (his default, not yet confirmed), so a match plays as before. tools/formations.js plays every shape against every
+// shape (the balance round-robin) so he can see none of them wins clearly more.
+const TEAM_SHAPE = {
+  IS:    { formation: '4-4-2' },  IRO:   { formation: '4-4-2' },  USCS: { formation: '4-4-2' },
+  LUC:   { formation: '4-4-2' },  THUAS: { formation: '4-4-2' },  AUC:  { formation: '4-4-2' },
+};
 const FORMATION_DEFAULT = '4-4-2';
+// OPTIONS > FORMATION changes YOUR side's shape (kept in localStorage 'hc2-form', like the TEAM AI switch); unset = your
+// team's own card
 let FORMATION_MINE = (() => { try { const f = localStorage.getItem('hc2-form'); return SHAPES[f] ? f : null; } catch (e) { return null; } })();
 function setMyFormation(f) { FORMATION_MINE = SHAPES[f] ? f : null; try { localStorage.setItem('hc2-form', FORMATION_MINE || ''); } catch (e) {} }
 const shapeOf = team => SHAPES[(team && team.formation) || '4-4-2'] || SHAPES['4-4-2'];
-// a team's formation for a new match: yours from OPTIONS, theirs the default (the Lab / tools can set FORMATION_FORCE)
-function formationFor(team, isMine) { if (typeof window !== 'undefined' && window.FORMATION_FORCE) return window.FORMATION_FORCE; return (isMine && FORMATION_MINE) || FORMATION_DEFAULT; }
+// a team's formation for a new match: the Lab / tools' FORMATION_FORCE first ('4-3-3' = both sides, '4-3-3,4-4-2' =
+// home, away: the round-robin), then yours from OPTIONS, then the team's own card
+function formationFor(team, isMine) {
+  const F = typeof window !== 'undefined' && window.FORMATION_FORCE;
+  if (F) { const [h, a] = String(F).split(','); const f = team && team.side < 0 && a ? a : h; if (SHAPES[f]) return f; }
+  const own = team && TEAM_SHAPE[team.name];
+  return (isMine && FORMATION_MINE) || (own && SHAPES[own.formation] ? own.formation : FORMATION_DEFAULT);
+}
+// the team's own striker kinds, only while it plays its own formation (yours changed in OPTIONS = that shape's defaults)
+function teamCfKinds(team) { const own = team && TEAM_SHAPE[team.name]; return own && own.cf && own.formation === team.formation ? own.cf : null; }
 // change a team's shape (a new match, or live from the pause menu): roles and kick-off spots follow; the AI reads them
 // every frame, so nothing else needs resetting
 function applyFormation(team, f) {
-  if (!SHAPES[f]) return; team.formation = f; const S = SHAPES[f];
+  if (!SHAPES[f]) return; team.formation = f; team.cfKinds = teamCfKinds(team); const S = SHAPES[f];
   for (const p of team.players) { p.role = S.roles[p.i]; const h = S.spot[p.i]; p.home = team.side > 0 ? { x: h[0], y: h[1] } : { x: PITCH_L - h[0], y: h[1] }; }
 }
 const homeY = (p, att) => { const S = shapeOf(p.team); return (att ? S.yAtt : S.yDef)[p.i]; };
