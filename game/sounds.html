@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HC2 Sound board</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#0c0a0e;color:#f4f0e4;font:10px 'Press Start 2P',monospace;padding:16px}#host{display:flex;justify-content:center}</style>
+</head><body>
+<!-- MOVE SOUNDS (31 Oct 2026): every special's and every new moment's sound on a button, the game's own SFX + movesfx.js,
+     no game. A page to hear them; the Test Lab has the same board (SOUND BOARD, bottom-left). -->
+<div id="host"></div>
+<script src="phaser.min.js"></script>
+<script src="src/core.js"></script>
+<script src="src/io.js"></script>
+<script src="src/movesfx.js"></script>
+<script>MSFX_BOARD.build(document.getElementById('host'));</script>
+</body></html>
