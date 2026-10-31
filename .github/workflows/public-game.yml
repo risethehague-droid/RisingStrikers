@@ -11,6 +11,8 @@ on:
     branches: [main]
     paths: ['game/**', '.github/workflows/public-game.yml']
   workflow_dispatch: {}
+  schedule:
+    - cron: '23 */2 * * *'                                             # picks up /experimental/ updates even when nobody can dispatch (31 Oct)
   # EXPERIMENTAL (Luca, 31 Oct): the experimental build lives at /experimental/ next to the official game. Pages only
   # deploys from main, so after a push to the `experimental` branch tools/experimental.sh runs this workflow on main
   # (gh workflow run / API dispatch with ref main); main's own pushes refresh both.
