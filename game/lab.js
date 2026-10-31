@@ -7,7 +7,7 @@
   const GX = PITCH_L, LINE_X = PITCH_L - 1.3;
   const LAB = { groups: [], g: 0, i: 0, run: null, slow: 1, boxes: true, rated: {}, log: [], db: null, reasons: null,
     menu: false, acc: 0, rand: Math.random, active: false, zoom: (() => { try { return clamp(+localStorage.getItem('hc2-lab-zoom') || 1, 0.5, 2); } catch (e) { return 1; } })(),
-    fp: { tap: true, gp: true, curve: true, sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', flair: 'lvl', loop: false, anim: '' }, tune: null, base: null };
+    fp: { tap: true, gp: true, curve: true, skd: true, sp: false, max: false, stam: false, nogk: false, inj: false, gkv: true, wx: 'clear', save: 0, cpu: 'normal', flair: 'lvl', loop: false, anim: '' }, tune: null, base: null };
   let m = null;
   const $ = id => document.getElementById(id);
 
@@ -395,7 +395,7 @@
   // plays inside set-corner. Every later move adds its own line here.
   const FP_SECS = [
     ['pass', 'PASSING'], ['shoot', 'SHOOTING'], ['air', 'IN THE AIR · a ball comes in, he does it'],
-    ['gk', 'THEIR KEEPER · a shot or a ball at him, he does it'], ['def', 'DEFENDING · a dribbler comes at you'],
+    ['drib', 'DRIBBLING · a defender squares up to you'], ['gk', 'THEIR KEEPER · a shot or a ball at him, he does it'], ['def', 'DEFENDING · a dribbler comes at you'],
     ['set', 'SET PIECES · both teams, the setup runs, then you take it'], ['you', 'BALL TO YOU · then you press the key'],
     ['calls', 'MOVE CALLS · every special\'s name pop-up (movecall.js)'],
   ];
@@ -412,6 +412,8 @@
     { mv: 'drill', sec: 'pass', n: 'TORNADO DRILL!', hot: true, tip: 'LV1 (Luca 30-31 Oct): SPECIAL + PASS, 1 bar - into the grass, it spins, then curls round the defender on your receiver\'s side into his feet (fills a bar first)', go: r => fpCurve(r, 'ground', true) },
     { mv: 'burrow', sec: 'pass', n: 'BURROW BLAST!', hot: true, tip: 'LV1 (Luca 30 Oct): SPECIAL + THROUGH, 1 bar - under the grass, it pops out at your runner', go: r => fpCurve(r, 'through', true) },
     { mv: 'angel', sec: 'pass', n: 'ANGEL GLIDE!', hot: true, tip: 'LV1 (Luca 30 Oct): SPECIAL + LOB, 1 bar - a golden lob that glides down onto him, feathers drifting off it', go: r => fpCurve(r, 'lob', true) },
+    { mv: 'rainbow', sec: 'drib', n: 'RAINBOW FLICK!', hot: true, tip: 'skilldrib.js: a man square in front of you - up the back of your leg, over his head with a rainbow trail, you run round him onto it (one bar)', go: r => fpSkill(r, 'rainbow') },
+    { mv: 'shadow', sec: 'drib', n: 'SHADOW STEP!', hot: true, tip: 'skilldrib.js: a man coming at you from an angle - you sink into your shadow, he lunges at the dark double, you come out behind him (one bar)', go: r => fpSkill(r, 'shadow') },
     { mv: 'shot', sec: 'shoot', n: 'SHOT', game: true },
     { mv: 'power', sec: 'shoot', n: 'POWER SHOT', game: true },
     { mv: 'tap', sec: 'shoot', n: 'TAP KICK', game: true, tip: 't-010: SHOOT tapped - OK\'d by Luca on 26 Oct, going into matches (t-037)' },
@@ -556,6 +558,30 @@
       const tp = b.owner && b.owner !== p ? b.owner : b.lastP && b.lastP !== p ? b.lastP : null; if (tp && !F.touch) F.touch = tp;
       r.last = `${N} · ${lv2 ? `peak ${(F.pk = Math.max(F.pk || 0, b.z)).toFixed(1)} m` : `bend ${Math.abs(F.bend).toFixed(1)} m · ${kmh(F.v)} km/h`}${F.touch ? ' · ' + (F.touch === q ? `to your #${q.num}` : F.touch.team === p.team ? `your #${F.touch.num}` : `cut out by their #${F.touch.num}`) : ''}`;
       return !F.touch && F.t < (lv2 ? 7 : 5);
+    } };
+  }
+
+  // ---- DRIBBLING: the RAINBOW FLICK and the SHADOW STEP (skilldrib.js). You on the ball 50 m out, their man squaring up:
+  // square in front for the flick, coming in from an angle for the shadow step; the move fires at 0.45 s (the game's own
+  // skillDrib, as the special dribble button runs it), with a bar filled first. In FREE PLAY the button (N / O, pad LT)
+  // picks one of the two by position, like a match would.
+  const FP_SKILL = { rainbow: { n: 'RAINBOW FLICK!', opp: [53.4, 34.2, 4] }, shadow: { n: 'SHADOW STEP!', opp: [52.6, 36.4, 3] } };
+  function fpSkill(r, kind) {
+    const S = FP_SKILL[kind], p = r.human, o = m.away.players[3];
+    fpCast(r, [o]); put(p, 50, 34, 0); atFeet(p); put(o, S.opp[0], S.opp[1], S.opp[2]);
+    if (m.meters[0].e < SKD.bars) m.meters[0].e = SKD.bars;                    // it costs a bar: the button fills one first
+    m.skdLast = null; r.last = `${S.n} · a bar of SP in the bank`;
+    r.fx = { step(r, p, F) {
+      if (!F.went) {
+        if (F.t < 0.45) return true; F.went = true;
+        const c0 = SKILL_DRIB; SKILL_DRIB = true;                                // (the button works with the switch off too)
+        try { F.ok = m.skillDrib(p, kind, null); } finally { SKILL_DRIB = c0; }
+        if (!F.ok) { r.last = `${S.n} · not played (no SP?)`; return false; }
+        return true;
+      }
+      const L = m.skdLast; if (!L || L.kept == null) return F.t < 4;
+      r.last = `${S.n} · ${L.kept ? 'ball still yours' : 'LOST it'} · ${L.dist.toFixed(1)} m on${L.past != null ? `, ${L.past.toFixed(1)} m past their #${L.o.num}` : ''} in ${((L.t1 - L.t0) / 1000).toFixed(2)} s · SP ${L.sp0.toFixed(1)} -> ${L.sp1.toFixed(1)}`;
+      return F.t < (F.end = F.end || F.t + 0.8);
     } };
   }
 
@@ -1067,6 +1093,7 @@
                   tap: { vals: [false, true], label: v => `TAP KICK: ${v ? 'ON' : 'OFF'}`, set: v => { TAP_KICK = v; } },   // t-010
                   gp: { vals: [false, true], label: v => `GOAL PHYSICS: ${v ? 'ON' : 'OFF'}`, set: v => { GOAL_PHYS = v; } },   // t-038: t-013's posts + pop-ups, FREE PLAY only
                   curve: { vals: [false, true], label: v => `CURVE PASS: ${v ? 'ON' : 'OFF'}`, set: v => { CURVE_PASS = v; } },   // t-038: t-011's SPECIAL + pass chord, FREE PLAY only
+                  skd: { vals: [false, true], label: v => `SKILL DRIBBLES: ${v ? 'ON' : 'OFF'}`, set: v => { SKILL_DRIB = v; } },   // skilldrib.js: RAINBOW FLICK / SHADOW STEP on the special dribble button, FREE PLAY only
                   save: { vals: [0, 1, 2, 3], label: v => `KEEPER SAVE: ${v ? 'LV' + v : 'OFF'}`, set: () => {} },
                   flair: { vals: ['lvl', 0, 1, 2, 3], label: v => `SAVE FLAIR: ${v === 'lvl' ? 'BY LEVEL' : ['EASY (PLAIN)', 'NORMAL', 'HARD', 'RISE WARRIOR'][v]}`, set: v => { GK_STYLE.tier = v === 'lvl' ? null : v; } },   // gkstyle.js
                   cpu: { vals: ['normal', 'hard', 'rise', 'easy'], label: v => `CPU LEVEL: ${{ easy: 'EASY', normal: 'NORMAL', hard: 'HARD', rise: 'RISE WARRIOR' }[v]}`, set: () => {} } };   // v0.9.2 their keeper at each difficulty
@@ -2708,6 +2735,41 @@
       sxDrib('SX2', 'SPECIAL far from goal = the dribble (AUTO, by position)', 'the same moment with SPECIAL: 50 m out with a man in front', 'auto'),
       sxRange(), sxCombo('SX4', 2), sxCombo('SX5', 3), sxLob(), sxAi(), sxNames()];
   }
+  // ======================================================================= skilldrib.js THE RAINBOW FLICK + THE SHADOW STEP (Luca, 31 Oct:
+  // "design 2 more dribbles as well - one is a rainbow flick with a rainbow trail effect on the ball and the second is
+  // called shadow step"). You (#10) on the ball 50 m out with a bar of SP, their man squaring up. DR1 / DR2 play each one
+  // (the game's own skillDrib); DR3-DR5 press the special dribble button (the touch button, as your N / pad LT) and let
+  // the game pick by position: square in front = the flick, at an angle or two men = the shadow step, no SP = nothing.
+  // Each line: which one went, how far on, how far past the man, the ball still yours, the bar spent.
+  function drTest(id, name, sub, o) {
+    return { id, group: 'DR', name, sub, kind: 'phys', you: !o.kind,
+      setup(r) {
+        const you = m.home.players[9], opps = o.opps.map(([i]) => m.away.players[i]); cast([you, ...opps]);
+        put(you, 50, 34, 0); atFeet(you); o.opps.forEach(([, x, y, f], j) => put(opps[j], x, y, f));
+        Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); m.skdLast = null;
+        Object.assign(r, { human: you, marks: [], d: opps[0], o });
+        m.meters[0].e = o.sp ?? 1; r.sp0 = m.meters[0].e;
+        if (o.kind) r.action = { at: 0.5, fire: () => { r.x0 = you.x; r.ok = m.skillDrib(you, o.kind, null); } };
+      },
+      check(r) {
+        const T = Input.touch, you = r.human, L = m.skdLast;
+        if (!o.kind) { if (r.t >= 0.5 && r.t < 0.6) T.btn.sdribble = true; else T.btn = {}; }
+        if (r.t < (o.kind ? 0.6 : 0.7)) return null;
+        if (!L) return r.t > 1.4 ? { o: `NOTHING went · SP ${r.sp0} -> ${m.meters[0].e.toFixed(1)} · ${m.sub.text || m.msg.text || '-'}` } : null;
+        if (L.kept == null) return r.t > 4 ? { o: `${SKD_NAMES[L.kind]} never ended` } : null;
+        const d = r.d;
+        return { o: `${o.kind ? 'played' : 'AUTO picked'} ${SKD_NAMES[L.kind]} · ${L.kept ? 'ball still yours' : 'LOST it'} · ${L.dist.toFixed(1)} m on${L.past != null ? `, ${L.past.toFixed(1)} m past #${d.num} (${d.state})` : ''} in ${((L.t1 - L.t0) / 1000).toFixed(2)} s · SP ${L.sp0.toFixed(1)} -> ${L.sp1.toFixed(1)}`, hold: 0.8 };
+      } };
+  }
+  function drTests() {
+    return [
+      drTest('DR1', 'RAINBOW FLICK: over the man in front', 'up the back of his leg, over his head with a rainbow trail, round him onto it', { kind: 'rainbow', opps: [[3, 53.4, 34.2, 4]] }),
+      drTest('DR2', 'SHADOW STEP: past a man coming in at an angle', 'he sinks into his shadow, their man lunges at the double, he comes out behind him', { kind: 'shadow', opps: [[3, 52.6, 36.4, 3]] }),
+      drTest('DR3', 'the BUTTON, a man square in front = the flick', 'N / pad LT with a bar: the game picks by position', { opps: [[3, 53.4, 34.2, 4]] }),
+      drTest('DR4', 'the BUTTON, a man at an angle + a second man = the shadow step', 'the same button: two men near, so no flick into a crowd', { opps: [[3, 53.0, 35.6, 3], [4, 52.4, 31.2, 5]] }),
+      drTest('DR5', 'the BUTTON with NO SP: nothing', 'an empty meter: no move, nothing spent', { sp: 0, opps: [[3, 53.4, 34.2, 4]] }),
+    ];
+  }
   // ======================================================================= t-024 OFFSIDE (Luca 25 Oct 07:14: "OFF SIDE rule MANDATORY
   // just make it smooth"). You attack the right-hand goal; their back line stands on x = 85 unless a test says otherwise.
   // OF1-OF5 and OF7: Lab bots (the passer plays it at 0.6 s, the receiver runs onto it). OF6: the real team AI on both sides.
@@ -3647,6 +3709,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('RL', 'role-ai step 0 · EXPLOITS (ROLES & LINE)', 'A human\'s moves against the real team AI and keeper (docs/role-ai-plan.md): E1 the chip over a keeper off his line, E2 the ball over a line that doesn\'t drop, E3 dragging a centre-back out, E4 the square pass past a charging keeper, E5 walking round him (closed, kept), E6 the counter down the flank their full-back left. Each line: WORKED or STOPPED, their back line and the keeper at that moment. tools/rlrates.js runs each 20 times for the rates.', rlTests());
     add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
     add('SX', 'ARCADE SPECIALS (co-designer, 28 Oct)', 'ARCADE only: the special dribble (its own button N / O / pad LT, or SPECIAL far from goal), combo specials (the 1-2 and the lob + volley, 2 or 3 bars, two portraits), the team signature names, the computer\'s dribble.', sxTests());
+    add('DR', 'SKILL DRIBBLES (31 Oct)', 'Test Lab only: the special dribble button (N / O, pad LT) with a bar of SP picks by position - a man square in front = RAINBOW FLICK! (over his head with a rainbow trail, round him onto it); a man at an angle or two men near = SHADOW STEP! (into your shadow, he lunges at the dark double, out behind him).', drTests());
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());
     add('RS', 't-029 · SET-PIECE SETUP', 'Every restart gets a short setup, as on TV: the whistle / flag and a caption, the players JOG into the restart\'s shape (anyone too far is moved under a quick TV wipe, never in plain sight), the taker walks up and places the ball, then you aim / the computer takes it. One time per kind, CLASSIC and ARCADE (quicker); your own set piece: PASS / SHOOT / LOB skips to aiming once the shape is mostly in.', rsTests());
     add('CP', 't-011 · CURVING SPECIAL PASS', 'Hold SPECIAL and press PASS / THROUGH / LOB with a bar in the bank: the pass bends round the man on the straight line (CURLER, OUTSIDE CURL, BANANA LOB) and spends one bar. Test Lab only for now.', cpTests());
@@ -3710,6 +3773,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     TAP_KICK = sc.kind === 'free' ? !!LAB.fp.tap : !!sc.tap;                    // t-010: FREE PLAY (its switch) and the TK tests; every other test plays as a match does
     GOAL_PHYS = sc.kind === 'free' ? !!LAB.fp.gp : null;                        // t-038: FREE PLAY's GOAL PHYSICS / CURVE PASS switches; the tests as before
     CURVE_PASS = sc.kind === 'free' ? !!LAB.fp.curve : true; SPP_ON = true;     // (SPP_ON: the chord plays the LV1 special passes; the CP tests switch it off)                    //   (GOAL_PHYS null = on in the Lab; the curving pass on since t-011)
+    SKILL_DRIB = sc.kind === 'free' ? !!LAB.fp.skd : sc.group === 'DR';         //   (skilldrib.js: FREE PLAY's switch; the DR tests; every other test as a match)
     if (LAB.aerialChance != null) { AERIAL.chance = LAB.aerialChance; LAB.aerialChance = null; }   // (t-008: LB6-LB8 force the battle; every other test plays the game's chance)
     if (LAB.lobAim0 == null) LAB.lobAim0 = LOB_AIM_MODE;                        // t-019: LB / LV set LOB AIM per test; every other test plays the picked one
     LOB_AIM_MODE = LAB.lobAim0; LOB_AIM.camOld = LOB_AIM.ringOld = false; Object.assign(m, { lobCamBlend: null, camLead: undefined, camLeadOn: false });
