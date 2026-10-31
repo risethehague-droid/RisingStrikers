@@ -78,9 +78,9 @@ real-football rates, not zero: a good chip should still score sometimes.
 
 Luca's own Bug Watch marks, and the nightly QA, can add more to this list.
 
-**Step 0 done (31 Oct):** today's rates are in `docs/ai/rl-baseline.md` (E4 100%, E6 70%, E5 30%; E1-E3 rarely work,
-but their numbers still show the shape problem). E2 got a twin, E2b (the same ball in the air), and E1 is chipped from
-36-46 m over a keeper who starts 10-14 m out (nearer, today's keeper is already back).
+**Step 0 done (31 Oct, v0.16.0):** today's rates are in `docs/ai/rl-baseline.md`: E4 100% and E6 90% (the live
+exploits); E1, E2, E2b, E3, E5 0%, but E3's numbers still show the shape problem. E2 got a twin, E2b (the same ball in
+the air), and E1 is chipped from 36-46 m over a keeper who starts 10-14 m out (nearer, today's keeper is already back).
 
 ## 4. How real football does it (what we take)
 
