@@ -778,7 +778,7 @@
     for (const p of m.all) put(p, clamp(p.home.x + att, 2, PITCH_L - 2), p.home.y, p.team === m.home ? 0 : 4);
     for (const k of [H[0], A[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, walk: undefined });
     for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
     LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = false; m.ball.crossBy = null; window.HC2_NO_OFFSIDE = false;
     const n = { corner: 'CORNER', fk: 'FREE KICK', throw: 'THROW-IN', off: 'OFFSIDE' }[kind];
     if (kind === 'corner') { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; }
@@ -878,7 +878,7 @@
     cast([you, ...mates.map(x => x[0]), ...opps.map(x => x[0]), ...(gk ? [gk] : [])]);
     for (const k of [H[0], A[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, up: null, walk: undefined, saveKind: '', leap: 0, gkN: null, hands: false, hold: 0, smAt: 0 });
     for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: (t === m.home) !== D ? 1 : 0, inPoss: (t === m.home) !== D, airSpAt: null, offBy: null, mood: null });
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: (t === m.home) !== D ? 1 : 0, inPoss: (t === m.home) !== D, airSpAt: null, offBy: null, mood: null });
     for (const p of m.all) Object.assign(p, { aiTgt: null, openFrom: null, lastMove: null, goRun: null });
     const [x, y] = S.you, gx = D ? 0 : GX;
     put(you, x, y, D ? dirIndex(1, 0) : S.face === 'back' ? dirIndex(-1, 0) : dirIndex(gx - x, 34 - y));
@@ -1497,7 +1497,7 @@
         put(man, 48, 34, 0); put(from, 74, 34, 4); atFeet(from); put(blk, 49.8, 34, mate ? 0 : 4);
         r.bots.set(from, sit); r.bots.set(blk, runTo(49.8, 34, RUN));            // he holds his spot: the straight line is shut
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true;
         Object.assign(r, { human: man, shooter: from, man, blk, marks: [{ x: 56, y: 34, r: 0.5 }], still: 0, off: 0, px: man.x, py: man.y });
         r.action = { at: 0.4, fire: () => m.kick(from, 56, 34, 0, 0, 0.12, { mode: 'lob', target: man, loft: true }) };
@@ -2116,7 +2116,7 @@
         put(A[0], LINE_X, 36, 4); put(A[4], 88, 49, 4); put(A[3], 88, 41, 4); put(A[2], 88, 30, 4); put(A[1], 85, 17, 4); put(A[7], 78, 45, 4); put(A[6], 77, 32, 4);
         Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         if (o.sp) m.meters[0].e = o.sp; m.ball.crossBy = null;
         LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = !o.you;
         Object.assign(r, { human: w, shooter: w, gk: A[0], marks: [], o, touches: [] });
@@ -2182,7 +2182,7 @@
     for (const k of [m.home.players[0], m.away.players[0]]) Object.assign(k, { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false, up: null });
     const hp = o.poss ?? true;
     for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-      runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: (t === m.home) === hp ? 1 : 0, inPoss: (t === m.home) === hp, airSpAt: null, offBy: null, mood: null });
+      runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: (t === m.home) === hp ? 1 : 0, inPoss: (t === m.home) === hp, airSpAt: null, offBy: null, mood: null });
     for (const p of m.all) Object.assign(p, { aiTgt: null, openFrom: null, lastMove: null, goRun: null });
     LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = !o.you; m.ball.crossBy = null;
     window.__styles = o.styles || null; window.__readOn = o.read ?? null; m.read = null;
@@ -2490,6 +2490,44 @@
         return r.t > 11 ? rlRes(false, 'never got into the box', r, tag) : null; } };
   }
   function rlTests() { return [rlE1(), rlE2('E2', false), rlE2('E2b', true), rlE3(), rlE4(), rlE5(), rlE6()]; }
+  // ======================================================================= role-ai step 5 · THE FORWARDS (docs/role-ai-plan.md
+  // 6.1 + 7: "CF advanced / target / poacher, first-line press"; roles.js FWD). Watch tests: the real team AI on both sides.
+  // F1 their centre-back on the ball at the edge of his box: your strikers press him and cut off the pass back / across,
+  // so he has to play it forward or long. F2 your centre-back on the ball: your target man (#9 in a 4-4-2) comes short in
+  // front of their line, and if it's played into him with a man tight on his back he holds it up and lays it off.
+  function fwPlace(possHome) {                                                    // everyone where his own AI wants him for this ball
+    for (const t of [m.home, m.away]) { t.fx = m.aiFrame(t, m.ball.x); t.fy = m.ball.y - 34; t.poss = (t === m.home) === possHome ? 1 : 0; t.inPoss = (t === m.home) === possHome; }
+    for (const p of m.all) if (!p.sentOff && !p.keeper && p !== m.ball.owner) { const z = m.aiZone(p, p.team); put(p, z.x, z.y, p.team === m.home ? 0 : 4); }
+    for (const k of [m.home.players[0], m.away.players[0]]) if (!k.sentOff) { const T = m.gkPlan(k, STEP); put(k, T.x, T.y, k.team === m.home ? 0 : 4); }
+  }
+  function fwTests() {
+    const H = () => m.home.players, A = () => m.away.players;
+    return [
+      { id: 'F1', group: 'FW', name: 'THE FIRST LINE OF THE PRESS', sub: 'their #3 (a centre-back) has it at the edge of his box: your strikers go at him, one curving his run to cut off the pass back / across, the other screening the next one. Good = he has to play it FORWARD or long; a pass back / across = the press didn\'t cut it off', kind: 'ai', realAi: true, demo: true, maxT: 8,
+        setup(r) { aiFull(r, { poss: false }); const c = A()[2]; put(c, PITCH_L - 17 - LAB.rand() * 3, 30 + LAB.rand() * 6, 4); atFeet(c); fwPlace(false); r.c = c; r.human = H()[6]; r.min = 99; },
+        check(r) { const b = m.ball, c = r.c, cfs = H().filter(p => p.role === 'CF' && !p.sentOff);
+          if (b.owner === c) { r.min = Math.min(r.min, ...cfs.map(p => len(p.x - c.x, p.y - c.y))); if (m.home.presser) r.pr = m.home.presser; }
+          if (!r.end && b.owner && b.owner !== c) r.end = { t: r.t, q: b.owner };
+          if (!r.end && !b.owner && b.last === m.away && b.target && !r.pass) r.pass = { t: r.t, q: b.target };
+          const tag = `your nearest striker got ${r.min.toFixed(1)} m from him · pressing: ${aiWho(r.pr)}${r.pr && r.pr.role ? ' (' + r.pr.role + ')' : ''}`;
+          if (r.end) { const q = r.end.q, back = q.team === m.away && (PITCH_L - q.x) < (PITCH_L - c.x) + 4;
+            return { o: `${q.team === m.home ? 'WON IT: ' + aiWho(q) : back ? 'PLAYED BACK / ACROSS to ' + aiWho(q) : 'PLAYED FORWARD to ' + aiWho(q)} at ${r.end.t.toFixed(1)} s · ${tag}` }; }
+          return r.t > 6 ? { o: `HE KEPT IT 6 s (no pass) · ${tag}` } : null; } },
+      { id: 'F2', group: 'FW', name: 'THE TARGET MAN comes short and holds it up', sub: 'your #3 (a centre-back) has it 20 m out of your goal and looks up for 3.5 s: your #10 (slot 9: the target man in a 4-4-2) comes short in front of their line for it (their strikers are off: no press here, F1 has it); played into him with a man tight on his back, he shields it and lays it off instead of turning into him', kind: 'ai', realAi: true, demo: true, maxT: 12,
+        setup(r) { aiFull(r, { poss: true }); cast(m.all.filter(p => !(p.team === m.away && p.role === 'CF')));   // (no strikers of theirs: this one is about yours, not their press - F1)
+          const c = H()[2]; put(c, 20 + LAB.rand() * 3, 30 + LAB.rand() * 6, 0); atFeet(c); fwPlace(true); r.c = c; r.t9 = H().find(p => p.i === 9); r.human = H()[6];
+          c.think = 3.5; r.d0 = len(r.t9.x - c.x, r.t9.y - c.y); r.bots.set(c, (p, dt) => { if (r.t < 3.5 && m.ball.owner === p) p.steer(0, 0, dt); }); },   // (he looks up for 3.5 s - the time the forwards get to move - then his own AI plays it)
+        check(r) { const b = m.ball, t9 = r.t9;
+          if (!r.kick && m.pending && m.pending.p === r.c) r.kick = `${r.c.lastMove || 'kick'} to ${aiWho(m.pending.info.target)} at ${r.t.toFixed(1)} s`;
+          if (b.owner === r.c) r.dAt = Math.min(r.dAt ?? 99, len(t9.x - b.x, t9.y - b.y));
+          if (b.owner === t9) { if (!r.got) r.got = { t: r.t, x: t9.x }; if (t9.holdUp) r.held = (r.held || 0) + STEP; }
+          if (r.got && !r.off && b.owner && b.owner !== t9) r.off = { t: r.t, q: b.owner };
+          const tag = `your #3: ${r.kick || (b.owner === r.c ? 'still on it' : 'no kick (tackled?)')} · ${aiWho(t9)} came from ${r.d0.toFixed(0)} to ${r.dAt != null ? r.dAt.toFixed(1) + ' m from your #3' : '-'} (${typeof cfKind === 'function' ? cfKind(t9) || t9.role : t9.role})`;
+          if (r.off) return { o: `${aiWho(t9)} GOT IT at ${r.got.t.toFixed(1)} s, held it up ${(r.held || 0).toFixed(1)} s → ${r.off.q.team === m.home ? 'laid off to ' + aiWho(r.off.q) : 'LOST to ' + aiWho(r.off.q)} · ${tag}` };
+          if (b.owner && b.owner.team === m.away && !r.got) return { o: `LOST before ${aiWho(t9)} got it (${aiWho(b.owner)}) · ${tag}` };
+          return r.t > 11 ? { o: r.got ? `${aiWho(t9)} GOT IT at ${r.got.t.toFixed(1)} s, still on it · ${tag}` : `${aiWho(t9)} NEVER GOT IT (they played it elsewhere) · ${tag}` } : null; } },
+    ];
+  }
   // ======================================================================= t-020 ARCADE GETS INTENSE (Luca 25 Oct: "more rebounds that
   // lead into aerials, more energy sp, make the game feel incredibly intense"). Every AR test plays ARCADE (pace: 'arcade').
   // AR1-2 a loose ball driven at a line: what comes back (speed, height, where); AR3 the real team AI attacking a rebound
@@ -2534,7 +2572,7 @@
         put(k, o.from[0] - 2, o.from[1], 0); for (const [p, x, y] of [[H[9], ...o.h9], [H[10], ...o.h10], [H[8], ...o.h8], [A[3], ...o.a3], [A[4], ...o.a4], [A[2], ...o.a2], [A[7], ...o.a7]]) put(p, x, y, 4);
         put(A[0], LINE_X, 34, 4); Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null, rebFor: null, rebMan: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null, rebFor: null, rebMan: null });
         if (o.sp) m.meters[0].e = o.sp;
         LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true; m.aerialAt = -1e9; m.duelAt = -1e9;
         arBall(o.from[0], o.from[1], 0.1, o.v[0], o.v[1], o.v[2] || 0.5, k);
@@ -2753,7 +2791,7 @@
         put(A[0], LINE_X, 34, 4); put(A[1], 85, 14, 4); put(A[2], 85, 28, 4); put(A[3], 85, 40, 4); put(A[4], 85, 54, 4); put(A[6], 75, 30, 4); put(A[7], 75, 42, 4);
         Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         m.ball.crossBy = null; LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true;
         Object.assign(r, { human: H[6], shooter: H[6], gk: A[0], marks: [], st: [H[9], H[10]], passes: [], lastK: H[6] });
         r.start = (m.aiFrame(m.home, H[9].x) - m.offLine(m.home)).toFixed(1);
@@ -2805,7 +2843,7 @@
         for (const p of m.all) { put(p, clamp(p.home.x + att, 2, PITCH_L - 2), p.home.y, p.team === m.home ? 0 : 4); }
         Object.assign(m.away.players[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); Object.assign(m.home.players[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = !o.you; m.ball.crossBy = null;
         Object.assign(r, { human: m.home.players[9], gk: m.away.players[0], marks: [], o, pos: null, path: new Map(), jumps: { wipe: 0, view: 0, off: 0 }, t0: null });
         o.go(r);
@@ -3389,7 +3427,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
         cast(m.all.filter(p => !p.benched)); m.all.forEach(p => { put(p, p.home.x, p.home.y, p.team.side > 0 ? 0 : 4); });
         Object.assign(A[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false }); Object.assign(H[0], { guard: 1, gkS: null, gkMode: '', rushT: 0, claiming: false });
         for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
-          runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
+          runner: null, runT: 0, roleT: 0, presserHeld: 0, line: null, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
         put(H[9], 52, 34, 0); atFeet(H[9]); LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = true; r.human = H[9]; }, null, 10, { realAi: true, demo: true }),
     ];
   }
@@ -3645,6 +3683,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
     add('AI', 'smarter-ai · THE TEAM BRAIN', 'The real team AI on both sides (smarter-ai stage 2, docs/smarter-ai.md): a support man who keeps his job, one presser + one cover, no lob into a marked man, chasing late (and the keeper up for the last corner), the four example styles, Rise Warrior reading your flank, the 1-2 (open and covered).', aiTests());
     add('RL', 'role-ai step 0 · EXPLOITS (ROLES & LINE)', 'A human\'s moves against the real team AI and keeper (docs/role-ai-plan.md): E1 the chip over a keeper off his line, E2 the ball over a line that doesn\'t drop, E3 dragging a centre-back out, E4 the square pass past a charging keeper, E5 walking round him (closed, kept), E6 the counter down the flank their full-back left. Each line: WORKED or STOPPED, their back line and the keeper at that moment. tools/rlrates.js runs each 20 times for the rates.', rlTests());
+    add('FW', 'role-ai step 5 · THE FORWARDS', 'The strikers by role (roles.js FWD): the first line of the press on their back men (F1), the target man coming short and holding it up (F2). Real team AI on both sides; your side plays the formation in OPTIONS > FORMATION (4-4-2: #9 target man, #10 advanced forward; 4-3-3: a poacher).', fwTests());
     add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
     add('SX', 'ARCADE SPECIALS (co-designer, 28 Oct)', 'ARCADE only: the special dribble (its own button N / O / pad LT, or SPECIAL far from goal), combo specials (the 1-2 and the lob + volley, 2 or 3 bars, two portraits), the team signature names, the computer\'s dribble.', sxTests());
     add('OF', 't-024 · OFFSIDE', 'IFAB Law 11, simplified, in every match: offside when a team-mate plays it - in their half, past the ball and their second-last man (level is onside) - and only if he then plays it. None from a throw-in, a corner or a goal kick. The call: OFFSIDE!, the man marked, their quick free kick where he played it. The computer waits on the last man\'s shoulder; your pass marker goes red on an offside man.', ofTests());

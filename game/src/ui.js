@@ -187,7 +187,7 @@ hc2Mix(Match, {
     const el = this.flowEl('sheet');
     const tok = (d, k, extra = '', st = '') => `<button class="tk ${extra}" data-k="${k}" style="background:${hcol};color:#0c0a0e;${st}" aria-label="number ${d.num}">${d.num}${mode !== 'pre' ? `<i><b style="width:${Math.round(100 * (d.stamina ?? 1))}%"></b></i>` : ''}</button>`;
     const draw = () => {
-      const pos = i => { const f = FORMATION[i]; return `left:${(f[1] / 68 * 100).toFixed(1)}%;top:${(96 - f[0] / 50 * 88).toFixed(1)}%`; };
+      const pos = i => { const f = shapeOf(team).spot[i]; return `left:${(f[1] / 68 * 100).toFixed(1)}%;top:${(96 - f[0] / 50 * 88).toFixed(1)}%`; };
       const xi = team.players.map((p, i) => tok(p, 'p' + i, `${p.sentOff ? 'off' : ''} ${(p.yellows || 0) ? 'yc' : ''} ${p.injury ? 'inj' : ''} ${this.sheet.sel === 'p' + i ? 'sel' : ''}`, pos(i))).join('');
       const bench = Q.bench.map((d, j) => tok(d, 'b' + j, `${d.used ? 'off' : ''} ${this.sheet.sel === 'b' + j ? 'sel' : ''}`)).join('');
       const left = 3 - Q.subs;
@@ -353,6 +353,7 @@ hc2Mix(Match, {
       { k: 'vol', l: `VOLUME: ${Math.round(SFX.vol * 100)}%`, act: () => { SFX.stepVol(); if (SFX.muted) SFX.toggle(); } },   // 31 Oct: also - / = in play
       { k: 'meter', l: `SP METER LOOK: ${SP_STYLE.toUpperCase()}`, act: () => setSpStyle(SP_STYLE === 'wild' ? 'basic' : 'wild') },
       { k: 'ai', l: `TEAM AI: ${AI_MODE === 'classic' ? 'CLASSIC (v0.7.6)' : 'NEW'}`, act: () => setAiMode(AI_MODE === 'classic' ? 'new' : 'classic') },
+      { k: 'form', l: `FORMATION: ${this.hTeam().formation || '4-4-2'}${FORMATION_MINE ? '' : ' (TEAM\'S OWN)'}`, act: () => { const T = this.hTeam(), L = [...FORMATION_LIST, null], f = L[(L.indexOf(FORMATION_MINE) + 1) % L.length]; setMyFormation(f); applyFormation(T, f || formationFor(T, false)); } },   // role-ai step 4: your side's shape, live (step 6: then back to your team's own card, roles.js TEAM_SHAPE)
       { k: 'diff', l: `DIFFICULTY: ${(DIFF_OPTS.find(o => o[0] === DIFF_LEVEL) || DIFF_OPTS[1])[1]}${AI_MODE === 'classic' ? ' (NEEDS THE NEW AI)' : ''}`, act: () => setDiff(DIFF_OPTS[(DIFF_OPTS.findIndex(o => o[0] === DIFF_LEVEL) + 1) % DIFF_OPTS.length][0]) },   // v0.9.2
       { k: 'cam', l: `CAMERA: ${(CAM_OPTS.find(o => o[0] === CAM_VIEW) || CAM_OPTS[0])[1]}`, act: () => setCamView(CAM_OPTS[(CAM_OPTS.findIndex(o => o[0] === CAM_VIEW) + 1) % CAM_OPTS.length][0]) },   // camera-pov
       { k: 'pace', l: `PACE: ${(PACE_OPTS.find(o => o[0] === PACE_MODE) || PACE_OPTS[0])[1]}`, act: () => setPace(PACE_OPTS[(PACE_OPTS.findIndex(o => o[0] === PACE_MODE) + 1) % PACE_OPTS.length][0]) },   // t-004 ARCADE PACE
