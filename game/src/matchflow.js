@@ -123,7 +123,7 @@ hc2Mix(Match, {
       const gk = team.players[0];
       const S = paceK().setup, can = p => len(p.x - x, p.y - y) < S.v * (S.offside + 0.5);   // (if he can get there: no cut needed)
       if (!gk.sentOff && Math.abs(x - team.ownGoalX) < 22 && Math.abs(y - 34) < 22 && can(gk)) return gk;
-      const def = on.filter(p => p.i >= 1 && p.i <= 4).sort(by)[0];
+      const def = on.filter(p => isBack(p)).sort(by)[0];
       if (def && d(def) < 14) return def;
     }
     return on.sort(by)[0] || team.players[0];
@@ -293,7 +293,7 @@ hc2Mix(Match, {
     const opp = team.opp, gx = team.goalX, s = team.side, spots = new Map(), must = [];
     const shape = (tm, has) => { for (const p of tm.players) { if (p.sentOff || p === taker) continue;
         if (p.keeper) { spots.set(p, { x: tm.ownGoalX + tm.side * 1.5, y: clamp(34 + (y - 34) * 0.08, 32, 36) }); continue; }
-        const role = p.i <= 4 ? 0 : p.i <= 8 ? 1 : 2, push = (has ? [4, 10, 18][role] : [-1, 1, 3][role]) * tm.side;
+        const role = lineOf(p), push = (has ? [4, 10, 18][role] : [-1, 1, 3][role]) * tm.side;
         spots.set(p, { x: clamp(p.home.x + (x - 52.5) * (has ? 0.75 : 0.85) + push, 4, 101), y: clamp(p.home.y + (y - 34) * (has ? 0.32 : 0.45), 3, 65) }); } };
     shape(team, true); shape(opp, false);
     const set = (p, q) => { if (p && !p.sentOff && p !== taker) { spots.set(p, q); return true; } return false; };
