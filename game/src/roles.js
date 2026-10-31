@@ -53,9 +53,9 @@ const LINE = {
   UP_V: 3.5,           // m/s it steps up at
   FAST_V: 7.0,         // m/s when the ball is already level with or past the line, or just lost (everyone sprints back)
   FAR: 5,              // m: the line this far above where it should be (the ball's just been lost) = a recovery run, not a jog
-  UNCOV: 5,            // m it drops for an uncovered ball
+  UNCOV: 3,            // m it drops for an uncovered ball (5 cut goals a match by a quarter in the soak: too much)
   UNCOV_R: 4.5,        // a man of ours this close, goal-side of their carrier = the ball is covered
-  UNCOV_AHEAD: [8, 45],// an uncovered ball only matters this far in front of the line (m): further, it can't be played over
+  UNCOV_AHEAD: [10, 35],// an uncovered ball only matters this far in front of the line (m): closer it's a duel, further it can't be played over
   BACK_V: 4,           // m/s the ball travels away from our goal = played back: step up
   STEP: 4,             // m the line steps up when it is
   COVER_DEEP: 1.2,     // m the cover CB (away from the ball) stands deeper than the rest
