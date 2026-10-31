@@ -457,6 +457,7 @@
     { mv: 'slide', sec: 'def', n: 'SLIDE AT A LOOSE BALL', game: true },
     { mv: 'set-corner', sec: 'set', n: 'CORNER', game: true, gk: true, tip: 't-029: your corner - the setup runs, then C crosses / Z passes / X shoots', go: r => fpSet(r, 'corner') },
     { mv: 'set-fk', sec: 'set', n: 'FREE KICK + WALL', game: true, gk: true, tip: 't-029: your free kick 23 m out - their wall forms on 9.15 m, then you take it', go: r => fpSet(r, 'fk') },
+    { mv: 'set-arccorner', sec: 'set', n: 'ARCADE: CORNER OFF THEIR MAN', tip: 'Luca 31 Oct: corners back in ARCADE - their defender knocks it over his own byline: a corner (an attacker\'s ball still comes back off the board)', go: r => fpSet(r, 'arccorner') },
     { mv: 'set-throw', sec: 'set', n: 'THROW-IN', game: true, gk: true, tip: 't-029: your throw-in - Z short, C long', go: r => fpSet(r, 'throw') },
     { mv: 'set-off', sec: 'set', n: 'OFFSIDE → FREE KICK', game: true, gk: true, tip: 't-024 / t-029: their striker is flagged offside - your free kick where he played it', go: r => fpSet(r, 'off') },
     { mv: 'head', sec: 'you', n: 'HEAD', game: true },
@@ -698,7 +699,7 @@
   // ---- SET PIECES: both full teams, the game's own restart (its t-029 setup) and team AI - as the RS tests play them -
   // then the kick is yours. Back to plain FREE PLAY when the ball goes out, in, or to their keeper (or E).
   function fpSet(r, kind) {
-    const H = m.home.players, A = m.away.players, att = { corner: 26, fk: 24, throw: 18, off: -24 }[kind];
+    const H = m.home.players, A = m.away.players, att = { corner: 26, arccorner: 26, fk: 24, throw: 18, off: -24 }[kind];
     r.sc = Object.assign({}, r.sc0, { realAi: true, realRestart: true }); r.real = true; r.extra = true; r.noAuto = true;
     cast(m.all.slice());
     for (const p of m.all) put(p, clamp(p.home.x + att, 2, PITCH_L - 2), p.home.y, p.team === m.home ? 0 : 4);
@@ -706,12 +707,16 @@
     for (const t of [m.home, m.away]) Object.assign(t, { wing: null, wingBy: null, wingT: 0, presser: null, cover: null, marks: new Map(), support: null, supportPt: null, supT: 0,
       runner: null, runT: 0, roleT: 0, presserHeld: 0, fx: null, fy: null, poss: t === m.home ? 1 : 0, inPoss: t === m.home, airSpAt: null });
     LAB.demo0 = LAB.demo0 ?? m.demo; m.demo = false; m.ball.crossBy = null; window.HC2_NO_OFFSIDE = false;
-    const n = { corner: 'CORNER', fk: 'FREE KICK', throw: 'THROW-IN', off: 'OFFSIDE' }[kind];
+    const n = { corner: 'CORNER', arccorner: 'ARCADE CORNER', fk: 'FREE KICK', throw: 'THROW-IN', off: 'OFFSIDE' }[kind];
+    if (kind === 'arccorner') {                                                   // Luca 31 Oct: ARCADE, their defender's clearance skews over his own byline -> a corner, not the board
+      window.__labPace = 'arcade'; r.sc.pace = 'arcade'; put(A[3], 98.5, 24, 0); ballAt(99.5, 23.5, 0.3);
+      Object.assign(m.ball, { last: m.away, lastP: A[3], vx: 14, vy: -3, vz: 1.5, skid: true, rollV: 11, reb: null, lob: false, ring: null });
+    }
     if (kind === 'corner') { ballAt(106.2, 58, 0.2); Object.assign(m.ball, { last: m.away, lastP: A[3], vx: 2, vy: 1 }); m.dead = { kind: 'CORNER', team: m.home, x: PITCH_L - 0.4, y: PITCH_W - 0.4, t: 0.8 }; }
     else if (kind === 'fk') { put(H[9], 81.2, 30.8, 0); ballAt(82, 30, 0); m.restart('FREE KICK', m.home, 82, 30); }
     else if (kind === 'throw') { put(H[7], 66, 62, 0); put(A[4], 70, 61, 4); ballAt(68, 68.4, 0.1); Object.assign(m.ball, { last: m.away, lastP: A[7], vy: 1.5 }); m.dead = { kind: 'THROW-IN', team: m.home, x: 68, y: PITCH_W - 0.2, t: 0.6 }; }
-    else { const st = A[9]; put(st, 15, 32, 4); atFeet(st); m.offCall(st, { team: m.away, men: new Map([[st, { x: st.x, y: st.y }]]), line: m.offLine(m.away), by: A[6] }); }   // (RS1 the other way round: theirs is flagged, the free kick is yours)
-    r.last = `${n} · the whistle`;
+    else if (kind === 'off') { const st = A[9]; put(st, 15, 32, 4); atFeet(st); m.offCall(st, { team: m.away, men: new Map([[st, { x: st.x, y: st.y }]]), line: m.offLine(m.away), by: A[6] }); }   // (RS1 the other way round: theirs is flagged, the free kick is yours)
+    r.last = kind === 'arccorner' ? 'ARCADE · their defender skews it over his own byline …' : `${n} · the whistle`;
     r.fx = { step(r, p, F) {
       const sp = m.setPiece;
       if (sp) { F.seen = true; F.kind = sp.kind || F.kind;
@@ -2037,15 +2042,16 @@
   function arLine(id, name, sub, o) {
     return { id, group: 'AR', name, sub, kind: 'phys', pace: o.pace || 'arcade',
       setup(r) {
-        const k = m.home.players[6], gk = m.away.players[0]; cast(o.noGk ? [k] : [k, gk]); put(k, o.from[0] - 3, o.from[1], 0); put(gk, LINE_X, 34, 4);
-        arBall(o.from[0], o.from[1], o.z || 0, o.v[0], o.v[1], o.v[2] || 0, k);
+        const k = m.home.players[6], gk = m.away.players[0], d = o.def ? m.away.players[3] : null; cast([k].concat(o.noGk ? [] : [gk], d ? [d] : [])); put(k, o.from[0] - 3, o.from[1], 0); put(gk, LINE_X, 34, 4);
+        if (d) put(d, o.from[0] - 1, o.from[1] + 1.5, 0);                           // (AR2-K: their man is the last to touch it)
+        arBall(o.from[0], o.from[1], o.z || 0, o.v[0], o.v[1], o.v[2] || 0, d || k);
         Object.assign(r, { human: k, gk, marks: [], o, maxZ: 0, prev: null });
       },
       check(r) {
         const b = m.ball, f1 = v => v.toFixed(1);
         if (!r.hit) {
           if (b.inNet) return { o: 'GOAL · the goal mouth is open (no board there)', hold: 1 };
-          if (r.out) return { o: `OUT · ${r.out.toLowerCase()}${o.pace === 'classic' ? ' (CLASSIC: the ball goes out)' : ' (ARCADE too since t-026: no touchline boards)'}` };
+          if (r.out) return { o: `OUT · ${r.out.toLowerCase()}${o.pace === 'classic' ? ' (CLASSIC: the ball goes out)' : o.def ? ' (ARCADE too since 31 Oct: their own byline = a corner)' : ' (ARCADE too since t-026: no touchline boards)'}` };
           if (b.reb && b.reb.t != null) { const p = r.prev || { vx: b.vx, vy: b.vy, vz: b.vz }, into = b.reb.hit === 'T' ? Math.abs(p.vy) : Math.abs(p.vx);
             r.hit = { side: b.reb.hit, t: r.t, x: b.x, y: b.y, vin: len(p.vx, p.vy), into, vout: len(b.vx, b.vy), vz: b.vz, apex: b.reb.apex, aimed: b.reb.q }; r.maxZ = b.z; }
           r.prev = { vx: b.vx, vy: b.vy, vz: b.vz };
@@ -2144,6 +2150,7 @@
       arLine('AR1-S', 'a firm pass rolling at the touchline', 'a ground pass at 36 km/h, square on: a throw-in (t-026: no touchline boards)', { from: [40, 63], v: [2, 10] }),
       arLine('AR1-C', 'the same drive, CLASSIC', 'CLASSIC is untouched: the ball goes out for a throw-in', { from: [56, 61], v: [10, 17.3], pace: 'classic' }),
       arLine('AR2', 'at the BYLINE beside the goal', 'a ball at 65 km/h runs past the post (outside the goal mouth): back off the board in front of goal (CLASSIC: goal kick / corner)', { from: [95, 22], v: [17, 3.5] }),
+      arLine('AR2-K', 'their DEFENDER puts it over his own byline', 'Luca 31 Oct: corners are back in ARCADE - a ball the defending side knocks over its byline is a CORNER (an attacker\'s, AR2, still comes back off the board)', { from: [95, 22], v: [17, 3.5], def: true }),
       arLine('AR2-G', 'into the goal mouth: still a goal', 'the board stops at the posts: a shot inside them goes in', { from: [88, 33], v: [24, 0.3], z: 0.3, noGk: true }),
       arAir('AR3', 'a rebound attacked in the air (touchline, by their box)', 'the real team AI: a ball driven at the touchline beside their box - since t-026 a throw-in (AR3-B / AR3-SP have the byline rebounds)',
         { from: [88, 61], v: [11, 19, 1.2], h9: [93, 57], h10: [90, 45], h8: [86, 52], a3: [97, 52], a4: [95, 59], a2: [99, 40], a7: [89, 55] }),

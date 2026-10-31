@@ -74,6 +74,7 @@ const bwOrder = (a, b) => (a.review ? 1 : 0) - (b.review ? 1 : 0) || bwRank(a) -
 const FLAG_TRIGGER = 'trig_01VzRQHSabhTC2L8tbWSX2aP';
 const FLAG_SECS = 8, REC_MAX = 660;          // the recorder keeps 11 s at 60 a second: 8 s for a flag, 10 s for REPLAY (LAST 10 S)
 const RP_SPEEDS = [1, 0.5, 0.25];             // the replay player's slow-mo steps
+const REC_ALL_MAX = 30 * 60 * 40;             // the whole-match recorder: 40 real minutes at 30 a second (recAllPush)
 const BW_VERDICT = { bug: 'BUG', fine: 'FINE', unsure: 'NOT SURE' };
 const BW_MAX = 30, BW_GAP = 25000, BW_PRE = 240, BW_POST = 90, BW_KEEP = 8;
 const BW_LONG = new Set(['applaud', 'party', 'trophy', 'dejected', 'celebrate', 'hurt', 'beaten', 'roar', 'protest', 'labanim', 'pick', 'runup', 'flight', 'done', 'walk']);
@@ -486,8 +487,33 @@ hc2Mix(Match, {
       fl: cf && cf.isRunning && cf.alpha > 0.01 ? [cf.red, cf.green, cf.blue, cf.alpha] : null,   // the camera's flash + shake (a special, a guard break, a power shot)
       sh: cs && cs.isRunning ? cs.intensity.x : 0 });
     if (this.rec.length > REC_MAX) this.rec.shift();
+    this.recAllPush(this.rec[this.rec.length - 1]);                              // Luca 31 Oct: the whole match too (REPLAY: WHOLE MATCH)
     if (this.bw) this.bw.onRecord(this.rec[this.rec.length - 1]);                 // v0.8.7 BUG WATCH: the clip after the moment
   },
+  // WHOLE-MATCH REPLAY (Luca, 31 Oct: "make the replay be able to go back full game but also last 10 second in real
+  // life"). The 60-a-second recorder above keeps only ~11 s; this keeps the whole match from kick-off at 30 a second
+  // (every 2nd frame, its dt summed), so the replay player can scrub back to any moment - the way FIFA / EA FC's
+  // full-match replay and PES's "replay the match" let you. Real time, as played: stoppages, celebrations and cut
+  // scenes are in it, the replays themselves aren't (nothing is recorded while one plays). A goal's frame carries its
+  // caption (g) and each frame its match minute (mn), for the player's goal ticks and its clock. It shares the frame's
+  // arrays (no copies: ~half the memory of a second buffer). Cap: REC_ALL_MAX frames (40 real minutes - extra time and
+  // penalties fit); past it the oldest go in blocks. Cleared at kick-off of a new match (match.js) and the demo's restart.
+  // Reads only what was drawn: no dice, so play can't change.
+  recAllPush(f) {
+    if (!f) return; const A = this.recAll || (this.recAll = []);
+    this.recAllAcc = (this.recAllAcc || 0) + f.dt;
+    if (this.recAllAcc < 1 / 30 - 1e-4 && A.length) return;
+    const o = Object.assign({}, f); o.dt = this.recAllAcc; this.recAllAcc = 0; delete o.goal; delete o.t0;
+    o.mn = Math.min(HALF_END[(this.half || 1) - 1] || 120, Math.floor((this.clock || 0) / 60) + 1);
+    const ga = this.goalAt || 0;
+    if (ga && ga !== this.recAllGoal && (this.recN || 0) >= ga) {               // the goal went in on this frame (or the one before)
+      this.recAllGoal = ga; const sc = this.lastScorer;
+      o.g = sc ? `${sc.team.name} ${this.home.score}-${this.away.score} · ${sc.min}'` : 'GOAL';
+    }
+    A.push(o);
+    if (A.length > REC_ALL_MAX + 1800) A.splice(0, 1800);                         // (in blocks: shift() on 70k frames each frame is slow)
+  },
+  recAllReset() { this.recAll = []; this.recAllAcc = 0; this.recAllGoal = this.goalAt || 0; },   // (the last match's goal isn't marked again)
   recIndex(n) { return n - ((this.recN || 0) - (this.rec || []).length); },       // recorder frame number -> index in rec
   // t-006 EVERY EFFECT IN REPLAYS (Luca: "make sure in replays ... generates the full animations of the shots effects and
   // all"): a replay used to put back only the players, the ball, its shadow and the referee, so a special shot replayed as a
@@ -577,7 +603,9 @@ hc2Mix(Match, {
     if (o.ctl) slowA = 1e9;                                                         // (t-006: in the player you pick the speed - no slow-mo / zoom of its own)
     this.msg.setText(''); this.sub.setText('');
     this.replay = { frames, i: 0, t: 0, real: 0, after, slowA, slowB: slowA + (o.slow ?? 2.0), label, z: this.baseZoom(), exit: o.exit, noZoom: !!o.noZoom, focus: o.focus ?? -1, mark: o.mark ?? -1, kits: o.kits || null,
-      total: t, fxMax: 0, ctl: o.ctl ? { play: true, sp: 0, q: [], hold: 0, end: false } : null };
+      total: t, fxMax: 0, ctl: o.ctl ? { play: true, sp: 0, q: [], hold: 0, end: false } : null,
+      full: !!o.full, goals: o.full ? frames.filter(f => f.g).map(f => ({ t0: f.t0, g: f.g })) : null };   // (Luca 31 Oct: the whole match, its goals ticked on the bar)
+    if (o.at != null) this.replay.t = clamp(o.at, 0, t);                            // (start part-way in: LAST 10 S of the whole match)
     this.hideLiveFx();                                                             // t-006: the replay draws its own effects
     if (o.kits) this.all.forEach((q, k) => { const kk = o.kits[k]; if (kk && q.spr.texture.key !== kk && this.textures.exists(kk)) q.spr.setTexture(kk); });   // v0.8.7: a BUG WATCH clip from another match
     if (label === 'GOAL') {
@@ -688,8 +716,19 @@ hc2Mix(Match, {
     if (a === 'back' || nav.x < 0) step(-1);
     if (a === 'fwd' || nav.x > 0) step(1);
     if (typeof a === 'object' && a.seek != null) { C.play = false; C.end = false; r.t = clamp(a.seek, 0, 1) * r.frames[n - 1].t0; }   // a click / drag on the bar
+    if (r.full) {                                                                    // Luca 31 Oct: the WHOLE MATCH - big jumps, not only frames
+      const end = r.frames[n - 1].t0, jump = s => { C.end = false; r.t = clamp(r.t + s, 0, end); };
+      if (a === 'jb' || T.has('BracketLeft') || T.has('PageUp')) jump(-10);          // [ / PAGE UP: 10 s back
+      if (a === 'jf' || T.has('BracketRight') || T.has('PageDown')) jump(10);        // ] / PAGE DOWN: 10 s on
+      if (a === 'home' || T.has('Home')) { r.t = 0; C.end = false; }
+      if (a === 'last10' || T.has('End')) { r.t = Math.max(0, end - 10); C.end = false; C.play = true; }   // END: the last 10 seconds, playing
+      if ((a === 'goal' || T.has('KeyG')) && r.goals.length) {                       // G: the next goal, from 4 s before it (then round again)
+        const g = r.goals.find(q => q.t0 - 4 > r.t + 0.5) || r.goals[0]; r.t = Math.max(0, g.t0 - 4); C.end = false; C.play = true;
+      }
+    }
     C.hold = Math.abs(Input.axis.x) > 0.5 ? C.hold + dt : 0;                       // LEFT / RIGHT held: scrub at twice real time
-    if (C.hold > 0.3) { C.play = false; C.end = false; r.t = clamp(r.t + Math.sign(Input.axis.x) * dt * 2, 0, r.frames[n - 1].t0); }
+    const scr = r.full ? Math.min(40, 2 + Math.max(0, C.hold - 0.3) * 16) : 2;     // (the whole match: it speeds up the longer you hold, to 40x)
+    if (C.hold > 0.3) { C.play = false; C.end = false; r.t = clamp(r.t + Math.sign(Input.axis.x) * dt * scr, 0, r.frames[n - 1].t0); }
     if (C.play) {
       r.t += dt * RP_SPEEDS[C.sp];
       if (r.t >= r.frames[n - 1].t0) {

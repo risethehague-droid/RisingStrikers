@@ -102,7 +102,7 @@ hc2Mix(Match, {
     return `PRESS ENTER / START${this.lastReplay ? ` · ${k.lob}: LAST GOAL` : ''}${H ? ` · ${k.pass}: HIGHLIGHTS (${H})` : ''}`; },
   ftLine() { const H = this.highlights && this.highlights.length;
     const B = this.bw ? this.bw.list.filter(x => !x.review).length : 0;
-    return `${this.home.name} ${this.home.score} - ${this.away.score} ${this.away.name}${this.half > 2 ? ' (AET)' : ''}   ENTER: ${this.cup && this.cupLive ? 'CUP' : 'AGAIN'}${H ? `   ${keyset().pass}: HIGHLIGHTS` : ''}${B ? `   B: BUG WATCH (${B})` : ''}`; },
+    return `${this.home.name} ${this.home.score} - ${this.away.score} ${this.away.name}${this.half > 2 ? ' (AET)' : ''}   ENTER: ${this.cup && this.cupLive ? 'CUP' : 'AGAIN'}${H ? `   ${keyset().pass}: HIGHLIGHTS` : ''}${(this.recAll || []).length >= 60 ? '   R: WHOLE MATCH' : ''}${B ? `   B: BUG WATCH (${B})` : ''}`; },
   helpText() {
     const k = keyset();
     return `${k.move} MOVE  ${k.pass} PASS / CHALLENGE  ${k.shoot} SHOOT (HOLD) / SLIDE  ${k.lob} LOB  ${k.through} THROUGH  SHIFT SPRINT  ${k.special} SPECIAL`;
@@ -362,7 +362,8 @@ hc2Mix(Match, {
       { k: 'team', l: `TEAM · SUBS (${3 - Q.subs} LEFT)`, act: () => this.openSheet('pause') },
       { k: 'moves', l: 'MOVES', act: () => { P.page = 'moves'; P.i = 0; } },
       { k: 'opts', l: 'OPTIONS', act: () => { P.page = 'opts'; P.i = 0; } },
-      ...((this.rec || []).length >= 60 ? [{ k: 'rec', l: 'REPLAY (LAST 10 S)', act: () => this.pauseReplay('rec') }] : []),   // t-006: the replay player on the last 10 seconds
+      ...((this.rec || []).length >= 60 || (this.recAll || []).length >= 60 ? [{ k: 'rec', l: 'REPLAY: LAST 10 S', act: () => this.pauseReplay('rec') }] : []),   // t-006: the replay player on the last 10 seconds
+      ...((this.recAll || []).length >= 60 ? [{ k: 'full', l: 'REPLAY: WHOLE MATCH', act: () => this.pauseReplay('full') }] : []),   // Luca 31 Oct: back through the whole game
       ...(this.lastReplay ? [{ k: 'last', l: 'LAST GOAL', key: k.lob, act: () => this.pauseReplay('last') }] : []),
       ...(H ? [{ k: 'hl', l: `HIGHLIGHTS (${H})`, key: k.pass, act: () => this.pauseReplay('hl') }] : []),
       ...(this.watch ? this.watchItems() : []),                                    // watch mode: speed, mark this moment
@@ -388,7 +389,11 @@ hc2Mix(Match, {
   pauseReplay(which) {
     const back = () => { if (this.paused) { this.say('PAUSED', this.pauseLine(), 9999); this.msg.setVisible(false); this.sub.setVisible(false); this.pm = this.pm || { page: 'main', i: 0 }; this.drawPause(); } };
     this.closeFlowEl(); this.msg.setText(''); this.sub.setText(''); this.msg.setVisible(true); this.sub.setVisible(true);
-    if (which === 'rec') this.startReplay('REPLAY', back, (this.rec || []).slice(-600).map(f => Object.assign({}, f)), { caption: 'REPLAY \u00b7 THE LAST 10 SECONDS', ctl: true });   // (copies: the match timeline goes on after)
+    // LAST 10 S: 10 real seconds (Luca 31 Oct: "last 10 second in real life"), from the 60-a-second recorder; that one
+    // starts again after each goal / foul replay, so when it holds less than 10 s they come from the whole-match one
+    const R60 = this.rec || [], RA = this.recAll || [], ten = R60.length >= 600 || RA.length < R60.length / 2 + 30 ? R60.slice(-600) : RA.slice(-300);
+    if (which === 'rec') this.startReplay('REPLAY', back, ten.map(f => Object.assign({}, f)), { caption: 'REPLAY \u00b7 THE LAST 10 SECONDS', ctl: true });   // (copies: the match timeline goes on after)
+    else if (which === 'full') this.startReplay('REPLAY', back, RA.map(f => Object.assign({}, f)), { caption: 'REPLAY \u00b7 THE WHOLE MATCH', ctl: true, full: true });
     else if (which === 'last') this.startReplay('LAST GOAL', back, this.lastReplay, { caption: 'LAST GOAL', ctl: true }); else this.playHighlights(back);   // (t-006: in the replay player)
   },
   pauseInput() {
@@ -480,12 +485,15 @@ hc2Mix(Match, {
         #rpbar .tr{position:relative;height:14px;background:#1d1a22;border:2px solid #f4f0e4;cursor:pointer;touch-action:none}
         #rpbar .tr i{position:absolute;left:0;top:0;bottom:0;background:#ff2878;pointer-events:none} #rpbar .tr b{position:absolute;top:-4px;bottom:-4px;width:3px;background:#ffde1e;pointer-events:none}
         #rpbar .bt{display:flex;gap:6px;align-items:center} #rpbar button{font:9px "Press Start 2P",monospace;background:#f4f0e4;color:#0c0a0e;padding:6px 8px;border:2px solid #0c0a0e;box-shadow:2px 2px 0 #ff2878;cursor:pointer}
-        #rpbar button.go{background:#ffde1e} #rpbar .tm{margin-left:auto;color:#ffde1e} #rpbar small{font-size:7px;opacity:.8}`;
+        #rpbar button.go{background:#ffde1e} #rpbar .tm{margin-left:auto;color:#ffde1e} #rpbar small{font-size:7px;opacity:.8}
+        #rpbar .fu{display:none;gap:6px} #rpbar.full .fu{display:flex} #rpbar.full button{padding:6px 6px} #rpbar button,#rpbar .tm{white-space:nowrap}
+        #rpbar .tr u{position:absolute;top:-6px;bottom:-6px;width:4px;margin-left:-2px;background:#f4f0e4;border:1px solid #0c0a0e;pointer-events:none}`;   // (the whole match: its goals as white ticks)
       el.appendChild(st);
       el.insertAdjacentHTML('beforeend', `<div class="tr"><i></i><b></b></div><div class="bt">
         <button type="button" data-a="restart" title="LOB / R">&#8634; START</button><button type="button" data-a="back" title="LEFT">&#9664; FRAME</button>
         <button type="button" data-a="play" class="go" title="PASS / SPACE">PAUSE</button><button type="button" data-a="fwd" title="RIGHT">FRAME &#9654;</button>
-        <button type="button" data-a="speed" title="UP / DOWN">1X</button><button type="button" data-a="exit" title="ENTER / SHOOT">EXIT</button><span class="tm"></span></div>
+        <button type="button" data-a="speed" title="UP / DOWN">1X</button><span class="fu"><button type="button" data-a="jb" title="[ / PAGE UP">-10S</button><button type="button" data-a="jf" title="] / PAGE DOWN">+10S</button>
+        <button type="button" data-a="goal" title="G">GOAL &#9654;</button><button type="button" data-a="last10" title="END">LAST 10S</button></span><button type="button" data-a="exit" title="ENTER / SHOOT">EXIT</button><span class="tm"></span></div>
         <small></small>`);
       const push = a => { const R = this.replay; if (R && R.ctl) R.ctl.q.push(a); };
       el.querySelectorAll('button').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); push(b.dataset.a); }));   // (no focus: ENTER stays the game's)
@@ -497,13 +505,22 @@ hc2Mix(Match, {
     const cv = this.game.canvas, R = cv ? cv.getBoundingClientRect() : { left: 0, top: 0, width: VIEW_W }, k = R.width / VIEW_W;
     el.style.display = 'flex'; el.style.left = `${R.left + (VIEW_W / 2 - 400) * k}px`; el.style.top = `${R.top + (VIEW_H - 78) * k}px`; el.style.transform = `scale(${k})`;
     const C = r.ctl, n = r.frames.length, end = r.frames[n - 1].t0 || 1, u = clamp(r.t / end, 0, 1), ky = keyset();
-    const s = `${C.play ? 'PAUSE' : C.end ? 'AGAIN' : 'PLAY'}|${RP_SPEEDS[C.sp]}|${r.i}|${n}|${k}`;
+    const s = `${C.play ? 'PAUSE' : C.end ? 'AGAIN' : 'PLAY'}|${RP_SPEEDS[C.sp]}|${r.i}|${n}|${k}|${r.full ? 1 : 0}`;
     if (el.__s === s) return; el.__s = s;                                            // (only touch the page when something changed)
+    if (el.__r !== r) {                                                              // a new replay: the whole-match look on / off, its goal ticks
+      el.__r = r; el.classList.toggle('full', !!r.full); const tr = el.querySelector('.tr');
+      el.querySelector('[data-a=back]').innerHTML = r.full ? '&#9664;' : '&#9664; FRAME'; el.querySelector('[data-a=fwd]').innerHTML = r.full ? '&#9654;' : 'FRAME &#9654;';   // (room for the whole match's buttons)
+      el.querySelector('[data-a=restart]').innerHTML = r.full ? '&#8634;' : '&#8634; START';
+      tr.querySelectorAll('u').forEach(u => u.remove());
+      for (const g of r.goals || []) { const u = document.createElement('u'); u.style.left = `${(clamp(g.t0 / end, 0, 1) * 100).toFixed(2)}%`; u.title = g.g; tr.appendChild(u); }
+    }
     el.querySelector('.tr i').style.width = `${(u * 100).toFixed(2)}%`; el.querySelector('.tr b').style.left = `calc(${(u * 100).toFixed(2)}% - 1px)`;
     el.querySelector('[data-a=play]').textContent = C.play ? 'PAUSE' : C.end ? 'AGAIN' : 'PLAY';
     el.querySelector('[data-a=speed]').textContent = `${RP_SPEEDS[C.sp]}X`;
-    el.querySelector('.tm').textContent = `${r.t.toFixed(1)} / ${end.toFixed(1)} S · FRAME ${r.i + 1}/${n}`;
-    el.querySelector('small').textContent = `${ky.pass}/SPACE PLAY · UP/DOWN SPEED · LEFT/RIGHT FRAME (HOLD: SCRUB) · ${ky.lob}/R START · ENTER/${ky.shoot} EXIT`;
+    const mmss = v => `${Math.floor(v / 60)}:${String(Math.floor(v % 60)).padStart(2, '0')}`, f = r.frames[r.i];
+    el.querySelector('.tm').textContent = r.full ? `${f && f.mn ? `${f.mn}' · ` : ''}${mmss(r.t)} / ${mmss(end)}` : `${r.t.toFixed(1)} / ${end.toFixed(1)} S · FRAME ${r.i + 1}/${n}`;
+    el.querySelector('small').textContent = r.full ? `${ky.pass}/SPACE PLAY · LEFT/RIGHT HOLD: SCRUB (FASTER AND FASTER) · [ ] 10 S · G NEXT GOAL · END LAST 10 S · ENTER EXIT`
+      : `${ky.pass}/SPACE PLAY · UP/DOWN SPEED · LEFT/RIGHT FRAME (HOLD: SCRUB) · ${ky.lob}/R START · ENTER/${ky.shoot} EXIT`;
   },
   rpBarHide() { const el = document.getElementById('rpbar'); if (el) { el.style.display = 'none'; el.__s = ''; } },
   // plain code-drawn placeholders (no art): energy bar, pass ring, shot aim arrow + power bar.
