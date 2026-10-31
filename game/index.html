@@ -331,7 +331,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     (() => {
       const ch = window.HC2_CHANNEL === 'experimental' ? 'experimental' : 'main', other = ch === 'main' ? 'experimental' : 'main';
       const vb = document.getElementById('verbtn'), vn = document.getElementById('vernote');
-      if (ch === 'experimental') { vn.hidden = false; vn.textContent = 'EXPERIMENTAL VERSION \u00b7 THE NEWEST STUFF AS SOON AS IT\'S BUILT \u00b7 MAY BE BUGGY'; }
+      if (ch === 'experimental') { vn.hidden = false; vn.textContent = 'EXPERIMENTAL VERSION \u00b7 NEWEST STUFF, MAY BE BUGGY'; }
       const pages = /\.github\.io$/.test(location.hostname);
       let href = '';
       if (pages) href = location.pathname.replace(/\/experimental\/?(index\.html)?$/, '/').replace(/\/(index\.html)?$/, '/') + (other === 'experimental' ? 'experimental/' : '');
