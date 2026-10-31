@@ -66,5 +66,5 @@ plays it forward or goes long.
 - **F1 THE FIRST LINE OF THE PRESS:** their #3 on the ball at the edge of his box. Typical line: `PLAYED FORWARD to their
   #10 at 2.1 s · your nearest striker got 2.4 m from him · pressing: #11 (CF)`.
 - **F2 THE TARGET MAN comes short:** your #3 on the ball 20 m out, looking up for 3.5 s. Slot 9 comes from ~42 m to
-  ~23-25 m from him (before: he stayed ~35 m away). Their midfield still screens the ball into him often: that's the
+  ~23-25 m from him (before step 5, an earlier cut of this test: he stayed ~32 m away). Their midfield still screens the ball into him often: that's the
   pass's risk, judged by the passer as before.
