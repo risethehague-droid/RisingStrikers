@@ -1,3 +1,19 @@
+HC2 WEB GAME - v0.16.0 (31 Oct) - ARCADE CORNERS + KEEPER SAVES + PRACTICE SCENARIOS + NEW MENU (PRs #69, #76-#79, Luca's OK)
+- CORNERS ON ARCADE (#69, the co-designer): a ball the defending side puts over its own byline (a parry, a clearance,
+  a block) is a corner again; off an attacker it still comes back off the board. ARCADE corners are whipped in at head
+  height, never inside 7 m, and the defender gets a head start in a corner's aerial battle. Knob: ARCADE.boards.corners.
+- SITUATIONAL KEEPER SAVES (#76, gkstyle.js, in matches): the keeper picks a save for the moment - SKY SNATCH (one hand
+  on a dropping lob), FLYING STRETCH, TOP-CORNER STRETCH, LOW SCRAMBLE, STARFISH WALL. More flair by level (NORMAL
+  dust, HARD after-images + a little extra reach, RISE a beat of slow-mo). Switch: GK_STYLE.on. Lab: THEIR KEEPER moves.
+- SPECIAL SAVE COVERS THE GOAL (#77): with the special save on, a normal shot on target can't slip past him (lobbed
+  over him, pressed late, caught out wide: he dashes in his aura). He glows while it's on. No full-screen cut-in for
+  saves: a slow-mo beat and a small tag over his head. Special v special is unchanged (power decides).
+- PRACTICE SCENARIOS (#78, Test Lab only): FREE PLAY opens with 20 drills (passing, dribbling, shooting, beat the
+  keeper, defending) and BUILD YOUR OWN. Check: tools/scenarios.js.
+- NEW MENU (#79): one centred column - CONTINUE, PLAY, HAGUE CUP, TRAINING (opens the Test Lab), PENALTY BATTLE, WATCH;
+  settings in an OPTIONS pop-up, keys in HOW TO PLAY. Pause menu: one panel, QUIT TO MENU is now LEAVE GAME and says
+  whether the match is kept.
+
 HC2 WEB GAME - v0.15.3 (30 Oct) - SMALL FIXES PACK (PR #61, Luca's OK)
 - AERIAL BATTLE CLOSE-UP (t-042): while an aerial battle is on, the camera eases in to 1.35x and frames the pair, then
   eases back out once it's decided. Picture only: no slow-mo, play never waits. Knobs: AERIAL_CAM in world.js.

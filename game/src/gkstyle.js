@@ -22,7 +22,7 @@
 // lob that just went over him before is now his - Luca's "would normally go over".
 
 const GK_STYLE = {
-  on: true,              // PREVIEW (PR branch only): on, so the preview's "Play it" shows it in matches. Not live until Luca's OK.
+  on: true,              // on in matches since v0.16.0 (Luca OK'd PR #76, 31 Oct). false = the plain saves of v0.15.
   tier: null,            // the Lab can force a flair level 0-3; null = from the keeper's level (gsTier)
   cut: [0.85, 1.15, 1.45],   // his gkSave (difficulty.js) -> flair level: EASY 0.72 | NORMAL / your keeper 1.0 | HARD 1.27 | RISE 1.63
   reach: [0, 0, 0.12, 0.25], // extra height his leap gets to (m), by flair level
