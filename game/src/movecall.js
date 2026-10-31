@@ -71,19 +71,51 @@ const MOVE_THEME = {
   'EMERALD GALE': 'leaf', 'TWIN GALE': 'leaf', 'LEAF SHADOW': 'leaf',
   'SCARLET LANCE': 'crimson', 'CROSSED LANCES': 'crimson', 'PHANTOM CUT': 'shadow',
   'TWIN STRIKE': 'power', 'SPECIAL DRIBBLE': 'power',
-  // PR #76's keeper flair saves (shown on the hardest levels; smaller, they're saves, not specials)
-  'SKY SNATCH': 'glove', 'FLYING STRETCH': 'glove', 'TOP-CORNER STRETCH': 'glove', 'LOW SCRAMBLE': 'glove', 'STARFISH WALL': 'glove',
+  // EVERY KEEPER SAVE (Luca, 31 Oct 14:21: "also add the pop up with the custom name and sound effect to the saves too").
+  // gkstyle.js's situational saves (v0.16.0) keep their names; the plain saves got names of their own (SAVE_CALL below)
+  'SKY SNATCH': 'holy', 'FLYING STRETCH': 'wind', 'TOP-CORNER STRETCH': 'thunder', 'LOW SCRAMBLE': 'earth', 'STARFISH WALL': 'iron',
+  'SAFE HANDS': 'glove', 'FALCON CATCH': 'wind', 'SKY CLAIM': 'holy', 'FINGERTIPS': 'holy', 'ARC PARRY': 'water',
+  'STEEL PALM': 'iron', 'HAMMER FIST': 'earth', 'BLACK HOLE': 'shadow', 'BARE HANDS': 'sun',
 };
+// The keeper's saves. Every save already says what happened (ball.js / keeper.js: 'SAVED!', 'PARRIED!', 'TIPPED OVER THE
+// BAR!' ...; PR #71's no-bars catch 'NO SPECIAL - ...'): that line picks the kind, and the save's name is gkstyle.js's
+// style when it gave this save one (SKY SNATCH, FLYING STRETCH ...), else the kind's own name. The line becomes the
+// caption. Saves are smaller than the specials (scale) and come far more often, so they hold a little less long.
+// How the games do it: Inazuma Eleven names its keepers' hands techniques like any shot (and they get a voice line and a
+// sound); FIFA's commentary names the save type ("tipped over!", "palmed away!"). Ours does both, in one short pop-up.
+const SAVE_CALL = {
+  scale: 0.72, hold: 0.75,
+  lines: [[/^SAVED!$/, 'catch'], [/^TIPPED OVER THE BAR!$/, 'tip'], [/^PARRIED ROUND THE POST!$/, 'wide'], [/^PARRIED!$/, 'parry'],
+    [/^PUNCHED CLEAR!$/, 'punch'], [/^SMOTHERED!$/, 'smother'], [/^BLOCKED!$/, 'block'], [/^NO SPECIAL - /, 'bare']],
+  kind: { catch: 'SAFE HANDS', dive: 'FALCON CATCH', claim: 'SKY CLAIM', tip: 'FINGERTIPS', wide: 'ARC PARRY', parry: 'STEEL PALM',
+    punch: 'HAMMER FIST', smother: 'BLACK HOLE', block: 'STARFISH WALL', bare: 'BARE HANDS' },
+  style: { snatch: 'SKY SNATCH', flying: 'FLYING STRETCH', top: 'TOP-CORNER STRETCH', scramble: 'LOW SCRAMBLE', wall: 'STARFISH WALL', smother: 'BLACK HOLE', tip: 'FINGERTIPS' },
+  // each save name's sound: PR #87's MOVE SOUNDS (movesfx.js) plays a name's sound from its MOVE_SFX list; these are
+  // added to it when both are in (the catch's / parry's own smack still plays on the touch, this is the name's layer)
+  sfx: { 'SAFE HANDS': 'glove', 'FALCON CATCH': 'wind', 'SKY CLAIM': 'holy', 'FINGERTIPS': 'holy', 'ARC PARRY': 'water', 'STEEL PALM': 'iron',
+    'HAMMER FIST': 'earth', 'BLACK HOLE': 'shadow', 'BARE HANDS': 'bigSave' },
+};
+const SAVE_NAMES_ALL = new Set([...Object.values(SAVE_CALL.kind), ...Object.values(SAVE_CALL.style)]);
+if (typeof addEventListener !== 'undefined') addEventListener('load', () => {
+  if (typeof MOVE_SFX !== 'undefined') for (const [n, k] of Object.entries(SAVE_CALL.sfx)) if (!MOVE_SFX[n]) MOVE_SFX[n] = k;
+});
 const mcKey = s => String(s || '').trim().replace(/!+$/, '').trim();
 
 (() => {
-  const say0 = Match.prototype.say;
+  const say0 = Match.prototype.say, gk0 = Match.prototype.gkCount;
   hc2Mix(Match, {
     // Match.say (ui.js) with the MOVE CALL in front: a special's name goes to the pop-up, everything else as before
     say(big, small, sec) {
       if (MOVE_CALL.on && !this.penaltyMode) {
         const kb = mcKey(big);
         if (kb && MOVE_THEME[kb]) { this.moveCall(kb, small || ''); return say0.call(this, '', '', 0.01); }
+        if ((!big || /^WHAT A SAVE/.test(big)) && small && !this.replay) {
+          const sv = SAVE_CALL.lines.find(([re]) => re.test(small));
+          if (sv && (sv[1] !== 'block' || this.mcBlockAt === this.time.now)) {
+            const k = this.mcKeeper(), nm = this.mcSaveName(k, sv[1]);
+            if (nm) { this.moveCall(nm, `${k ? k.team.name + ' KEEPER · ' : ''}${mcKey(big ? big + ' ' + small : small)}`); return say0.call(this, '', '', 0.01); }
+          }
+        }
         if (!big && small) {
           const m = /^([A-Z][A-Z' &-]+?)!? · (.*)$/.exec(small), ks = mcKey(small);
           if (m && MOVE_THEME[m[1]]) { this.moveCall(m[1], m[2]); return say0.call(this, '', '', 0.01); }
@@ -92,12 +124,37 @@ const mcKey = s => String(s || '').trim().replace(/!+$/, '').trim();
       }
       return say0.call(this, big, small, sec);
     },
+    // the keeper who just saved it: the one with the ball / who touched it last, else the nearer one
+    mcKeeper() {
+      const b = this.ball; for (const p of [b.owner, b.lastP]) if (p && p.keeper) return p;
+      const K = [this.home, this.away].map(t => t && t.players[0]).filter(Boolean);
+      return K.sort((a, c) => len(a.x - b.x, a.y - b.y) - len(c.x - b.x, c.y - b.y))[0] || null;
+    },
+    mcSaveName(k, kind) {
+      const g = k && k.gs, st = g && SAVE_CALL.style[g.n];
+      if (st && kind !== 'bare') return st;                                     // (gkstyle.js gave this save its look: its name)
+      if (kind === 'catch' && k) return k.state === 'dive' ? SAVE_CALL.kind.dive : k.claimHigh ? SAVE_CALL.kind.claim : SAVE_CALL.kind.catch;
+      return SAVE_CALL.kind[kind];
+    },
+    // keeper.js / ball.js count every save here: 'blocked' marks the keeper's BLOCKED! (not a defender's); 'held' = he
+    // caught a shot - the catch only says SAVED! on a fast one, so the catch's name comes from here (not over a special
+    // save's own name, which already says it: IRON WALL ...)
+    gkCount(team, key) {
+      const r = gk0.call(this, team, key);
+      if (key === 'blocked') this.mcBlockAt = this.time.now;
+      if (key === 'held' && MOVE_CALL.on && !this.replay && !this.penaltyMode && !this.cutIn && team && !(this.mc && /^(IRON WALL|THUNDER GLOVE|RISING SHIELD)!$/.test(this.mc.name))) {
+        const k = team.players[0], nm = k && k.keeper && this.mcSaveName(k, 'catch');
+        if (nm) this.moveCall(nm, `${team.name} KEEPER · HE HOLDS IT`);
+      }
+      return r;
+    },
     // the pop-up: name, caption, element (MC_THEMES key; default from MOVE_THEME)
     moveCall(name, caption = '', theme) {
-      const T = MC_THEMES[theme || MOVE_THEME[mcKey(name)]] || MC_THEMES.power;
+      const T = MC_THEMES[theme || MOVE_THEME[mcKey(name)]] || MC_THEMES.power, save = SAVE_NAMES_ALL.has(mcKey(name));
+      if (this.mc && this.mc.name === mcKey(name) + '!' && this.mc.t < 0.6) { if (caption && this.mc.cap) this.mc.cap.setText(caption); return this.mc; }
       if (!this.mcHooked) { this.mcHooked = true; this.events.on('postupdate', (t, d) => this.moveCallTick(Math.min(d / 1000, 1 / 30))); }
       this.moveCallEnd();
-      const F = '"Press Start 2P"', fs = Math.round(MOVE_CALL.size * (T.size || 1)), word = mcKey(name) + '!';
+      const F = '"Press Start 2P"', fs = Math.round(MOVE_CALL.size * (save ? SAVE_CALL.scale : T.size || 1)), word = mcKey(name) + '!';
       const c = this.add.container(VIEW_W / 2, Math.round(VIEW_H * MOVE_CALL.y)).setScrollFactor(0).setVisible(false);
       if (this.hud) this.hud.add(c);
       const pad = 18, mk = ch => {
@@ -130,7 +187,7 @@ const mcKey = s => String(s || '').trim().replace(/!+$/, '').trim();
         for (const side of [-1, 1]) { const im = this.add.image(side * (wide * fit / 2 + 34 + k * 26), 0, 'fx', fr).setAlpha(0).setFlipX(side > 0); if (T.tint) im.setTint(T.tint); im.side = side; im.k = k; fx.push(im); c.add(im); } });
       const cap = caption ? this.add.text(0, bh / 2 + 16, caption, { fontFamily: F, fontSize: '11px', color: '#f4f0e4', stroke: '#0c0a0e', strokeThickness: 5 }).setOrigin(0.5).setAlpha(0) : null;
       if (cap) c.add(cap);
-      this.mc = { name: word, T, c, band, letters, ghosts, fx, cap, fit, fs, t: 0, wait: 0, shown: false, seed: Math.random() * 100, dur: 0.25 + MOVE_CALL.hold + 0.4 };
+      this.mc = { name: word, T, c, band, letters, ghosts, fx, cap, fit, fs, t: 0, wait: 0, shown: false, seed: (this.mcN = (this.mcN || 0) + 1) * 37.3 % 100,   /* (not Math.random: seeded matches stay the same) */ dur: 0.25 + (save ? SAVE_CALL.hold : MOVE_CALL.hold) + 0.4 };
       return this.mc;
     },
     moveCallEnd() { const M = this.mc; if (!M) return; this.mc = null; if (M.c && M.c.scene) M.c.destroy(true); },
