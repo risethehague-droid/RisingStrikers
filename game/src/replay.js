@@ -136,7 +136,7 @@ function bwUnpack(s) {
 
 class BugWatch {
   constructor(m) { this.m = m; this.list = []; this.cap = null; this.sent = 0; this.reset(); this.loadOld(); }
-  reset() { if (this.cap) this.finish(); this.k = {}; this.seen = {}; this.trace = []; this.traceT = 0; this.pos = null; this.bpos = null; this.wasLive = false; this.inNet = false; this.hitch = []; this.faces = []; this.owners = []; this.lastOwner = null; this.wasFoul = false; this.now = 0; this.stats = {}; this.perCode = {}; this.score0 = null; this.goalT = []; this.clk0 = null; this.bz0 = 0; this.cd = null; this.errs = {}; }
+  reset() { if (this.cap) this.finish(); this.k = {}; this.seen = {}; this.trace = []; this.traceT = 0; this.pos = null; this.bpos = null; this.wasLive = false; this.inNet = false; this.hitch = []; this.faces = []; this.owners = []; this.lastOwner = null; this.wasFoul = false; this.now = 0; this.stats = {}; this.perCode = {}; this.score0 = null; this.goalT = []; this.clk0 = null; this.bz0 = 0; this.cd = null; this.errs = {}; if (this.m) this.m.recPrev = null; }   // (a new match: no frames from the last one in a flag)
   watching() { const m = this.m; return BW_ON && !!m.home && !!(window.HC2_STARTED || m.demo || window.__labWatch) && !(window.__lab && !window.__labWatch); }
   live() {
     const m = this.m;
@@ -383,7 +383,7 @@ class BugWatch {
       who: -1, whoName: '', where: [+bwF1(b.x), +bwF1(b.y)], weather: R.weather || 'clear', ctx: JSON.stringify(ctx), repro,
       line: `${GAME_VER} | ${m.home.name} ${m.home.score}-${m.away.score} ${m.away.name} | ${ctx.clock} | ${pick(typeof DIFF_OPTS !== 'undefined' && DIFF_OPTS, ctx.diff)} | ${ctx.ai} AI | pace ${ctx.pace} | camera ${ctx.cam}`,
       state: this.snapshot(), trace: this.trace.slice(), stack: '',
-      kits: m.all.map(q => q.kit), frames: rec.slice(-FLAG_SECS * 60).map(f => Object.assign({}, f)), mark: 0, review: null, isNew: true, ready: true };
+      kits: m.all.map(q => q.kit), frames: (rec.length < FLAG_SECS * 60 && m.recPrev ? m.recPrev.concat(rec) : rec).slice(-FLAG_SECS * 60).map(f => Object.assign({}, f)), mark: 0, review: null, isNew: true, ready: true };
     inc.mark = Math.max(0, inc.frames.length - 1);
     if (this.cap) this.finish();                                                // (a Bug Watch clip still filling ends here)
     this.list.push(inc);
@@ -734,7 +734,10 @@ hc2Mix(Match, {
     this.wipe();
     this.letterbox.setVisible(false); this.replayTxt.setVisible(false); this.replayCap.setVisible(false);
     for (const o of [this.cursor, this.power, this.ring, this.radar]) if (o) o.setVisible(true);
-    if (!menu) this.rec = [];                                                     // (the match timeline carries on after a pause-menu replay)
+    // flag-mvwailzc-pm3 (Luca 31 Oct, "goalie just let the ball past", flagged right after the goal): the timeline starts
+    // again after a goal / foul replay, so his INSTA FLAG kept 4 frames of the kick-off and none of the goal. The frames
+    // before the replay stay in recPrev, for flagClip only (replays and recIndex still use rec alone)
+    if (!menu) { this.recPrev = this.rec; this.rec = []; }                       // (the match timeline carries on after a pause-menu replay)
     if (r.after) r.after();
   },
   playHighlights(done) {                                                           // every goal of the match, in order
