@@ -414,7 +414,7 @@
     { mv: 'sp1', sec: 'shoot', n: 'LV1 BLAZE', game: true, hot: true },
     { mv: 'sp2', sec: 'shoot', n: 'LV2 THUNDER', game: true, hot: true },
     { mv: 'sp3', sec: 'shoot', n: 'LV3 PHOENIX', game: true, hot: true },
-    { mv: 'v1-watch', sec: 'shoot', n: '1 V 1 · WATCH IT', hot: true, tip: 'PREVIEW (Luca 30 Oct): through on goal, only the keeper to beat - time slows a little, both glow in their team colours, the pitch goes darker. Your striker runs in and shoots by himself', go: r => fp1v1(r, true) },
+    { mv: 'v1-watch', sec: 'shoot', n: '1 V 1 · WATCH IT', hot: true, tip: 'PREVIEW (Luca 30 Oct): through on goal, only the keeper to beat - speed lines close in, time slows more the closer he gets and nearly stops as he strikes it, both glow in their team colours. Your striker runs in and shoots by himself', go: r => fp1v1(r, true) },
     { mv: 'v1-play', sec: 'shoot', n: '1 V 1 · YOU PLAY IT', hot: true, tip: 'PREVIEW (Luca 30 Oct): the same break, their centre-back chasing - you run at the keeper (arrows) and finish it (X shot, C chip, B special)', go: r => fp1v1(r, false) },
     { mv: 'air-head', sec: 'air', n: 'HEADER', game: true },
     { mv: 'air-volley', sec: 'air', n: 'VOLLEY', game: true },
@@ -661,7 +661,7 @@
         else if (F.t > 0.25) { T.x = dx / d; T.y = dy / d; }
       }
       if (!F.done && (b.owner === gk || b.inNet || (F.shot || b.lastP !== p) && !S && F.t > 1)) { F.done = true; F.dt = F.t; }
-      r.last = `1 V 1 · ${S ? `ON · time ${Math.round((1 - (1 - ONE_V_ONE.slow) * S.e) * 100)}%` : F.done ? 'over' : 'through on goal'}${F.done ? ' · ' + fpGk(r, F, gk) : ''}`;
+      r.last = `1 V 1 · ${S ? `ON · time ${Math.round(S.k * 100)}%${S.burst ? ' · STRUCK' : m.pending && m.pending.p === p ? ' · winding up' : ''}` : F.done ? 'over' : 'through on goal'}${F.done ? ' · ' + fpGk(r, F, gk) : ''}`;
       return F.done ? F.t - F.dt < 1.6 : F.t < (auto ? 7 : 14);
     } };
   }
