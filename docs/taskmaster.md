@@ -162,6 +162,23 @@ you merge a PR that adds or changes a move (its `Move clips:` line, CLAUDE.md Te
 3. `python3 design/hq/hqdata.py moves $T`, then one ArtifactData batch from `$T/moves-writes.json` (set; it also picks up
    renamed moves and the IN THE GAME / LAB ONLY tag).
 
+## LIVE NOW on HQ + the timeline (Luca, 31 Oct: "a hud which shows me what each agent is working on live")
+
+HQ's AGENTS section starts with a **LIVE NOW** panel. It reads the HQ database collection `hud`: one doc per agent or
+thread, and HQ shows changes the moment they're written, with "last update X ago".
+- **Every thread, worker and the scheduled check** sets its own doc (ArtifactData `set`/`update` on HQ, pinned) when
+  it **starts** a task and when it **finishes** or gets **stuck**:
+  `hud/<short-id>` = `{who: "<what Luca would call it>", doing: "<one plain line>", state: "working" | "waiting" |
+  "blocked" | "done", card: "<card id or ''>", pr: <PR number or 0>, at: <now in ms>, by: "<agent>"}`.
+  `waiting` = waiting for Luca's OK or a merge; `blocked` = stuck, needs Luca. A "working" doc older than 6 h shows
+  as gone quiet; "done" docs drop off after a day.
+- **The scheduled check** tidies it each run: one doc per running thread or worker (`list_threads`), stale ones set to
+  done, and a `check` doc for its own run.
+- **The timeline** (top of VERSIONS) draws itself from the `versions` collection: no extra step at a merge.
+- **Strike Barge HQ** (the spaceship HQ, https://claude.ai/artifact/2CLY3PHHuAGDiXAf3C1n4q): the same data in Luca's
+  fun style. It can't read HQ's database, so it carries a snapshot: the scheduled check rebuilds and republishes it
+  each run (`design/hq/ship.py` header has the 3 steps). Buttons and OKs stay on the real HQ.
+
 ## Talking to Luca
 
 Short, casual, direct, result first; always say where the work happens ([cloud], [your laptop], [PixelLab],
