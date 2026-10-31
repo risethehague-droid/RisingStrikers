@@ -1,0 +1,272 @@
+{
+ "rep": 20,
+ "tests": {
+  "E1": {
+   "name": "CHIP over a keeper 10-14 m off his line",
+   "runs": 20,
+   "worked": 0,
+   "rate": 0,
+   "nums": {
+    "keeper m out at the chip": 9.7
+   },
+   "outcomes": {
+    "STOPPED · keeper has it": 18,
+    "STOPPED · their #9 won it": 1,
+    "STOPPED · their #8 won it": 1
+   },
+   "lines": [
+    "STOPPED · keeper has it · chipped from 43 m, keeper 10.1 m out at the chip · their line: deepest 21.9 m, spread 0.6 m · keeper 10.1 m out",
+    "STOPPED · keeper has it · chipped from 41 m, keeper 9.9 m out at the chip · their line: deepest 19.9 m, spread 1.2 m · keeper 9.9 m out",
+    "STOPPED · keeper has it · chipped from 43 m, keeper 9.3 m out at the chip · their line: deepest 22.2 m, spread 0.6 m · keeper 9.3 m out",
+    "STOPPED · keeper has it · chipped from 43 m, keeper 9.7 m out at the chip · their line: deepest 21.8 m, spread 0.6 m · keeper 9.7 m out",
+    "STOPPED · keeper has it · chipped from 37 m, keeper 10.0 m out at the chip · their line: deepest 17.5 m, spread 0.6 m · keeper 10.0 m out",
+    "STOPPED · keeper has it · chipped from 36 m, keeper 9.6 m out at the chip · their line: deepest 17.1 m, spread 0.6 m · keeper 9.6 m out",
+    "STOPPED · keeper has it · chipped from 41 m, keeper 8.8 m out at the chip · their line: deepest 20.4 m, spread 0.5 m · keeper 8.8 m out",
+    "STOPPED · keeper has it · chipped from 42 m, keeper 8.9 m out at the chip · their line: deepest 20.3 m, spread 1.3 m · keeper 8.9 m out",
+    "STOPPED · keeper has it · chipped from 36 m, keeper 11.2 m out at the chip · their line: deepest 17.1 m, spread 0.9 m · keeper 11.2 m out",
+    "STOPPED · keeper has it · chipped from 42 m, keeper 10.2 m out at the chip · their line: deepest 21.2 m, spread 0.5 m · keeper 10.2 m out",
+    "STOPPED · keeper has it · chipped from 43 m, keeper 9.5 m out at the chip · their line: deepest 22.0 m, spread 0.6 m · keeper 9.5 m out",
+    "STOPPED · keeper has it · chipped from 37 m, keeper 9.0 m out at the chip · their line: deepest 17.5 m, spread 0.6 m · keeper 9.0 m out",
+    "STOPPED · keeper has it · chipped from 46 m, keeper 9.0 m out at the chip · their line: deepest 23.7 m, spread 0.7 m · keeper 9.0 m out",
+    "STOPPED · their #9 won it · chipped from 38 m, keeper 9.3 m out at the chip · their line: deepest 18.3 m, spread 1.1 m · keeper 9.3 m out",
+    "STOPPED · keeper has it · chipped from 45 m, keeper 8.7 m out at the chip · their line: deepest 23.4 m, spread 0.7 m · keeper 8.7 m out",
+    "STOPPED · keeper has it · chipped from 41 m, keeper 12.0 m out at the chip · their line: deepest 20.2 m, spread 1.3 m · keeper 12.0 m out",
+    "STOPPED · keeper has it · chipped from 40 m, keeper 10.8 m out at the chip · their line: deepest 19.9 m, spread 0.5 m · keeper 10.8 m out",
+    "STOPPED · their #8 won it · chipped from 40 m, keeper 9.0 m out at the chip · their line: deepest 19.4 m, spread 1.1 m · keeper 9.0 m out",
+    "STOPPED · keeper has it · chipped from 42 m, keeper 8.9 m out at the chip · their line: deepest 20.7 m, spread 1.4 m · keeper 8.9 m out",
+    "STOPPED · keeper has it · chipped from 46 m, keeper 9.9 m out at the chip · their line: deepest 23.9 m, spread 0.8 m · keeper 9.9 m out"
+   ]
+  },
+  "E2": {
+   "name": "THROUGH BALL behind their line while you have time",
+   "runs": 20,
+   "worked": 2,
+   "rate": 10,
+   "nums": {
+    "their line spread at the ball, m": 0.6,
+    "keeper m out at the ball": 8.2
+   },
+   "outcomes": {
+    "STOPPED · their #3 won it": 15,
+    "WORKED · THROUGH (got it # m out) → keeper has it": 1,
+    "STOPPED · #9 got it # m out, not through (their #4 # m away, -# m goal-side)": 3,
+    "WORKED · THROUGH (got it # m out) → saved": 1
+   },
+   "lines": [
+    "STOPPED · their #3 won it · played from 52 m, nearest man 6.2 m off you, aimed 17 m out · their line: deepest 27.4 m, spread 0.7 m · keeper 9.9 m out",
+    "WORKED · THROUGH (got it 22 m out) → keeper has it · played from 47 m, nearest man 6.5 m off you, aimed 14 m out · their line: deepest 24.4 m, spread 0.1 m · keeper 7.3 m out",
+    "STOPPED · their #3 won it · played from 51 m, nearest man 6.7 m off you, aimed 16 m out · their line: deepest 26.0 m, spread 1.5 m · keeper 9.2 m out",
+    "STOPPED · their #3 won it · played from 48 m, nearest man 6.8 m off you, aimed 15 m out · their line: deepest 25.4 m, spread 0.1 m · keeper 7.5 m out",
+    "STOPPED · their #3 won it · played from 50 m, nearest man 6.7 m off you, aimed 15 m out · their line: deepest 25.4 m, spread 1.5 m · keeper 8.6 m out",
+    "STOPPED · #9 got it 21 m out, not through (their #4 1.8 m away, -0.0 m goal-side) · played from 47 m, nearest man 6.5 m off you, aimed 14 m out · their line: deepest 24.4 m, spread 0.1 m · keeper 7.3 m out",
+    "STOPPED · their #3 won it · played from 52 m, nearest man 6.7 m off you, aimed 16 m out · their line: deepest 26.5 m, spread 1.5 m · keeper 9.8 m out",
+    "STOPPED · their #3 won it · played from 51 m, nearest man 6.7 m off you, aimed 17 m out · their line: deepest 27.3 m, spread 0.3 m · keeper 9.5 m out",
+    "STOPPED · their #3 won it · played from 50 m, nearest man 6.6 m off you, aimed 16 m out · their line: deepest 26.2 m, spread 0.7 m · keeper 8.6 m out",
+    "STOPPED · their #3 won it · played from 50 m, nearest man 6.7 m off you, aimed 16 m out · their line: deepest 26.4 m, spread 0.5 m · keeper 8.5 m out",
+    "STOPPED · #9 got it 22 m out, not through (their #4 1.9 m away, -0.5 m goal-side) · played from 47 m, nearest man 7.1 m off you, aimed 15 m out · their line: deepest 24.8 m, spread 0.1 m · keeper 7.4 m out",
+    "STOPPED · their #3 won it · played from 47 m, nearest man 7.2 m off you, aimed 15 m out · their line: deepest 24.6 m, spread 0.3 m · keeper 7.4 m out",
+    "STOPPED · their #3 won it · played from 49 m, nearest man 6.8 m off you, aimed 16 m out · their line: deepest 25.9 m, spread 0.5 m · keeper 8.0 m out",
+    "STOPPED · their #3 won it · played from 52 m, nearest man 6.2 m off you, aimed 16 m out · their line: deepest 26.5 m, spread 1.5 m · keeper 9.8 m out",
+    "STOPPED · their #3 won it · played from 49 m, nearest man 7.3 m off you, aimed 16 m out · their line: deepest 25.8 m, spread 0.1 m · keeper 7.6 m out",
+    "STOPPED · their #3 won it · played from 50 m, nearest man 6.8 m off you, aimed 16 m out · their line: deepest 26.1 m, spread 0.3 m · keeper 8.1 m out",
+    "STOPPED · their #3 won it · played from 47 m, nearest man 6.6 m off you, aimed 15 m out · their line: deepest 24.5 m, spread 0.1 m · keeper 7.4 m out",
+    "STOPPED · their #3 won it · played from 49 m, nearest man 6.8 m off you, aimed 16 m out · their line: deepest 25.6 m, spread 0.4 m · keeper 7.6 m out",
+    "WORKED · THROUGH (got it 22 m out) → saved · played from 47 m, nearest man 7.0 m off you, aimed 15 m out · their line: deepest 24.9 m, spread 0.1 m · keeper 7.4 m out",
+    "STOPPED · #9 got it 22 m out, not through (their #4 2.0 m away, -0.2 m goal-side) · played from 49 m, nearest man 6.8 m off you, aimed 14 m out · their line: deepest 24.4 m, spread 1.5 m · keeper 7.6 m out"
+   ]
+  },
+  "E2b": {
+   "name": "BALL OVER THE TOP (held LOB) while you have time",
+   "runs": 20,
+   "worked": 1,
+   "rate": 5,
+   "nums": {
+    "their line spread at the ball, m": 0.9,
+    "keeper m out at the ball": 8
+   },
+   "outcomes": {
+    "STOPPED · keeper has it": 3,
+    "STOPPED · their #10 won it": 1,
+    "STOPPED · nobody of yours got to it": 6,
+    "STOPPED · their #3 won it": 3,
+    "STOPPED · their #8 won it": 2,
+    "STOPPED · their #7 won it": 1,
+    "WORKED · THROUGH → GOAL first time": 1,
+    "STOPPED · their #4 won it": 1,
+    "STOPPED · their #5 won it": 1,
+    "STOPPED · their #9 won it": 1
+   },
+   "lines": [
+    "STOPPED · keeper has it · played from 47 m, nearest man 6.5 m off you, aimed 14 m out · their line: deepest 24.5 m, spread 0.1 m · keeper 7.3 m out",
+    "STOPPED · their #10 won it · played from 52 m, nearest man 6.3 m off you, aimed 17 m out · their line: deepest 26.9 m, spread 1.6 m · keeper 10.4 m out",
+    "STOPPED · nobody of yours got to it · played from 51 m, nearest man 6.8 m off you, aimed 16 m out · their line: deepest 25.9 m, spread 1.5 m · keeper 9.1 m out",
+    "STOPPED · their #3 won it · played from 49 m, nearest man 6.4 m off you, aimed 15 m out · their line: deepest 24.7 m, spread 1.5 m · keeper 7.8 m out",
+    "STOPPED · their #8 won it · played from 48 m, nearest man 7.0 m off you, aimed 15 m out · their line: deepest 25.3 m, spread 0.5 m · keeper 7.6 m out",
+    "STOPPED · keeper has it · played from 48 m, nearest man 7.4 m off you, aimed 15 m out · their line: deepest 24.8 m, spread 0.4 m · keeper 7.5 m out",
+    "STOPPED · their #8 won it · played from 51 m, nearest man 6.7 m off you, aimed 17 m out · their line: deepest 26.7 m, spread 0.6 m · keeper 9.1 m out",
+    "STOPPED · keeper has it · played from 48 m, nearest man 6.8 m off you, aimed 14 m out · their line: deepest 23.8 m, spread 1.5 m · keeper 7.5 m out",
+    "STOPPED · their #7 won it · played from 51 m, nearest man 6.7 m off you, aimed 16 m out · their line: deepest 26.0 m, spread 1.5 m · keeper 9.2 m out",
+    "STOPPED · their #3 won it · played from 47 m, nearest man 7.6 m off you, aimed 14 m out · their line: deepest 24.2 m, spread 0.3 m · keeper 7.3 m out",
+    "STOPPED · nobody of yours got to it · played from 50 m, nearest man 6.8 m off you, aimed 16 m out · their line: deepest 25.5 m, spread 1.6 m · keeper 8.7 m out",
+    "STOPPED · nobody of yours got to it · played from 49 m, nearest man 6.8 m off you, aimed 16 m out · their line: deepest 25.7 m, spread 0.4 m · keeper 7.7 m out",
+    "STOPPED · nobody of yours got to it · played from 49 m, nearest man 6.8 m off you, aimed 14 m out · their line: deepest 24.4 m, spread 1.5 m · keeper 7.6 m out",
+    "WORKED · THROUGH → GOAL first time · played from 48 m, nearest man 7.0 m off you, aimed 15 m out · their line: deepest 25.0 m, spread 0.5 m · keeper 7.5 m out",
+    "STOPPED · nobody of yours got to it · played from 48 m, nearest man 7.4 m off you, aimed 15 m out · their line: deepest 24.9 m, spread 0.3 m · keeper 7.4 m out",
+    "STOPPED · their #4 won it · played from 47 m, nearest man 6.4 m off you, aimed 13 m out · their line: deepest 23.3 m, spread 1.4 m · keeper 7.4 m out",
+    "STOPPED · their #5 won it · played from 50 m, nearest man 6.8 m off you, aimed 16 m out · their line: deepest 25.6 m, spread 1.6 m · keeper 8.8 m out",
+    "STOPPED · their #3 won it · played from 47 m, nearest man 7.4 m off you, aimed 14 m out · their line: deepest 24.1 m, spread 0.3 m · keeper 7.3 m out",
+    "STOPPED · nobody of yours got to it · played from 49 m, nearest man 6.8 m off you, aimed 16 m out · their line: deepest 25.8 m, spread 0.5 m · keeper 7.9 m out",
+    "STOPPED · their #9 won it · played from 46 m, nearest man 7.0 m off you, aimed 14 m out · their line: deepest 24.0 m, spread 0.3 m · keeper 7.3 m out"
+   ]
+  },
+  "E3": {
+   "name": "DRAG A CENTRE-BACK OUT, run into his hole",
+   "runs": 20,
+   "worked": 0,
+   "rate": 0,
+   "nums": {
+    "m their CB followed your #9 out of the line": 5.5,
+    "m from his spot to their nearest man at the pass": 12
+   },
+   "outcomes": {
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you)": 9,
+    "STOPPED · their #6 won it": 4,
+    "STOPPED · the pass didn't find him": 2,
+    "STOPPED · their #10 won it": 1,
+    "STOPPED · their #8 won it": 1,
+    "STOPPED · their #4 won it": 3
+   },
+   "lines": [
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you) · their #3 followed your #9 5.3 m out · their line: deepest 27.6 m, spread 0.0 m · keeper 9.4 m out",
+    "STOPPED · their #6 won it · their #3 followed your #9 3.8 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 29.5 m, spread 2.6 m · keeper 11.5 m out",
+    "STOPPED · their #6 won it · their #3 followed your #9 4.9 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 29.9 m, spread 3.7 m · keeper 11.9 m out",
+    "STOPPED · the pass didn't find him · their #3 followed your #9 4.2 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 28.5 m, spread 2.6 m · keeper 10.5 m out",
+    "STOPPED · their #6 won it · their #3 followed your #9 5.6 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 28.4 m, spread 4.2 m · keeper 10.4 m out",
+    "STOPPED · their #10 won it · their #3 followed your #9 4.2 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 28.4 m, spread 2.6 m · keeper 10.4 m out",
+    "STOPPED · their #8 won it · their #3 followed your #9 4.1 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 28.2 m, spread 2.5 m · keeper 10.2 m out",
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you) · their #3 followed your #9 6.5 m out · their line: deepest 28.1 m, spread 0.0 m · keeper 10.1 m out",
+    "STOPPED · their #6 won it · their #3 followed your #9 4.2 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 29.6 m, spread 2.6 m · keeper 11.6 m out",
+    "STOPPED · their #4 won it · their #3 followed your #9 3.8 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 29.7 m, spread 2.2 m · keeper 11.7 m out",
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you) · their #3 followed your #9 7.3 m out · their line: deepest 27.3 m, spread 0.0 m · keeper 9.1 m out",
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you) · their #3 followed your #9 7.3 m out · their line: deepest 28.4 m, spread 0.0 m · keeper 10.4 m out",
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you) · their #3 followed your #9 7.1 m out · their line: deepest 29.1 m, spread 0.0 m · keeper 11.1 m out",
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you) · their #3 followed your #9 7.2 m out · their line: deepest 28.7 m, spread 0.0 m · keeper 10.7 m out",
+    "STOPPED · the pass didn't find him · their #3 followed your #9 5.2 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 27.9 m, spread 3.6 m · keeper 9.8 m out",
+    "STOPPED · their #4 won it · their #3 followed your #9 4.0 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 28.5 m, spread 2.3 m · keeper 10.5 m out",
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you) · their #3 followed your #9 7.2 m out · their line: deepest 28.2 m, spread 0.0 m · keeper 10.2 m out",
+    "STOPPED · their #4 won it · their #3 followed your #9 4.0 m out · nearest of theirs to his old spot at the pass 12.0 m · their line: deepest 28.3 m, spread 2.4 m · keeper 10.3 m out",
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you) · their #3 followed your #9 7.3 m out · their line: deepest 27.9 m, spread 0.0 m · keeper 9.8 m out",
+    "STOPPED · NO BALL PLAYED: never a clear lane (their midfield in front of you) · their #3 followed your #9 6.2 m out · their line: deepest 28.4 m, spread 0.0 m · keeper 10.4 m out"
+   ]
+  },
+  "E4": {
+   "name": "SQUARE PASS in a 2-on-the-keeper",
+   "runs": 20,
+   "worked": 20,
+   "rate": 100,
+   "nums": {
+    "keeper m off his line at the square ball": 8.5
+   },
+   "outcomes": {
+    "WORKED · GOAL": 20
+   },
+   "lines": [
+    "WORKED · GOAL · squared 20 m out with the keeper 6.4 m from #9 (13.3 m off his line) · their line: deepest 29.7 m, spread 2.3 m · keeper 13.3 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.4 m from #9 (8.7 m off his line) · their line: deepest 36.3 m, spread 0.8 m · keeper 8.7 m out",
+    "WORKED · GOAL · squared 14 m out with the keeper 6.3 m from #9 (7.7 m off his line) · their line: deepest 38.0 m, spread 0.8 m · keeper 7.7 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.4 m from #9 (8.1 m off his line) · their line: deepest 39.0 m, spread 1.3 m · keeper 8.1 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.5 m from #9 (8.1 m off his line) · their line: deepest 36.5 m, spread 0.3 m · keeper 8.1 m out",
+    "WORKED · GOAL · squared 16 m out with the keeper 6.4 m from #9 (9.4 m off his line) · their line: deepest 35.8 m, spread 1.3 m · keeper 9.4 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.5 m from #9 (8.1 m off his line) · their line: deepest 35.8 m, spread 2.1 m · keeper 8.1 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.5 m from #9 (8.8 m off his line) · their line: deepest 36.4 m, spread 1.1 m · keeper 8.8 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.4 m from #9 (8.1 m off his line) · their line: deepest 39.9 m, spread 0.7 m · keeper 8.1 m out",
+    "WORKED · GOAL · squared 14 m out with the keeper 6.5 m from #9 (7.8 m off his line) · their line: deepest 40.1 m, spread 1.0 m · keeper 7.8 m out",
+    "WORKED · GOAL · squared 14 m out with the keeper 6.4 m from #9 (7.8 m off his line) · their line: deepest 38.2 m, spread 1.1 m · keeper 7.8 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.4 m from #9 (8.6 m off his line) · their line: deepest 24.7 m, spread 13.1 m, one man 13.1 m out of it · keeper 8.6 m out",
+    "WORKED · GOAL · squared 14 m out with the keeper 6.5 m from #9 (7.9 m off his line) · their line: deepest 38.7 m, spread 1.0 m · keeper 7.9 m out",
+    "WORKED · GOAL · squared 14 m out with the keeper 6.4 m from #9 (7.8 m off his line) · their line: deepest 40.2 m, spread 0.8 m · keeper 7.8 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.4 m from #9 (8.2 m off his line) · their line: deepest 24.6 m, spread 2.7 m · keeper 8.2 m out",
+    "WORKED · GOAL · squared 14 m out with the keeper 6.5 m from #9 (7.8 m off his line) · their line: deepest 24.3 m, spread 2.7 m · keeper 7.8 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.4 m from #9 (8.6 m off his line) · their line: deepest 24.5 m, spread 12.7 m, one man 12.7 m out of it · keeper 8.6 m out",
+    "WORKED · GOAL · squared 15 m out with the keeper 6.3 m from #9 (8.5 m off his line) · their line: deepest 24.6 m, spread 12.0 m, one man 12.0 m out of it · keeper 8.5 m out",
+    "WORKED · GOAL · squared 14 m out with the keeper 6.5 m from #9 (7.8 m off his line) · their line: deepest 40.3 m, spread 0.0 m · keeper 7.8 m out",
+    "WORKED · GOAL · squared 16 m out with the keeper 6.5 m from #9 (9.2 m off his line) · their line: deepest 35.7 m, spread 1.7 m · keeper 9.2 m out"
+   ]
+  },
+  "E5": {
+   "name": "WALK ROUND THE KEEPER (keep it closed)",
+   "runs": 20,
+   "worked": 6,
+   "rate": 30,
+   "nums": {
+    "keeper furthest out, m": 12.9
+   },
+   "outcomes": {
+    "WORKED · GOAL (walked round him)": 6,
+    "STOPPED · keeper has it": 14
+   },
+   "lines": [
+    "WORKED · GOAL (walked round him) · keeper furthest out 8.6 m · no back line",
+    "WORKED · GOAL (walked round him) · keeper furthest out 8.6 m · no back line",
+    "WORKED · GOAL (walked round him) · keeper furthest out 8.6 m · no back line",
+    "WORKED · GOAL (walked round him) · keeper furthest out 8.6 m · no back line",
+    "WORKED · GOAL (walked round him) · keeper furthest out 8.6 m · no back line",
+    "WORKED · GOAL (walked round him) · keeper furthest out 8.6 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 9.5 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.3 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line",
+    "STOPPED · keeper has it · keeper furthest out 15.2 m · no back line"
+   ]
+  },
+  "E6": {
+   "name": "COUNTER down the flank their full-back left",
+   "runs": 20,
+   "worked": 14,
+   "rate": 70,
+   "nums": {
+    "their men goal-side of the ball at the turnover": 4.6
+   },
+   "outcomes": {
+    "WORKED · #7 IN THE BOX (1 of theirs goal-side) → GOAL": 2,
+    "STOPPED · NO BALL PLAYED: their #11 won it": 3,
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL": 11,
+    "STOPPED · NO BALL PLAYED: their #10 won it": 2,
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → out (penalty)": 1,
+    "STOPPED · their #4 won it": 1
+   },
+   "lines": [
+    "WORKED · #7 IN THE BOX (1 of theirs goal-side) → GOAL · their men behind the ball when you won it: 9 · their #5 26 m from his goal now · their line: deepest 49.9 m, spread 24.9 m, one man 24.8 m out of it · keeper 17.0 m out",
+    "STOPPED · NO BALL PLAYED: their #11 won it · their line: deepest 49.9 m, spread 25.1 m, one man 25.1 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 3 · their #5 22 m from his goal now · their line: deepest 48.1 m, spread 26.7 m, one man 26.7 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 5 · their #5 33 m from his goal now · their line: deepest 48.9 m, spread 25.9 m, one man 25.9 m out of it · keeper 17.0 m out",
+    "STOPPED · NO BALL PLAYED: their #11 won it · their line: deepest 48.5 m, spread 26.5 m, one man 26.5 m out of it · keeper 17.0 m out",
+    "STOPPED · NO BALL PLAYED: their #10 won it · their line: deepest 50.1 m, spread 24.9 m, one man 24.9 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 3 · their #5 25 m from his goal now · their line: deepest 47.2 m, spread 27.6 m, one man 27.6 m out of it · keeper 17.0 m out",
+    "STOPPED · NO BALL PLAYED: their #10 won it · their line: deepest 49.2 m, spread 25.8 m, one man 25.8 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → out (penalty) · their men behind the ball when you won it: 3 · their #5 41 m from his goal now · their line: deepest 49.3 m, spread 25.5 m, one man 25.5 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (1 of theirs goal-side) → GOAL · their men behind the ball when you won it: 9 · their #5 24 m from his goal now · their line: deepest 50.0 m, spread 24.9 m, one man 24.8 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 3 · their #5 38 m from his goal now · their line: deepest 48.2 m, spread 26.6 m, one man 26.6 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 5 · their #5 24 m from his goal now · their line: deepest 48.8 m, spread 26.0 m, one man 26.0 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 5 · their #5 38 m from his goal now · their line: deepest 48.6 m, spread 26.3 m, one man 26.2 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 3 · their #5 30 m from his goal now · their line: deepest 46.4 m, spread 28.4 m, one man 28.3 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 5 · their #5 24 m from his goal now · their line: deepest 47.2 m, spread 27.6 m, one man 27.6 m out of it · keeper 17.0 m out",
+    "STOPPED · NO BALL PLAYED: their #11 won it · their line: deepest 46.8 m, spread 28.2 m, one man 28.2 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 7 · their #5 37 m from his goal now · their line: deepest 50.0 m, spread 24.8 m, one man 24.8 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 3 · their #5 22 m from his goal now · their line: deepest 49.7 m, spread 25.1 m, one man 25.1 m out of it · keeper 17.0 m out",
+    "WORKED · #7 IN THE BOX (0 of theirs goal-side) → GOAL · their men behind the ball when you won it: 3 · their #5 34 m from his goal now · their line: deepest 48.7 m, spread 26.2 m, one man 26.1 m out of it · keeper 17.0 m out",
+    "STOPPED · their #4 won it · their men behind the ball when you won it: 3 · their #5 39 m from his goal now · their line: deepest 46.6 m, spread 28.3 m, one man 28.2 m out of it · keeper 17.0 m out"
+   ]
+  }
+ },
+ "errors": []
+}
