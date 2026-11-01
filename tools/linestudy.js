@@ -5,7 +5,8 @@
 // While one side has the ball 20 m+ from the other's goal it counts, for the defending side: the back four's spread
 // (deepest to highest, m), the deepest defender's and the keeper's height off their goal line, the gap between them, a
 // defender pulled 8 m+ out of the line, and the same by where the ball is (20-35, 35-50, 50+ m from goal). At each goal:
-// the keeper's furthest point and the line's spread in the 1.5 s before it.
+// the keeper's furthest point and the line's spread in the 1.5 s before it. Role-ai step 2 adds the spread of the men on
+// line duty (the back four without the one pressing the ball or covering him) and why the line was where it was.
 //
 //   node tools/linestudy.js                  6 matches (seeds 1-6, IS v IRO both ways), full length
 //   MATCHES=12 FROM=6 SETUP='<js>' ...       as tools/aistudy.js
@@ -30,6 +31,8 @@ function studyMatch() {
     const rec = { t: T(), kh, bh, side: def.side };
     if (backs.length >= 3 && bh > 20) {                                        // they have it, 20 m+ from our goal: our shape
       const hs = backs.map(p => H(def, p.x)), mn = Math.min(...hs), mx = Math.max(...hs), mean = hs.reduce((a, x) => a + x, 0) / hs.length;
+      { const on = backs.filter(p => p !== def.presser && p !== def.cover).map(p => H(def, p.x)); if (on.length >= 3) { R.n2 = (R.n2 || 0) + 1; R.spread2 = (R.spread2 || 0) + Math.max(...on) - Math.min(...on); if (Math.max(...on) - Math.min(...on) < 3) R.flat2 = (R.flat2 || 0) + 1; } }   // (role-ai step 2: the men on line duty - not the one pressing the ball or covering him)
+      if (def.lineWhy) { R.why = R.why || {}; R.why[def.lineWhy] = (R.why[def.lineWhy] || 0) + 1; }
       R.n++; R.spread += mx - mn; R.height += mn; R.gkH += kh; R.gap += mn - kh; if (mx - mn < 4) R.flat++;
       if (hs.some(h => h - (mean * hs.length - h) / (hs.length - 1) > 8)) R.pulled++;
       if (kh > 14) { R.gkFar++; }
@@ -89,6 +92,8 @@ function studyMatch() {
     backLineSpread: +(S(R => R.spread) / N2).toFixed(1), flatLinePct: +(100 * S(R => R.flat) / N2).toFixed(0), deepestDefenderFromGoal: +(S(R => R.height) / N2).toFixed(1),
     keeperOffLine: +(S(R => R.gkH) / N2).toFixed(1), gapKeeperToLine: +(S(R => R.gap) / N2).toFixed(1), oneDefenderPulled8mPct: +(100 * S(R => R.pulled) / N2).toFixed(0),
     keeperOver14mPct: +(100 * S(R => R.gkFar) / N2).toFixed(1), goals: G.length, goalsKeeper10mPlusOut: G.filter(g => g.gkMax > 10).length, goalsLobbed: G.filter(g => g.lob).length,
+    lineOnDutySpread: +(S(R => R.spread2 || 0) / Math.max(1, S(R => R.n2 || 0))).toFixed(1), lineOnDutyUnder3mPct: +(100 * S(R => R.flat2 || 0) / Math.max(1, S(R => R.n2 || 0))).toFixed(0),
+    lineWhy: all.reduce((a, R) => { for (const [k, v] of Object.entries(R.why || {})) a[k] = (a[k] || 0) + v; return a; }, {}),
     errors: S(R => R.errors.length) }, null, 1));
   for (const [i, nm] of ['ball 20-35 m from our goal', 'ball 35-50 m', 'ball 50+ m'].entries()) { const n = S(R => R.bands[i].n), f = S(R => R.bands[i].free);
     console.log(`${nm}: keeper ${(S(R => R.bands[i].kh) / n).toFixed(1)} m out (over 12 m ${(100 * S(R => R.bands[i].gk12) / n).toFixed(0)}%), deepest defender ${(S(R => R.bands[i].mn) / n).toFixed(1)} m, line spread ${(S(R => R.bands[i].spread) / n).toFixed(1)} m, carrier unpressured ${(100 * f / n).toFixed(0)}% (line then ${(S(R => R.bands[i].freeMn) / Math.max(1, f)).toFixed(1)} m)`); }
