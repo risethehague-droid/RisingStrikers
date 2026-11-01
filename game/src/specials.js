@@ -276,6 +276,11 @@ hc2Mix(Match, {
     { const dv = dirVec(p.face); b.x = p.x + dv.x * 0.45; b.y = p.y + dv.y * 0.35; b.vx = b.vy = b.vz = 0; }   // he meets it (the leap / volley closes the gap) - v0.8.7: and it stops there for the strike (it flew on and the kick missed: the Lab's PW10 caught it)
     b.owner = p; this.doShot(p, 0.85, aim);
     const k = this.pending; if (!k || k.p !== p) return;
+    // QA 1 Nov: he plants for the strike. The ball hangs where his boot will meet it, but a man pressing it at a full run
+    // kept sliding through the wind-up (nobody steers a man in his kick), so running away from the goal he shot at he was
+    // 2.2 m from it at the contact frame: an air kick, bars spent (Test Lab AS7). Real volleys and overheads are struck
+    // off a planted standing foot; the rig's leap moves only his sprite
+    p.vx = p.vy = 0; p.speed = 0; p.sprinting = false;
     // v0.8.9 RIG per move: he takes off, the ball hangs where his boot will meet it, then the strike. t-014: the batch 16
     // move the arc picked (its kit lacks it: the level's first move); lifted so his boot meets the ball about where it
     // arrived (g.up, between the move's rise and riseMax)
