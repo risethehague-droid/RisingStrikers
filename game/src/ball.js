@@ -11,6 +11,10 @@ const GK_CATCH_EASE = 0.1;
 // up can still stop a special shot that beats him - about 1 in 8, only when he was SET as it was struck (on his line,
 // square, still, not stunned) and his guard holds. Inazuma Eleven's keeper without a hissatsu, Mario Strikers' keeper v a
 // Megastrike: rare, and a desperate parry, never a clean catch. A special stays exciting but never certain.
+// v2 (Luca 31 Oct, sent back: "no bar catch save is only possible against the lvl 1 moves and its 1 in 8 and even so it
+// doesnt go in, it can bounce out into a corner or ricochet off post etc"): only an LV1 can be stopped this way, and the
+// stop never ends up in the net: round the post or over the bar for a corner, or pushed onto the post and back out.
+const NOBAR_HOW = { post: 0.4, wide: 0.35 };   // how he stops it: off the post 40%, round the post 35%, the rest over the bar (a high one is always over)
 const NOBAR_SAVE = 0.125;
 const NOBAR_SET = { depth: 6, wide: 4.66, still: 4 };   // set = within the six-yard box's depth (m) of his line, inside the posts + 1 m, moving under this (m/s)
 
@@ -423,6 +427,7 @@ hc2Mix(Match, {
       const pen = this.penShot();
       this.planSave(k.p.team.opp.players[0]); if (!k.info.special) this.shotSaveCall(k.p.team.opp, k.p.team, pen);   // v0.9.0
       b.noBar = k.info.special ? this.gkNoBarRead(k.p.team.opp.players[0]) : null;   // t-045: was he set as it was struck?
+      b.nbPost = null;
     }
   },
   // t-035: a penalty is not a shot in the match stats (as before), nor on target
@@ -775,6 +780,7 @@ hc2Mix(Match, {
     for (let i = 0; i < sub; i++) {
       const ox = b.x, oy = b.y, oz = b.z;
       ballStep(b, h, owned);
+      if (!owned && b.nbPost && this.gkNoBarPostHit(b)) continue;                // t-045 v2: a no-bars stop pushed onto the post comes back out
       if (!owned) { if (gp) this.gpWood(b, ox, oy, oz); else this.posts(b, ox); }   // t-013's round posts / bar (GOAL_PHYS) or v0.12.0's posts
       if (net) this.gpNet(b, h, oz);                                            // t-013's net with give (+ t-023's NET_FX): every match since t-025
       if (ARC && !owned && !b.inNet && !this.dead) { const hit = boardBounce(b); if (hit) this.arcadeRebound(b, hit); }   // t-020: ARCADE's boards
@@ -1204,21 +1210,48 @@ hc2Mix(Match, {
   // knocks him down. The crowd's "ooh" and Rami's save line.
   gkNoBar(p, pbx) {
     const b = this.ball, N = b.noBar;
-    if (!N || N.done || N.gk !== p || p.spSave || !b.special || !b.spTeam || b.spTeam === p.team) return false;
+    if (!N || N.done || N.gk !== p || p.spSave || b.special !== 1 || !b.spTeam || b.spTeam === p.team) return false;   // (v2: LV1 only)
     if (!((pbx - p.x) * (b.x - p.x) <= 0)) return false;                         // (not level with him yet)
     N.done = true;
     const dmg = (GUARD_SP[b.special] || 0.5) * clamp((b.spP || SP_POWER[b.special - 1]) / SP_POWER[b.special - 1], 0.3, 1);
     if (!N.set || p.stun > 0 || p.cool > 0 || dmg > (p.guard ?? 1) + 1e-6 || !this.gkSpOnTarget(p, b)) return false;
-    if (Math.random() >= NOBAR_SAVE) return false;
-    const lv = b.special, how = b.z > 1.3 ? 'tip' : Math.random() < 0.5 ? 'wide' : 'parry';
+    if (Math.random() >= (this.nbForce ? 1 : NOBAR_SAVE)) return false;          // (nbForce: the Test Lab's SEE THE STOP button)
+    const lv = b.special, u = Math.random(); let how = b.z > 1.3 ? (u < NOBAR_HOW.post ? 'post' : 'tip') : u < NOBAR_HOW.post ? 'post' : u < NOBAR_HOW.post + NOBAR_HOW.wide ? 'wide' : 'tip';
+    if (typeof this.nbForce === 'string') how = this.nbForce;
     p.y = this.gkMeetY(b.y, b.y - Math.sign(b.y - p.y || 1) * 0.5, 29.6, 38.4); p.vx = p.vy = 0;   // (at full stretch: his fingertips, not his chest)
     p.guard = Math.max(0, (p.guard ?? 1) - dmg); p.guardT = 0;
-    this.gkDeflect(p, how); b.special = 0; b.spP = 0; b.noBar = null;
+    if (how === 'post' && Math.abs(b.x - p.team.ownGoalX) > 6) how = 'wide';        // (out of the six-yard box there's no post next to him)
+    if (how === 'post') this.gkNoBarPost(p); else this.gkDeflect(p, how);
+    b.special = 0; b.spP = 0; b.noBar = null;
     if (lv >= 2 && MAN.kits[p.kit].anims['blasted-E']) { p.setState('blasted', 1.0); p.stun = 1.0; p.face = p.team.side > 0 ? 0 : 4; }   // (it still knocks him flat)
     else if (p.state !== 'dive') this.gkSaveAnim(p);
     this.gkCount(p.team, 'parried'); this.noBarLast = { lv, how }; this.noBarN = (this.noBarN || 0) + 1;
-    this.say('WHAT A SAVE!', how === 'tip' ? 'NO SPECIAL - HE TIPS IT OVER!' : how === 'wide' ? 'NO SPECIAL - ROUND THE POST!' : 'NO SPECIAL - HE PUSHES IT OUT!', 1.4);
+    this.say('WHAT A SAVE!', how === 'tip' ? 'NO SPECIAL - HE TIPS IT OVER!' : how === 'wide' ? 'NO SPECIAL - ROUND THE POST!' : 'NO SPECIAL - ONTO THE POST!', 1.4);
     SFX.ooh(); this.ramiSay('save', {}, 3); this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p);
+    return true;
+  },
+  // t-045 v2: his fingertips push it onto the near post and it cannons back out into play (Luca: "ricochet off post").
+  // Played, not left to the woodwork's dice (a round post can send a ball in off the inside): his touch sends it at the
+  // post's face, and when it gets there (ballPhysics, b.nbPost) it comes back out towards the edge of the six-yard box
+  // on the post's side - a scramble, like a real one off the post. It never goes in.
+  gkNoBarPost(p) {
+    const b = this.ball, side = p.team.side, gx = p.team.ownGoalX, s = Math.sign(b.y - 34) || Math.sign(b.y - p.y) || (Math.random() < 0.5 ? -1 : 1);
+    const tx = gx + side * 0.3, ty = 34 + s * (3.66 - 0.15), d = Math.max(0.3, len(tx - b.x, ty - b.y)), v = 22, T = d / v;
+    b.vx = (tx - b.x) / T; b.vy = (ty - b.y) / T; b.z = clamp(b.z, 0.3, 1.8); b.vz = 0.5 * G * T;   // (flat at the post, about the height it was)
+    b.nbPost = { s, side, gx };
+    b.skid = true; b.rollV = 0; b.last = p.team; b.save = null; b.target = null; b.lob = false; p.cool = 0.5; b.ring = null;
+    b.gkTouch = { p, lastP: b.lastP }; b.camUp = false;
+    if (b.spin || b.curl || b.cv) { b.spin = 0; b.curl = 0; b.cv = 0; }
+    this.gkCount(p.team, 'kIn');
+  },
+  // ...and the clang: at the post's face it turns back out (called each physics step while b.nbPost is set)
+  gkNoBarPostHit(b) {
+    const N = b.nbPost; if (!N) return false;
+    if (b.owner || this.dead || b.inNet) { b.nbPost = null; return false; }
+    if ((b.x - N.gx) * N.side > 0.45) return false;                            // (not at the post yet)
+    b.x = N.gx + N.side * 0.45; b.y = 34 + N.s * (3.66 - 0.15);
+    b.vx = N.side * rnd(6, 10); b.vy = N.s * rnd(1.5, 4.5); b.vz = rnd(0.8, 2.6); b.nbPost = null;
+    this.say('', 'OFF THE POST!', 0.9); SFX.post();
     return true;
   },
   // t-007: the keeper's frames for a save he makes on the spot (a special he gets a hand to): a dive if he's flying already

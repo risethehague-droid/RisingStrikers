@@ -477,7 +477,9 @@
     { mv: 'gk-cover-lob', sec: 'gk', n: 'COVER · LOB OVER HIM', gk: true, game: true, hot: true, tip: 'gk-cover (Luca 31 Oct): he is 9 m off his line with his LV2 special save on, your lob drops in under the bar - he must still save it (he dashes back with the aura)', go: r => fpCover(r, 'lob') },
     { mv: 'gk-cover-late', sec: 'gk', n: 'COVER · PRESSED LATE', gk: true, game: true, hot: true, tip: 'gk-cover: a hard low shot past him into the corner, his special save switched on only after it is past him - he must still save it at the line', go: r => fpCover(r, 'late') },
     { mv: 'gk-cover-wide', sec: 'gk', n: 'COVER · CAUGHT OUT WIDE', gk: true, game: true, hot: true, tip: 'gk-cover: he has come out to the wing, you shoot at the open goal, his special save on - he covers the whole goal', go: r => fpCover(r, 'wide') },
-    { mv: 'gk-nobar', sec: 'gk', n: 'NO BARS · v YOUR SPECIAL', game: true, gk: true, hot: true, tip: 't-045: your LV2 special v their keeper with no SP bars - set on his line he stops it about 1 in 8 (a strained parry), otherwise it goes in', go: r => fpNoBar(r, 2) },
+    { mv: 'gk-nobar', sec: 'gk', n: 'NO BARS · v YOUR LV1', game: true, gk: true, hot: true, tip: "t-045 v2 (Luca 31 Oct): your LV1 special v their keeper with no SP bars - set on his line he stops it about 1 in 8, and it never goes in: round the post or over for a corner, or he pushes it onto the post and it bounces back out", go: r => fpNoBar(r, 1) },
+    { mv: 'gk-nobar-see', sec: 'gk', n: 'NO BARS · SEE THE STOP', game: true, gk: true, hot: true, tip: 't-045 v2: the same LV1 shot, but he always gets there (in a match: 1 in 8) - so you can see the save: off the post, round the post or over', go: r => fpNoBar(r, 1, true) },
+    { mv: 'gk-nobar2', sec: 'gk', n: 'NO BARS · v YOUR LV2', game: true, gk: true, hot: true, tip: 't-045 v2: the same with an LV2 special - with no bars he never stops it (only LV1 can be stopped that way)', go: r => fpNoBar(r, 2) },
     { mv: 'def-slide', sec: 'def', n: 'SLIDE TACKLE', game: true, tip: 't-018: he comes at you with the ball; you slide in (the shoot key)', go: r => fpDuel(r, 'slide') },
     { mv: 'def-stand', sec: 'def', n: 'STANDING TACKLE', game: true, tip: 't-018: the challenge (the pass key) as he reaches you', go: r => fpDuel(r, 'stand') },
     { mv: 'def-jockey', sec: 'def', n: 'JOCKEY', game: true, tip: 'side-on, backing off as he dribbles at you', go: r => fpDuel(r, 'jockey') },
@@ -510,7 +512,7 @@
   }
   // back to plain FREE PLAY: you and their keeper, nothing left over from the last move (its men, its set piece, its script)
   function fpBase(r) {
-    const s = r.human0 || r.human, gk = r.gk;
+    const s = r.human0 || r.human, gk = r.gk; m.nbForce = false;                  // (t-045 v2: SEE THE STOP is for its own button only)
     if (r.real) { r.sc = r.sc0; r.real = false; if (LAB.demo0 != null) { m.demo = LAB.demo0; LAB.demo0 = null; } window.HC2_NO_OFFSIDE = true;
       Object.assign(m, { offSide: null, offFlag: null, offLast: null, offGK: null, passAim: null, gkSetup: null }); }
     r.human = s; m.human = s; r.nogk = !!LAB.fp.nogk;
@@ -727,17 +729,17 @@
       return F.t < 8;
     } };
   }
-  // t-045 (card design-q-keeper): your special v their keeper with NO bars to answer it. Set on his line, he stops it
-  // about 1 in 8 (ball.js NOBAR_SAVE); LAB.nobarOff = true catches him off balance first (stunned): then it always goes in.
-  function fpNoBar(r, lv) {
-    const gk = r.gk; fpSpot(r, 86, 33); fpKeeper(gk, LINE_X, 34); m.meters[1].e = 0; Object.assign(m, { clashLast: null, gkSpLast: null, noBarLast: null });
+  // t-045 (card design-q-keeper): your special v their keeper with NO bars to answer it. Set on his line, he stops an
+  // LV1 about 1 in 8 (ball.js NOBAR_SAVE; v2, Luca: an LV2 / LV3 never); LAB.nobarOff = true catches him off balance first (stunned): then it always goes in.
+  function fpNoBar(r, lv, see) {
+    const gk = r.gk; m.nbForce = false; fpSpot(r, 86, 33); fpKeeper(gk, LINE_X, 34); m.meters[1].e = 0; Object.assign(m, { clashLast: null, gkSpLast: null, noBarLast: null });
     if (LAB.nobarOff) { gk.stun = 2.5; gk.cool = 2.5; }
     r.last = `NO BARS · your LV${lv} v a keeper with no SP`;
     r.fx = { e0: r.events.length, step(r, p, F) {
       const b = m.ball;
-      if (!F.shot) { if (F.t < 0.6) return true; F.shot = true; m.meters[0].e = lv; m.meters[1].e = 0; m.special(p); if (m.pending && m.pending.p === p) m.pending.ty = LAB.nobarY ?? 37.4; return true; }   // (inside the far post: past his normal dive)
+      if (!F.shot) { if (F.t < 0.6) return true; F.shot = true; m.nbForce = see ? (LAB.nobarHow || true) : false; m.meters[0].e = lv; m.meters[1].e = 0; m.special(p); if (m.pending && m.pending.p === p) m.pending.ty = LAB.nobarY ?? 37.4; return true; }   // (inside the far post: past his normal dive)
       const N = m.noBarLast;
-      r.last = `NO BARS · your LV${lv} v no SP · ${b.inNet ? 'GOAL' : N ? 'HE STOPS IT! (1 in 8)' : fpGk(r, F, gk)}`;
+      r.last = `NO BARS · your LV${lv} v no SP · ${b.inNet ? 'GOAL' : N ? `HE STOPS IT! (1 in 8) · ${N.how === 'post' ? 'OFF THE POST' : N.how === 'tip' ? 'OVER THE BAR' : 'ROUND THE POST'}` : fpGk(r, F, gk)}`;
       return F.t < 6;
     } };
   }
