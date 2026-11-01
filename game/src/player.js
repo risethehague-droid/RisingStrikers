@@ -383,6 +383,8 @@ class Player {
     this.stamina = clamp(this.stamina, 0, 1);
     if (this.stamina < 0.02) this.tired = true; else if (this.tired && this.stamina > 0.3) this.tired = false;
     this.x = clamp(this.x + this.vx * dt, -3, PITCH_L + 3); this.y = clamp(this.y + this.vy * dt, -3, PITCH_W + 3);
+    if (STREET_ON && !this.sentOff) { const W = STREET.edge; if (this.x < W || this.x > PITCH_L - W) { this.x = clamp(this.x, W, PITCH_L - W); this.vx = 0; }   // t-003 STREET 5s: nobody leaves the court
+      if (this.y < COURT_Y0 + W || this.y > COURT_Y1 - W) { this.y = clamp(this.y, COURT_Y0 + W, COURT_Y1 - W); this.vy = 0; } }
     if (this.keeper && this.spSave && this.m.gkCoverTick) this.m.gkCoverTick(this, dt);   // gk-cover: his special save on - the aura dash to a ball he can't reach (specials.js)
     this.speed = len(this.vx, this.vy);
     const b = this.m.ball, human = this.m.isHuman(this);                         // (t-043: either side's human)

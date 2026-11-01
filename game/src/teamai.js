@@ -49,8 +49,8 @@ hc2Mix(Match, {
   //  * the presser JOCKEYS: 2 m goal-side of the dribbler, mirrors him, and only commits when he's in front of him
   //    (gfootball GetDefendPosition / FIFA 12 "contain")
   //  * roles are re-thought every 0.4 s (gfootball), not every frame; tiny moves inside a dead zone are skipped (helios)
-  aiFrame(team, x) { return (team.side > 0 ? x : PITCH_L - x) - 52.5; },          // metres from the centre line, + = towards the goal it attacks
-  aiWorld(team, X) { return team.side > 0 ? X + 52.5 : PITCH_L - (X + 52.5); },
+  aiFrame(team, x) { return ((team.side > 0 ? x : PITCH_L - x) - PITCH_L / 2) * FRAME_K; },   // (t-003 STREET 5s: FRAME_K squeezes the 105 m frame onto the court; 1 = as before)          // metres from the centre line, + = towards the goal it attacks
+  aiWorld(team, X) { return team.side > 0 ? X / FRAME_K + PITCH_L / 2 : PITCH_L - (X / FRAME_K + PITCH_L / 2); },
   aiTime(p, pt) { return len(pt.x - p.x, pt.y - p.y) / p.top(true, false); },
   aiFree(p) { return !p.keeper && !p.sentOff && p.stun <= 0 && (!p.busy() || p.state === 'tackle'); },
   aiRoles(team) {
@@ -301,7 +301,7 @@ hc2Mix(Match, {
         // shape: the block follows the ball; with the ball the lines step up (forwards get in behind), without it they drop
         const role = lineOf(p);                                                  // 0 defence, 1 midfield, 2 attack (roles.js)
         const push = (has ? [4, 10, 18][role] : [-4, -3, 0][role]) * team.side;
-        const tx = clamp(p.home.x + (b.x - 52.5) * 0.75 + push, 4, 101);
+        const tx = clamp(p.home.x + (b.x - PITCH_L / 2) * 0.75 + push, 4, PITCH_L - 4);
         const ty = clamp(p.home.y + (b.y - 34) * 0.32, 3, 65);
         const behind = len(tx - p.x, ty - p.y) > 12 && p.stamina > 0.5;          // far out of position: hurry back
         p.moveTo(tx, ty, behind ? RUN : JOG, dt);
@@ -664,10 +664,10 @@ hc2Mix(Match, {
   // how good a shot is from (x, y): the goal angle he can see x a clear lane x the gap to the keeper; best aim -1..1
   shotLook(team, x, y) {
     const gx = team.goalX, k = team.opp.players[0], dxg = Math.abs(gx - x) || 0.1;
-    const ang = Math.abs(Math.atan2(34 + 3.66 - y, dxg) - Math.atan2(34 - 3.66 - y, dxg));
+    const ang = Math.abs(Math.atan2(34 + 3.66 * GOAL_K - y, dxg) - Math.atan2(34 - 3.66 * GOAL_K - y, dxg));   // (t-003: the 5-a-side goal is half the size)
     let best = { q: 0, aim: 0 };
     for (const aim of [-0.9, -0.45, 0, 0.45, 0.9]) {
-      const lx = gx - x, ly = 34 + aim * 2.8 - y, ll2 = lx * lx + ly * ly, ll = Math.sqrt(ll2); let block = 0;
+      const lx = gx - x, ly = 34 + aim * 2.8 * GOAL_K - y, ll2 = lx * lx + ly * ly, ll = Math.sqrt(ll2); let block = 0;
       for (const o of team.opp.players) { if (o.sentOff || o.keeper) continue;
         const t = ((o.x - x) * lx + (o.y - y) * ly) / ll2; if (t < 0.03 || t > 0.97) continue;
         const lat = Math.abs((o.x - x) * ly - (o.y - y) * lx) / ll; if (lat < 1.1) block += 1 - lat / 1.1; }
