@@ -642,7 +642,7 @@ hc2Mix(Match, {
     const gx = p.team.goalX;                                                      // (counted as a shot on the contact frame: releaseKick)
     if (power > 0.93 && this.isHuman(p)) this.ramiSay('power_shot', {}, 1);
     const err = rnd(-1, 1) * (0.35 + Math.max(0, power - 0.85) * 5 + (p.sprinting ? 0.7 : 0) + (p.tired ? 0.6 : 0)) * (this.isHuman(p) && !this.demo ? 1 : this.dk(p.team).shotErr);   // (v0.9.2: the computer's finishing by level)
-    const ty = clamp(34 + aimY * 2.8 + err, 27, 41);
+    const ty = clamp(34 + aimY * 2.8 * GOAL_K + (STREET_ON ? err + rnd(-1, 1) * len(gx - p.x, 34 - p.y) * STREET.shotSpread : err), 27, 41);   // (t-003 STREET 5s: no keeper, so the goal itself is the test - the further out, the wider it can go)   // (t-003 STREET 5s: GOAL_K 0.5, aimed inside the small goal)
     const spd = (16 + power * 16) * SHOT_K;
     const vz = 0.9 + power * 3.6 + (power > 0.88 ? (power - 0.88) * 40 : 0) + rnd(-0.3, 0.4);  // too much power: over the bar
     this.kick(p, gx + p.team.side * 2, ty, spd, vz, 0.13, { shot: true, power });
@@ -652,7 +652,7 @@ hc2Mix(Match, {
   predict() {
     const b = this.ball, c = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, skid: b.skid, rollV: b.rollV, last: b.last, lastP: b.lastP, gkTouch: b.gkTouch, special: b.special, spF: b.spF, chip: b.chip, spin: b.spin, curl: b.curl, tap: b.tap, cv: b.cv }, out = [], h = 1 / 60;   // (t-010: a tap kick's drop-off too; t-011: + the curving pass's spin)
     const ARC = paceK().arcade;                                                  // (t-020: ARCADE - the path comes back off the boards, so the AI reads the rebound)
-    for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (ARC) boardBounce(c); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
+    for (let i = 1; i <= 180; i++) { const z0 = c.z; ballStep(c, h, false); if (STREET_ON) streetWall(c); else if (ARC) boardBounce(c); if (!out.land && z0 > 0 && c.z <= 0) out.land = { x: c.x, y: c.y, t: i * h }; if (i % 3 === 0) out.push({ t: i * h, x: c.x, y: c.y, z: c.z }); }
     return out;
   },
   // t-005: where the landing ring sits - the ball's predicted first bounce while it flies, then the spot it came down
@@ -770,12 +770,13 @@ hc2Mix(Match, {
       ballStep(b, h, owned);
       if (!owned) { if (gp) this.gpWood(b, ox, oy, oz); else this.posts(b, ox); }   // t-013's round posts / bar (GOAL_PHYS) or v0.12.0's posts
       if (net) this.gpNet(b, h, oz);                                            // t-013's net with give (+ t-023's NET_FX): every match since t-025
-      if (ARC && !owned && !b.inNet && !this.dead) { const hit = boardBounce(b); if (hit) this.arcadeRebound(b, hit); }   // t-020: ARCADE's boards
+      if (STREET_ON) { if (!owned && !b.inNet) { const hit = streetWall(b); if (hit) this.streetRebound(b, hit); } }   // t-003 STREET 5s: the court's walls (street.js), on both paces
+      else if (ARC && !owned && !b.inNet && !this.dead) { const hit = boardBounce(b); if (hit) this.arcadeRebound(b, hit); }   // t-020: ARCADE's boards
       if (this.dead) {                                                          // out of play: the boards stop it
         if (b.x < -4 || b.x > PITCH_L + 4) { b.x = clamp(b.x, -4, PITCH_L + 4); b.vx *= -0.25; }
         if (b.y < -3 || b.y > PITCH_W + 3) { b.y = clamp(b.y, -3, PITCH_W + 3); b.vy *= -0.25; }
       }
-      if (b.inNet && !net) { const right = b.netRight ?? (b.netRight = b.x > 52.5); const lo = right ? PITCH_L + 0.2 : -1.4, hi = right ? PITCH_L + 1.4 : -0.2;
+      if (b.inNet && !net) { const right = b.netRight ?? (b.netRight = b.x > PITCH_L / 2); const lo = right ? PITCH_L + 0.2 : -1.4, hi = right ? PITCH_L + 1.4 : -0.2;
         if (b.x < lo || b.x > hi) { b.x = clamp(b.x, lo, hi); b.vx *= -0.12; b.vy *= 0.7; b.vz *= 0.5; }       // back net: it gives and drops
         if (b.y < GOAL_Y0 + 0.2 || b.y > GOAL_Y1 - 0.2) { b.y = clamp(b.y, GOAL_Y0 + 0.2, GOAL_Y1 - 0.2); b.vy *= -0.2; }
         if (b.z > 2.2) { b.z = 2.2; b.vz = -Math.abs(b.vz) * 0.2; } b.vy *= 0.97; }
