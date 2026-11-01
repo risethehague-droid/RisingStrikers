@@ -480,6 +480,11 @@
     { mv: 'gk-nobar', sec: 'gk', n: 'NO BARS · v YOUR LV1', game: true, gk: true, hot: true, tip: "t-045 v2 (Luca 31 Oct): your LV1 special v their keeper with no SP bars - set on his line he stops it about 1 in 8, and it never goes in: round the post or over for a corner, or he pushes it onto the post and it bounces back out", go: r => fpNoBar(r, 1) },
     { mv: 'gk-nobar-see', sec: 'gk', n: 'NO BARS · SEE THE STOP', game: true, gk: true, hot: true, tip: 't-045 v2: the same LV1 shot, but he always gets there (in a match: 1 in 8) - so you can see the save: off the post, round the post or over', go: r => fpNoBar(r, 1, true) },
     { mv: 'gk-nobar2', sec: 'gk', n: 'NO BARS · v YOUR LV2', game: true, gk: true, hot: true, tip: 't-045 v2: the same with an LV2 special - with no bars he never stops it (only LV1 can be stopped that way)', go: r => fpNoBar(r, 2) },
+    // gkcounter.js (Luca 1 Nov: the special save charges like a counter, fires when the ball is at his hands, quick pop-ups)
+    { mv: 'gkc-save', sec: 'gk', n: 'COUNTER · SAVED', gk: true, game: true, hot: true, tip: 'gkcounter.js: his LV2 special save charges as your shot comes (the ring closes in), fires at his gloves: the quick SAVED pop-up', go: r => fpCounter(r, 'save') },
+    { mv: 'gkc-hand', sec: 'gk', n: 'COUNTER · A HAND TO IT', gk: true, game: true, hot: true, tip: 'gkcounter.js: his LV1 save v your power shot - he only pushes it away: the pop-up jolts, PUSHED AWAY', go: r => fpCounter(r, 'hand') },
+    { mv: 'gkc-beaten', sec: 'gk', n: 'COUNTER · BEATEN', gk: true, game: true, hot: true, tip: 'gkcounter.js: your LV2 special v his LV1 save, the shot wins - his hands are blown away, the pop-up cracks and its letters fly off', go: r => fpCounter(r, 'beaten') },
+    { mv: 'gkc-pops', sec: 'calls', n: 'KEEPER COUNTER POP-UPS', hot: true, tip: 'gkcounter.js: the three quick special-save pop-ups in a row (saved, a hand to it, beaten) at each level', go: fpCounterPops },
     { mv: 'def-slide', sec: 'def', n: 'SLIDE TACKLE', game: true, tip: 't-018: he comes at you with the ball; you slide in (the shoot key)', go: r => fpDuel(r, 'slide') },
     { mv: 'def-stand', sec: 'def', n: 'STANDING TACKLE', game: true, tip: 't-018: the challenge (the pass key) as he reaches you', go: r => fpDuel(r, 'stand') },
     { mv: 'def-jockey', sec: 'def', n: 'JOCKEY', game: true, tip: 'side-on, backing off as he dribbles at you', go: r => fpDuel(r, 'jockey') },
@@ -546,6 +551,37 @@
     r.fx = { step(r, p, F) {
       const i = Math.floor(F.t / 1.7); if (i >= names.length) return false;
       if (F.i !== i) { F.i = i; m.moveCall(names[i], `${MOVE_THEME[names[i]].toUpperCase()} · ${i + 1} / ${names.length}`); r.last = `MOVE CALLS · ${names[i]}`; }
+      return true; } };
+  }
+  // gkcounter.js: the counter's three outcomes in a real moment (forced, so the button always shows the one it names)
+  function fpCounter(r, k) {
+    m.gkcLast = null;
+    if (k === 'beaten') {                                                       // a clash the shot wins: through his hands
+      const gk = r.gk; fpSpot(r, 86, 33); fpKeeper(gk, LINE_X, 34); Object.assign(m, { clashLast: null, gkSpLast: null });
+      r.last = 'COUNTER · BEATEN · your LV2 special v his LV1 save';
+      r.fx = { step(r, p, F) {
+        const b = m.ball;
+        if (!F.shot) { if (F.t < 0.6) return true; F.shot = true; m.meters[0].e = 2; m.special(p); if (m.pending && m.pending.p === p) m.pending.ty = 35.6; return true; }
+        if (!F.l) { if (b.owner || m.pending || b.lastP !== p) return F.t < 5; F.l = true; gk.spSave = 1; m.saveFx(gk); m.clashForce = 'hands'; }
+        if (m.gkcLast) m.clashForce = null;
+        r.last = `COUNTER · BEATEN · ${m.gkcLast ? m.gkcLast.out.toUpperCase() : 'charging…'}${b.inNet ? ' · GOAL' : ''}`;
+        return F.t < 7;
+      } };
+      return;
+    }
+    const lv = k === 'hand' ? 1 : 2, R = Math.random;
+    fpShotAt(r, `COUNTER · ${k === 'hand' ? 'A HAND TO IT' : 'SAVED'}`, { spot: [89, 33], y: GOAL_Y1 - 0.35, z: 2.15, speed: k === 'hand' ? 29 : 25, power: k === 'hand' ? 0.95 : 0.6, T: 5,
+      launch: (r, gk) => { m.ball.saveable = m.home; if (k === 'hand') m.ball.power = 0.95; gk.spSave = lv; m.saveFx(gk);
+        if (k === 'hand') { const c0 = m.clash; m.clash = function (g) { m.clash = c0; Math.random = () => 0.1; try { return c0.call(m, g); } finally { Math.random = R; } }; } },   // (the LV1 v power shot coin: a hand to it)
+      read: (r, F, gk) => m.gkcLast ? `COUNTER FIRED · ${m.gkcLast.name} · ${m.gkcLast.out.toUpperCase()}` : gk.spSave ? 'charging… (the ring closes in)' : fpGk(r, F, gk) });
+    fpKeeper(r.gk, LINE_X, 34);
+  }
+  function fpCounterPops(r) {                                                   // the three pop-ups at each level, in a row
+    const L = [[1, 'save'], [2, 'save'], [3, 'save'], [1, 'hand'], [2, 'beaten'], [3, 'beaten']], gk = m.away.players[0];
+    r.last = 'KEEPER COUNTER POP-UPS';
+    r.fx = { step(r, p, F) {
+      const i = Math.floor(F.t / 1.1); if (i >= L.length) return false;
+      if (F.i !== i) { F.i = i; const [lv, out] = L[i]; m.gkcPop(gk, lv, out, out === 'beaten' ? SP_NAMES[1] : ''); r.last = `KEEPER COUNTER · ${SAVE_NAMES[lv - 1]} · ${out.toUpperCase()}`; }
       return true; } };
   }
   function fpCurve(r, mode, lv2) {                                               // (lv2: the new LV1 special pass instead: sppass.js)

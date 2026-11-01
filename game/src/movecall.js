@@ -109,7 +109,7 @@ const mcKey = s => String(s || '').trim().replace(/!+$/, '').trim();
       if (MOVE_CALL.on && !this.penaltyMode) {
         const kb = mcKey(big);
         if (kb && MOVE_THEME[kb]) { this.moveCall(kb, small || ''); return say0.call(this, '', '', 0.01); }
-        if ((!big || /^WHAT A SAVE/.test(big)) && small && !this.replay) {
+        if ((!big || /^WHAT A SAVE/.test(big)) && small && !this.replay && !this.gkc) {   // (gkcounter.js: not over the special save's own pop-up)
           const sv = SAVE_CALL.lines.find(([re]) => re.test(small));
           if (sv && (sv[1] !== 'block' || this.mcBlockAt === this.time.now)) {
             const k = this.mcKeeper(), nm = this.mcSaveName(k, sv[1]);
@@ -142,7 +142,7 @@ const mcKey = s => String(s || '').trim().replace(/!+$/, '').trim();
     gkCount(team, key) {
       const r = gk0.call(this, team, key);
       if (key === 'blocked') this.mcBlockAt = this.time.now;
-      if (key === 'held' && MOVE_CALL.on && !this.replay && !this.penaltyMode && !this.cutIn && team && !(this.mc && /^(IRON WALL|THUNDER GLOVE|RISING SHIELD)!$/.test(this.mc.name))) {
+      if (key === 'held' && MOVE_CALL.on && !this.replay && !this.penaltyMode && !this.cutIn && !this.gkc && team && !(this.mc && /^(IRON WALL|THUNDER GLOVE|RISING SHIELD)!$/.test(this.mc.name))) {
         const k = team.players[0], nm = k && k.keeper && this.mcSaveName(k, 'catch');
         if (nm) this.moveCall(nm, `${team.name} KEEPER · HE HOLDS IT`);
       }
