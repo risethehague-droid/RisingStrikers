@@ -778,7 +778,7 @@ hc2Mix(Match, {
     const g = this.radar, W = 168, H = 108, x0 = VIEW_W - W - 16, y0 = window.HC2_TOUCH ? 62 : VIEW_H - H - 16;   // touch: top right, under the away SP meter (the buttons sit bottom right)
     g.clear().fillStyle(0x0c0a0e, 0.72).fillRect(x0 - 4, y0 - 4, W + 8, H + 8).lineStyle(1, 0xf4f0e4, 0.8).strokeRect(x0, y0, W, H)
       .lineBetween(x0 + W / 2, y0, x0 + W / 2, y0 + H).strokeCircle(x0 + W / 2, y0 + H / 2, 14);
-    const sx = x => x0 + x / PITCH_L * W, sy = y => y0 + y / PITCH_W * H;
+    const sx = x => x0 + x / PITCH_L * W, sy = y => y0 + (y - COURT_Y0) / (COURT_Y1 - COURT_Y0) * H;   // (t-003: the court's sides on STREET 5s)
     for (const p of this.all) {
       if (p.sentOff) continue;
       g.fillStyle(TEAM_COL[p.team.name]).fillRect(Math.round(sx(p.x)) - 2, Math.round(sy(p.y)) - 2, 4, 4);

@@ -13,7 +13,7 @@
 // Options: SECS=4 (length), SKIP=0 (seconds to skip before recording), FPS=12, WIDTH=480, ZOOM=1.6 (Lab camera),
 //   SEED=7 (the match's dice), VS=IS,IRO (the match's teams), SETUP='js run in the page just before recording'
 //   (window.__hc2 is the match, window.__lab the Lab), KEEP=1 keeps the PNG frames next to the GIF, PORT=8765,
-//   NOCUT=1 skips cut-ins and replays (a moment from tools/aistudy.js replays at the same SKIP),
+//   STREET=1 (with MATCH=1) a STREET 5s match, NOCUT=1 skips cut-ins and replays (a moment from tools/aistudy.js replays at the same SKIP),
 //   MOVE=curler OUT=docs/moves/curler.gif node tools/preview.js        a FREE PLAY move (its button in FP_MOVES, game/lab.js):
 //     Luca, 30 Oct: "keep the hq updated with all new animations you add, as short previews (shots, passes, mash etc)".
 //     MOVEKEY=KeyC presses that key once recording starts (a set piece: after SKIP lets the setup run, you take it).
@@ -63,6 +63,7 @@ const PORT = E.PORT || 8765, STEP = Math.max(1, Math.round(60 / FPS));
     await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
     await page.evaluate(() => { const m = window.__hc2; m.game.loop.sleep(); window.__T = 1e6; window.HC2_NO_DEMO = true; window.HC2_STARTED = true;
       for (const id of ['start', 'flow']) { const e = document.getElementById(id); if (e) e.remove(); } });
+    if (E.STREET) await page.evaluate(() => setStreet(true));                     // t-003: STREET=1 = a STREET 5s match (5 v 5 on the court)
     await page.evaluate(([h, a]) => { window.__ready = false; window.__hc2.setTeams(h, a, () => { window.__ready = true; }); }, (E.VS || 'IS,IRO').split(','));
     await page.waitForFunction(() => window.__ready, null, { timeout: 120000 });
     await preload();

@@ -11,7 +11,7 @@ class Match extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, MAN.worldW, MAN.worldH).setRoundPixels(true);
     this.stadium = new Stadium(this);
     this.buildTeams('IS', 'IRO');
-    this.ball = { x: 52.5, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: null, last: null, roll: 0, inNet: false, skid: false, rollV: 0, target: null };
+    this.ball = { x: PITCH_L / 2, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: null, last: null, roll: 0, inNet: false, skid: false, rollV: 0, target: null };
     this.path = null; this.hitStop = 0; this.passRing = null; this.aimY = 0; this.ballFrame = 0;
     this.ballSpr = this.add.image(0, 0, 'props', 'ball-x0').setOrigin(0.5);
     this.ballSh = this.add.image(0, 0, 'props', 'ball-shadow').setOrigin(0.5);
@@ -22,7 +22,7 @@ class Match extends Phaser.Scene {
     this.clock = 0; this.half = 1; this.over = false; this.paused = false; this.msgT = 0;
     this.kickoff(this.home);
     if (/(^|#|&)2p\b/.test(location.hash)) this.twoHumans(keyPad());          // t-043: #2p = two humans on one keyboard (io.js keyPad)
-    this.cameras.main.centerOn(wx(52.5, 34), wy(34) - 60);
+    this.cameras.main.centerOn(wx(PITCH_L / 2, 34), wy(34) - 60);
     this.stadium.update(0, true);
     window.__hc2 = this;                                   // for automated play-tests
     this.bw = new BugWatch(this);                          // v0.8.7 BUG WATCH
