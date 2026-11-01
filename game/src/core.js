@@ -74,6 +74,10 @@ const CURVE = { tau: 1.6, clear: 2.8, ang: [14, 18, 22, 26, 30, 34, 38], angFree
 // (in-swinger, else out-swinger); minD = shorter than this it goes straight; driven = the height it arrives at (m) and
 // its flight time (s: [base, + 1 s per this many m])
 const SP_CURL = { on: true, ai: { in: 0.55, out: 0.25, fkIn: 0.65 }, minD: 10, drivenZ: 1.3, drivenT: [0.2, 25] };
+// s-fk-curl (ball.js fkCurlLaunch): a direct free kick bends round the wall. clear = how far (m) it passes the end man
+// (a body blocks a ball within ~0.9 m); mid = aimed this close to the middle of the goal (m) it goes straight; ang =
+// the launch angles off the line tried, smallest first (degrees); hold = the most seconds the wall stands still (fkWallHold)
+const FK_CURL = { on: true, clear: 1.2, mid: 0.8, ang: [4, 6, 8, 10, 12, 14, 16, 18], hold: 0.8 };
 // t-005 (lob step 1, readability): the ball's shadow shrinks as it climbs - full size on the grass, SHADOW_MIN of it from
 // SHADOW_Z metres up (docs/lob-chip.md: "100% to about 60% between 0 and 6 m"); the ball-shadow sprite scaled, nothing drawn
 const SHADOW_MIN = 0.62, SHADOW_Z = 6;
