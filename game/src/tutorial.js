@@ -29,33 +29,34 @@ const TUTORIAL = (() => {
   const SHIFT = 'SHIFT';
 
   // ---------- the steps. One action each: `say` (the instruction, short), `keys` (the caps to draw), `set` (who is where),
-  // `ok` (true = done, {fail: 'hint'} = reset with a hint, null = keep going), `demo` (SHOW ME: the step's own keys pressed
+  // `use` (the only buttons that work in this step - Luca, 1 Nov: a stray N in the special-shot step spent the bar on a
+  // dribble and left him stuck; moving and SHIFT always work), `ok` (true = done, {fail: 'hint'} = reset with a hint, null = keep going), `demo` (SHOW ME: the step's own keys pressed
   // for you), `info` (no action: a GOT IT button), `hold` (s to watch it play out after the tick), `leave` (tidy up).
   // Coordinates are the game's metres: you attack the right-hand goal (x 0-105, y 0-68 top to bottom).
   const BASICS = [
-    { id: 'move', n: 'MOVE', say: k => 'Run into the yellow ring.', keys: k => [[k.move, 'run']],
+    { id: 'move', use: [], n: 'MOVE', say: k => 'Run into the yellow ring.', keys: k => [[k.move, 'run']],
       set(A, r, S) { const p = A.base(r, { gk: false }); A.put(p, 60, 34, 0); A.atFeet(p); S.ring = { x: 70, y: 24, r: 1.6 }; r.marks = [S.ring]; },
       ok(A, r, S) { return dist(r.human, S.ring) < S.ring.r + 0.4; },
       demo(A, r, S, T) { const p = r.human, d = dist(p, S.ring) || 1; T.x = (S.ring.x - p.x) / d; T.y = (S.ring.y - p.y) / d; } },
-    { id: 'sprint', n: 'SPRINT', say: k => 'Hold SHIFT while you run to the ring.', keys: k => [[k.move, 'run'], [SHIFT, 'hold']],
+    { id: 'sprint', use: [], n: 'SPRINT', say: k => 'Hold SHIFT while you run to the ring.', keys: k => [[k.move, 'run'], [SHIFT, 'hold']],
       set(A, r, S) { const p = A.base(r, { gk: false }); A.put(p, 58, 40, 0); A.atFeet(p); S.ring = { x: 82, y: 30, r: 1.6 }; r.marks = [S.ring]; S.spr = false; },
       ok(A, r, S) { const p = r.human; if (p.sprinting) S.spr = true;
         if (dist(p, S.ring) < S.ring.r + 0.4) return S.spr ? true : { fail: 'Hold SHIFT the whole way!' }; return null; },
       demo(A, r, S, T) { const p = r.human, d = dist(p, S.ring) || 1; T.x = (S.ring.x - p.x) / d; T.y = (S.ring.y - p.y) / d; T.btn.sprint = true; } },
-    { id: 'pass', n: 'PASS', say: k => 'Pass it to your team-mate.', keys: k => [[k.pass, 'pass']],
+    { id: 'pass', use: ['pass'], n: 'PASS', say: k => 'Pass it to your team-mate.', keys: k => [[k.pass, 'pass']],
       set(A, r, S) { const p = A.base(r, { gk: false }), q = A.mate(r, 8); A.put(p, 60, 34, 0); A.atFeet(p); A.put(q, 72, 34, 4); r.bots.set(q, A.receive); S.q = q; },
       ok(A, r, S) { return A.got(S.q) || A.lost(r, S, 4); },
       demo: [[0.5, 0.62, 'pass']] },
-    { id: 'through', n: 'THROUGH BALL', say: k => 'Your mate is running. Play it ahead of him.', keys: k => [[k.through, 'through']],
+    { id: 'through', use: ['through'], n: 'THROUGH BALL', say: k => 'Your mate is running. Play it ahead of him.', keys: k => [[k.through, 'through']],
       set(A, r, S) { const p = A.base(r, { gk: false }), q = A.mate(r, 8); A.put(p, 55, 30, 0); A.atFeet(p); A.put(q, 64, 40, 0); r.bots.set(q, A.cpRun(3.4, -0.6)); S.q = q; },
       ok(A, r, S) { if (S.t > 6 && !S.kicked) return { fail: 'Press it sooner, while he runs!' }; return A.got(S.q) || A.lost(r, S, 5); },
       demo: [[0.6, 0.72, 'through']] },
-    { id: 'lob', n: 'LOB', say: k => 'A defender is in the way. Lob it over him.', keys: k => [[k.lob, 'lob']],
+    { id: 'lob', use: ['lob'], n: 'LOB', say: k => 'A defender is in the way. Lob it over him.', keys: k => [[k.lob, 'lob']],
       set(A, r, S) { const p = A.base(r, { gk: false }), q = A.mate(r, 8), o = A.opp(r, 3); A.put(p, 55, 34, 0); A.atFeet(p); A.put(o, 63, 34, 4); A.put(q, 76, 34, 4);
         r.bots.set(q, A.cpRun(0, 0)); r.bots.set(o, A.sit()); S.q = q; S.o = o; },
       ok(A, r, S) { if (A.got(S.o)) return { fail: 'Not along the ground: use LOB!' }; return A.got(S.q) || A.lost(r, S, 5); },
       demo: [[0.5, 0.62, 'lob']] },
-    { id: 'shoot', n: 'SHOOT', say: k => `Hold to power up, let go to shoot. Score!`, keys: k => [[k.shoot, 'hold + let go'], [k.ud, 'aim']],
+    { id: 'shoot', use: ['shoot'], n: 'SHOOT', say: k => `Hold to power up, let go to shoot. Score!`, keys: k => [[k.shoot, 'hold + let go'], [k.ud, 'aim']],
       set(A, r, S) { const p = A.base(r, { gk: true }); A.spot(r, 87, 33); S.misses = S.misses || 0; },
       ok(A, r, S) { const b = A.m.ball, gk = r.gk;
         if (b.inNet) return true;
@@ -65,7 +66,7 @@ const TUTORIAL = (() => {
           return { fail: S.misses >= 2 ? 'Aim for a corner: hold UP or DOWN as you shoot.' : 'Saved! Try a corner.' }; }
         return null; },
       demo(A, r, S, T) { const side = r.gk.y < 34 ? 1 : -1; T.y = S.t > 0.4 && S.t < 1.1 ? side : 0; T.btn.shoot = S.t > 0.4 && S.t < 1.0; }, hold: 1.2 },   // (the corner away from him)
-    { id: 'tackle', n: 'TACKLE', say: k => 'He runs at you. Tackle him as he reaches you.', keys: k => [[k.pass, 'tackle']],
+    { id: 'tackle', use: ['pass'], n: 'TACKLE', say: k => 'He runs at you. Tackle him as he reaches you.', keys: k => [[k.pass, 'tackle']],
       set(A, r, S) { const p = A.base(r, { gk: false }), c = A.opp(r, 9); A.put(p, 66, 34, 0); A.put(c, 78, 34.3, 4); A.atFeet(c); A.ballLast(c);
         r.bots.set(c, A.dribbleTo(30, 34.3, 2.6)); S.c = c; S.e0 = r.events.length; },
       ok(A, r, S) { const p = r.human, c = S.c, b = A.m.ball;
@@ -74,7 +75,7 @@ const TUTORIAL = (() => {
         if (b.owner === c && c.x < p.x - 2.5) return { fail: 'He got past. Press it when he is close.' };
         return S.t > 9 ? { fail: 'Press it when he is close.' } : null; },
       demo(A, r, S, T) { T.btn.pass = !!S.c && dist(r.human, A.m.ball) < 1.0 && A.m.ball.owner === S.c; } },
-    { id: 'slide', n: 'SLIDE TACKLE', say: k => 'Faster this time. Slide in and win the ball.', keys: k => [[k.shoot, 'slide']],
+    { id: 'slide', use: ['shoot'], n: 'SLIDE TACKLE', say: k => 'Faster this time. Slide in and win the ball.', keys: k => [[k.shoot, 'slide']],
       set(A, r, S) { const p = A.base(r, { gk: false }), c = A.opp(r, 9); A.put(p, 66, 34, 0); A.put(c, 80, 34.3, 4); A.atFeet(c); A.ballLast(c);
         r.bots.set(c, A.dribbleTo(30, 34.3, 4.6)); S.c = c; S.e0 = r.events.length; },
       ok(A, r, S) { const p = r.human, c = S.c, b = A.m.ball;
@@ -87,25 +88,25 @@ const TUTORIAL = (() => {
   ];
 
   const ADVANCED = [
-    { id: 'meter', n: 'THE SP METER', info: true, say: k => 'Your SP bars (top left) fill up as you play. Specials spend them. We filled them for you here.', keys: k => [],
+    { id: 'meter', use: [], n: 'THE SP METER', info: true, say: k => 'Your SP bars (top left) fill up as you play. Specials spend them. We filled them for you here.', keys: k => [],
       set(A, r, S) { const p = A.base(r, { gk: true }); A.spot(r, 80, 34); A.bars(3); } },
-    { id: 'sp1', n: 'SPECIAL SHOT · LV1', say: k => 'One bar = LV1. Press and let go of SPECIAL.', keys: k => [[k.special, 'special']],
+    { id: 'sp1', use: ['special'], n: 'SPECIAL SHOT · LV1', say: k => 'One bar = LV1. Press and let go of SPECIAL.', keys: k => [[k.special, 'special']],
       set(A, r, S) { A.base(r, { gk: true }); A.spot(r, 82, 34); A.bars(1); }, ok: (A, r, S) => A.special(r, 1), demo: [[0.5, 0.65, 'special']], hold: 2.2 },
-    { id: 'sp3', n: 'SPECIAL SHOT · LV3', say: k => 'Three bars = LV3, the big one. Fire it!', keys: k => [[k.special, 'special']],
+    { id: 'sp3', use: ['special'], n: 'SPECIAL SHOT · LV3', say: k => 'Three bars = LV3, the big one. Fire it!', keys: k => [[k.special, 'special']],
       set(A, r, S) { A.base(r, { gk: true }); A.spot(r, 80, 34); A.bars(3); }, ok: (A, r, S) => A.special(r, 3), demo: [[0.5, 0.65, 'special']], hold: 2.6 },
-    { id: 'drill', n: 'TORNADO DRILL', say: k => 'Hold SPECIAL, then tap PASS. It spins in the grass and curls round him.', keys: k => [[k.special, 'hold'], [k.pass, 'tap']],
+    { id: 'drill', use: ['special', 'pass'], n: 'TORNADO DRILL', say: k => 'Hold SPECIAL, then tap PASS. It spins in the grass and curls round him.', keys: k => [[k.special, 'hold'], [k.pass, 'tap']],
       set(A, r, S) { A.spPassSet(r, 'ground'); }, ok: (A, r, S) => A.spPassed('drill'), demo: [[0.4, 1.0, 'special'], [0.6, 0.72, 'pass']], hold: 2.4 },
-    { id: 'burrow', n: 'BURROW BLAST', say: k => 'Hold SPECIAL, then tap THROUGH. It goes under the grass to your runner.', keys: k => [[k.special, 'hold'], [k.through, 'tap']],
+    { id: 'burrow', use: ['special', 'through'], n: 'BURROW BLAST', say: k => 'Hold SPECIAL, then tap THROUGH. It goes under the grass to your runner.', keys: k => [[k.special, 'hold'], [k.through, 'tap']],
       set(A, r, S) { A.spPassSet(r, 'through'); }, ok: (A, r, S) => A.spPassed('burrow'), demo: [[0.4, 1.0, 'special'], [0.6, 0.72, 'through']], hold: 2.4 },
-    { id: 'angel', n: 'ANGEL GLIDE', say: k => 'Hold SPECIAL, then tap LOB. A golden lob floats down to him.', keys: k => [[k.special, 'hold'], [k.lob, 'tap']],
+    { id: 'angel', use: ['special', 'lob'], n: 'ANGEL GLIDE', say: k => 'Hold SPECIAL, then tap LOB. A golden lob floats down to him.', keys: k => [[k.special, 'hold'], [k.lob, 'tap']],
       set(A, r, S) { A.spPassSet(r, 'lob'); }, ok: (A, r, S) => A.spPassed('angel'), demo: [[0.4, 1.0, 'special'], [0.6, 0.72, 'lob']], hold: 2.8 },
-    { id: 'dribble', n: 'SPECIAL DRIBBLE', say: k => `He squares up to you. Press ${sdKey()} to skip past him (1 bar).`, keys: k => [[sdKey(), 'dribble']],
+    { id: 'dribble', use: ['sdribble'], n: 'SPECIAL DRIBBLE', say: k => `He squares up to you. Press ${sdKey()} to skip past him (1 bar).`, keys: k => [[sdKey(), 'dribble']],
       tip: () => (typeof SKILL_DRIB !== 'undefined' && SKILL_DRIB ? 'New: square in front = RAINBOW FLICK, from an angle = SHADOW STEP.' : ''),
       set(A, r, S) { const p = A.base(r, { gk: false }), o = A.opp(r, 3); window.__labPace = 'arcade';   // (the special dribble is the ARCADE button, arcadesp.js)
         A.put(p, 46, 34, 0); A.atFeet(p); A.put(o, 51.5, 34.1, 4); r.bots.set(o, A.sit()); A.bars(1); S.o = o; },
       ok(A, r, S) { const p = r.human; return !!(p.sdrib || p.skd) || (S.t > 0.2 && A.m.meters[0].e < 0.99 && A.m.ball.owner === p && p.x > S.o.x + 0.5); },
       demo: [[0.5, 0.62, 'sdribble']], hold: 1.6, leave() { window.__labPace = null; } },
-    { id: 'save', n: 'YOUR KEEPER\'S SAVE', say: k => `They shoot at YOUR goal. When "SPECIAL SAVE?" flashes, press ${k.special}!`, keys: k => [[k.special, 'save']],
+    { id: 'save', use: ['special'], n: 'YOUR KEEPER\'S SAVE', say: k => `They shoot at YOUR goal. When "SPECIAL SAVE?" flashes, press ${k.special}!`, keys: k => [[k.special, 'save']],
       set(A, r, S) { A.saveSet(r, S); },
       ok(A, r, S) { const m = A.m, gk = m.home.players[0];
         if (m.saveAsk && !S.asked) { S.asked = true; m.saveAsk.t = Math.max(m.saveAsk.t, 1.6); }     // (a little longer than a match gives you: you're learning it)
@@ -114,7 +115,7 @@ const TUTORIAL = (() => {
         if (S.t > 6) return { fail: 'Watch for the flash, then press it.' };
         return null; },
       demo(A, r, S, T) { T.btn.special = !!A.m.saveAsk; }, hold: 2.4, cam: 'ball' },
-    { id: 'corner', n: 'CORNER', say: k => `Your corner! Wait for the players, then press ${k.lob} to cross it in.`, keys: k => [[k.lob, 'cross']],
+    { id: 'corner', use: ['lob'], n: 'CORNER', say: k => `Your corner! Wait for the players, then press ${k.lob} to cross it in.`, keys: k => [[k.lob, 'cross']],
       set(A, r, S) { A.base(r, { gk: true }); A.fpSet(r, 'corner'); },
       ok(A, r, S) { const sp = A.m.setPiece; if (sp) S.seen = true; if (S.seen && !sp) return true; return S.t > 40 ? { fail: 'Press the lob key when it says YOUR KICK.' } : null; },
       demo(A, r, S, T) { const sp = A.m.setPiece; T.btn.lob = !!(sp && sp.setup && !sp.su && sp.team === A.m.home && (S.dt0 = S.dt0 || S.t) && S.t - S.dt0 > 0.5 && S.t - S.dt0 < 0.62); },
@@ -129,10 +130,36 @@ const TUTORIAL = (() => {
   let A = null, T = null;                                                         // A: the Lab's helpers (lab.js tutApi), T: the run
   const $ = id => document.getElementById(id);
 
+  // THE INPUT GATE (Luca, 1 Nov: "if I press another button like N ... it'll use the energy of the dribble meter and then
+  // it will be stuck without"). Input.poll is wrapped once: while the tutorial is on, a button that isn't the step's own
+  // (`use`) reads as not pressed, so a stray key can't spend a bar, start a slide or play the ball away. Moving and SHIFT
+  // always work. Between steps (the menu, the tick, a hint) no button does anything; during SHOW ME only its own presses
+  // count (your keys can't fight the demo). A blocked press says which keys this step wants, on the card.
+  const ALWAYS = new Set(['start', 'sprint']);
+  let gated = false;
+  function gate() {
+    if (gated || typeof Input === 'undefined') return; gated = true;
+    const poll = Input.poll;
+    Input.poll = function () {
+      poll.apply(this, arguments);
+      if (!T) return;
+      const s = step(), live = T.phase === 'play' && s && !s.info, use = new Set(live ? s.use || [] : []);
+      if (T.phase === 'demo') {
+        const t = this.touch, l = Math.hypot(t.x, t.y);
+        for (const a in this.cur) if (a !== 'start') this.cur[a] = !!t.btn[a];
+        this.axis = l > 0.2 ? { x: t.x / Math.max(1, l), y: t.y / Math.max(1, l) } : { x: 0, y: 0 };
+        return;
+      }
+      let hit = false;
+      for (const a in this.cur) if (this.cur[a] && !ALWAYS.has(a) && !use.has(a)) { this.cur[a] = false; if (a !== 'meter' && a !== 'flag') hit = true; }
+      if (hit && live && T.t - (T.warnT || -9) > 1.5) { T.warnT = T.t; draw(); }
+    };
+  }
+
   function enter(api, r) {
     A = api; const L = A.LAB;
     T = { r, part: 0, i: 0, phase: 'menu', t: 0, S: {}, saved: { boxes: L.boxes, gkv: L.fp.gkv, cpu: L.fp.cpu } };
-    L.tut = { key, leave }; L.boxes = false; L.fp.gkv = false; L.fp.cpu = 'easy';   // (no hit boxes, no keeper notes; their keeper on EASY: you're learning)
+    gate(); L.tut = { key, leave }; L.boxes = false; L.fp.gkv = false; L.fp.cpu = 'easy';   // (no hit boxes, no keeper notes; their keeper on EASY: you're learning)
     ui(); document.body.classList.add('tut'); dispatchEvent(new Event('resize'));
     quiet(); r.cam = camFor({});
     const want = (location.hash || '').match(/tut-?(basics|adv)/i);                // #TUT-basics / #TUT-adv jump straight in
@@ -150,12 +177,13 @@ const TUTORIAL = (() => {
   function go(i) {
     endStep(); const steps = PARTS[T.part].steps;
     if (i >= steps.length) return partDone();
-    T.i = Math.max(0, i); T.phase = 'play'; T.t = 0; T.S = { t: 0 }; T.r.marks = [];
+    const sk = T.part + ':' + Math.max(0, i); if (T.sk !== sk) { T.sk = sk; T.tries = 0; T.inStep = 0; }   // (a new step: its tries and time start again; a retry keeps them)
+    T.i = Math.max(0, i); T.phase = 'play'; T.t = 0; T.S = { t: 0, nudge: T.tries >= 2 || T.inStep > 15 }; T.r.marks = [];
     const s = step(); s.set(A, T.r, T.S); T.r.cam = camFor(s);
     const P = load(); P.at = { part: PARTS[T.part].id, i: T.i }; store(P);
     draw();
   }
-  function again(hint) { T.phase = 'fail'; T.t = 0; T.hint = hint; draw(); }
+  function again(hint) { T.tries = (T.tries || 0) + 1; T.phase = 'fail'; T.t = 0; T.hint = hint; draw(); }
   function success(msg) {
     T.phase = 'ok'; T.t = 0; T.okMsg = msg || ['NICE!', 'GREAT!', 'YES!', 'SPOT ON!', 'LOVELY!'][(T.i + T.part) % 5];
     try { SFX.level(3); } catch (e) {}                                // (the meter's level-up chime: a small reward)
@@ -189,6 +217,9 @@ const TUTORIAL = (() => {
     if (T.phase === 'ok') { if (T.t > (s.hold || 1.0) + 0.5) go(T.i + 1); return; }
     if (T.phase === 'fail') { if (T.t > 1.6) { const keep = T.S.misses; go(T.i); T.S.misses = keep; T.phase = 'play'; draw(); } return; }
     if (s.info) return;
+    if (T.warnT != null && T.t - T.warnT > 2.6) { T.warnT = null; draw(); }
+    T.inStep = (T.inStep || 0) + A.STEP;
+    if (!T.S.nudge && T.inStep > 15) { T.S.nudge = true; draw(); }                    // (stuck a while, or missed twice: point at SHOW ME / RESET; a step that resets itself keeps the count)
     const res = s.ok(A, r, T.S);
     if (res === true) success();
     else if (res && res.ok) success(res.ok);
@@ -209,7 +240,7 @@ const TUTORIAL = (() => {
     if (T.phase === 'menu') { if (k === '1') startPart(0, 0); else if (k === '2') startPart(1, 0); else if (k === 'enter') { const b = $('tut-m-first'); if (b) b.click(); } return; }
     if (T.phase === 'done') { if (k === 'enter') { const b = $('tut-d-first'); if (b) b.click(); } return; }
     if (k === 'enter' && step().info && T.phase === 'play') { success('GOT IT'); return; }
-    if (k === 'e') go(T.i);                                                       // (E = this step again, as in FREE PLAY)
+    if (k === 'e') { T.hint = ''; go(T.i); }                                                      // (E = this step again, as in FREE PLAY)
   }
   // back to the game: the PR / experimental page swaps to its game in place (#play), served from the repo it's index.html,
   // on claude.ai the official game (the Lab was opened in its own tab: that tab closes if it can)
@@ -242,7 +273,7 @@ body.tut #panel,body.tut #msfx-open{display:none!important} body.tut #game{right
 #tut button.big{display:flex;width:100%;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;font-size:12px;padding:12px 14px}
 #tut button.big em{font:400 19px/1 "VT323",monospace;font-style:normal;opacity:.85}
 #tut .tm{font:14px/1.4 "Press Start 2P",monospace;padding:8px 10px;border:3px solid #0c0a0e;margin:0 0 8px}
-#tut .tm.ok{background:#7cff9a;color:#0c0a0e}#tut .tm.no{background:#ff2878;color:#fff}#tut .tm.watch{background:#28c8e6;color:#0c0a0e}
+#tut .tm.warn{background:#ffde1e;color:#0c0a0e}#tut .tm.ok{background:#7cff9a;color:#0c0a0e}#tut .tm.no{background:#ff2878;color:#fff}#tut .tm.watch{background:#28c8e6;color:#0c0a0e}
 #tut .tdone{color:#7cff9a}
 #tut-pop{position:fixed;left:50%;top:32%;transform:translate(-50%,-50%) scale(.6);font:40px "Press Start 2P",monospace;color:#7cff9a;
   text-shadow:4px 4px 0 #0c0a0e,-2px -2px 0 #0c0a0e;opacity:0;pointer-events:none;z-index:31}
@@ -276,8 +307,10 @@ body.tut #panel,body.tut #msfx-open{display:none!important} body.tut #game{right
         <button type="button" data-act="menu">☰ TUTORIAL MENU</button></div></div>`;
     } else {
       const s = step(), N = PARTS[T.part].steps.length, tip = s.tip ? s.tip() : '';
-      const msg = T.phase === 'ok' ? `<div class="tm ok">✓ ${esc(T.okMsg)}</div>` : T.phase === 'fail' ? `<div class="tm no">${esc(T.hint || 'Try again!')}</div>`
-        : T.phase === 'demo' ? '<div class="tm watch">WATCH… (then it\'s your turn)</div>' : T.phase === 'shown' ? '<div class="tm watch">YOUR TURN NEXT…</div>' : '';
+      const msg = T.phase === 'ok' ? `<div class="tm ok">✓ ${esc(T.okMsg)}</div>` : T.phase === 'fail' ? `<div class="tm no">${esc(T.hint || 'Try again!')}</div>${T.S.nudge ? '<div class="tm watch">Stuck? Press SHOW ME to watch it, or RESET to start the step again.</div>' : ''}`
+        : T.phase === 'demo' ? '<div class="tm watch">WATCH… (then it\'s your turn)</div>' : T.phase === 'shown' ? '<div class="tm watch">YOUR TURN NEXT…</div>'
+        : T.warnT != null ? `<div class="tm warn">This step only uses ${esc(s.keys(k).map(x => x[0]).join(' + '))}. Other keys are off for now.</div>`
+        : T.S.nudge ? '<div class="tm watch">Stuck? Press SHOW ME to watch it, or RESET to start the step again.</div>' : '';
       h = `<div class="tc"><div class="tt"><span>${esc(PARTS[T.part].short)} · STEP ${T.i + 1} / ${N}</span><span>ESC = MENU</span></div>
         <div class="tb">${PARTS[T.part].steps.map((x, j) => `<i class="${j < T.i || (j === T.i && T.phase === 'ok') ? 'td' : j === T.i ? 'tcur' : ''}"></i>`).join('')}</div>
         <h2>${esc(s.n)}</h2>${msg}<div class="ts">${esc(s.say(k))}</div>
@@ -285,6 +318,7 @@ body.tut #panel,body.tut #msfx-open{display:none!important} body.tut #game{right
         <div class="tr">${s.info ? '<button type="button" class="go" data-act="gotit">GOT IT ▶ <small>(ENTER)</small></button>' : ''}
         ${T.i > 0 ? '<button type="button" data-act="back">◀ BACK</button>' : ''}
         ${s.demo ? '<button type="button" data-act="demo">SHOW ME</button>' : ''}
+        ${s.info ? '' : '<button type="button" data-act="reset">↺ RESET <small>(E)</small></button>'}
         <button type="button" data-act="skip">SKIP ▶</button><button type="button" data-act="menu">☰ MENU</button></div></div>`;
     }
     box.innerHTML = h;
@@ -299,6 +333,7 @@ body.tut #panel,body.tut #msfx-open{display:none!important} body.tut #game{right
     else if (a === 'skip') go(T.i + 1);
     else if (a === 'back') go(T.i - 1);
     else if (a === 'demo') demo();
+    else if (a === 'reset') { T.hint = ''; go(T.i); }
     else if (a === 'gotit') success('GOT IT');
   }
 

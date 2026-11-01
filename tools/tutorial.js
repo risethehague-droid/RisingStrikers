@@ -95,6 +95,34 @@ let fails = 0; const ok = (c, msg) => { console.log(`${c ? 'ok  ' : 'FAIL'} ${ms
   const cont = await page.evaluate(() => { const b = document.querySelector('#tut [data-act="cont"]'); return b && b.textContent; });
   ok(cont && /step 3 of 8/.test(cont), `Esc = the tutorial menu, with CONTINUE: "${cont}"`);
   await page.click('#tut [data-act="cont"]'); await step(0.2); a = await st(); ok(a.part === 0 && a.i === 2 && a.phase === 'play', `CONTINUE picks it up at step ${a.i + 1}`);
+  // ---- 6. Luca 1 Nov: "if I press another button like N ... it'll use the energy ... and then it will be stuck" - each step
+  // listens only to its own keys, RESET puts the step back, SHOW ME ignores your keys, and a stuck player gets a nudge
+  await page.keyboard.press('Escape'); await step(0.2); await page.click('#tut [data-act="part"][data-p="1"]'); await step(0.3);
+  await page.keyboard.press('Enter'); await step(2.5);                                             // (THE SP METER: GOT IT)
+  a = await st(); const bars = () => page.evaluate(() => +window.__hc2.meters[0].e.toFixed(2));
+  const b0 = await bars();
+  let warn = '';
+  for (const k of ['KeyT', 'KeyF', 'KeyP', 'Enter', 'KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyN']) { await page.keyboard.down(k); await step(0.3); await page.keyboard.up(k); await step(0.3);
+    warn = await page.evaluate(() => (document.querySelector('#tut .tm.warn') || {}).textContent || '') || warn; }
+  const s6 = await page.evaluate(() => ({ paused: !!window.__hc2.paused, flag: !!window.__hc2.flagUI })); s6.warn = warn;
+  a = await st(); const b1 = await bars();
+  ok(a.id === 'sp1' && a.phase === 'play' && b0 === 1 && b1 === 1 && !s6.paused && !s6.flag, `stray keys (T, F, P, Enter, Z, X, C, V, N) in ${a.id}: bars still ${b1}, no pause, no flag, still your turn`);
+  ok(/only uses B/.test(s6.warn), `... and the card says so: "${s6.warn}"`);
+  await page.keyboard.down('KeyB'); await step(0.3); await page.keyboard.up('KeyB'); await step(1);
+  a = await st(); ok(a.phase === 'ok' || a.i === 2, `then B fires it and the step ticks (${a.id} ${a.phase})`);
+  await step(2); a = await st();                                                                    // (on to LV3)
+  await page.evaluate(() => { const m = window.__hc2; m.meters[0].e = 0; }); await step(0.2);
+  await page.click('#tut [data-act="reset"]'); await step(0.3);
+  const r6 = await page.evaluate(() => ({ e: window.__hc2.meters[0].e, t: TUTORIAL.run.S.t, phase: TUTORIAL.run.phase }));
+  ok(a.id === 'sp3' && r6.e >= 3 && r6.phase === 'play' && r6.t < 0.5, `RESET puts the step back (sp3: bars ${r6.e} again, clock ${r6.t.toFixed(2)} s)`);
+  await page.click('#tut [data-act="demo"]'); await page.keyboard.down('KeyN'); await page.keyboard.down('KeyZ');
+  let dt = 0; for (; dt < 8; dt += 0.5) { await step(0.5); a = await st(); if (a.phase === 'shown') break; }
+  await page.keyboard.up('KeyN'); await page.keyboard.up('KeyZ');
+  ok(a.phase === 'shown' && a.demoOk, `SHOW ME while you hold N + Z: the demo ignores your keys and still lands (${dt + 0.5} s)`);
+  await step(4); for (let k = 0; k < 5; k++) await page.click('#tut [data-act="skip"]'); await step(0.3);
+  a = await st(); let nud = '', nt = 0;
+  for (; nt < 17 && !/Stuck/.test(nud); nt += 0.5) { await step(0.5); nud = await page.evaluate(() => (document.querySelector('#tut') || {}).textContent || ''); }
+  ok(a.id === 'save' && /Stuck\? Press SHOW ME/.test(nud), `${a.id}: doing nothing (it shoots, you miss twice) brings up "Stuck? Press SHOW ME ... or RESET" after ${nt} s`);
   const left = await page.evaluate(() => { window.__lab.api.goFree(); return { tut: !!window.__lab.tut, card: !!document.getElementById('tut'), panel: getComputedStyle(document.getElementById('panel')).display }; });
   ok(!left.tut && !left.card && left.panel !== 'none', 'leaving for FREE PLAY: the card goes, the Lab panel is back');
   ok(errs.length === 0, `no page errors${errs.length ? ': ' + errs.slice(0, 5).join(' / ') : ''}`);
