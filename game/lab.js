@@ -482,6 +482,9 @@
     { mv: 'def-jockey', sec: 'def', n: 'JOCKEY', game: true, tip: 'side-on, backing off as he dribbles at you', go: r => fpDuel(r, 'jockey') },
     { mv: 'slide', sec: 'def', n: 'SLIDE AT A LOOSE BALL', game: true },
     { mv: 'set-corner', sec: 'set', n: 'CORNER', game: true, gk: true, tip: 't-029: your corner - the setup runs, then C crosses / Z passes / X shoots. On ARCADE too since 30 Oct: a ball their defender puts over his own byline is a corner (Test Lab AR2-D)', go: r => fpSet(r, 'corner') },
+    { mv: 'set-corner-in', sec: 'set', n: 'CORNER · IN-SWINGER', gk: true, tip: 's-curled-setpieces (LAB ONLY until Luca OKs it; in EXPERIMENTAL): your corner bends in towards goal - in a match: LOB (C). Your taker plays it to the penalty spot by himself', go: r => fpSwing(r, 'in') },
+    { mv: 'set-corner-out', sec: 'set', n: 'CORNER · OUT-SWINGER', gk: true, tip: 's-curled-setpieces: it bends away from the keeper onto the runner - in a match: THROUGH (V)', go: r => fpSwing(r, 'out') },
+    { mv: 'set-corner-driven', sec: 'set', n: 'CORNER · DRIVEN', gk: true, tip: 's-curled-setpieces: low and fast to the near post - in a match: SHOOT (X) aimed in the box', go: r => fpSwing(r, 'driven') },
     { mv: 'set-fk', sec: 'set', n: 'FREE KICK + WALL', game: true, gk: true, tip: 't-029: your free kick 23 m out - their wall forms on 9.15 m, then you take it', go: r => fpSet(r, 'fk') },
     { mv: 'set-throw', sec: 'set', n: 'THROW-IN', game: true, gk: true, tip: 't-029: your throw-in - Z short, C long', go: r => fpSet(r, 'throw') },
     { mv: 'set-off', sec: 'set', n: 'OFFSIDE → FREE KICK', game: true, gk: true, tip: 't-024 / t-029: their striker is flagged offside - your free kick where he played it', go: r => fpSet(r, 'off') },
@@ -850,6 +853,21 @@
       r.out = r.noAuto ? null : r.out;                                          // (the call itself goes through restart: not an "out" yet)
       return F.done ? F.t - F.doneT < 6 : F.t < 30;
     } };
+  }
+  // s-curled-setpieces: the corner, set up as fpSet does, then your taker plays it himself with that swing - to the
+  // penalty spot (driven: the near post) once the players are in shape
+  function fpSwing(r, swing) {
+    fpSet(r, 'corner'); const step0 = r.fx.step;
+    r.last = `CORNER · ${{ in: 'IN-SWINGER', out: 'OUT-SWINGER', driven: 'DRIVEN' }[swing]}`;
+    r.fx.step = (r, p, F) => {
+      const sp = m.setPiece;
+      if (sp && !F.took && sp.team === m.home && sp.setup && !sp.su && F.t > 0.6) {
+        F.took = true; const gx = sp.team.goalX, s = sp.team.side, near = sp.taker.y < 34 ? -1 : 1;
+        Object.assign(m.aimPt, swing === 'driven' ? { x: gx - s * 5.5, y: 34 + near * 3 } : { x: gx - s * 11, y: 34 });
+        m.spKick('lob', 0.7, swing);
+      }
+      return step0(r, p, F);
+    };
   }
   // ---------- PRACTICE SCENARIOS (Luca 31 Oct 01:39: "for the test lab give more options for setup like scenarios in
   // which you can try passes dribbles etc"). The drills of the reference games' training modes: FIFA / EA FC's Skill
