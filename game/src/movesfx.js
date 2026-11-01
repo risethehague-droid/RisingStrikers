@@ -50,8 +50,7 @@ const MOVE_SFX = {
   'EMERALD GALE': 'leaf', 'TWIN GALE': 'leaf', 'LEAF SHADOW': 'leaf',
   'SCARLET LANCE': 'crimson', 'CROSSED LANCES': 'crimson', 'PHANTOM CUT': 'shadow',
   'TWIN STRIKE': 'power', 'SPECIAL DRIBBLE': 'power',
-  // PR #76's keeper flair saves
-  'SKY SNATCH': 'glove', 'FLYING STRETCH': 'glove', 'TOP-CORNER STRETCH': 'glove', 'LOW SCRAMBLE': 'glove', 'STARFISH WALL': 'glove',
+  // (normal saves have no names any more, Luca 1 Nov: docs/archive/unused-save-names.md)
 };
 // Other lines the game says that get a sound (the big text or the small one, matched from the start)
 const SAY_SFX = [
@@ -74,7 +73,7 @@ const MSFX_LIST = [
   ]],
   ['KEEPER', [
     ['dive', 'DIVE · whoosh'], ['catch', 'CATCH · leather smack'], ['parry', 'PARRY · palm slap'], ['punch', 'PUNCH · fist'],
-    ['smother', 'SMOTHER · at your feet'], ['glove', 'FLAIR SAVE · SKY SNATCH, FLYING STRETCH ...'], ['bigSave', 'WHAT A SAVE! · crowd gasp'],
+    ['smother', 'SMOTHER · at your feet'], ['glove', 'FLAIR SAVE · a glove smack'], ['bigSave', 'WHAT A SAVE! · crowd gasp'],
   ]],
   ['MOMENTS', [
     ['oneIn', '1 V 1 · slow-mo in'], ['heart', '1 V 1 · heartbeat'], ['oneOut', '1 V 1 · back to speed'], ['slow', 'SLOW MOTION · chip'],
