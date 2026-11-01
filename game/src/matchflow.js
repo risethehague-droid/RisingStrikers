@@ -7,7 +7,7 @@
 // He's scenery for the ball: it never hits him.
 class Referee {
   constructor(m) {
-    this.m = m; this.x = PITCH_L / 2; this.y = 18; this.vx = 0; this.vy = 0; this.face = 6; this.state = 'idle'; this.t = 0; this.anim = '';
+    this.m = m; this.x = 52.5; this.y = 18; this.vx = 0; this.vy = 0; this.face = 6; this.state = 'idle'; this.t = 0; this.anim = '';
     const K = MAN.kits.REF; this.spr = m.add.sprite(0, 0, 'REF', K.anims[Object.keys(K.anims)[0]][0]).setOrigin(0.5, K.feetY / (K.frameH || 160));
   }
   play(name, rate, once) {
@@ -18,8 +18,7 @@ class Referee {
     return true;
   }
   act(kind, sec, at) { this.state = kind; this.t = sec; this.vx = this.vy = 0; this.face = 6; this.anim = ''; }
-  spot(b) { if (STREET_ON) return { x: clamp(b.x, 3, PITCH_L - 3), y: COURT_Y0 - 1.6 };   // (t-003 STREET 5s: he runs the line outside the far wall, as in a cage)
-    return { x: clamp(b.x + (b.x < PITCH_L / 2 ? 10 : -10), 8, PITCH_L - 8), y: clamp(b.y < 34 ? b.y + 14 : b.y - 14, 3, 65) }; }
+  spot(b) { return { x: clamp(b.x + (b.x < 52.5 ? 10 : -10), 8, 97), y: clamp(b.y < 34 ? b.y + 14 : b.y - 14, 3, 65) }; }
   place(b) { const s = this.spot(b); this.x = s.x; this.y = s.y; this.vx = this.vy = 0; this.face = dirIndex(b.x - s.x, b.y - s.y); }   // after a cut
   step(dt) {
     const b = this.m.ball;
@@ -74,10 +73,10 @@ hc2Mix(Match, {
     this.dead = null; this.foulScene = null; this.offSide = null;                // (t-024: a new phase - nobody is offside from before)
     for (const p of this.all) { if (p.sentOff) continue; p.x = p.home.x; p.y = p.home.y; p.vx = p.vy = 0; p.state = 'idle'; p.hands = false; p.face = p.team.side > 0 ? 0 : 4; }
     const on = [9, 10, 8, 7, 6, 5, 4, 3, 2, 1].map(i => team.players[i]).filter(p => !p.sentOff), k = on[0], k2 = on[1] || on[0];
-    k.x = PITCH_L / 2 - team.side * 0.5; k.y = 34; k2.x = PITCH_L / 2 - team.side * 1.0; k2.y = 37;
-    Object.assign(this.ball, { x: PITCH_L / 2, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: k, last: team, inNet: false, netRight: undefined, target: null, skid: false });
+    k.x = 52.5 - team.side * 0.5; k.y = 34; k2.x = 52.5 - team.side * 1.0; k2.y = 37;
+    Object.assign(this.ball, { x: 52.5, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: k, last: team, inNet: false, netRight: undefined, target: null, skid: false });
     this.netReset();                                                             // t-025: the net still and whole again (an LV3's hole closes now, not after the freeze)
-    if (this.ref) { this.ref.x = PITCH_L / 2 + 3; this.ref.y = 22; this.ref.vx = this.ref.vy = 0; this.ref.act('whistle', 0.9); }   // v0.7.1: the referee starts it
+    if (this.ref) { this.ref.x = 52.5 + 3; this.ref.y = 22; this.ref.vx = this.ref.vy = 0; this.ref.act('whistle', 0.9); }   // v0.7.1: the referee starts it
     { const S = this.slot(team); if (S) S.human = k; }   // (t-043: his side's human, either side)
     this.setPiece = null; this.pending = null;
     applyPace(); this.freeze = paceK().koFreeze; this.say('KICK-OFF', team.name + ' TO START', 1.2); SFX.whistle(1);   // (t-004: ARCADE 0.6 s)
@@ -299,7 +298,7 @@ hc2Mix(Match, {
     const shape = (tm, has) => { for (const p of tm.players) { if (p.sentOff || p === taker) continue;
         if (p.keeper) { spots.set(p, { x: tm.ownGoalX + tm.side * 1.5, y: clamp(34 + (y - 34) * 0.08, 32, 36) }); continue; }
         const role = lineOf(p), push = (has ? [4, 10, 18][role] : [-1, 1, 3][role]) * tm.side;
-        spots.set(p, { x: clamp(p.home.x + (x - PITCH_L / 2) * (has ? 0.75 : 0.85) + push, 4, PITCH_L - 4), y: clamp(p.home.y + (y - 34) * (has ? 0.32 : 0.45), 3, 65) }); } };
+        spots.set(p, { x: clamp(p.home.x + (x - 52.5) * (has ? 0.75 : 0.85) + push, 4, 101), y: clamp(p.home.y + (y - 34) * (has ? 0.32 : 0.45), 3, 65) }); } };
     shape(team, true); shape(opp, false);
     const set = (p, q) => { if (p && !p.sentOff && p !== taker) { spots.set(p, q); return true; } return false; };
     const mk = p => { if (p && !p.sentOff && p !== taker && !must.includes(p)) must.push(p); };
@@ -317,7 +316,7 @@ hc2Mix(Match, {
         mk(opp.players[0]);
       }
       if (opts.offside) {                                                        // t-029: the attackers that were caught jog back onside
-        const xs = [...spots].filter(([p]) => p.team === team).map(([, q]) => this.aiFrame(opp, q.x)), F = f => this.aiWorld(opp, f);
+        const xs = [...spots].filter(([p]) => p.team === team).map(([, q]) => this.aiFrame(opp, q.x)), F = f => opp.side > 0 ? f + 52.5 : PITCH_L - (f + 52.5);
         if (!team.players[0].sentOff && !spots.has(team.players[0])) xs.push(this.aiFrame(opp, team.players[0].x));   // (the keeper taking it: where he is)
         const line = xs.sort((a, c) => c - a)[1] ?? 40;
         for (const [p, q] of spots) if (p.team === opp && !p.keeper && this.aiFrame(opp, q.x) > line - 0.6) { q.x = F(line - 1 - Math.random() * 2); mk(p); }
@@ -433,7 +432,7 @@ hc2Mix(Match, {
   // what the next did (the ball's spin / special / last player, a cooldown, a hit-stop or slow motion, a half-made move)
   resetMatchState() {
     const b = this.ball; for (const k of Object.keys(b)) delete b[k];           // the ball as create() makes it (no spin, special, ring, last player...)
-    Object.assign(b, { x: PITCH_L / 2, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: null, last: null, roll: 0, inNet: false, skid: false, rollV: 0, target: null });
+    Object.assign(b, { x: 52.5, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: null, last: null, roll: 0, inNet: false, skid: false, rollV: 0, target: null });
     if (this.cutIn) this.cutInEnd(); if (this.rise) { this.rise.c.destroy(); this.rise = null; }
     Object.assign(this, { hitStop: 0, slowMo: 0, flashT: 0, trailT: 0, trailSp: 0, trailHot: 0, saveAsk: null, cutInQ: null,   // effects / prompts in flight
       dead: null, offSide: null, offGK: null, offFlag: null, penaltyKick: false, goalAt: 0, lastScorer: null,                    // the rules' memory
@@ -513,7 +512,7 @@ hc2Mix(Match, {
       if (H.phase === 'off' && H.t > paceK().htOff) { H.phase = 'card'; H.auto = paceK().htCard; this.htCard(); }   // (t-004: ARCADE an 8 s card)
       if (H.phase === 'card') { H.auto -= dt; if (H.auto <= 0) this.htDone(); }
     }
-    Object.assign(this.ball, { x: PITCH_L / 2, y: 34, z: 0, vx: 0, vy: 0, owner: null });
+    Object.assign(this.ball, { x: 52.5, y: 34, z: 0, vx: 0, vy: 0, owner: null });
   },
   htInput() {
     const H = this.ht; if (!H) return;
@@ -621,10 +620,10 @@ hc2Mix(Match, {
     const cap = t => t.players.filter(p => !p.sentOff && !p.keeper).sort((a, b) => b.i - a.i)[0] || t.players[0];
     const ch = cap(this.home), ca = cap(this.away);
     ch.x = 51.1; ch.y = 34.3; ch.face = 0; ca.x = 53.9; ca.y = 34.3; ca.face = 4;
-    if (this.ref) { this.ref.x = PITCH_L / 2; this.ref.y = 33.2; this.ref.vx = this.ref.vy = 0; this.ref.goTo = null; this.ref.face = 6; this.ref.hidden = false; }
-    Object.assign(this.ball, { x: PITCH_L / 2, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: null, target: null });
+    if (this.ref) { this.ref.x = 52.5; this.ref.y = 33.2; this.ref.vx = this.ref.vy = 0; this.ref.goTo = null; this.ref.face = 6; this.ref.hidden = false; }
+    Object.assign(this.ball, { x: 52.5, y: 34, z: 0, vx: 0, vy: 0, vz: 0, owner: null, target: null });
     this.setPiece = null; this.pending = null; this.dead = null; this.freeze = 0;
-    this.camTarget = { x: wx(PITCH_L / 2, 34), y: wy(34) - Math.round(VIEW_H * 0.4) };                      // (the centre spot low in the shot: the coin above the captains)
+    this.camTarget = { x: wx(52.5, 34), y: wy(34) - Math.round(VIEW_H * 0.4) };                      // (the centre spot low in the shot: the coin above the captains)
     this.camX = this.camTarget.x; this.camY = this.camTarget.y;                  // (a cut, not a pan)
     const human = !this.demo, quick = !!opts.quick;
     const ph = quick || !human ? 'auto' : 'call';
@@ -783,7 +782,7 @@ hc2Mix(Match, {
     if (card) this.stat(by.team)[card === 'YELLOW CARD' ? 'yellows' : 'reds']++;
     this.loseTime(card ? 40 : 12);                                               // v0.8.4: added time
     const def = by.team, gx = def.ownGoalX, b = this.ball;
-    const inBox = !STREET_ON && Math.abs(victim.x - gx) < 16.5 && Math.abs(victim.y - 34) < 20.16;   // (t-003 STREET 5s: no box, no penalties - a free kick)
+    const inBox = Math.abs(victim.x - gx) < 16.5 && Math.abs(victim.y - 34) < 20.16;
     if (paceK().advantage && !card && !inBox) {                                  // arcade-2 ADVANTAGE (the co-designer: "fouls stop play only for a
       if (!victim.keeper && victim.state !== 'fall' && victim.state !== 'getup') victim.setState('fall', 0.8);   // card", ~9 s of foul scenes a match):
       const mate = victim.team.players.filter(q => q !== victim && !q.sentOff && !q.keeper && !q.busy() && len(q.x - b.x, q.y - b.y) < 5)   // a team-mate right there

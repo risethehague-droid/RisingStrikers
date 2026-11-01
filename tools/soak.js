@@ -18,7 +18,6 @@
 //   LVL=rise AI=new MATCHES=24 node tools/soak.js         smarter-ai: one level, one AI for every match (the before / after by level)
 //   STYLE=press,counter node tools/soak.js               smarter-ai: the home / away style cards (brain.js STYLES; tools/styles.js plays them all)
 //   (every soak ends with the team brain's MOVES line; 12+ matches: MOVE CHECK - fails if a move that was available was never played)
-//   MODE=street node tools/soak.js                     t-003: STREET 5s matches (5 v 5 on the 28 x 15 m court, walls, no keepers)
 //   PORT=8765 (default): serve the game first with  python3 -m http.server 8765 --directory game
 //
 // The set-ups rotate with different strides, so pairs of factors (teams x level, level x weather, AI x light...)
@@ -133,7 +132,6 @@ const line = c => `seed=${c.seed} home=${c.home} away=${c.away} lvl=${c.lvl} ai=
   for (let i = 0; i < list.length; i++) {
     const c = list[i]; cur = i; const t0 = Date.now();
     await page.evaluate(() => { window.__T = 1e6; });                              // t-046: every match on the same clock base, so its repro line (ONE=) replays it exactly
-    if (process.env.MODE === 'street') await page.evaluate(() => setStreet(true));   // t-003: MODE=street = STREET 5s matches (5 v 5 on the court)
     await page.evaluate(c => { window.__ready = false; window.__hc2.setTeams(c.home, c.away, () => { window.__ready = true; }); }, c);
     await page.waitForFunction(() => window.__ready, null, { timeout: 120000 });
     await page.evaluate(c => { const m = window.__hc2; window.__soakInc = []; window.__wing.z(); Math.random = window.__rngOf(c.seed); m.gpStats = { wood: 0, back: 0, pops: 0, net: 0 };   // (t-013's goal-physics counts)

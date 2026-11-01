@@ -42,12 +42,8 @@
 'use strict';
 const VIEW_W = 1152, VIEW_H = 648;                 // v0.8.5 (Luca: more of the pitch, to see the pass options) - was 960 x 540
 const PEN_W = 960, PEN_H = 540;                    // the penalty scene keeps its 960 x 540 layout (its camera zooms it up)
-// (t-003 STREET 5s: PITCH_L, the goal and the halves are `let` - street.js setStreet swaps in the 28 x 15 m court and its
-// small goals, and puts these back for 11 v 11. COURT_Y0 / _Y1: the court's sides across (the touchlines on the big
-// pitch); FRAME_K: how much the team AI's frame - metres in 105 m terms - is squeezed onto the court (1 on the big pitch))
-let PITCH_L = 105; const PITCH_W = 68, PX_X = 48, PX_Y = 38, PX_H = 60, S_FAR = 0.87, S_NEAR = 1.13, RUNOFF_Y = 3.5;
-let GOAL_Y0 = 34 - 3.66, GOAL_Y1 = 34 + 3.66, BAR_Z = 2.44;
-let STREET_ON = false, COURT_Y0 = 0, COURT_Y1 = PITCH_W, FRAME_K = 1, GOAL_K = 1;   // (GOAL_K: the goal's size against 11 v 11's - the computer's aim and its read of the goal)
+const PITCH_L = 105, PITCH_W = 68, PX_X = 48, PX_Y = 38, PX_H = 60, S_FAR = 0.87, S_NEAR = 1.13, RUNOFF_Y = 3.5;
+const GOAL_Y0 = 34 - 3.66, GOAL_Y1 = 34 + 3.66, BAR_Z = 2.44;
 let CHIP_DIP = 1.9;                                // v0.9.9: let, so the Test Lab's FREE PLAY knobs can change it live (same value in the game)
 const CHIP_ON = true;                                                          // v0.9.4: ON in matches - the PixelLab chip animation is in (batch 15)
 // t-002 (Luca 23 Oct 22:31: "work on the game mechanics of the lob and chip... revamp it completely"): the directions in
@@ -77,7 +73,7 @@ const CURVE = { tau: 1.6, clear: 2.8, ang: [14, 18, 22, 26, 30, 34, 38], angFree
 // SHADOW_Z metres up (docs/lob-chip.md: "100% to about 60% between 0 and 6 m"); the ball-shadow sprite scaled, nothing drawn
 const SHADOW_MIN = 0.62, SHADOW_Z = 6;
 const DIRS = ['E', 'NE', 'N', 'NW', 'W', 'SW', 'S', 'SE'];
-let HALF_REAL_SECONDS = 180;                     // 3 real minutes per half (match length option later)
+const HALF_REAL_SECONDS = 180;                     // 3 real minutes per half (match length option later)
 // the six Help Out Hague Cup II teams: kit atlases (painted on the same PixelLab frames) + radar colour
 const TEAMS = {
   IS: { kit: 'IS-home', gk: 'IS-keeper', col: 0xf4f0e4 },      IRO: { kit: 'IRO-home', gk: 'IRO-keeper', col: 0xe8343c },
@@ -465,7 +461,7 @@ const netOn = () => nfxOn() || gpOn();                             // the spring
 // touch screens (the phone version is paused - "don't break it, don't extend it"): the net catches the ball the same,
 // but it is drawn as in v0.12.0 (the images ripple whole). Their art is half size (io.js LITE), which the mesh / the
 // cells can't be cut from, and in SAFE MODE's canvas the cells cost ~4x the frame time of the plain net (tools/netperf.js)
-const netPlain = () => (typeof LITE !== 'undefined' && LITE) || !!window.HC2_TOUCH || STREET_ON;   // (t-003 STREET 5s: the half-size goals draw their net images whole)
+const netPlain = () => (typeof LITE !== 'undefined' && LITE) || !!window.HC2_TOUCH;
 // every number in one place (ball.js gpNet / nfxRollStep / nfxTear, world.js netMesh / netWarp)
 const NFX = {
   // the stretch: a goal's net spring is softened by S^2 (and its reach grown by S), so the ball sinks S times deeper than

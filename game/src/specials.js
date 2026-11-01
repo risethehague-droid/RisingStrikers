@@ -122,10 +122,10 @@ const RIGS = {
       { t: 0.15, fx: 'ring', at: 'body', s: [0.6, 2.6], ms: 480 }, { t: 0.05, fx: 'sparkle', at: 'fist', s: [0.8, 1.8], ms: 420, n: 3, sp: 24, shake: [220, 0.009] }] },
 };
 function spRange(lv, p) {                                   // how much of its power a special keeps from where it was struck
-  const half = (p.x - PITCH_L / 2) * p.team.side, dGoal = len(p.team.goalX - p.x, 34 - p.y);
+  const half = (p.x - 52.5) * p.team.side, dGoal = len(p.team.goalX - p.x, 34 - p.y);
   if (lv === 1) return dGoal <= 22 ? 1 : clamp(1 - (dGoal - 22) / 30, 0.25, 1);
-  if (lv === 2) return half >= 0 ? (dGoal <= 26 ? 1 : clamp(1 - (dGoal - 26) / 70, 0.7, 1)) : clamp(0.62 + half / (PITCH_L / 2) * 0.42, 0.2, 0.62);
-  return half >= 0 ? 1 : 1 - clamp(-half / (PITCH_L / 2), 0, 1) * 0.35;
+  if (lv === 2) return half >= 0 ? (dGoal <= 26 ? 1 : clamp(1 - (dGoal - 26) / 70, 0.7, 1)) : clamp(0.62 + half / 52.5 * 0.42, 0.2, 0.62);
+  return half >= 0 ? 1 : 1 - clamp(-half / 52.5, 0, 1) * 0.35;
 }
 function saveChance(K, P) { return P <= K ? 1 : clamp(Math.pow(K / P, 3), 0.04, 1); }
 // v0.8 (Luca): goals give nothing (that would be OP). It refills by itself, passing moves pay (from the 3rd pass in a row each

@@ -199,7 +199,7 @@ class BugWatch {
     if (this.hold('fs-kick', !!m.pending, dt, 3)) this.flag('FLOW_STUCK', `a kick by ${this.who(m.pending.p)} hung for 3 s`, { p: m.pending.p });
     if (this.hold('fs-hit', m.hitStop > 0, dt, 3)) this.flag('FLOW_STUCK', 'the hit-stop lasted 3 s');
     if (live) {
-      const out = b.x < -0.5 || b.x > PITCH_L + 0.5 || b.y < COURT_Y0 - 0.5 || b.y > COURT_Y1 + 0.5, o = b.owner;   // (t-003: the court's sides on STREET 5s)
+      const out = b.x < -0.5 || b.x > PITCH_L + 0.5 || b.y < -0.5 || b.y > PITCH_W + 0.5, o = b.owner;
       if (this.hold('out', out, dt, 1.2)) this.flag('OUT_LIVE', `ball at ${bwF1(b.x)}, ${bwF1(b.y)} for 1.2 s and play goes on${o ? ` (${this.who(o)} has it${o.hands ? ' in his hands' : ''})` : ''}`, { p: o });
       const over = (b.x < -0.11 || b.x > PITCH_L + 0.11) && b.y > GOAL_Y0 + 0.11 && b.y < GOAL_Y1 - 0.11 && b.z < BAR_Z - 0.11;
       if (this.hold('goal', over, dt, 0.25)) this.flag('GOAL_MISSED', `ball over the line at x ${bwF2(b.x)}, y ${bwF2(b.y)}, ${bwF2(b.z)} m up${o ? ` - ${this.who(o)} ${o.hands ? 'holding it' : 'on it'}` : ''}`, { p: o });
@@ -219,7 +219,7 @@ class BugWatch {
       let swarm = 0;
       A.forEach((p, i) => {
         if (p.sentOff || p.hide) return;
-        if (this.hold('off' + i, p.x < -2.8 || p.x > PITCH_L + 2.8 || p.y < COURT_Y0 - 2.8 || p.y > COURT_Y1 + 2.8, dt, 3)) this.flag('OFF_WORLD', `${this.who(p)} at ${bwF1(p.x)}, ${bwF1(p.y)} (${p.state})`, { p });
+        if (this.hold('off' + i, p.x < -2.8 || p.x > PITCH_L + 2.8 || p.y < -2.8 || p.y > PITCH_W + 2.8, dt, 3)) this.flag('OFF_WORLD', `${this.who(p)} at ${bwF1(p.x)}, ${bwF1(p.y)} (${p.state})`, { p });
         if (this.hold('st' + i, p.busy() && !BW_LONG.has(p.state), dt, 6)) this.flag('STUCK_STATE', `${this.who(p)} in '${p.state}' for 6 s (animation ${p.anim || 'none'})`, { p });
         const sp = p.spr, bad = !sp.visible || !sp.frame || sp.frame.name === '__BASE' || (sp.texture && sp.texture.key === '__MISSING');
         if (this.hold('spr' + i, bad, dt, 0.5)) this.flag('NO_SPRITE', `${this.who(p)} not drawn (visible ${sp.visible}, picture ${sp.texture && sp.texture.key}/${sp.frame && sp.frame.name}, state ${p.state})`, { p });
@@ -427,7 +427,7 @@ function bwPhase(m) {                                      // what the match was
   const b = m.ball;
   return m.over ? 'full time' : m.cutIn ? 'a cut scene (special save)' : m.replay ? 'a replay' : m.foulScene ? 'a cut scene (foul)'
     : m.intro ? 'the walk-out' : m.ht ? 'half time' : m.toss ? 'the coin toss' : m.pre ? 'the team sheet' : m.paused ? 'the pause menu'
-    : m.freeze > 0 && b && Math.abs(b.x - PITCH_L / 2) < 0.8 && Math.abs(b.y - 34) < 0.8 ? 'kick-off' : m.freeze > 0 || m.dead ? 'a stoppage'
+    : m.freeze > 0 && b && Math.abs(b.x - 52.5) < 0.8 && Math.abs(b.y - 34) < 0.8 ? 'kick-off' : m.freeze > 0 || m.dead ? 'a stoppage'
     : m.setPiece ? `a set piece (${m.setPiece.kind})` : m.bw && m.bw.live() ? 'live play' : 'a stoppage';
 }
 function bwFrozeNote(D, end) {                             // the facts, and the "why" line built from them

@@ -40,7 +40,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 #start #resumebtn{background:#4cff7a;font-size:10px;line-height:1.6}
 #start #cupbtn{background:var(--cyan)}
 #start #trainbtn{background:#ff7a1e;color:#fff}
-#start #streetbtn{background:#1ec8d8;color:#1d1a22}
 #start #battle{background:var(--pink);color:#fff}
 #start .modes button em,#start .pop .list button em{font-style:normal;font-size:8px;opacity:.8}
 #start .tools{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
@@ -137,7 +136,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
       <button id="play" type="button">PLAY <span>&#9654;</span></button>
       <button id="cupbtn" type="button">HAGUE CUP <span>&#9654;</span></button>
       <button id="tutbtn" type="button">TUTORIAL <em id="tutnew">NEW HERE? START HERE</em> <span>&#9654;</span></button>
-      <button id="streetbtn" type="button">STREET 5s <span>&#9654;</span></button>
       <button id="trainbtn" type="button">TRAINING <span>&#9654;</span></button>
       <button id="battle" type="button">1V1 PENALTY BATTLE <span>&#9654;</span></button>
       <button id="watchbtn" type="button">WATCH: CPU V CPU <span>&#9654;</span></button>
@@ -170,17 +168,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
       <a id="lab-all" target="_blank" rel="noopener"><button type="button" tabindex="-1">TEST LAB <em>EVERY TEST, GROUP BY GROUP</em></button></a>
     </div>
     <small id="lab-note">OPENS IN A NEW TAB</small>
-    <button class="close" type="button" data-close>&#9664; BACK</button>
-  </div></div>
-
-  <div class="pop" id="pop-street" hidden role="dialog" aria-modal="true" aria-labelledby="pop-street-h"><div class="panel">
-    <h2 id="pop-street-h">STREET 5s</h2>
-    <small>5 V 5 ON A COURT BY THE BEACH &middot; SMALL GOALS, NO KEEPERS &middot; THE BALL PLAYS OFF THE WALLS</small>
-    <div class="list">
-      <button id="street-play" type="button">PLAY <em>YOU V THE COMPUTER &middot; YOUR TEAMS + LEVEL</em></button>
-      <button id="street-watch" type="button">WATCH <em>THE COMPUTER PLAYS BOTH SIDES</em></button>
-    </div>
-    <small>A PREVIEW: THE COURT ART COMES LATER</small>
     <button class="close" type="button" data-close>&#9664; BACK</button>
   </div></div>
 
@@ -305,10 +292,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     if (snap) { const m = Math.floor(snap.clock / 60) + 1, end = [45, 90, 105, 120][snap.half - 1] || 90;
       resb.textContent = 'CONTINUE ' + snap.h + ' ' + snap.t.h.score + '-' + snap.t.a.score + ' ' + snap.a + ' \u00b7 ' + (m > end ? end + '+' + (m - end) : m) + "' \u25b6"; resb.hidden = false; }
     const go = () => { s.remove(); window.focus(); window.HC2_STARTED = true; if (window.__hc2) window.__hc2.freeze = Math.max(window.__hc2.freeze, 0.6); };
-    const streetb = document.getElementById('streetbtn');
-    const start = (shootout, cup, watch, resume, street) => {
-      if (play.disabled) return; play.disabled = battle.disabled = cupb.disabled = watchb.disabled = resb.disabled = streetb.disabled = true; if (street) streetb.textContent = 'LOADING THE KITS...'; else (resume ? resb : watch ? watchb : cup ? cupb : shootout ? battle : play).textContent = 'LOADING THE KITS...'; closePops();
-      const tryIt = () => { if (!window.__hc2) return setTimeout(tryIt, 200); if (street) { window.__hc2.streetStart(pick.home, pick.away, street === 'watch', go); return; }   /* t-003 STREET 5s */ if (resume) { window.__hc2.setTeams(snap.h, snap.a, () => { go(); window.__hc2.resumeMatch(snap); }); return; } if (cup) { go(); window.__hc2.cupStart(pick.home); return; } if (watch) { window.__hc2.setTeams(pick.home, pick.away, () => { go(); window.__hc2.watchStart(); }); return; }   /* watch mode: the computer plays both sides */ window.__hc2.setTeams(pick.home, pick.away, () => { go(); if (shootout) window.__hc2.startShootout(); else window.__hc2.preMatch(); /* v0.8.4: team sheet + walk-out */ }); };
+    const start = (shootout, cup, watch, resume) => {
+      if (play.disabled) return; play.disabled = battle.disabled = cupb.disabled = watchb.disabled = resb.disabled = true; (resume ? resb : watch ? watchb : cup ? cupb : shootout ? battle : play).textContent = 'LOADING THE KITS...'; closePops();
+      const tryIt = () => { if (!window.__hc2) return setTimeout(tryIt, 200); if (resume) { window.__hc2.setTeams(snap.h, snap.a, () => { go(); window.__hc2.resumeMatch(snap); }); return; } if (cup) { go(); window.__hc2.cupStart(pick.home); return; } if (watch) { window.__hc2.setTeams(pick.home, pick.away, () => { go(); window.__hc2.watchStart(); }); return; }   /* watch mode: the computer plays both sides */ window.__hc2.setTeams(pick.home, pick.away, () => { go(); if (shootout) window.__hc2.startShootout(); else window.__hc2.preMatch(); /* v0.8.4: team sheet + walk-out */ }); };
       tryIt();
     };
     play.addEventListener('click', () => start(false));
@@ -326,9 +312,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     }
     document.getElementById('optbtn').addEventListener('click', e => openPop('pop-opts', e.currentTarget));
     document.getElementById('helpbtn').addEventListener('click', e => openPop('pop-help', e.currentTarget));
-    streetb.addEventListener('click', e => openPop('pop-street', e.currentTarget));   // t-003 STREET 5s: play or watch
-    document.getElementById('street-play').addEventListener('click', () => start(false, false, false, false, 'play'));
-    document.getElementById('street-watch').addEventListener('click', () => start(false, false, false, false, 'watch'));
     // TRAINING (Luca, 31 Oct: "add a training button in the main menu and (add the test lab there)"): the Test Lab is its
     // own page. On a PR preview page it is this same page with #lab-... (tools/prpreview.sh); served from the repo it is
     // lab.html next to this file; on the official game (claude.ai) and the public link it is the official Test Lab page.
@@ -418,5 +401,4 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 <script src="src/resume.js"></script>
 <script src="src/movesfx.js"></script>
 <script src="src/tutorial.js"></script>
-<script src="src/street.js"></script>
 <script src="src/boot.js"></script>
