@@ -1,3 +1,14 @@
+HC2 WEB GAME - v0.19.0 (1 Nov) - EACH TEAM ITS OWN FORMATION + FAIR FINISHING (PRs #73, #94, #96, Luca's OK)
+- EACH TEAM ITS OWN FORMATION (#94, role-AI step 6, roles.js TEAM_SHAPE): every side carries its own formation card
+  (all 4-4-2 for now, waiting for Luca's picks). OPTIONS > FORMATION cycles 4-4-2 / 4-2-3-1 / 4-3-3 / TEAM'S OWN.
+  Shots back up: the target man only comes short from the back, so two men are up front when the ball gets forward.
+  New tools/formations.js (formation round-robin) and FORM=<home>,<away>.
+- FAIR FINISHING (#96, Luca: "i tried to play hard mode and i didnt score once"): an LV3 that beats the keeper goes
+  in (no loop-up); LV3 breaks any un-answered keeper's guard; how often their keeper answers your special now scales
+  by difficulty (easy 30% - rise 75%, was 80% everywhere). New tools/finish.js.
+- Test Lab only: THE 1 V 1 MOMENT (#73, oneone.js, a preview): through on goal with only the keeper left, the game
+  slows from 8 m, the duel glows in team colours, speed lines or RISE arrows. FREE PLAY > 1 V 1. Never in matches yet.
+
 HC2 WEB GAME - v0.18.0 (1 Nov) - ROLE-BASED AI (back line, keeper, midfield, forwards) + EXPERIMENTAL SWITCH (PRs #75, #89-#93, Luca's OK)
 - THE BACK FOUR HOLD ONE LINE (#89, role-AI step 2, teamai.js): the defenders step up and drop as one unit with the
   ball, so one man no longer hangs 8 m+ out of the line.
