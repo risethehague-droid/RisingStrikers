@@ -1,3 +1,4 @@
+// HELP OUT HAGUE CUP II - web game v0.18.0 (Luca OK'd PRs #75, #89-#93, 31 Oct: ROLE-BASED AI steps 2-5 - the back four hold one line (#89), the keeper stays home on a 2-on-the-keeper (#91), midfield roles + 4-2-3-1 / 4-3-3 in OPTIONS > FORMATION (#92), forward roles + the first line of the press (#93); the MAIN / EXPERIMENTAL switch on the start screen (#90); Test Lab only: RAINBOW FLICK + SHADOW STEP dribbles (#75))
 // HELP OUT HAGUE CUP II - web game v0.17.0 (Luca OK'd PRs #70, #81, #83-#87, 31 Oct: MOVE CALL - every special's name (keeper saves too) pops up in its element's lettering (#85); REPLAY THE WHOLE MATCH from the pause menu (scrub, 10 s jumps, next goal, last 10 s) (#83); MOVE SOUNDS - an element sound for every special, keeper saves, 1 V 1, corners, replay, menu, plus a SOUND volume in OPTIONS (#87); INSTA FLAG right after a goal keeps the goal in its clip (#81); role cards for every player, identical play (#84, role-AI step 1); Test Lab only: LV1 SPECIAL PASSES TORNADO DRILL, BURROW BLAST, ANGEL GLIDE (#70) and the RL exploit tests (#86, role-AI step 0))
 // HELP OUT HAGUE CUP II - web game v0.16.0 (Luca OK'd PRs #69, #76-#79, 31 Oct: CORNERS BACK ON ARCADE, whipped in as real chances (#69, the co-designer); SITUATIONAL KEEPER SAVES in matches - sky snatch, flying stretch, top-corner stretch, low scramble, starfish wall, more flair by level (#76, gkstyle.js); the SPECIAL SAVE covers the whole goal, an aura glow, no full-screen cut-in (#77); PRACTICE SCENARIOS in the Test Lab's FREE PLAY, 20 drills + build your own (#78, Lab only); a cleaner centred menu with TRAINING, OPTIONS / HOW TO PLAY pop-ups, CONTINUE and LEAVE GAME (#79))
 // HELP OUT HAGUE CUP II - web game v0.15.3 (Luca OK'd PR #61, 30 Oct: t-042 small fixes - a TV close-up on the aerial battle (world.js AERIAL_CAM), the dive-catch ball stays in his gloves through the get-up (ball.js gkHandBall), the curve pass's maths much faster (ball.js curveSolve))
@@ -510,7 +511,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.17.0';
+const GAME_VER = 'v0.18.0';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)

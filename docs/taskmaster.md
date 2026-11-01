@@ -103,6 +103,25 @@ HQ shows a card in a column by its `status` **key**. Write the key, never the co
 - Before every check ends: list the open PRs and make sure each one has a card in `review`, `approved` or `ready`
   (sent back). An open PR with no card, or a card with an unknown status, gets fixed in the same run.
 
+## EXPERIMENTAL: new work goes live there first (Luca, 31 Oct)
+
+Luca: "implement all new changes on a new version you can select in game called experimental, and create the card for
+me to ok implementation ONLY for the main game version, for experimental it is updated live each time something new
+is added / or slowly passively improving".
+1. **When a PR is ready** (tests pass, preview done): `bash tools/experimental.sh add <branch>` (it brings in the
+   latest main too), `bash tools/experimental.sh build $TMP/exp`, publish to the experimental page (the header of the
+   script has the exact call), refresh the public link (`gh api -X POST .../actions/workflows/public-game.yml/dispatches
+   -f ref=main`). No HQ card for this, no OK needed.
+2. **Tell Luca in one line** right away: what's new in EXPERIMENTAL + the link (Dutch time if you name a time).
+3. **The HQ card is for MAIN only:** the PR still gets its Needs OK card. His OK = merge that PR into main (below),
+   never the `experimental` branch.
+4. **After every merge into main:** `bash tools/experimental.sh sync`, rebuild, republish, so experimental stays
+   main + the extras. A clash: keep `game/channel.js` = `'experimental'`.
+5. A fix pushed to a PR's branch: run `add <branch>` again. A PR closed without merging: rebuild `experimental` from
+   main + the open PRs (`git checkout -B experimental origin/main`, `add` each, keep channel.js) and push with
+   `--force-with-lease`.
+6. Out until Luca says so: LAN (t-044, his two-PC retest), duplicates (PR #80).
+
 ## Merging a pull request (after Luca's OK on its card)
 
 0. **Read the PR's card on HQ first: merge only if its status is `approved`** (Luca's OK through HQ's button, with
