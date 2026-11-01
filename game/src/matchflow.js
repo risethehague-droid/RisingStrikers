@@ -432,7 +432,7 @@ hc2Mix(Match, {
     if (this.cutIn) this.cutInEnd(); if (this.rise) { this.rise.c.destroy(); this.rise = null; }
     Object.assign(this, { hitStop: 0, slowMo: 0, flashT: 0, trailT: 0, trailSp: 0, trailHot: 0, saveAsk: null, cutInQ: null,   // effects / prompts in flight
       dead: null, offSide: null, offGK: null, offFlag: null, penaltyKick: false, goalAt: 0, lastScorer: null,                    // the rules' memory
-      nextHuman: null, passRing: null, passAim: null, passStick: null, spHeld: 0, charge: -1, lobCharge: -1, lobAim: null, headBuf: 0, airSp: null, airCh: null,   // your half-made moves
+      nextHuman: null, passRing: null, passAim: null, passStick: null, spWin: null, charge: -1, lobCharge: -1, lobAim: null, headBuf: 0, airSp: null, airCh: null,   // your half-made moves
       aerial: null, aerialClock: 0, aerialAt: undefined, duelAt: undefined, aerialKick: undefined, aerialLast: undefined, spAerialSeen: undefined,   // the aerial battle / grass duel cooldowns
       savedFor: undefined, ghost: null, camX: undefined, camY: undefined, kickCapN: null });   // (ghost: the demo's stand-in "you" held the last match's team)
   },
