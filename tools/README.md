@@ -34,11 +34,14 @@ the review opens at full time. Marks and notes reach the taskmaster through the 
 | `node tools/goalkicktest.js` | the goal kick at both ends: the wipe, the keeper holding it, both teams in shape, he plays it out; Bug Watch quiet |
 | `node tools/resumetest.js` | RESUME round trip on `index.html`: quit mid-match, reload, resume, extra time, full time clears it; must end `all ok` |
 | `bash tools/mklab.sh` | builds `game/labtest.html` (the Test Lab as a local page) for `grp.js`, `gk091.js`, `chipgif.js`; rerun after changing `lab.html` |
-| `GROUP=<id> [REP=3] node tools/grp.js` | one Test Lab group, every test, outcome per test. Groups: FP, K, KH, YS, C, P, M, D, T, A, PK, N5, PW, CH, GK, SM, CS, BW |
+| `GROUP=<id> [REP=3] node tools/grp.js` | one Test Lab group, every test, outcome per test. Groups: FP, K, KH, YS, C, P, M, D, T, A, PK, N5, PW, CH, GK, SM, CS, BW, RL |
+| `[REP=20] [ONLY=E1,E4] [OUT=docs/ai/rl-baseline.json] node tools/rlrates.js` | role-ai step 0: the Lab's RL exploit tests (E1-E6), each run 20 times on fresh dice: how often the exploit WORKED, plus the numbers behind it (keeper height, CB pulled out, men behind the ball). `docs/ai/rl-baseline.md` has today's |
+| `node tools/linestudy.js` | role-ai: 6 computer v computer matches, how the back four and keeper stand while the other side has it (line spread, a man pulled out, keeper height by where the ball is) |
 | `node tools/proxy093.js run\|def <trials> [levels]` | a scripted "you": run at goal from the centre circle / defend from kick-off, at each level |
 | `LEVELS=... node tools/train093.js probe 0 <matches> <secs>` | computer v computer strength per level (S against the old Normal) |
 | `node tools/train093.js <level> <iters> <matches> <secs>` | self-play tuning of one level's traits (writes `train093-out/`) |
 | `node tools/lobstudy.js you\|ai [N]` | open-play lobs: who wins them (you tapping LOB to a forward N times, or N minutes of computer v computer), how (header / chest / feet) and where everyone is at the drop |
+| `node tools/scenarios.js` | FREE PLAY's PRACTICE SCENARIOS (and a few BUILD YOUR OWN set-ups): each sets up right, plays with no page error, ends the try and sets itself up again; then E, STOP and a move button after one (`ONLY=p-2v1,custom`) |
 | `node tools/gk091.js` | keeper situations with the keeper's plan printed |
 | `TEST=<id> OUT=docs/previews/pr<N>-<topic>.gif node tools/preview.js` | the PR's preview GIF (CLAUDE.md "The `## Preview` section"): a Test Lab test, or `MATCH=1 SKIP=<s>` for a match moment; 3-5 s, under 1 MB |
 | `bash tools/prpreview.sh <commit> <dir> <N> "<title>"` | taskmaster / 2-hourly check: builds the "HC2 PR #N preview" page (the PR on top of `main`; `#play` = the game, `#lab-CH1` = the Lab at a test) |

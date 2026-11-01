@@ -123,7 +123,7 @@ hc2Mix(Match, {
       const gk = team.players[0];
       const S = paceK().setup, can = p => len(p.x - x, p.y - y) < S.v * (S.offside + 0.5);   // (if he can get there: no cut needed)
       if (!gk.sentOff && Math.abs(x - team.ownGoalX) < 22 && Math.abs(y - 34) < 22 && can(gk)) return gk;
-      const def = on.filter(p => p.i >= 1 && p.i <= 4).sort(by)[0];
+      const def = on.filter(p => isBack(p)).sort(by)[0];
       if (def && d(def) < 14) return def;
     }
     return on.sort(by)[0] || team.players[0];
@@ -293,7 +293,7 @@ hc2Mix(Match, {
     const opp = team.opp, gx = team.goalX, s = team.side, spots = new Map(), must = [];
     const shape = (tm, has) => { for (const p of tm.players) { if (p.sentOff || p === taker) continue;
         if (p.keeper) { spots.set(p, { x: tm.ownGoalX + tm.side * 1.5, y: clamp(34 + (y - 34) * 0.08, 32, 36) }); continue; }
-        const role = p.i <= 4 ? 0 : p.i <= 8 ? 1 : 2, push = (has ? [4, 10, 18][role] : [-1, 1, 3][role]) * tm.side;
+        const role = lineOf(p), push = (has ? [4, 10, 18][role] : [-1, 1, 3][role]) * tm.side;
         spots.set(p, { x: clamp(p.home.x + (x - 52.5) * (has ? 0.75 : 0.85) + push, 4, 101), y: clamp(p.home.y + (y - 34) * (has ? 0.32 : 0.45), 3, 65) }); } };
     shape(team, true); shape(opp, false);
     const set = (p, q) => { if (p && !p.sentOff && p !== taker) { spots.set(p, q); return true; } return false; };
@@ -384,6 +384,9 @@ hc2Mix(Match, {
     if (sp.kind === 'PENALTY' || (sp.kind === 'FREE KICK' && len(gx - b.x, 34 - b.y) < 28 && Math.random() < 0.7)) {
       Object.assign(A, { x: gx + s * 0.5, y: 34 + rnd(-1, 1) * 3 }); return this.spKick('shot', rnd(0.6, 0.85));
     }
+    if (sp.kind === 'CORNER' && paceK().arcade && ARCADE.corner.whip) {             // (ARCADE corners are chances: the man with the most room, 30 Oct)
+      const box = mates.filter(q => Math.abs(q.x - gx) < 16), room = q => Math.min(...sp.team.opp.players.filter(o => !o.sentOff).map(o => len(o.x - q.x, o.y - q.y)));
+      const t = box.sort((u, v) => room(v) - room(u))[Math.random() < ARCADE.corner.best ? 0 : Math.floor(Math.random() * box.length)] || box[0] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob'); }
     if (sp.kind === 'CORNER') { const box = mates.filter(q => Math.abs(q.x - gx) < 16); const t = box[Math.floor(Math.random() * box.length)] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob'); }
     if (sp.kind === 'GOAL KICK') { const up = mates.filter(q => Math.abs(q.x - p.x) > 25).sort(() => Math.random() - 0.5)[0] || mates[0]; Object.assign(A, { x: up.x, y: up.y }); return this.spKick('lob'); }
     const best = this.bestOption(p);
@@ -397,10 +400,13 @@ hc2Mix(Match, {
   spKick(mode, power = 0.7) {
     const sp = this.setPiece, p = sp.taker, A = this.aimPt;
     const target = this.spTarget();
-    sp.kicked = true; for (const q of this.all) { q.spot = null; if (q.up) q.up.t = this.time.now; }   // (smarter-ai: a keeper up for the corner attacks it from now)
+    sp.kicked = true; if (sp.kind === 'CORNER') this.cornerAt = this.time.now; for (const q of this.all) { q.spot = null; if (q.up) q.up.t = this.time.now; }   // (smarter-ai: a keeper up for the corner attacks it from now)
     if (mode === 'shot') { this.penaltyKick = sp.kind === 'PENALTY'; this.doShot(p, power, clamp((A.y - 34) / 2.8, -1.2, 1.2)); }
     else if (sp.kind === 'THROW-IN') { const d = Math.min(len(A.x - p.x, A.y - p.y), 22); const dx = A.x - p.x, dy = A.y - p.y, l = len(dx, dy) || 1; this.kick(p, p.x + dx / l * d, p.y + dy / l * d, 0, 0, 0.18, { mode: 'lob', target }); }
     else if (mode === 'ground' && target) this.kick(p, target.x, target.y, 0, 0, 0.14, { mode, target });   // v0.8: a ground ball goes to the ringed man's feet
+    else if (mode === 'lob' && sp.kind === 'CORNER' && paceK().arcade && ARCADE.corner.whip) {   // ARCADE corners are chances (30 Oct): whipped in, never into the keeper's six-yard box
+      const C = ARCADE.corner, gx = sp.team.goalX, s = sp.team.side, d = clamp(Math.abs(gx - A.x), C.minD, C.maxD);
+      this.kick(p, gx - s * d, clamp(A.y, 34 - 9, 34 + 9), 0, 0, 0.14, { target, cross: 'whip' }); }
     else this.kick(p, A.x, A.y, 0, 0, 0.14, { mode, target });
     if (target && sp.team === this.home) { this.nextHuman = target; this.passRing = { p: target, t: 1.0 }; }
     return false;
@@ -926,7 +932,7 @@ hc2Mix(Match, {
             this.goalQ = { ep, frames, after: () => this.afterGoal(defending) }; this.goalQTick(); }); }   // v0.8.4: a goal in the last seconds - then the whistle
         this.freeze = 99; return;
       }
-      if (paceK().arcade) return this.arcadeOut();                              // t-020 ARCADE: no corners or goal kicks - it comes back off the board
+      if (paceK().arcade && !(b.last === defending && cornerOff(b))) return this.arcadeOut();   // t-020 ARCADE: no goal kicks - it comes back off the board (30 Oct: but a corner off a defender, ARCADE.boards.corners)
       if (b.last === defending) this.dead = { kind: 'CORNER', team: defending.opp, x: left ? 0.4 : PITCH_L - 0.4, y: b.y < 34 ? 0.4 : PITCH_W - 0.4, t: 0.8 * paceK().deadT };   // (t-004: ARCADE restarts sooner)
       else {
         const close = b.shotBy && b.shotBy.team === defending.opp && Math.min(Math.abs(b.y - GOAL_Y0), Math.abs(b.y - GOAL_Y1)) < 1.3 && b.z < BAR_Z + 0.8;

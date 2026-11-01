@@ -2,6 +2,7 @@
 const { chromium } = require('playwright');
 (async () => { const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const page = await br.newPage({ viewport: { width: 640, height: 360 } }); const errs = []; page.on('pageerror', e => errs.push(e.message));
+  if (process.env.FORM) await page.addInitScript(f => { window.FORMATION_FORCE = f; }, process.env.FORM);   // role-ai step 4: FORM=4-4-2 / 4-2-3-1 / 4-3-3 = every team in that shape
   await page.goto(`http://localhost:${process.env.PORT || 8765}/test.html#flow`); await page.waitForFunction(() => window.__hc2 && window.__hc2.home, null, { timeout: 120000 });
   const out = await page.evaluate(() => { const m = window.__hc2, g = m.game; g.loop.sleep(); let T = 1e6; window.HC2_NO_DEMO = true; m.cameras.main.setVisible(false);
     for (const id of ['start', 'flow']) { const e = document.getElementById(id); if (e) e.remove(); }

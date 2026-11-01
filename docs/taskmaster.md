@@ -9,6 +9,7 @@ here, in the repo, on the Taskboard and in the agents folder; nothing depends on
 | --- | --- |
 | Official game (Luca's page) | https://claude.ai/artifact/AD1rvV13DR3nvQPzfsRojf (published from `game/index.html`) |
 | Official Test Lab | https://claude.ai/artifact/Goa4b8PepGxbqv9877pPCV (published from `game/lab.html`) |
+| EXPERIMENTAL game + its Test Lab (every new change, live, no HQ card) | https://claude.ai/artifact/CjKrd5vBnAt8E6HRma29mZ (built from branch `experimental` by `tools/experimental.sh`; on the public link: `/experimental/`) |
 | HC2 HQ, the Taskboard (cards: collection `tasks`, each with `next` = who picks it up after Luca's OK; status lines: `meta/hq`; ↻ Check now = a quick run of the scheduled check, Luca only; ⚡ Turbo = the check every 2 hours instead of 3 times a day, Luca only) | https://claude.ai/artifact/PtvBPpqTta99vWSSfSBoX4 |
 | Test Lab classic (frozen at v0.9.7, a fallback) | https://claude.ai/artifact/UA1KSu38xBxmQe5eEBToTk |
 | PR previews | one "HC2 PR #N preview" page per PR, linked from its card (`preview.page`); see "Previews" below |
@@ -58,6 +59,50 @@ co-designer runs his own lanes; QA runs at night. Give work with `bash tools/age
 plus a `t-NNN` card. Every brief has a "How real football and other games do it" section (CLAUDE.md "Think like
 football"). Keep two open tasks off the same files. `assign ... --replace` rewrites a brief nobody has
 reported on yet.
+
+## Card status keys (HQ `tasks`, every writer)
+
+HQ shows a card in a column by its `status` **key**. Write the key, never the column's label:
+
+| Write `status:` | Column on HQ | When |
+| --- | --- | --- |
+| `"inbox"` | To do (New) | a new card nobody has sorted |
+| `"ready"` | To do | sorted, briefed, or sent back by Luca |
+| `"doing"` | In progress | a worker or the taskmaster is on it |
+| `"review"` | **Needs OK** (and YOUR MOVE) | waits for Luca's OK: every new PR card, every question for him |
+| `"approved"` | In progress (OK'd) | only HQ's OK button writes this |
+| `"done"` / `"dropped"` | Done | merged and live / said no |
+
+- **Needs OK is `"review"`.** On 30-31 Oct cards were saved as `"needs-ok"`, which isn't a key, so HQ showed them as
+  New in To do and Luca had to hunt for them (#70, #75, and #72, #74, #76-#79 before he found and OK'd them). HQ now
+  reads common misspellings and flags any unknown status in red on the card, but write the key anyway.
+- **A PR that gets new code after Luca's OK goes back to `"review"`** with a log line saying what changed (t-044 / #68,
+  31 Oct). A merge of main into the branch with no change of its own doesn't count.
+- **`next` is who acts after the OK.** When the OK means "merge", `next.agent` is `"taskmaster"`, never `"luca"`
+  (otherwise the OK'd card sits in In progress with nobody on it). Use `"luca"` only when his OK hands him a step
+  himself, such as a 2-PC test.
+- **After writing a card, read it back** (ArtifactData `get`) and check the status is one of the keys above.
+- Before every check ends: list the open PRs and make sure each one has a card in `review`, `approved` or `ready`
+  (sent back). An open PR with no card, or a card with an unknown status, gets fixed in the same run.
+
+## EXPERIMENTAL: new work goes live there first (Luca, 31 Oct)
+
+Luca: "implement all new changes on a new version you can select in game called experimental, and create the card for
+me to ok implementation ONLY for the main game version, for experimental it is updated live each time something new
+is added / or slowly passively improving".
+1. **When a PR is ready** (tests pass, preview done): `bash tools/experimental.sh add <branch>` (it brings in the
+   latest main too), `bash tools/experimental.sh build $TMP/exp`, publish to the experimental page (the header of the
+   script has the exact call), refresh the public link (`gh api -X POST .../actions/workflows/public-game.yml/dispatches
+   -f ref=main`). No HQ card for this, no OK needed.
+2. **Tell Luca in one line** right away: what's new in EXPERIMENTAL + the link (Dutch time if you name a time).
+3. **The HQ card is for MAIN only:** the PR still gets its Needs OK card. His OK = merge that PR into main (below),
+   never the `experimental` branch.
+4. **After every merge into main:** `bash tools/experimental.sh sync`, rebuild, republish, so experimental stays
+   main + the extras. A clash: keep `game/channel.js` = `'experimental'`.
+5. A fix pushed to a PR's branch: run `add <branch>` again. A PR closed without merging: rebuild `experimental` from
+   main + the open PRs (`git checkout -B experimental origin/main`, `add` each, keep channel.js) and push with
+   `--force-with-lease`.
+6. Out until Luca says so: LAN (t-044, his two-PC retest), duplicates (PR #80).
 
 ## Merging a pull request (after Luca's OK on its card)
 
@@ -124,6 +169,35 @@ head SHA:
 4. **The card:** ArtifactData `update` (pinned) `preview` = `{head, gif, gifPath, tests: [ids], page, base:
    "PR + main" or "branch", builtAt: <ms>, none: "<why>" for Preview: none}`.
 5. Merged or closed PRs keep their page; never delete one unless Luca asks.
+
+## MOVES on HQ (Luca, 30 Oct: "keep the hq updated with all new animations you add, as short previews")
+
+HQ's MOVES section shows every FREE PLAY move (`FP_MOVES` in game/lab.js) as a short clip, grouped like the Lab. When
+you merge a PR that adds or changes a move (its `Move clips:` line, CLAUDE.md Testing 7):
+1. The clip: the PR's `docs/previews/pr<N>-move-<mv>.gif`, or record it from main:
+   `MOVE=<mv> FPS=10 WIDTH=320 OUT=$TMP/<mv>.gif node tools/preview.js` (set pieces: `SKIP=6 MOVEKEY=KeyC`; the throw-in
+   `KeyZ`). Shrink it to about 200 KB first if it's bigger (every 2nd frame, 32 colours).
+2. Upload it to HQ's assets (Artifact publish, `url` = HQ, `asset: true`) and add the move's line to
+   `design/hq/move-assets.json`: `"<mv>": {"gif": "<the url>", "ver": "v0.x.y", "at": <ms>}`. Commit it.
+3. `python3 design/hq/hqdata.py moves $T`, then one ArtifactData batch from `$T/moves-writes.json` (set; it also picks up
+   renamed moves and the IN THE GAME / LAB ONLY tag).
+
+## LIVE NOW on HQ + the timeline (Luca, 31 Oct: "a hud which shows me what each agent is working on live")
+
+HQ's AGENTS section starts with a **LIVE NOW** panel. It reads the HQ database collection `hud`: one doc per agent or
+thread, and HQ shows changes the moment they're written, with "last update X ago".
+- **Every thread, worker and the scheduled check** sets its own doc (ArtifactData `set`/`update` on HQ, pinned) when
+  it **starts** a task and when it **finishes** or gets **stuck**:
+  `hud/<short-id>` = `{who: "<what Luca would call it>", doing: "<one plain line>", state: "working" | "waiting" |
+  "blocked" | "done", card: "<card id or ''>", pr: <PR number or 0>, at: <now in ms>, by: "<agent>"}`.
+  `waiting` = waiting for Luca's OK or a merge; `blocked` = stuck, needs Luca. A "working" doc older than 6 h shows
+  as gone quiet; "done" docs drop off after a day.
+- **The scheduled check** tidies it each run: one doc per running thread or worker (`list_threads`), stale ones set to
+  done, and a `check` doc for its own run.
+- **The timeline** (top of VERSIONS) draws itself from the `versions` collection: no extra step at a merge.
+- **Strike Barge HQ** (the spaceship HQ, https://claude.ai/artifact/2CLY3PHHuAGDiXAf3C1n4q): the same data in Luca's
+  fun style. It can't read HQ's database, so it carries a snapshot: the scheduled check rebuilds and republishes it
+  each run (`design/hq/ship.py` header has the 3 steps). Buttons and OKs stay on the real HQ.
 
 ## Talking to Luca
 

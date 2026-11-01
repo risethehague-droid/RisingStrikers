@@ -1,0 +1,25 @@
+IS v IRO seed 1: 2-2 goals [{"t":25.4,"gkMax":5.1,"lineMin":11.4,"spreadMax":14.6,"lob":false,"set":false},{"t":82.2,"gkMax":6.8,"lineMin":11,"spreadMax":8.2,"lob":false,"set":false},{"t":130.7,"gkMax":7.1,"lineMin":12.4,"spreadMax":19.9,"lob":false,"set":false},{"t":363.8,"gkMax":7.5,"lineMin":16.2,"spreadMax":14.6,"lob":false,"set":false}]
+IRO v IS seed 2: 2-3 goals [{"t":179.3,"gkMax":5.4,"lineMin":null,"spreadMax":null,"lob":false,"set":false},{"t":217.2,"gkMax":5.6,"lineMin":9.2,"spreadMax":19.3,"lob":false,"set":false},{"t":238.7,"gkMax":6.7,"lineMin":18.8,"spreadMax":8.2,"lob":false,"set":false},{"t":287.1,"gkMax":6.4,"lineMin":8.5,"spreadMax":15.4,"lob":false,"set":false},{"t":412.2,"gkMax":4.8,"lineMin":5.2,"spreadMax":7.6,"lob":false,"set":false}]
+IS v IRO seed 3: 2-2 goals [{"t":46.6,"gkMax":5.1,"lineMin":19.4,"spreadMax":11.7,"lob":false,"set":false},{"t":142.5,"gkMax":2.8,"lineMin":null,"spreadMax":null,"lob":false,"set":false},{"t":162.7,"gkMax":6.5,"lineMin":null,"spreadMax":null,"lob":false,"set":false},{"t":382.6,"gkMax":7.7,"lineMin":18,"spreadMax":11,"lob":false,"set":false}]
+IRO v IS seed 4: 3-3 goals [{"t":39.5,"gkMax":12.9,"lineMin":22.2,"spreadMax":11.7,"lob":false,"set":false},{"t":80.8,"gkMax":5.9,"lineMin":13,"spreadMax":14.1,"lob":false,"set":false},{"t":98,"gkMax":7.5,"lineMin":16.6,"spreadMax":13.6,"lob":false,"set":false},{"t":167.8,"gkMax":4.5,"lineMin":null,"spreadMax":null,"lob":false,"set":false},{"t":284.7,"gkMax":13.3,"lineMin":20.8,"spreadMax":12.6,"lob":false,"set":false},{"t":330,"gkMax":9.7,"lineMin":21,"spreadMax":3.4,"lob":false,"set":false}]
+IS v IRO seed 5: 2-3 goals [{"t":45,"gkMax":6.1,"lineMin":16.2,"spreadMax":13.9,"lob":false,"set":false},{"t":96,"gkMax":4.3,"lineMin":null,"spreadMax":null,"lob":false,"set":false},{"t":137.2,"gkMax":4.9,"lineMin":8.2,"spreadMax":5.5,"lob":false,"set":false},{"t":311.3,"gkMax":8.6,"lineMin":11.3,"spreadMax":14.2,"lob":false,"set":false},{"t":388.6,"gkMax":2.8,"lineMin":null,"spreadMax":null,"lob":false,"set":false}]
+IRO v IS seed 6: 2-1 goals [{"t":239.5,"gkMax":5.8,"lineMin":17,"spreadMax":12.4,"lob":false,"set":false},{"t":297.5,"gkMax":4.5,"lineMin":null,"spreadMax":null,"lob":false,"set":false},{"t":392.2,"gkMax":6.4,"lineMin":28.5,"spreadMax":5.5,"lob":false,"set":false}]
+
+SUMMARY {
+ "matches": 6,
+ "samples": 13116,
+ "backLineSpread": 6.9,
+ "flatLinePct": 46,
+ "deepestDefenderFromGoal": 32.4,
+ "keeperOffLine": 11.4,
+ "gapKeeperToLine": 21,
+ "oneDefenderPulled8mPct": 27,
+ "keeperOver14mPct": 38.8,
+ "goals": 27,
+ "goalsKeeper10mPlusOut": 2,
+ "goalsLobbed": 0,
+ "errors": 0
+}
+ball 20-35 m from our goal: keeper 6.3 m out (over 12 m 0%), deepest defender 18.9 m, line spread 11.1 m, carrier unpressured 10% (line then 17.2 m)
+ball 35-50 m: keeper 9.4 m out (over 12 m 23%), deepest defender 26.4 m, line spread 9.0 m, carrier unpressured 15% (line then 27.6 m)
+ball 50+ m: keeper 13.6 m out (over 12 m 69%), deepest defender 38.5 m, line spread 4.8 m, carrier unpressured 40% (line then 35.7 m)

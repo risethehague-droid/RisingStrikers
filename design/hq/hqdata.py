@@ -7,6 +7,12 @@ writes the output into HQ's database with ArtifactData (design/hq/README.md says
   python3 design/hq/hqdata.py gifs                          the preview GIFs Versions shows (upload these to HQ's assets)
   python3 design/hq/hqdata.py versions OUT [--gifs MAP]     docs/CHANGELOG.txt -> OUT/versions/<id>.json, one per version
   python3 design/hq/hqdata.py loose OUT REPORT.md...        "Loose ends from the co-designer" notes -> OUT/loose/<id>.json
+  python3 design/hq/hqdata.py moves OUT                     FREE PLAY's moves (game/lab.js FP_MOVES) + their clips -> OUT/moves/<mv>.json
+
+The MOVES section (Luca, 30 Oct: "keep the hq updated with all new animations you add, as short previews (shots,
+passes, mash etc)"): design/hq/move-assets.json maps each move's button id to its clip in HQ's asset store
+{"curler": {"gif": "/_blob/...", "ver": "v0.15.3", "at": <ms>}}. Record a clip with
+`MOVE=<mv> OUT=... node tools/preview.js`, upload it to HQ, add its line there, then run this and set the docs.
 
 MAP is a JSON file {"docs/previews/pr36-save-clash.gif": "<the url the asset upload returned>", ...}; a GIF missing
 from it is left out (HQ never links the private repo). Each run also writes OUT/<kind>-writes.json: the `writes` list
@@ -153,6 +159,25 @@ def build_loose(out, reports):
     return write(out, 'loose', docs, 'set')
 
 
+FP_SEC = re.compile(r"\[\s*'([\w-]+)'\s*,\s*'([^']+)'\s*\]")
+FP_MOVE = re.compile(r"\{\s*mv:\s*'([^']+)',\s*sec:\s*'([^']+)',\s*n:\s*'((?:[^'\\]|\\.)*)'(.*)$")
+
+
+def build_moves(out):
+    src = open(os.path.join(ROOT, 'game', 'lab.js'), encoding='utf-8').read()
+    a = src.index('const FP_SECS'); secs = dict(FP_SEC.findall(src[a:src.index('];', a)]))
+    b = src.index('const FP_MOVES'); body = src[b:src.index('\n  ];', b)]
+    assets = json.load(open(os.path.join(ROOT, 'design', 'hq', 'move-assets.json'), encoding='utf-8'))
+    docs = []
+    for i, line in enumerate(l for l in body.split('\n') if FP_MOVE.search(l)):
+        mv, sec, n, rest = FP_MOVE.search(line).groups()
+        tip = re.search(r"tip:\s*'((?:[^'\\]|\\.)*)'", rest); A = assets.get(mv) or {}
+        docs.append((mv, {'mv': mv, 'n': n.replace("\\'", "'"), 'sec': sec, 'secTitle': secs.get(sec, sec.upper()).split(' · ')[0],
+                          'game': bool(re.search(r'\bgame:\s*true', rest)), 'tip': tip.group(1).replace("\\'", "'") if tip else '',
+                          'gif': A.get('gif'), 'ver': A.get('ver', ''), 'at': A.get('at', 0), 'order': i}))
+    return write(out, 'moves', docs, 'set')
+
+
 def write(out, coll, docs, op):
     os.makedirs(os.path.join(out, coll), exist_ok=True); writes = []
     for did, d in docs:
@@ -169,6 +194,8 @@ if __name__ == '__main__':
     elif a[:1] == ['versions'] and len(a) >= 2:
         gm = json.load(open(a[a.index('--gifs') + 1])) if '--gifs' in a else {}
         build_versions(a[1], gm)
+    elif a[:1] == ['moves'] and len(a) >= 2:
+        build_moves(a[1])
     elif a[:1] == ['loose'] and len(a) >= 3:
         build_loose(a[1], a[2:])
     else:

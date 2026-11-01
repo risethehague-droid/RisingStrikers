@@ -199,7 +199,7 @@ hc2Mix(Match, {
   // forward who plays a forward ground ball in their half goes on past the man he found, on the other side of him, for
   // ~2.5 s (ai(): his target while we have it), so there's a return ball or a ball in behind - instead of jogging back
   passAndGo(p, b) {
-    const team = p.team, q = b.q; if (!q || p.i < 5 || b.mode === 'lob' || b.progress < 2 || this.aiFrame(team, p.x) < -10 || p.stamina < 0.3) return;
+    const team = p.team, q = b.q; if (!q || lineOf(p) === 0 || b.mode === 'lob' || b.progress < 2 || this.aiFrame(team, p.x) < -10 || p.stamina < 0.3) return;
     const X = Math.max(this.aiFrame(team, p.x), this.aiFrame(team, q.x)) + 8, sd = Math.sign(p.y - q.y) || 1;
     p.goRun = { t: this.time.now, x: clamp(this.aiWorld(team, Math.min(X, 47)), 2, PITCH_L - 2), y: clamp(q.y + sd * 6, 4, PITCH_W - 4) };
   },

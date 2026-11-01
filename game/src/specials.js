@@ -558,9 +558,10 @@ hc2Mix(Match, {
   },
   saveFx(gk) {
     const lv = gk.spSave; if (!lv) return;
-    this.say(SAVE_NAMES[lv - 1] + '!', `${gk.team.name} KEEPER · LV${lv} SAVE`, 1.1); SFX.special(lv);
+    this.say('', `${SAVE_NAMES[lv - 1]}! · ${gk.team.name} KEEPER · LV${lv} SAVE`, 1.1); SFX.special(lv);   // (gk-cover: only the small line - the big headline sat over the shot; his tag names it)
     this.ramiSay('save', { text: [`THE KEEPER ANSWERS!\n${SAVE_NAMES[0]}!`, `${SAVE_NAMES[1]}!\nHE IS READY FOR IT!`, `THE ${SAVE_NAMES[2]}!!\nPOWER AGAINST POWER!`][lv - 1], expr: 'shock' }, 3);
-    if (!window.HC2_TEST_FAST && !this.replay) this.cutInQ = { kind: 'save', who: gk, lv };   // v0.8.9 the special-save cut scene (after the shot's hit-stop)
+    if (COVER.cutIn && !window.HC2_TEST_FAST && !this.replay) this.cutInQ = { kind: 'save', who: gk, lv };   // v0.8.9 the special-save cut scene (after the shot's hit-stop)
+    else this.gkAuraBurst(gk, lv);                                                // gk-cover (Luca 31 Oct: the cut scene "blocks too much of the screen"): the aura switches on in play
   },
   // ---------- v0.8.9 SPECIAL SAVE CUT SCENE (rough): everything stops for ~1.5 s - the screen darkens, a band in the level's
   // colour sweeps in with speed lines, the keeper (a PixelLab frame, 2.6x) slides in with flames behind him, the save's
@@ -630,8 +631,9 @@ hc2Mix(Match, {
       const hand = lv === 1 && (b.power || 0) > 0.72 && Math.random() < 0.5;
       this.cameras.main.flash(140, 255, 240, 160); this.hitStop = Math.max(this.hitStop || 0, 0.12); SFX.boom(1);
       N[hand ? 'metTip' : 'met'] = (N[hand ? 'metTip' : 'met'] || 0) + 1;         // (the soak: normal shots met by a special save)
-      if (hand) { this.gkSpecialHit(gk, 'hand', lv); this.say('A HAND TO IT!', `${SAVE_NAMES[lv - 1]} CAN ONLY PUSH IT AWAY`, 1.4); return 'hand'; }
+      if (hand) { this.gkSpecialHit(gk, 'hand', lv); this.gkSaveBeat(gk, lv, 'A HAND TO IT!'); this.say('A HAND TO IT!', `${SAVE_NAMES[lv - 1]} CAN ONLY PUSH IT AWAY`, 1.4); return 'hand'; }
       this.gkSpecialHit(gk, true, lv);                                            // t-014: the batch 16 move picked by the shot (v0.8.9: the rough save rig)
+      this.gkSaveBeat(gk, lv, SAVE_NAMES[lv - 1] + '!');                          // gk-cover: the contact's in-play beat (no cut scene)
       this.say('SAVED!', `${SAVE_NAMES[lv - 1]} STOPS THE SHOT`, 1.4);
       this.spBonus(gk.team, 'save');                                              // (t-020: ARCADE - a big save gives a little back)
       return true;
@@ -779,6 +781,7 @@ hc2Mix(Match, {
   },
   tickRise(dt) {
     this.curveTick(dt);                                                           // (t-011: the curving pass's trail and camera)
+    this.spPassTick(dt);                                                          // (the LV1 special passes' looks: sppass.js)
     const R = this.rise; if (!R) return; R.t += dt; const T = 2.3;
     if (R.wild) {
       const fire = ['#ffffff', '#ffde1e', '#ffb02e', '#ffde1e'];
@@ -871,4 +874,129 @@ hc2Mix(Match, {
     this.say('GUARD BROKEN!', 'IT GOES THROUGH HIM!', 1.2); this.flagReplay('THROUGH THE KEEPER!', gk);
   },
   meterOf(team) { return (this.meters && team && this.meters[team === this.home ? 0 : 1]) || { add() {}, level: () => 0, spend: () => 0 }; },
+});
+// ======================================================================= gk-cover THE SPECIAL SAVE COVERS THE WHOLE GOAL (Luca 31 Oct: "sometimes
+// due to poor timing etc the goalie can use the special and still let through a normal shot due to bad positions ...
+// the gk once he activates the special save if in the path of the ball or in the area of the goal right in front (full
+// goal span) has perfect coverage, so basically when you press special save the goalkeeper has an animation where he
+// gains an aura of the save and glows, when the ball is in his interaction zone thats when the cool animation of saving
+// play (the cutscene that pops up blocks too much of the screen in important situations)"). The three holes the Test
+// Lab's COVER moves showed (tools/cover.js, before this: 8 of 8 in for the first two):
+//   LOB OVER HIM     off his line, the ball went over his head (over 3.2 m where it crossed him): called "off target",
+//                    the save was switched off and the lob dropped in under the bar
+//   PRESSED LATE     the save switched on with the ball already past him: it never crossed him again, nothing met it
+//   CAUGHT OUT WIDE  saved, but by a 13 m jump in one frame (gkMeetY put him on the ball's line)
+// Now (1) on target is read at the GOAL LINE (the whole goal, + COVER.post / bar), not where he stands; (2) a ball he
+// can't meet where he is (over him, past him, too far across for the time left) -> he DASHES in the save's colour
+// (after-images): back to the goal line in front of where it would go in, or across his line to it; (3) still not
+// there with the ball a step from the line (pressed very late): he's put on the line and meets it there. The contact
+// is the save as before (clash: held / a hand to it, a special v a special still by power - t-028).
+// (4) The look: a glow round him in the save's colour from the moment it's on (with v0.8.9's flames), a burst as it
+// switches on, and no full-screen cut scene for a save any more (COVER.cutIn): at the contact a short in-play beat -
+// slow motion, a ring, the save's name in a small tag over him - so the play stays on screen.
+// How others do it: Inazuma Eleven (a hissatsu catch always meets the shot, the keeper pulled to the ball in his aura);
+// Mario Strikers (the keeper's big saves play in the match with a slow-mo, no card over the screen); FIFA / PES (the
+// camera stays on the play for any save; replays show it again after).
+const COVER = {
+  post: 0.3, bar: 0.25,       // m outside the posts / over the bar that still counts (the ball's size + a fingertip)
+  look: 1.6,                  // s ahead that the goal line is read
+  dash: 60,                   // m/s the aura dash: 1 m a frame (BUG WATCH's TELEPORT starts at 2 m in one frame)
+  run: 7,                     // m/s what he covers himself: needing more than that in the time left -> the dash
+  reach: 1.2,                 // m his gloves reach either side (no dash for less)
+  line: 0.45,                 // m in front of the goal line where he meets a ball there
+  near: 0.07,                 // s from the line: the last moment - he's put on it
+  slow: 0.3,                  // s of slow motion at the contact (the sim runs at 0.4)
+  glow: [6, 3],               // the glow's strength and its pulse
+  cutIn: false,               // true = the old full-screen special-save cut scene again
+};
+hc2Mix(Match, {
+  // where the ball crosses HIS goal line, if it goes in (the whole goal + COVER.post / bar). pbx: the ball's x a step
+  // ago - over the line since then and inside the posts counts too (pickups runs before rules gives the goal)
+  gkCoverGoal(gk, pbx) {
+    const b = this.ball, gx = gk.team.ownGoalX, mouth = (y, z) => Math.abs(y - 34) <= GOAL_Y1 - 34 + COVER.post && z <= BAR_Z + COVER.bar;
+    if (pbx != null && (pbx - gx) * (b.x - gx) <= 0 && pbx !== b.x) return mouth(b.y, b.z) ? { t: 0, y: b.y, z: b.z, over: true } : null;
+    if ((gx - b.x) * (b.vx || 0) <= 0) return null;                              // (going away from his goal)
+    const c = { ...b }, h = 1 / 120; let t = 0;
+    while (t < COVER.look) { const ox = c.x; ballStep(c, h, false); t += h; if ((ox - gx) * (c.x - gx) <= 0) return mouth(c.y, c.z) ? { t, y: c.y, z: c.z } : null; }
+    return null;
+  },
+  // ball.js pickups, a keeper with his special save on: true = he meets it now (the save follows, as before)
+  gkCoverMeet(p, pbx) {
+    const b = this.ball, crossed = (pbx - p.x) * (b.x - p.x) <= 0 || Math.abs(b.x - p.x) < 0.3;
+    if (crossed && this.gkSpOnTarget(p, b)) return true;                          // on his line, as before
+    const g = this.gkCoverGoal(p, pbx);
+    if (!g) { if (crossed) p.spSave = 0; return false; }                         // off target: nothing to save (as before)
+    if (!g.over && g.t > COVER.near) return false;                               // on its way in: gkCoverTick takes him there
+    const gx = p.team.ownGoalX, inw = gx > 1 ? -1 : 1, x0 = p.x, y0 = p.y;       // the last moment: on the line, in front of it
+    if (g.over) { b.x = gx + inw * 0.2; b.y = g.y; }
+    p.x = b.x - inw * 0.1; p.y = clamp(b.y, GOAL_Y0 + 0.3, GOAL_Y1 - 0.3); p.vx = p.vy = 0; p.bwJumpOk = true;   // (BUG WATCH: a jump on purpose)
+    if (len(p.x - x0, p.y - y0) > 1) this.gkCoverGhosts(p, x0, y0);
+    const N = this.coverN = this.coverN || {}; N.line = (N.line || 0) + 1;
+    return true;
+  },
+  // every step for a keeper with his special save on (player.js): the dash to where he meets it, if he can't get there
+  gkCoverTick(gk, dt) {
+    const b = this.ball, live = !!gk.spSave && !gk.sentOff && !b.owner && !b.inNet && !this.replay && (b.special ? !!b.spTeam && b.spTeam !== gk.team : !!b.saveable && b.saveable !== gk.team);
+    if (!live) { gk.cover = null; return; }
+    const g = this.gkCoverGoal(gk); if (!g) { gk.cover = null; return; }
+    const x = this.gkSpecialCross(gk), inw = gk.team.ownGoalX > 1 ? -1 : 1;
+    let tx, ty;
+    if (x && this.gkSpOnTarget(gk, x)) {                                          // he meets it on his line: across, if it's too far for him
+      if (Math.abs(x.y - gk.y) - COVER.reach <= COVER.run * x.t) { gk.cover = null; return; }
+      tx = gk.x; ty = x.y - Math.sign(x.y - gk.y) * COVER.reach * 0.5;
+    } else { tx = gk.team.ownGoalX + inw * COVER.line; ty = clamp(g.y, GOAL_Y0 + 0.3, GOAL_Y1 - 0.3); }   // over him / past him: back to the line
+    const dx = tx - gk.x, dy = ty - gk.y, d = len(dx, dy);
+    if (!gk.cover) { const N = this.coverN = this.coverN || {}; N.dash = (N.dash || 0) + 1; }
+    gk.cover = { x: tx, y: ty, t: g.t };
+    if (d < 0.05) return;
+    const k = Math.min(1, COVER.dash * dt / d); gk.x += dx * k; gk.y += dy * k; gk.vx = gk.vy = 0;
+    gk.face = gk.team.side > 0 ? 0 : 4;
+    if (gk.spr && this.time.now - (gk.coverAt || 0) > 40) { gk.coverAt = this.time.now; this.gkCoverGhost(gk, gk.spr.x, gk.spr.y, 0.6); }
+  },
+  gkCoverGhost(gk, X, Y, a = 0.45) {                                              // one after-image in the save's colour (as t-028's dash)
+    const s = gk.spr; if (!s || this.replay) return;
+    const im = this.add.image(X, Y, s.texture.key, s.frame.name).setOrigin(s.originX, s.originY).setRotation(s.rotation).setScale(s.scaleX, s.scaleY).setFlipX(s.flipX)
+      .setDepth(s.depth - 0.3).setTintFill(RIG_COL[clamp(gk.spSave || 1, 1, 3) - 1]).setAlpha(a);
+    this.tweens.add({ targets: im, alpha: 0, duration: 220, onComplete: () => im.destroy() });
+  },
+  gkCoverGhosts(gk, x0, y0) {                                                     // the last-moment jump: a trail of them from where he was
+    for (let i = 1; i <= 5; i++) { const u = i / 6, x = x0 + (gk.x - x0) * u, y = y0 + (gk.y - y0) * u; this.gkCoverGhost(gk, wx(x, y), wy(y), 0.2 + 0.06 * i); }
+    if (gk.spr) this.rigPop('whoosh', wx(gk.x, gk.y), wy(gk.y) - 40, wy(gk.y) + 0.1, { s: [0.7, 1.6], ms: 300, tint: RIG_COL[clamp(gk.spSave || 1, 1, 3) - 1], flip: gk.team.side < 0 });
+  },
+  // the glow round him while his save is on (player.js draw, every frame for a keeper). WebGL only: the canvas renderer
+  // (no preFX) keeps v0.8.9's flames alone
+  gkAuraGlow(p) {
+    const s = p.spr; if (!s || !s.preFX) return;
+    const on = !!p.spSave && !p.sentOff && !this.replay && !!(this.ball.special || this.ball.saveable);
+    if (!on) { if (p.glowFx) { s.preFX.remove(p.glowFx); p.glowFx = null; } return; }
+    const c = RIG_COL[clamp(p.spSave, 1, 3) - 1];
+    if (!p.glowFx) { s.preFX.setPadding(12); p.glowFx = s.preFX.addGlow(c, COVER.glow[0], 0, false, 0.1, 12); }
+    p.glowFx.color = c; p.glowFx.outerStrength = COVER.glow[0] + COVER.glow[1] * Math.sin(this.time.now / 60);
+  },
+  // the save switches on: a burst at his feet in its colour + its name over him (instead of the cut scene)
+  gkAuraBurst(gk, lv) {
+    if (this.replay || !gk.spr) return;
+    const c = RIG_COL[lv - 1], X = wx(gk.x, gk.y), Y = wy(gk.y), D = Y + 0.4;
+    this.rigPop('ring', X, Y - 4, D, { s: [0.5, 3.2], kx: 1.6, ky: 0.5, ms: 460, tint: c });
+    this.rigPop(['flame', 'flameBlue', 'flamePurple'][lv - 1], X, Y - 10, D, { s: [0.8, 1.8], ms: 520, dy: -50, a: 0.9 });
+    this.rigPop('orb', X, Y - 64, D, { s: [0.6, 1.8], ms: 360, a: 0.7, tint: c });
+    this.cameras.main.shake(120, 0.003);
+    this.gkSavePop(gk, SAVE_NAMES[lv - 1] + '!', c);
+  },
+  // the contact: the short in-play beat (slow motion, a ring at the ball, the tag)
+  gkSaveBeat(gk, lv, txt) {
+    if (this.replay) return;
+    const b = this.ball, c = RIG_COL[lv - 1], X = wx(b.x, b.y), Y = wy(b.y) - 12 - b.z * PX_H;
+    this.slowMo = Math.max(this.slowMo || 0, COVER.slow);
+    this.rigPop('ring', X, Y, wy(b.y) + 1, { s: [0.4, 2.6], ms: 380, tint: c });
+    this.rigPop('sparks', X, Y, wy(b.y) + 1, { s: [0.6, 1.6], ms: 320, tint: c });
+    this.gkSavePop(gk, txt, c);
+  },
+  gkSavePop(gk, txt, col) {                                                       // a small tag over his head: it rises and fades (no veil, no band)
+    if (!gk.spr) return;
+    const t = this.add.text(wx(gk.x, gk.y), wy(gk.y) - 150, txt, { fontFamily: '"Press Start 2P"', fontSize: '13px', color: '#' + col.toString(16).padStart(6, '0'), stroke: '#0c0a0e', strokeThickness: 5 })
+      .setOrigin(0.5).setDepth(9.6e6).setScale(1.4);
+    this.tweens.add({ targets: t, scale: 1, duration: 140, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: t, y: t.y - 26, alpha: 0, delay: 600, duration: 420, onComplete: () => t.destroy() });
+  },
 });
