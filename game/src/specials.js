@@ -9,7 +9,11 @@
 // WILD = slanted and striped, it shakes when a bar is nearly full, each level has its own power colour
 // (LV1 fire, LV2 electric, LV3 aura) and PixelLab flames climb the bar as it fills.
 // SPECIAL (U / B / pad LB) on the ball spends every full bar: LV1 BLAZE SHOT, LV2 THUNDER SHOT, LV3 RISING PHOENIX.
-const GUARD_POWER = 0.34, GUARD_SP = [0, 0.5, 0.7, 0.95], GUARD_REGEN = 0.035;   // v0.8 keeper guard: hits, refill per second (after 2.5 s)
+// fair-finishing (Luca 31 Oct: "lvl3 shot was saved by the gk"): an LV3 used to hit 0.95 - a fresh keeper (guard 1) it
+// reached simply saved it. Now an LV3 struck from their half breaks any keeper who hasn't answered it with a special
+// save (Inazuma / Mario Strikers: the ultimate shot goes in unless the keeper has his own move); one struck from far
+// (spRange) still hits softer. LV2 0.7 -> 0.8: it beats a keeper one power shot has already rattled.
+const GUARD_POWER = 0.34, GUARD_SP = [0, 0.5, 0.8, 1.05], GUARD_REGEN = 0.035;   // v0.8 keeper guard: hits, refill per second (after 2.5 s)
 const SP_COL = [0x28c8e6, 0xffde1e, 0xff2878];                                         // basic: one colour per level
 const SP_HOT = [[0xff7a1e, 0xffde1e, 0xffffff], [0x1e8cff, 0x8ce6ff, 0xffffff], [0x9a28ff, 0xffd84a, 0xfff4b0]];   // wild: fire, electric, aura
 const SP_NAMES = ['BLAZE SHOT', 'THUNDER SHOT', 'RISING PHOENIX'];
@@ -554,7 +558,8 @@ hc2Mix(Match, {
     gk.spSave = 0;
     if (mt.level() < 1) return;
     if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75 }; this.say('', `SPECIAL SAVE! PRESS ${keyset().special}`, 0.75); return; }
-    if (Math.random() < (paceK().gkAnswer > 0.6 ? 0.95 : 0.8)) { gk.spSave = mt.spend(); this.saveFx(gk); }   // (arcade-2: ARCADE nearly always answers a special)
+    const ans = this.dkY(def).ans ?? 0.8;                                       // fair-finishing: by level v you (difficulty.js DIFF_YOU.ans; base = the old 0.8)
+    if (Math.random() < (paceK().gkAnswer > 0.6 ? Math.min(0.95, ans + 0.15) : ans)) { gk.spSave = mt.spend(); this.saveFx(gk); }   // (arcade-2: ARCADE answers more)
   },
   saveFx(gk) {
     const lv = gk.spSave; if (!lv) return;
@@ -618,7 +623,7 @@ hc2Mix(Match, {
     if (!gk || gk.sentOff || pen || b.special || !s || s.gk !== gk || s.off || gk.spSave || mt.level() < 1) return;
     b.saveable = shooters;
     if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset().special}`, 0.75); return; }
-    const P = paceK(); if (s.dy > s.cover * P.gkCover && Math.random() < P.gkAnswer * this.dk(def).gkSave) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it (arcade-2: ARCADE answers more, and a little sooner: a keeper's move against every big shot)
+    const P = paceK(); if (s.dy > s.cover * P.gkCover && Math.random() < P.gkAnswer * this.dk(def).gkSave * (this.dkY(def).ansN ?? 1)) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it (arcade-2: ARCADE answers more, and a little sooner: a keeper's move against every big shot)
   },
   // the clash at the keeper: true = saved, 'hand' = he only gets a hand to it (t-007: it goes out), 'clash' = a special v
   // his special save: the ball is held on his gloves now and power decides when that ends (t-028, clashStart .. clashEnd)
@@ -640,7 +645,11 @@ hc2Mix(Match, {
     }
     // t-028 POWER AGAINST POWER: the band from the table (core.js CLASH), a little dice inside it. clashForce: the Test
     // Lab's SM / KS / GP tests make an outcome happen so it can be seen
-    const P = b.spP || SP_POWER[b.special - 1], r = P / K * (1 + rnd(-CLASH.jit, CLASH.jit));
+    // fair-finishing: a special placed in a corner (not at him) gets CLASH.place on its power - the well-placed LV3 v
+    // his LV3 save goes through about half the time instead of always bouncing
+    const gl = gk.team.ownGoalX, cy = Math.abs(b.vx) > 0.5 ? b.y + b.vy * (gl - b.x) / b.vx : b.y;   // (where it would cross the line: he can meet it a little in front)
+    const place = Math.abs(cy - 34) > CLASH.placeY ? CLASH.place : 1;
+    const P = (b.spP || SP_POWER[b.special - 1]) * place, r = P / K * (1 + rnd(-CLASH.jit, CLASH.jit));
     let out = CLASH.bands.find(q => r < q[0])[1], tip = Math.random() < CLASH.tip;
     const F = this.clashForce; if (F) { out = F === 'tip' ? 'bounce' : F; tip = F === 'tip' || (F === 'bounce' && tip); }
     this.clashStart(gk, lv, P, K, out, tip, r);

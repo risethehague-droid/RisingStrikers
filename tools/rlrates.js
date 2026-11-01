@@ -23,6 +23,7 @@ const NUMS = {
 (async () => {
   const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const page = await br.newPage({ viewport: { width: 1280, height: 720 } });
+  if (process.env.FORM) await page.addInitScript(f => { window.FORMATION_FORCE = f; }, process.env.FORM);   // role-ai step 4: FORM=4-4-2 / 4-2-3-1 / 4-3-3 = every team in that shape
   const errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.goto(`http://localhost:${E.PORT || 8765}/labtest.html`);
   await page.waitForFunction(() => window.__lab && window.__lab.active, null, { timeout: 120000 });

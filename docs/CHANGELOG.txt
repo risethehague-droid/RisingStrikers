@@ -1,3 +1,28 @@
+HC2 WEB GAME - v0.19.0 (1 Nov) - EACH TEAM ITS OWN FORMATION + FAIR FINISHING (PRs #73, #94, #96, Luca's OK)
+- EACH TEAM ITS OWN FORMATION (#94, role-AI step 6, roles.js TEAM_SHAPE): every side carries its own formation card
+  (all 4-4-2 for now, waiting for Luca's picks). OPTIONS > FORMATION cycles 4-4-2 / 4-2-3-1 / 4-3-3 / TEAM'S OWN.
+  Shots back up: the target man only comes short from the back, so two men are up front when the ball gets forward.
+  New tools/formations.js (formation round-robin) and FORM=<home>,<away>.
+- FAIR FINISHING (#96, Luca: "i tried to play hard mode and i didnt score once"): an LV3 that beats the keeper goes
+  in (no loop-up); LV3 breaks any un-answered keeper's guard; how often their keeper answers your special now scales
+  by difficulty (easy 30% - rise 75%, was 80% everywhere). New tools/finish.js.
+- Test Lab only: THE 1 V 1 MOMENT (#73, oneone.js, a preview): through on goal with only the keeper left, the game
+  slows from 8 m, the duel glows in team colours, speed lines or RISE arrows. FREE PLAY > 1 V 1. Never in matches yet.
+
+HC2 WEB GAME - v0.18.0 (1 Nov) - ROLE-BASED AI (back line, keeper, midfield, forwards) + EXPERIMENTAL SWITCH (PRs #75, #89-#93, Luca's OK)
+- THE BACK FOUR HOLD ONE LINE (#89, role-AI step 2, teamai.js): the defenders step up and drop as one unit with the
+  ball, so one man no longer hangs 8 m+ out of the line.
+- THE KEEPER STAYS HOME (#91, role-AI step 3, keeper.js): on a 2-on-the-keeper he holds near his line (GK_HOME table)
+  instead of rushing out, so the square pass for a tap-in stops being a sure goal (Lab RL E4 100% -> ~35%).
+- MIDFIELD ROLES + FORMATIONS (#92, role-AI step 4, roles.js SHAPES): a holding midfielder (CDM) who screens the back
+  four, a 10 (CAM), wingers who track back. OPTIONS > FORMATION picks 4-4-2 / 4-2-3-1 / 4-3-3 for your side; 4-4-2 stays
+  the default.
+- FORWARD ROLES + THE FIRST LINE OF THE PRESS (#93, role-AI step 5): a target man who comes short and holds it up, an
+  advanced forward, a poacher in the box; the strikers press first and block the pass into midfield. Lab group FW.
+- MAIN / EXPERIMENTAL (#90, channel.js): a start-screen button jumps between the official game and EXPERIMENTAL (every
+  new piece of work, live as soon as it's built). Rules in CLAUDE.md + docs/taskmaster.md.
+- Test Lab only: two new dribbles, RAINBOW FLICK and SHADOW STEP (#75).
+
 HC2 WEB GAME - v0.17.0 (31 Oct) - WHOLE-MATCH REPLAY + MOVE CALLS + MOVE SOUNDS + FLAG FIX + ROLE CARDS (PRs #70, #81, #83-#87, Luca's OK)
 - MOVE CALL (#85, movecall.js): every special's name pops up big at the top in its element's lettering (fire burns,
   thunder zaps, rainbow cycles, shadow glitches ...), keeper saves included. Lab: FREE PLAY > MOVE CALLS > EVERY NAME.

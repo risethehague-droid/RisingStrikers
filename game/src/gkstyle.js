@@ -24,7 +24,7 @@
 const GK_STYLE = {
   on: true,              // on in matches since v0.16.0 (Luca OK'd PR #76, 31 Oct). false = the plain saves of v0.15.
   tier: null,            // the Lab can force a flair level 0-3; null = from the keeper's level (gsTier)
-  cut: [0.85, 1.15, 1.45],   // his gkSave (difficulty.js) -> flair level: EASY 0.72 | NORMAL / your keeper 1.0 | HARD 1.27 | RISE 1.63
+  cut: [0.85, 1.1, 1.4],     // his gkSave (difficulty.js) -> flair level: EASY 0.72 | NORMAL / your keeper 1.0 | HARD 1.14 | RISE 1.42 (fair-finishing: the cuts follow the lower keeper trait, so each level keeps its flair)
   reach: [0, 0, 0.12, 0.25], // extra height his leap gets to (m), by flair level
   late: 0.5,             // s: a dive that wide waits until the ball is this far off (keeperPlan's longest flight), then goes
   wide: 2.0,             // m to his side where the ball crosses him: from here a dive is the FLYING STRETCH
