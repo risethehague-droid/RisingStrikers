@@ -40,7 +40,7 @@ const GK_COUNTER = {
 
 (() => {
   const M0 = Match.prototype;
-  const saveFx0 = M0.saveFx, clash0 = M0.clash, clashEnd0 = M0.clashEnd, say0 = M0.say, savePop0 = M0.gkSavePop, burst0 = M0.gkAuraBurst, gkCount0 = M0.gkCount;
+  const saveFx0 = M0.saveFx, clash0 = M0.clash, clashEnd0 = M0.clashEnd, say0 = M0.say, savePop0 = M0.gkSavePop, burst0 = M0.gkAuraBurst;
   const ease = x => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
   const back = x => { x = clamp(x, 0, 1); const s = 2.2; return 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2); };
   const hex = c => '#' + c.toString(16).padStart(6, '0');
@@ -65,11 +65,6 @@ const GK_COUNTER = {
     say(big, small, sec) {
       if (this.gkcHush) return;
       return say0.call(this, big, small, sec);
-    },
-    // (movecall.js names a held catch SAFE HANDS etc.: not over the counter's own pop-up)
-    gkCount(team, key) {
-      if (key === 'held' && this.gkcHush) { const mc = MOVE_CALL.on; MOVE_CALL.on = false; try { return gkCount0.call(this, team, key); } finally { MOVE_CALL.on = mc; } }
-      return gkCount0.call(this, team, key);
     },
     // CONTACT: the counter fires (ball.js pickups, the ball at his gloves)
     clash(gk) {
@@ -105,7 +100,6 @@ const GK_COUNTER = {
       if (this.replay || this.penaltyMode || this.over || window.HC2_TEST_FAST) return;
       this.gkcHook();
       this.gkcEnd();
-      if (this.mc && SAVE_NAMES_ALL.has((this.mc.name || '').replace(/!$/, ''))) this.moveCallEnd();   // (one save name on screen at a time)
       const F = '"Press Start 2P"', W = VIEW_W, H = VIEW_H, col = RIG_COL[lv - 1], beat = out === 'beaten';
       const left = gk.team.ownGoalX < 52.5;                                      // his goal's side of the pitch: the strip comes from there
       const side = left ? -1 : 1, name = SAVE_NAMES[lv - 1] + '!';
