@@ -193,7 +193,7 @@ hc2Mix(Match, {
 // the hooks: a team built on the court plays five; a half ends straight into the next (no walk off, no subs card); a goal
 // is celebrated and then it's straight back to the kick-off (no replay)
 {
-  const P = Match.prototype, _build = P.buildTeams, _half = P.halfTime, _goalQ = P.goalQTick, _goals = P.buildGoals, _pre = P.preMatch, _resOk = P.resumeOk, _car = P.carrierAI2, _ai = P.ai, _shape = P.spShape, _look = P.shotLook, _free = P.aiFree;
+  const P = Match.prototype, _build = P.buildTeams, _half = P.halfTime, _goalQ = P.goalQTick, _goals = P.buildGoals, _pre = P.preMatch, _resOk = P.resumeOk, _car = P.carrierAI2, _ai = P.ai, _shape = P.spShape, _look = P.shotLook, _free = P.aiFree, _rules = P.rules, _restart = P.restart, _tap = P.aiTap, _tapAt = P.aiTapAt;
   hc2Mix(Match, {
     carrierAI2(p, dt) {                                                       // the computer on the ball: the wall pass first, when it's on
       if (STREET_ON && (p.think || 0) - dt <= 0 && !this.isHuman(p) && !p.busy()) {
@@ -232,6 +232,25 @@ hc2Mix(Match, {
       const E = STREET.edge + 0.2; for (const q of spots.values()) { q.x = clamp(q.x, E, PITCH_L - E); q.y = clamp(q.y, COURT_Y0 + E, COURT_Y1 - E); }
       return { spots, must };
     },
+    // the court never sends it out: a loose ball that got past a wall in one step (off the side netting, out of the
+    // goal's mouth sideways) is put back on the court's side of it, moving away from it - and a restart the big pitch would
+    // give (a goal kick, a corner, a throw-in) is a free kick on the court (belt and braces: neither should come up)
+    rules() {
+      if (STREET_ON) { const b = this.ball, E = STREET.wall.r;
+        if (!b.inNet && !b.owner && !this.dead) {
+          const mouth = b.y > GOAL_Y0 && b.y < GOAL_Y1 && b.z < BAR_Z;
+          if ((b.x < 0 || b.x > PITCH_L) && !mouth) { const L = b.x < 0; b.x = L ? E : PITCH_L - E; b.vx = (L ? 1 : -1) * Math.abs(b.vx) * STREET.wall.e; }
+          if (b.y < COURT_Y0 || b.y > COURT_Y1) { const T = b.y < COURT_Y0; b.y = T ? COURT_Y0 + E : COURT_Y1 - E; b.vy = (T ? 1 : -1) * Math.abs(b.vy) * STREET.wall.e; }
+        }
+      }
+      return _rules.call(this);
+    },
+    restart(kind, team, x, y, note, opts = {}) {
+      if (STREET_ON && (kind === 'GOAL KICK' || kind === 'CORNER' || kind === 'THROW-IN')) { kind = 'FREE KICK'; const E = STREET.edge + 0.6; x = clamp(x, E + 1.5, PITCH_L - E - 1.5); y = clamp(y, COURT_Y0 + E, COURT_Y1 - E); }
+      return _restart.call(this, kind, team, x, y, note, opts);
+    },
+    aiTap(p) { return STREET_ON ? false : _tap.call(this, p); },                 // (the tap-in is for walking it round a keeper: with no keeper it's a pass into an empty net)
+    aiTapAt(p) { return STREET_ON ? null : _tapAt.call(this, p); },
     buildTeams(...a) { _build.apply(this, a); if (STREET_ON) this.streetBench(); },
     halfTime() {
       if (!STREET_ON) return _half.call(this);
