@@ -382,7 +382,7 @@ hc2Mix(Match, {
     else if (mode === 'lob' && k.info.loft) { const L = this.loftLaunch(d, k.info.lobPow); speed = L.speed; vz = L.vz; }   // lob-mechanics: over their heads (t-005: really as high as lobApex says)
     else if (mode === 'lob' && k.info.lobPow != null) { const T = 1.0 + k.info.lobPow * 1.5; vz = G * T / 2; speed = solveLob(Math.max(4, d - 1), vz); }   // v0.8.5 power lob: up to ~8 m high
     else if (mode === 'lob') { const T = clamp(0.7 + d / 25, 0.9, 1.9); vz = G * T / 2 * 1.05; speed = solveLob(Math.max(4, d - 2), vz); }
-    if (k.info.cross === 'whip') { const S = crossSolve(d, rnd(1.35, 1.85), 0.25 + d / 21); speed = S.speed; vz = S.vz; }   // t-012: the computer's whipped cross
+    if (k.info.cross === 'whip') { const S = k.info.drive ? crossSolve(d, k.info.drive.tz, k.info.drive.T) : crossSolve(d, rnd(1.35, 1.85), 0.25 + d / 21); speed = S.speed; vz = S.vz; }   // t-012: the computer's whipped cross (s-curled-setpieces: a driven corner brings its own height and time)
     if (k.info.chip) { const S = this.chipSolve(b, k.tx, k.ty, k.p.team, k.info.chipC || 0); speed = S.speed; vz = S.vz; }   // v0.9.2 CHIP: fast, over the keeper, dipping under the bar
     b.tap = !!k.info.tap;                                                         // t-010: the tap kick's drop-off (ballStep); any other kick is a normal ball
     const P = LOB_PROTO && ((mode === 'lob' && k.info.loft) || k.info.chip) ? this.lobProto(k, d) : null;   // t-002 prototype B (off in a normal match)
@@ -404,6 +404,7 @@ hc2Mix(Match, {
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
     b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft; b.aimLob = !!k.info.aim;   // lob-mechanics: an open-play lob (its drop is a duel)
     if (k.info.curve) this.curveLaunch(b, k);                                     // t-011: the curving special pass (Test Lab only)
+    if (k.info.setCurl) this.spCurlLaunch(b, k);                                // s-curled-setpieces: an in- or out-swinging corner / free kick
     if (k.info.sp2) this.spPassLaunch(b, k);                                      // the LV1 special passes (sppass.js, Test Lab only)
     b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null;   // (t-012: the runners attack a cross until someone touches it)
     if (k.info.tap) this.tapSfx(); else if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
@@ -518,6 +519,20 @@ hc2Mix(Match, {
     const a = S.th * S.s, c = Math.cos(a), s = Math.sin(a), lx = ux * c - uy * s, ly = ux * s + uy * c;   // the line turned by th to side s
     b.vx = lx * S.speed; b.vy = ly * S.speed; b.vz = S.vz; b.rollV = 0.8 * S.speed; b.cv = -S.k * S.s;
     this.curveFx(k, S);                                                         // the look (specials.js)
+  },
+  // s-curled-setpieces: the corner / free kick that swings. curveSolve (t-011) finds the launch off the line and the spin
+  // that bring a lofted ball back onto the spot; here the side is chosen, not the man in the way: an in-swinger sets off
+  // away from goal and bends in towards it, an out-swinger sets off towards goal and bends away. Nothing solvable (too
+  // short, say): it goes as the straight ball it already is.
+  spCurlLaunch(b, k) {
+    const dx = k.tx - b.x, dy = k.ty - b.y, d = len(dx, dy) || 1, ux = dx / d, uy = dy / d, gx = k.p.team.goalX;
+    const side = Math.sign(ux * (34 - b.y) - uy * (gx - b.x)) || 1;             // which side of the line the goal is (+1: turned +)
+    const s0 = k.info.setCurl === 'in' ? -side : side;                           // the side it sets off to (the bulge)
+    const S = d > SP_CURL.minD ? curveSolve('lob', d, [], s0, this.lobAimApex(k.p, k.tx, k.ty)) : null;
+    this.spCurlLast = S ? { swing: k.info.setCurl, s: S.s, th: S.th, k: S.k, d, bend: S.bend } : null;
+    if (!S) return;
+    const a = S.th * S.s, c = Math.cos(a), sn = Math.sin(a), lx = ux * c - uy * sn, ly = ux * sn + uy * c;
+    b.vx = lx * S.speed; b.vy = ly * S.speed; b.vz = S.vz; b.rollV = 0.8 * S.speed; b.cv = -S.k * S.s;
   },
   // v0.8.5 (Luca): HOLD the lob for a high ball where you point - the longer you hold, the further and higher (12-50 m)
   powerLob(p, dir, c) {
