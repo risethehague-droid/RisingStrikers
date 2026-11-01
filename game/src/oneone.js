@@ -22,7 +22,7 @@
 
 const ONE_V_ONE = {
   on: false,          // the Lab's FREE PLAY buttons set it; nothing in a match does yet
-  far: [11, 0.9],     // [m from the keeper, game speed]: the slow-down starts gently... (v3, Luca 31 Oct 02:15: "start much closer to the goalie"; v2 was 22 m)
+  far: [8, 0.9],      // [m from the keeper, game speed]: the slow-down starts gently... (v4, Luca 31 Oct: "make the slow mo start a bit later"; v3 11 m, v2 22 m)
   close: [3.5, 0.55], // ...and deepens as he closes in
   charge: 0.5,        // speed while he holds SHOOT on the ball
   windup: 0.3,        // speed from the kick starting to the boot meeting the ball
