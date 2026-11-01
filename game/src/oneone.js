@@ -1,5 +1,5 @@
 'use strict';
-// HC2 Football · oneone.js: the 1 V 1 moment (a PREVIEW, Test Lab only for now)
+// HC2 Football · oneone.js: the 1 V 1 moment (in matches since the 1 Nov card s-1v1-in-matches; OPTIONS > 1 V 1 MOMENT)
 // Luca, 30 Oct 22:22: "special scenario animation/screen effect for 1v1 striker vs goalkeeper. Time should slightly slow
 // down and keeper and striker should both glow in auras in the respective colors of their team. The screen should get
 // slightly darker, creating a contrast between glowing players and their environments. Create it as a preview first."
@@ -19,9 +19,17 @@
 //
 // Off everywhere unless ONE_V_ONE.on (the Lab's 1 V 1 buttons switch it on in FREE PLAY). The match code is untouched:
 // this file only wraps Match.sim (the slow-down) and Match.render (the look).
+//
+// In real matches (card s-1v1-in-matches, 1 Nov: "bring the 1 V 1 moment into real matches, with a limit so it doesn't
+// fire every attack"). Captain Tsubasa and Inazuma Eleven save the big duel for the big chance, and TV only slows the
+// clear-cut ones, so here:
+//   - only when a person plays (not the demo, WATCH, the Test Lab's tests or the soak: computer v computer is unchanged)
+//   - either way round: you through on their keeper, or their striker through on yours
+//   - after one ends, none for ONE_V_ONE.cd seconds, so a scramble in the box doesn't flicker it on and off
+//   - OPTIONS > 1 V 1 MOMENT: ON / OFF (saved; ON by default)
 
 const ONE_V_ONE = {
-  on: false,          // the Lab's FREE PLAY buttons set it; nothing in a match does yet
+  on: false,          // the Lab's FREE PLAY buttons set it (in matches V1_MATCH does, below)
   far: [8, 0.9],      // [m from the keeper, game speed]: the slow-down starts gently... (v4, Luca 31 Oct: "make the slow mo start a bit later"; v3 11 m, v2 22 m)
   close: [3.5, 0.55], // ...and deepens as he closes in
   charge: 0.5,        // speed while he holds SHOOT on the ball
@@ -38,7 +46,10 @@ const ONE_V_ONE = {
   burstT: 0.35,       // s the lines take to blast away once he's struck it
   glow: [3, 7],       // the aura's strength, pulsing between these
   after: 1.3,         // s the effect stays on once he's shot, while the ball travels
+  cd: 8,              // s after one ends before the next can start (in matches)
 };
+let V1_MATCH = (() => { try { return localStorage.getItem('hc2-1v1') !== 'off'; } catch (e) { return true; } })();
+function setV1Match(on) { V1_MATCH = !!on; try { localStorage.setItem('hc2-1v1', on ? 'on' : 'off'); } catch (e) {} }
 const V1_D = 7.6e6;   // the effect's depth: above the pitch, stands and players, below the weather (7.9e6), cursor (8e6) and HUD
 
 const _v1Sim = Match.prototype.sim, _v1Render = Match.prototype.render;
@@ -70,13 +81,16 @@ hc2Mix(Match, {
   },
   v1Tick(dt) {
     const V = ONE_V_ONE, L = window.__lab;
-    const on = V.on && !this.replay && !(L && !(L.run && L.run.sc && L.run.sc.kind === 'free'));   // (the Lab's tests never see it)
+    const lab = V.on && !(L && !(L.run && L.run.sc && L.run.sc.kind === 'free'));   // (the Lab's tests never see it)
+    const match = V1_MATCH && !L && !this.demo && !this.watch && !!this.human;    // (a person is playing: see the header)
+    const on = (lab || match) && !this.replay;
+    if (this.v1Cd > 0) this.v1Cd -= dt;
     let S = this.v1;
     if (S && !S.veil.scene) S = this.v1 = null;                                    // (the scene was rebuilt)
     const w = on ? this.v1Who() : null;
     if (!S) {
       this.v1Hold = w ? (this.v1Hold || 0) + dt : 0;
-      if (!w || this.v1Hold < V.hold) return;
+      if (!w || this.v1Hold < V.hold || (!lab && this.v1Cd > 0)) return;
       S = this.v1 = this.v1Start(w.p, w.gk);
     }
     S.t += dt;
@@ -167,6 +181,7 @@ hc2Mix(Match, {
   },
   v1End() {
     const S = this.v1; this.v1 = null; this.v1Hold = 0; if (!S) return;
+    this.v1Cd = ONE_V_ONE.cd;
     for (const M of S.men) if (M.fx && M.q.spr.preFX) M.q.spr.preFX.remove(M.fx);
     S.veil.destroy(); S.pool.destroy(); S.lines.destroy(); if (S.arr) for (const im of S.arr) im.destroy();
   },
