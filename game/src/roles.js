@@ -62,9 +62,25 @@ const FORMATION_LIST = Object.keys(SHAPES);
 // 4-4-2 (his default, not yet confirmed), so a match plays as before. tools/formations.js plays every shape against every
 // shape (the balance round-robin) so he can see none of them wins clearly more.
 const TEAM_SHAPE = {
-  IS:    { formation: '4-4-2' },  IRO:   { formation: '4-4-2' },  USCS: { formation: '4-4-2' },
-  LUC:   { formation: '4-4-2' },  THUAS: { formation: '4-4-2' },  AUC:  { formation: '4-4-2' },
+  IS:    { formation: '4-4-2', gk: 'sweeper' },  IRO:   { formation: '4-4-2' },  USCS: { formation: '4-4-2' },
+  LUC:   { formation: '4-4-2' },  THUAS: { formation: '4-4-2', gk: 'sweeper' },  AUC:  { formation: '4-4-2' },
 };
+// ROLE-AI STEP 6b, THE KEEPER'S STYLE (plan 5 + 8.3: "our GK gets a keeper vs sweeper keeper dial"; eFootball's Defensive
+// / Offensive Goalkeeper). A team card's gk: 'keeper' (default, as before) or 'sweeper'. With the ball far away the
+// sweeper keeper stands higher behind his line (gap: m behind the deepest defender, min / max: m off his line) and
+// comes for loose balls behind the defence from further out (sweepTo: m off his line; margin: s he must beat their man
+// by). Near goal both are the same keeper: the height cap by the ball (chipping range, step 3) and the 1v1 are untouched.
+// (A closer race for the sweeper, margin 0.04, was tried: the 2-on-the-keeper exploit E4 went 28% -> 53% and the
+// counter E6 10% -> 23%, as he came for balls he then lost. With the same margin: E4 33% / 42%, E6 13% / 17%, 60 runs.)
+const GK_KIND = {
+  keeper:  { gap: 18, min: 8,  max: 17, sweepTo: 26, margin: 0.12 },
+  sweeper: { gap: 13, min: 10, max: 21, sweepTo: 34, margin: 0.12 },
+};
+function gkStyleOf(team) {                                                     // GK_STYLE_FORCE (Lab / tools): 'sweeper' = both, 'sweeper,keeper' = home, away
+  const F = typeof window !== 'undefined' && window.GK_STYLE_FORCE;
+  if (F) { const [h, a] = String(F).split(','); const f = team && team.side < 0 && a ? a : h; if (GK_KIND[f]) return f; }
+  const own = team && TEAM_SHAPE[team.name]; return own && GK_KIND[own.gk] ? own.gk : 'keeper';
+}
 const FORMATION_DEFAULT = '4-4-2';
 // OPTIONS > FORMATION changes YOUR side's shape (kept in localStorage 'hc2-form', like the TEAM AI switch); unset = your
 // team's own card
