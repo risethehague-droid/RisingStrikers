@@ -268,8 +268,11 @@ function solveGround(dist, arrive, vz) {
   return hi;
 }
 // v0.8.2 how long an AI ground pass of d metres takes to arrive (cached per metre; the AI's interception check uses it)
-const PASS_T = [];
-function passTime(d) { const i = Math.round(clamp(d, 1, 50)), k = paceK().passArrive, T = k === 1 ? PASS_T : (PASS_T.firm = PASS_T.firm || []);   // (arcade-2: ARCADE's firmer passes have their own table)
+// t-046: one table per grass (the weather's grip, the pace and its firmer passes): the old single table kept the first
+// weather it was filled in (the start screen's demo, or the last match), so in rain / snow the AI misjudged every pass
+const PASS_T = new Map();
+function passTime(d) { const i = Math.round(clamp(d, 1, 50)), k = paceK().passArrive, key = `${k}|${SKID_DEC}|${ROLL_DEC}|${PACE_GRIP}|${KICK_MAX}`;
+  let T = PASS_T.get(key); if (!T) PASS_T.set(key, T = []);
   if (T[i] == null) { const v = solveGround(i, clamp(4.5 + i * 0.15, 5.5, 11) * k, 0.2); T[i] = simKick(v, 0.2, i).t; } return T[i]; }
 // friend/lob-mechanics (co-designer: "it never makes sense to lob the ball - easily interrupted, glitchy"). Measured:
 // a 12 m lob peaked at 1.8 m and a 25 m one at 3.5 m, so the ball stayed at head height (under 2.7 m) for most of its
