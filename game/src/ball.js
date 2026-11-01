@@ -1117,19 +1117,14 @@ hc2Mix(Match, {
         this.flagReplay('WHAT A SAVE!', p); this.shotSaved(p); return;
       }
       if (b.save && b.save.gk === p) {                                           // a shot at this keeper: his body and gloves decide
-        let hit = this.keeperTouch(p, pbx);
+        const hit = this.keeperTouch(p, pbx);
         if (!hit) { if (this.gkNoBar(p, pbx)) return; continue; }                // not at him yet - or it beat him (t-045: a special, rarely, doesn't)
         // v0.8 KEEPER GUARD: power shots (held K) and specials wear him down; one that hits harder than what he has left goes through
         const dmg = b.special ? (GUARD_SP[b.special] || 0.5) * clamp((b.spP || SP_POWER[b.special - 1]) / SP_POWER[b.special - 1], 0.3, 1) : (b.power > 0.72 ? GUARD_POWER : 0);   // v0.8.6: a weakened special hits him less
         if (dmg) {
           const g = p.guard ?? 1;
-          // qa-flag-20261031-2 (Luca, 31 Oct: "goalie just let the ball past"): a POWER shot that breaks a worn guard went
-          // straight through him, which reads as a howler. Real football has no guard: a hard shot at a tired keeper is a
-          // parry he can't hold (it can spill, loop up, fall for a striker), never a ball through his body. So only a
-          // special still breaks the guard (Mario Strikers' Megastrike); a power shot that would breaks it into a parry.
-          if (dmg > g + 1e-6 && b.special) { this.guardBreak(p); if (this.gpPop(p, 'break', len(b.vx, b.vy))) return; continue; }   // (t-013: or it loops up off him)
-          if (dmg > g + 1e-6) { p.guard = 0; p.guardT = 0; if (hit === 'catch') hit = 'parry'; this.say('', 'HE CAN ONLY PARRY IT!', 0.9); }
-          else { p.guard = g - dmg; p.guardT = 0; if (p.guard < GUARD_POWER) this.say('', 'THE KEEPER IS RATTLED!', 0.9); }
+          if (dmg > g + 1e-6) { this.guardBreak(p); if (this.gpPop(p, 'break', len(b.vx, b.vy))) return; continue; }   // (t-013: or it loops up off him)
+          p.guard = g - dmg; p.guardT = 0; if (p.guard < GUARD_POWER) this.say('', 'THE KEEPER IS RATTLED!', 0.9);
         }
         if (hit === 'catch') { this.gkCount(p.team, 'held'); if ((p.state === 'dive' && len(b.vx, b.vy) > 20) || len(b.vx, b.vy) > 28) this.flagReplay('WHAT A SAVE!', p); best = p; bd = 0; viaChest = false; break; }
         const spd = len(b.vx, b.vy); this.gkCount(p.team, 'parried');           // not held: t-007 over the bar, round the post, or pushed out to the side

@@ -480,7 +480,6 @@
     { mv: 'gk-nobar', sec: 'gk', n: 'NO BARS · v YOUR LV1', game: true, gk: true, hot: true, tip: "t-045 v2 (Luca 31 Oct): your LV1 special v their keeper with no SP bars - set on his line he stops it about 1 in 8, and it never goes in: round the post or over for a corner, or he pushes it onto the post and it bounces back out", go: r => fpNoBar(r, 1) },
     { mv: 'gk-nobar-see', sec: 'gk', n: 'NO BARS · SEE THE STOP', game: true, gk: true, hot: true, tip: 't-045 v2: the same LV1 shot, but he always gets there (in a match: 1 in 8) - so you can see the save: off the post, round the post or over', go: r => fpNoBar(r, 1, true) },
     { mv: 'gk-nobar2', sec: 'gk', n: 'NO BARS · v YOUR LV2', game: true, gk: true, hot: true, tip: 't-045 v2: the same with an LV2 special - with no bars he never stops it (only LV1 can be stopped that way)', go: r => fpNoBar(r, 2) },
-    { mv: 'gk-tired', sec: 'gk', n: 'TIRED KEEPER · v A POWER SHOT', game: true, gk: true, hot: true, tip: "qa-flag-20261031-2 (Luca 31 Oct: 'goalie just let the ball past'): your power shot at their keeper, his guard worn down by shots before - he can only parry it now (it never goes through him)", go: r => fpTired(r) },
     { mv: 'def-slide', sec: 'def', n: 'SLIDE TACKLE', game: true, tip: 't-018: he comes at you with the ball; you slide in (the shoot key)', go: r => fpDuel(r, 'slide') },
     { mv: 'def-stand', sec: 'def', n: 'STANDING TACKLE', game: true, tip: 't-018: the challenge (the pass key) as he reaches you', go: r => fpDuel(r, 'stand') },
     { mv: 'def-jockey', sec: 'def', n: 'JOCKEY', game: true, tip: 'side-on, backing off as he dribbles at you', go: r => fpDuel(r, 'jockey') },
@@ -716,17 +715,6 @@
       r.last = `COVER · ${o.n} · ${F.res || (F.l ? 'special save on' : 'reading it')}${m.gkSpLast ? ' · ' + ((RIGS[m.gkSpLast.n] || {}).name || m.gkSpLast.n) : ''}`;
       if (r.marks.length && F.t > 2.5) r.marks = [];
       return F.t < 4.5;
-    } };
-  }
-  // qa-flag-20261031-2: the shot from Luca's flag - IS #9 from (90.7, 27.8), a power shot (~0.83) low to the far post -
-  // at a keeper whose guard is down to 0.2 (LAB.tiredGuard), as after a few power shots in a row.
-  function fpTired(r) {
-    const gk = r.gk; fpSpot(r, 90.7, 27.8); fpKeeper(gk, LINE_X, 34 - 1.2); gk.guard = LAB.tiredGuard ?? 0.2; gk.guardT = 0; m.meters[1].e = 0;
-    r.last = `TIRED KEEPER · his guard ${Math.round(gk.guard * 100)}%`;
-    r.fx = { e0: r.events.length, step(r, p, F) {
-      if (!F.shot) { if (F.t < 0.6) return true; F.shot = true; m.doShot(p, LAB.tiredPow ?? 0.83, 1); return true; }
-      r.last = `TIRED KEEPER · power shot · ${fpGk(r, F, gk)}`;
-      return F.t < 5;
     } };
   }
   function fpClash(r, sv) {                                                     // your LV2 special v his special save (t-028, the KC tests)
