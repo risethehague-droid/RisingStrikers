@@ -37,6 +37,7 @@ the review opens at full time. Marks and notes reach the taskmaster through the 
 | `GROUP=<id> [REP=3] node tools/grp.js` | one Test Lab group, every test, outcome per test. Groups: FP, K, KH, YS, C, P, M, D, T, A, PK, N5, PW, CH, GK, SM, CS, BW, RL |
 | `[REP=20] [ONLY=E1,E4] [OUT=docs/ai/rl-baseline.json] node tools/rlrates.js` | role-ai step 0: the Lab's RL exploit tests (E1-E6), each run 20 times on fresh dice: how often the exploit WORKED, plus the numbers behind it (keeper height, CB pulled out, men behind the ball). `docs/ai/rl-baseline.md` has today's |
 | `node tools/linestudy.js` | role-ai: 6 computer v computer matches, how the back four and keeper stand while the other side has it (line spread, a man pulled out, keeper height by where the ball is) |
+| `node tools/formations.js` | role-ai step 6: the balance round-robin for the formations - every shape v every shape both ways (soak.js `FORM=<home>,<away>`), W / D / L, goals, shots and points share per shape (none may sit more than `TOL` points off 50%) |
 | `node tools/proxy093.js run\|def <trials> [levels]` | a scripted "you": run at goal from the centre circle / defend from kick-off, at each level |
 | `LEVELS=... node tools/train093.js probe 0 <matches> <secs>` | computer v computer strength per level (S against the old Normal) |
 | `node tools/train093.js <level> <iters> <matches> <secs>` | self-play tuning of one level's traits (writes `train093-out/`) |
