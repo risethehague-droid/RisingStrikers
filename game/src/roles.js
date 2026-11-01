@@ -21,7 +21,7 @@ const ROLES = {
   CAM: { line: 1, name: 'Attacking mid', job: 'between their lines; the edge of the box; presses their holding man' },
   W:   { line: 1, name: 'Winger',        job: 'wide midfield; goes far post on a cross; tracks their full-back' },
   WF:  { line: 2, name: 'Wide forward',  job: 'the front three\'s wide man: in behind on his flank; tracks their full-back' },
-  CF:  { line: 2, name: 'Striker',       job: 'runs in behind, stays onside' },
+  CF:  { line: 2, name: 'Striker',       job: 'the first line of the press; with the ball by his kind (FWD.KINDS): advanced = in behind, target = comes short and holds it up, poacher = lives in the box' },
 };
 
 // THE FORMATIONS (role-based AI, step 4 - docs/role-ai-plan.md 6.1 + 7). Luca, 31 Oct 02:24: "cdm, winger, centerforward
@@ -137,3 +137,38 @@ const MID = {
   TRACK_Y: 0.6,        // how much he moves across onto him
   TRACK_WF: -8,        // a 4-3-3's wide forward tracks only to here (team frame m: just inside our half) - he's the outlet
 };
+
+// THE FORWARD ROLES (role-based AI, step 5 - docs/role-ai-plan.md 6.1 + 7: "CF advanced / target / poacher, first-line
+// press"). Until now both strikers did the same thing: the one nearer the ball ran in behind, the other stood in his zone,
+// and without the ball they waited around halfway while the midfield did all the pressing. What real forwards do (FIFA
+// Training Centre pressing sessions; Klopp / Guardiola "the striker is the first defender"; eFootball's Goal Poacher /
+// Target Man / Deep-Lying Forward; EA FC 25 FC IQ's Advanced Forward / Target Forward / Poacher) and what we take:
+//  * THE FIRST LINE OF THE PRESS: their back man (or keeper) on the ball deep in their half = a striker goes at him, and
+//    he CURVES his run so it cuts off the pass back / across (the cover shadow); the other striker screens the next
+//    easiest pass (their other centre-back, or the man in front of them). They show him forward, into our midfield.
+//    It's a jockey, not a lunge: it forces the long ball, it doesn't hunt tackles. Past them, they stop and drop back
+//    into shape (they're the outlet for the counter, not a fifth midfielder).
+//  * ADVANCED FORWARD: on the last man's shoulder, the first one to run in behind (stage 2's runner, now by role).
+//  * TARGET MAN: comes short to give the build-up a target in front of their line, takes it with his back to goal and
+//    HOLDS IT UP (shields, waits for support, lays it off) instead of turning into the centre-back.
+//  * POACHER: doesn't come short or join the build-up; once the ball's in the final third he heads for the box, between
+//    the posts, on the last man's shoulder - where the rebounds and the cut-backs land.
+// Every team keeps 4-4-2 for now (step 6 gives each team its own picks); its two strikers are a big man and a runner.
+const FWD = {
+  KINDS: { '4-4-2': { 9: 'target', 10: 'advanced' }, '4-2-3-1': { 9: 'advanced' }, '4-3-3': { 9: 'poacher' } },
+  PRESS_X: 14,         // their man on the ball this far into their half (team frame m) = the first line presses
+  PRESS_BIAS: 0.35,    // s: a striker gets this head start in the race to be the presser there (the midfield holds its shape)
+  PRESS_R: 32,         // m: a striker further than this from the ball doesn't press, he holds (the outlet)
+  SHADOW: 0.5,         // the screen stands this far along the pass from the receiver back towards the man on the ball
+  SHADOW_R: 26,        // m: only a pass this short is screened (a longer one is the long ball we're forcing)
+  SHADOW_MAX: 28,      // m: the screening striker goes no further than this from his zone spot (18 m: he rarely got there - back passes went UP)
+  SHORT_X: 20,         // our man on the ball behind this (team frame m) = the target man comes short for him
+  SHORT_GAP: 7,        // m: in front of their line he comes short to
+  SHORT_REACH: 18,     // m: ... and no further than this in front of the ball (a pass he can be found with; 24 left him 30 m off it)
+  HOLD_BACK: 0.35,     // the target man with a man tight behind him: he shields, easing back this much (of his heading)
+  HOLD_FD: 3.2,        // m: a defender this close, square or behind him = he holds it up rather than take him on
+  BOX_X: 12,           // our ball past this (team frame m) = the poacher heads for the box
+  BOX_DEEP: 40,        // team frame m: the poacher's box spot (12.5 m out), or the last man's shoulder if that's nearer
+  RUN_BIAS: 14,        // m: the target man is that much "further" when the team picks who runs in behind
+};
+const cfKind = p => p.role === 'CF' ? ((p.team && p.team.cfKinds && p.team.cfKinds[p.i]) || (FWD.KINDS[(p.team && p.team.formation) || '4-4-2'] || {})[p.i] || 'advanced') : null;

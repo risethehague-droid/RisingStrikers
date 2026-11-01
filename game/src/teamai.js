@@ -66,7 +66,8 @@ hc2Mix(Match, {
     const ballG = len(b.x - gx, b.y - 34);
     let pool = cand; if (they) {                                                 // (the man already on him keeps it while he's level or goal-side)
       const gs = cand.filter(p => len(p.x - gx, p.y - 34) < (p === team.presser ? 1.03 : AI.GOALSIDE) * ballG); if (gs.length) pool = gs; }
-    const T = new Map(pool.map(p => [p, this.aiTime(p, spot(p))])); pool = pool.slice().sort((u, v) => T.get(u) - T.get(v));
+    const hp = this.fwdPressOn(team, owner), fb = p => hp && p.role === 'CF' && len(p.x - b.x, p.y - b.y) < FWD.PRESS_R ? FWD.PRESS_BIAS : 0;   // (role-ai step 5: the first line presses their back men)
+    const T = new Map(pool.map(p => [p, this.aiTime(p, spot(p)) - fb(p)])); pool = pool.slice().sort((u, v) => T.get(u) - T.get(v));
     let best = pool[0] || null; const cur = team.presser;
     if (cur && best && cur !== best && pool.includes(cur) && ((team.presserHeld || 0) < AI.HOLD || T.get(best) + AI.PAD >= AI.RATIO * (T.get(cur) + AI.PAD))) best = cur;
     if (best !== cur) team.presserHeld = 0;
@@ -107,6 +108,38 @@ hc2Mix(Match, {
     else if (isWide(p) && !team.inPoss) { const T = this.trackSpot(p, team, X, Y); X = T.x; Y = T.y; }   // role-ai step 4: wingers track their full-back
     if (lineOf(p) === 2 && team.offX != null) X = Math.min(X, Math.max(team.offX, fx) - 0.6);   // strikers stay onside
     return { x: clamp(this.aiWorld(team, X), 2, PITCH_L - 2), y: clamp(34 + Y, 3, PITCH_W - 3) };
+  },
+  // role-ai step 5 THE FORWARDS (roles.js FWD). The first line presses: their man on the ball deep in their half, not their
+  // keeper with it in his hands (everyone backs off that), not a ball we've already been played past
+  fwdPressOn(team, owner) {
+    return !!(owner && owner.team !== team && !(owner.keeper && owner.hands) && this.aiFrame(team, owner.x) > FWD.PRESS_X);
+  },
+  // the passes the man on the ball has BACK or ACROSS (their keeper, the other centre-back, the full-back level with him),
+  // nearest first: the ones the press cuts off, so he has to play it forward into our midfield or go long
+  fwdBackOpts(team, owner) {
+    const ox = this.aiFrame(team, owner.x), out = [];
+    for (const o of team.opp.players) { if (o === owner || o.sentOff) continue; const d = len(o.x - owner.x, o.y - owner.y);
+      if (d < 4 || d > FWD.SHADOW_R || this.aiFrame(team, o.x) < ox - 4) continue; out.push({ o, x: o.x, y: o.y, d }); }
+    return out.sort((u, v) => u.d - v.d);
+  },
+  // the striker who isn't pressing stands in the lane of the next easiest pass back / across (one his team-mate's curved
+  // run doesn't already cut), a share of the way from that man towards the ball - near his zone, never a chase across
+  fwdScreen(p, team, owner, zone) {
+    const all = this.fwdBackOpts(team, owner), pr = team.presser, cut = pr && pr.role === 'CF' ? all[0] : null;
+    let best = null, bd = 1e9; for (const r of all) { if (cut && r.o === cut.o) continue;
+      const sx = r.x + (owner.x - r.x) * FWD.SHADOW, sy = r.y + (owner.y - r.y) * FWD.SHADOW, d = len(sx - zone.x, sy - zone.y);
+      if (d < bd && d < FWD.SHADOW_MAX) { bd = d; best = { x: sx, y: sy }; } }
+    return best;
+  },
+  // with the ball (not the man running in behind): the TARGET MAN comes short in front of their line while we build it
+  // from the back - a ball into his feet / chest; the POACHER heads for the box once we're in the final third
+  fwdSpot(p, team, owner) {
+    const k = cfKind(p); if (!k || (team.mood && team.mood.chase)) return null;
+    const ox = this.aiFrame(team, owner.x), ln = (team.offX ?? 99) - 0.6;
+    if (k === 'target' && ox < FWD.SHORT_X) { const X = Math.min(ln - FWD.SHORT_GAP, ox + FWD.SHORT_REACH);
+      return { x: this.aiWorld(team, X), y: clamp(34 + (owner.y - 34) * 0.35 + homeY(p, true) * 0.4, 8, 60) }; }
+    if (k === 'poacher' && ox > FWD.BOX_X) return { x: this.aiWorld(team, Math.min(FWD.BOX_DEEP, ln)), y: clamp(34 - (owner.y - 34) * 0.12, 30, 38) };
+    return null;
   },
   // role-ai step 4 THE ANCHOR (roles.js MID): a back man out of the line (pressing the ball, or pulled out) = the anchor
   // drops into his spot; otherwise he screens a set gap in front of the line, on the ball's side; with the ball he holds
@@ -187,6 +220,8 @@ hc2Mix(Match, {
     const gx = team.ownGoalX, ux = gx - carrier.x, uy = 34 - carrier.y, ul = len(ux, uy) || 1, d = len(carrier.x - p.x, carrier.y - p.y);
     let tx, ty, v;
     if (d > AI.MIRROR) { tx = carrier.x + ux / ul * Math.min(4, d * 0.25) + carrier.vx * 0.3; ty = carrier.y + uy / ul * Math.min(4, d * 0.25) + carrier.vy * 0.3;
+      if (p.role === 'CF' && this.fwdPressOn(team, carrier)) { const r = this.fwdBackOpts(team, carrier)[0];   // role-ai step 5: the striker CURVES his run - in on the
+        if (r) { const rx = r.x - carrier.x, ry = r.y - carrier.y, rl = len(rx, ry) || 1, k = Math.min(3, d * 0.2); tx += rx / rl * k; ty += ry / rl * k; } }   // side of the pass back, so it's cut off (the cover shadow)
       p.sprinting = d > 10 && p.stamina > 0.35; v = p.top(p.sprinting, false); }
     else {
       // v0.8.2 not goal-side yet (arriving from the side / behind): a recovery run ROUND him onto the goal side, not through him
@@ -327,12 +362,15 @@ hc2Mix(Match, {
           const w = team.wing.get(p); t = { x: w.x, y: w.y };
         } else if (team.inPoss && owner && owner.team === team && lineOf(p) === 2) {     // with the ball: a forward offers a run in behind
           const runT = (team.runT = (team.runT ?? 0) - dt / 2);
-          if (runT <= 0) { team.runT = 1.5; const dO = q => len(q.x - owner.x, q.y - owner.y), cur = team.runner, nr = team.players.filter(q => lineOf(q) === 2 && !q.sentOff).sort((u, v) => dO(u) - dO(v))[0];
+          if (runT <= 0) { team.runT = 1.5; const dO = q => len(q.x - owner.x, q.y - owner.y) + (cfKind(q) === 'target' ? FWD.RUN_BIAS : 0), cur = team.runner, nr = team.players.filter(q => lineOf(q) === 2 && !q.sentOff).sort((u, v) => dO(u) - dO(v))[0];
             team.runner = cur && cur !== nr && cur.team === team && !cur.sentOff && this.aiFree(cur) && dO(cur) < dO(nr) + AI.STICK_RUN ? cur : nr; }   // (smarter-ai: his run isn't cancelled for a man a step nearer)
           if (team.runner === p || (team.mood && team.mood.chase)) { const ox = this.aiFrame(team, owner.x), ln = (team.offX ?? 99) - 0.6;   // (smarter-ai: chasing late, both strikers go)
             const sh = offsideOn() && ln - ox < 28 && ln > 0 ? (team.offX ?? 99) - (team.offHold ?? OFFSIDE.HOLD) : null;   // t-024: within reach of their line he plays on the last man's shoulder,
             t = sh != null ? { x: this.aiWorld(team, sh), y: clamp(owner.y + (34 - owner.y) * 0.5, 6, 62), go: true, shoulder: true }   // as tight as he reads it (team.offHold, below), getting there at a run
               : { x: this.aiWorld(team, Math.min(ox + 18, ln)), y: clamp(owner.y + (34 - owner.y) * 0.5, 6, 62) }; }
+          else { const f = this.fwdSpot(p, team, owner); if (f) t = f; }                  // role-ai step 5: the target man comes short, the poacher goes to the box (the runner: by role, FWD.RUN_BIAS)
+        } else if (p.role === 'CF' && owner && owner.team !== team && p !== team.presser && this.fwdPressOn(team, owner)) {
+          const f = this.fwdScreen(p, team, owner, t); if (f) t = f;                     // role-ai step 5: the other striker screens the next pass
         }
         if (team.marks && team.marks.get(p) || p === team.cover || (p === team.support && team.supportPt) || (team.wing && team.wing.has(p))) fixed.push({ x: t.x, y: t.y, fixedT: true });
         tgt.set(p, t);
@@ -492,7 +530,11 @@ hc2Mix(Match, {
         let crowd = 0; for (const o of team.opp.players) if (!o.sentOff && !o.keeper && Math.abs(o.y - 34) < 12 && this.aiFrame(team, o.x) > fl - 2) crowd++;
         if (crowd >= 2 || fl < 28) { const lane = 34 + Math.sign(off) * (fl > 38 ? 17 : clamp(Math.abs(off), 18, 28)), w = clamp(this.dk(team).cross - 0.4, 0, 1);   // deep in their half: in towards the corner of the box
           dy += (clamp((lane - p.y) / 12, -0.5, 0.5) - dy) * w; } } }   // (how firmly by level: Easy still wanders inside - tools/proxy093 def: its wing play made it as hard to stop as Hard)
-    if (front && fd < 6 && toGoal > 9) {                                         // take him on: cut away from him, not into the line
+    let hold = false;                                                            // role-ai step 5: the TARGET MAN holds it up - a man tight on him
+    if (cfKind(p) === 'target' && toGoal > 22 && !this.isHuman(p)) {             // (behind, or square) and he shields it, easing back towards his
+      for (const o of team.opp.players) { if (o.sentOff || o.keeper) continue; if (len(o.x - p.x, o.y - p.y) < FWD.HOLD_FD && (o.x - p.x) * side > -1) { hold = true; break; } } }   // own side for the lay-off, no turn into the centre-back
+    p.holdUp = hold; if (hold) { dx = -side * FWD.HOLD_BACK; dy *= 0.5; }
+    else if (front && fd < 6 && toGoal > 9) {                                         // take him on: cut away from him, not into the line
       if (p.takeT <= 0) { const lat = front.y - p.y, edge = p.y < 9 ? 1 : p.y > PITCH_W - 9 ? -1 : 0;
         p.takeSide = edge || (Math.abs(lat) > 0.5 ? -Math.sign(lat) : (Math.sign(34 - p.y) || 1)); p.takeT = rnd(0.9, 1.5); }
       const a = clamp((6 - fd) / 6, 0, 1) * 0.85; dx = side * Math.cos(a); dy = p.takeSide * Math.sin(a) + dy * 0.25;
@@ -508,7 +550,7 @@ hc2Mix(Match, {
     p.think = rnd(0.2, 0.35) * K.think * (1 - 0.25 * S.tempo) * (M.protect > 0.3 && S.protect === 'keep' ? 1.15 : 1);
     // smarter-ai stage 2: the decision is the team brain's move list (brain.js AI_MOVES): special, chip, tap, shot,
     // cross, pass, the safe ball, the curving pass, keep it - every judgement as before, the best of those that come up
-    this.brainChoose(p, { K, toGoal, front, fd, pressed: !!(front && fd < 3.2) });
+    this.brainChoose(p, { K, toGoal, front, fd, pressed: !!(front && fd < 3.2) || hold });   // (role-ai step 5: holding it up = looking for the lay-off)
   },
   // t-012 THE RUNS for a wide man in their half: the nearest striker to the near post, the other to the far post, the
   // far-side winger to the spot, a central midfielder to the edge of the box (the knock-down, the cut-back), and the
