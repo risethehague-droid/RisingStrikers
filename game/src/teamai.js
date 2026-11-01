@@ -95,14 +95,46 @@ hc2Mix(Match, {
   aiZone(p, team) {                                                              // SBSP: formation spot + a share of the (smoothed) ball, per line
     const L = AI.LINES[lineOf(p)], fx = team.fx, fy = team.fy;
     const S = this.brainStyle(team), wd = 1 + 0.15 * S.width * team.poss;        // (smarter-ai: the style's width with the ball)
-    const hy = (AI.HOME_Y_DEF[p.i] + (AI.HOME_Y_ATT[p.i] - AI.HOME_Y_DEF[p.i]) * team.poss) * wd;
+    const SH = shapeOf(team), yD = SH.yDef[p.i], yA = SH.yAtt[p.i];                // (role-ai step 4: the team's formation, roles.js SHAPES)
+    const hy = (yD + (yA - yD) * team.poss) * wd;
     let X = L.def + (L.att - L.def) * team.poss + L.ax * fx + this.brainLine(team), Y = hy + L.ay * fy * (1 - 0.4 * team.poss);   // (smarter-ai: the line by style and match state)
+    X += SH.dxDef[p.i] + (SH.dxAtt[p.i] - SH.dxDef[p.i]) * team.poss;            // (role-ai step 4: deeper / higher than his line's band, by role)
     if (team !== this.home && this.read && !team.inPoss) Y += this.readFlank() * READ.SHIFT * (lineOf(p) <= 1 ? 1 : 0.5);   // (Rise Warrior has read your flank: the block shifts over)
     if (L.behind) X = Math.min(X, fx - 1.5);
     X = clamp(X, L.min, L.max);
     if (isBack(p)) { const B = this.lineSpot(p, team); X = B.x; Y += B.dy; }       // role-ai step 2: on the team's one line (aiBackLine)
+    else if (p.role === 'CDM') { const A = this.anchorSpot(p, team, X, Y); if (A.hole) return A.hole; X = A.x; Y = A.y; }   // role-ai step 4: the anchor (roles.js MID)
+    else if (isWide(p) && !team.inPoss) { const T = this.trackSpot(p, team, X, Y); X = T.x; Y = T.y; }   // role-ai step 4: wingers track their full-back
     if (lineOf(p) === 2 && team.offX != null) X = Math.min(X, Math.max(team.offX, fx) - 0.6);   // strikers stay onside
     return { x: clamp(this.aiWorld(team, X), 2, PITCH_L - 2), y: clamp(34 + Y, 3, PITCH_W - 3) };
+  },
+  // role-ai step 4 THE ANCHOR (roles.js MID): a back man out of the line (pressing the ball, or pulled out) = the anchor
+  // drops into his spot; otherwise he screens a set gap in front of the line, on the ball's side; with the ball he holds
+  // back (rest defence). X, Y in the team frame; `hole` is a world spot when he's filling in.
+  anchorSpot(p, team, X, Y) {
+    const live = team.line != null && team.lineN === (this.aiN || 0), line = live ? team.line : this.lineTarget(team).x, fx = team.fx ?? 0, fy = team.fy ?? 0;
+    if (!team.inPoss) {
+      const out = team.players.find(q => isBack(q) && !q.sentOff && (q === team.presser || (this.aiFree(q) && this.aiFrame(team, q.x) > line + MID.HOLE)));
+      const gone = !out && team.players.find(q => isBack(q) && q.sentOff);
+      const h = out || gone;
+      if (h && h !== this.humanOf(team)) { const B = this.lineSpot(h, team), y = clamp(34 + shapeOf(team).yDef[h.i] + AI.LINES[0].ay * fy + B.dy, 3, PITCH_W - 3);
+        return { hole: { x: clamp(this.aiWorld(team, B.x + 0.5), 2, PITCH_L - 2), y } }; }
+      X = clamp(Math.min(X, fx - 2), line + MID.ANCHOR_GAP * 0.6, line + MID.ANCHOR_GAP_MAX); if (fx - line > MID.ANCHOR_GAP + 6) X = Math.max(X, line + MID.ANCHOR_GAP);
+      Y = clamp(Y + (fy * MID.ANCHOR_Y - fy * AI.LINES[1].ay), -MID.ANCHOR_YMAX, MID.ANCHOR_YMAX);
+    } else { X = Math.min(X, fx - MID.ANCHOR_REST); Y = clamp(Y, -MID.ANCHOR_YMAX, MID.ANCHOR_YMAX); }
+    return { x: X, y: Y };
+  },
+  // role-ai step 4 WINGERS TRACK BACK (roles.js MID): their full-back on his flank, level with him or past him, is his man
+  // - he follows him back goal-side, down to just in front of our line (a 4-3-3's wide forward only to just inside our half)
+  trackSpot(p, team, X, Y) {
+    const side = Math.sign(shapeOf(team).yDef[p.i]) || 1, live = team.line != null && team.lineN === (this.aiN || 0), line = live ? team.line : this.lineTarget(team).x;
+    let o = null, oX = 99;
+    for (const q of team.opp.players) { if (q.sentOff || q.role !== 'FB' || Math.sign(q.y - 34) !== side || Math.abs(q.y - 34) < 8) continue;
+      const qx = this.aiFrame(team, q.x); if (qx < oX) { oX = qx; o = q; } }
+    if (!o || oX > X + MID.TRACK_X || o === this.ball.owner) return { x: X, y: Y };
+    const floor = p.role === 'WF' ? MID.TRACK_WF : line + MID.TRACK_DEEP;
+    const tx = Math.max(Math.min(X, oX - MID.TRACK_GAP), floor);
+    return { x: tx, y: Y + ((o.y - 34) - Y) * MID.TRACK_Y };
   },
   // role-ai step 2 (docs/role-ai-plan.md 6.2, the numbers in roles.js LINE): where the line WANTS to be right now, before
   // it's eased. The base is the old per-man formula for the back row (AI.LINES[0] + the style's brainLine), so the team's
@@ -489,11 +521,11 @@ hc2Mix(Match, {
     if (fl < 10) return;
     const human = !this.demo ? this.humanOf(team) : null, W = new Map(), a = clamp((fl - 12) / 20, 0, 1);
     const free = team.players.filter(q => q !== owner && q !== human && !q.keeper && this.aiFree(q) && q !== team.support && q.stamina > 0.12);
-    const homeSide = q => Math.sign(AI.HOME_Y_ATT[q.i] || 0);
+    const homeSide = q => Math.sign(homeY(q, true) || 0);   // (role-ai step 4: by formation)
     const run = (name, pool) => { const [X, o] = WING.RUNS[name], pt = { x: this.aiWorld(team, X - (1 - a) * WING.BACK), y: clamp(34 + sgn * o, 3, PITCH_W - 3), run: name, go: a > 0.45 };
       const q = pool.filter(x => !W.has(x)).sort((u, v) => len(u.x - pt.x, u.y - pt.y) - len(v.x - pt.x, v.y - pt.y))[0]; if (q) W.set(q, pt); return q; };
-    const fwd = free.filter(q => lineOf(q) === 2), wideFar = free.filter(q => q.role === 'W' && homeSide(q) === -sgn), mid = free.filter(q => q.role === 'CM');
-    run('near', fwd); run('far', fwd.length > 1 ? fwd : [...fwd, ...wideFar]);
+    const fwd = free.filter(q => lineOf(q) === 2 && !(q.role === 'WF' && homeSide(q) === sgn)), wideFar = free.filter(q => isWide(q) && homeSide(q) === -sgn), mid = free.filter(q => q.role === 'CAM' || q.role === 'CM');   // (role-ai step 4: the 10 and the CMs arrive at the edge; the anchor stays)
+    run('near', fwd); run('far', fwd.length > 1 ? fwd : [...fwd, ...wideFar, ...mid.filter(q => q.role === 'CAM')]);
     if (a > 0.6) run('spot', [...wideFar, ...fwd]);                             // (a third man only late on: four in the box flooded it - more goals, not more crosses)
     run('edge', mid);
     if (fl < 32 && !isBack(owner)) {                           // the overlap: his full-back goes past him on the outside
@@ -512,8 +544,8 @@ hc2Mix(Match, {
     const free = team.players.filter(q => q !== owner && q !== human && !q.keeper && this.aiFree(q) && q !== team.support && q !== team.runner && q.stamina > 0.12);
     const run = (name, pool) => { const [X, o] = WING.RUNS[name], pt = { x: this.aiWorld(team, X - (1 - a) * WING.BACK), y: clamp(34 - sgn * Math.abs(o) - sgn * 2, 3, PITCH_W - 3), run: name, go: a > 0.45 };
       const q = pool.filter(x => !W.has(x)).sort((u, v) => len(u.x - pt.x, u.y - pt.y) - len(v.x - pt.x, v.y - pt.y))[0]; if (q) W.set(q, pt); return q; };
-    run('far', free.filter(q => lineOf(q) === 2));                                       // the other striker: the far side of the box
-    run('edge', free.filter(q => q.role === 'CM'));                        // a central midfielder: late, to the edge
+    run('far', free.filter(q => lineOf(q) === 2 || q.role === 'CAM'));                   // the other striker (one up front: the 10): the far side of the box
+    run('edge', free.filter(q => q.role === 'CM' || q.role === 'CAM'));    // a central midfielder (or the 10): late, to the edge
     team.wing = W.size ? W : null; team.wingBy = W.size ? owner : null;
   },
   // is our cross in the air? (nobody has touched it since he hit it). The computer's crosses are marked at the kick

@@ -60,7 +60,7 @@ function studyMatch() {
   const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const all = [];
   for (let i = 0; i < N; i++) {
-    const c = setup(i + +(E.FROM || 0)), page = await br.newPage({ viewport: { width: 1280, height: 720 } }); const errs = [];
+    const c = setup(i + +(E.FROM || 0)), page = await br.newPage({ viewport: { width: 1280, height: 720 } }); const errs = []; if (E.FORM) await page.addInitScript(f => { window.FORMATION_FORCE = f; }, E.FORM);   // (role-ai step 4: every team in that shape)
     page.on('pageerror', e => errs.push(e.message));
     // exactly tools/preview.js MATCH=1's set-up (so a moment found here replays there)
     await page.goto(`http://localhost:${PORT}/test.html#flow`);
