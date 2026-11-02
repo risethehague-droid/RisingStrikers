@@ -28,13 +28,13 @@ const JOSTLE = {
   contactR: 1.7,       // they jostle while this close (m); further apart it's just a race
   boxX: 24, boxY: 24,  // only for a ball coming down within this of their goal (x from the line, y from the middle)
   posK: 0.55,          // per second, per metre nearer to where it comes down
-  goalSide: 0.35,      // per second, the defender goal-side of him (between him and the goal: the start every marker wants)
+  goalSide: 0.12,      // per second, the defender goal-side of him (between him and the goal: the start every marker wants)
   push: 0.5,           // per second, each man's push at full strength (auto)
   pushHold: 1.8,       // ...x this while you HOLD SPRINT (it costs stamina: drain per second)
   drain: 0.22,
   cpuLvl: 0.18,        // the computer's push +/- this per level step (easy -1 .. rise +2)
   noise: 0.25,         // per second, the scramble
-  toT: 1.4,            // the race: seconds of head start per point of J (2 Nov: at 0.42 the jostle moved the race by ~0.1 s and
+  toT: 1.0,            // the race: seconds of head start per point of J (2 Nov: at 0.42 the jostle moved the race by ~0.1 s and
                        // the MASH stayed at 4 in 5 corners; the spot won with arms and shoulders has to decide most balls)
   readR: 2.6,          // the man who contests it is read for the jostle if he's within this of him (not only his marker)
   nudge: 0.9,          // m/s: the one on top moves the other off the spot (x tanh J)
