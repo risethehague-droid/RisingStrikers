@@ -165,6 +165,7 @@ class Player {
     else if (this.keeper && this.hands && this.m.ball.owner === this && !this.busy()) this.carryPlay(K, d);   // t-031: on the move with it in his hands
     else if (this.keeper && this.speed < 0.5 && ((this.m.ball.save && this.m.ball.save.gk === this) || this.gkSet) && K.anims[`kset-${d}`]) this.play(`kset-${d}`, 10);   // set for the shot (v0.9.1: or ready for one)
     else if ((this.touchAnimT || 0) > 0 && K.anims[`touch-${d}`]) this.play(`touch-${d}`, 18, true);      // first touch on the run
+    else if ((this.jAnimT || 0) > 0 && this.jAnim && K.anims[`${this.jAnim}-${d}`]) { this.play(`${this.jAnim}-${d}`, 11); this.jAnimT -= 1 / 60; }   // jostle.js: batch 23, arms and shoulders for a high ball
     else if (this.jockeyOn && K.anims[`jockey-${d}`]) { this.play(`jockey-${d}`, 10); this.spr.anims.timeScale = clamp(this.speed / 2.6, 0.35, 1.8); }   // v0.8.2 PixelLab jockey
     else {
       // v0.8.7 LOCOMOTION LOCK (BUG WATCH measured idle / walk / run blipping on screen for a frame or two ~2,500 times a

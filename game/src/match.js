@@ -170,7 +170,7 @@ class Match extends Phaser.Scene {
     if (!this.demo) this.controlHumans(dt);                                     // (t-043: each human, home then away)
     this.ai(dt);
     for (const p of this.all) p.step(dt);
-    if (this.aspStep) this.aspStep(dt);                                       // arcadesp.js (the co-designer's ARCADE specials): the special dribble's path
+    if (this.aspStep) this.aspStep(dt); if (this.jostleStep) this.jostleStep(dt);                                       // arcadesp.js (the co-designer's ARCADE specials): the special dribble's path
     this.separate();
     this.slides();
     this.headers();

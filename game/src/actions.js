@@ -292,13 +292,14 @@ hc2Mix(Match, {
     // first (two men both waiting under it: the one settled there first has it - a real contest is arriving together)
     let gap = Infinity, room = true;
     for (const o of q.team.opp.players) { if (o.sentOff || o.keeper || o.stun > 0) continue;
-      let g = arr(o, Mp) - aq;
+      let g = arr(o, Mp) - aq + (this.jostleGap ? this.jostleGap(q, o) : 0);       // (jostle.js: who won the spot with arms and shoulders, 31 Oct)
       const ox = Mp.x - o.x, oy = Mp.y - o.y, ol = len(ox, oy) || 1, qa = ((q.x - o.x) * ox + (q.y - o.y) * oy) / ol;   // boxed out: the receiver stands in his
       if (qa > 0.3 && qa < ol + 1.2 && Math.abs(((q.x - o.x) * oy - (q.y - o.y) * ox) / ol) < C.boxOut) g += C.boxT;   // way to it (PES: only a man goal-side and close contests it) for (const pt of band) { if (pt.t >= Mt - 0.05) break; if (arr(o, pt) <= pt.t) { g = Math.min(g, pt.t - Mt); break; } }
       if (g < gap) gap = g;
       if (len(o.x - Mp.x, o.y - Mp.y) - o.top(true, false) * Math.max(0, Mt - C.react) < C.room) room = false; }
     const kind = room || gap >= C.margin ? 'clean' : gap <= -C.margin ? 'lost' : 'contest';
     this.recvCount(kind);
+    if (this.jostleFoul && this.jostleFoul(kind)) return null;                    // (jostle.js: too much shoving / holding - the whistle)
     return (b.recv = { k: b.spT, q, kind, gap, at: { x: Mp.x, y: Mp.y, z: Mp.z }, t: Mt });
   },
   recvCount(k) { const N = this.recvN = this.recvN || { clean: 0, contest: 0, lost: 0, duel: 0, battle: 0, chest: 0, thigh: 0 }; N[k]++; },
