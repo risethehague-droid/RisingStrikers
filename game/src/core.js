@@ -69,6 +69,10 @@ const SP_WIN = 0.25;                     // s after SPECIAL in which a pass butt
 // the straight line) tried, smallest first, and the default bend when nobody is in the way; kMax = the most curvature
 // (1/m) a solve may ask for; trail / cam = the look (s)
 const CURVE = { tau: 1.6, clear: 2.8, ang: [14, 18, 22, 26, 30, 34, 38], angFree: 20, kMax: 0.35, trail: 2.2, cam: 1.1 };
+// s-fk-curl (ball.js fkCurlLaunch): a direct free kick bends round the wall. clear = how far (m) it passes the end man
+// (a body blocks a ball within ~0.9 m); mid = aimed this close to the middle of the goal (m) it goes straight; ang =
+// the launch angles off the line tried, smallest first (degrees); hold = the most seconds the wall stands still (fkWallHold)
+const FK_CURL = { on: true, clear: 1.2, mid: 0.8, ang: [4, 6, 8, 10, 12, 14, 16, 18], hold: 0.8 };
 // t-005 (lob step 1, readability): the ball's shadow shrinks as it climbs - full size on the grass, SHADOW_MIN of it from
 // SHADOW_Z metres up (docs/lob-chip.md: "100% to about 60% between 0 and 6 m"); the ball-shadow sprite scaled, nothing drawn
 const SHADOW_MIN = 0.62, SHADOW_Z = 6;

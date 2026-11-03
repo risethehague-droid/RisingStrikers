@@ -488,6 +488,7 @@
     { mv: 'slide', sec: 'def', n: 'SLIDE AT A LOOSE BALL', game: true },
     { mv: 'set-corner', sec: 'set', n: 'CORNER', game: true, gk: true, tip: 't-029: your corner - the setup runs, then C crosses / Z passes / X shoots. On ARCADE too since 30 Oct: a ball their defender puts over his own byline is a corner (Test Lab AR2-D)', go: r => fpSet(r, 'corner') },
     { mv: 'set-fk', sec: 'set', n: 'FREE KICK + WALL', game: true, gk: true, tip: 't-029: your free kick 23 m out - their wall forms on 9.15 m, then you take it', go: r => fpSet(r, 'fk') },
+    { mv: 'set-fk-curl', sec: 'set', n: 'FREE KICK · ROUND THE WALL', gk: true, tip: 's-fk-curl (LAB ONLY until Luca OKs it; in EXPERIMENTAL): your free kick 22 m out, aimed at the far corner - it sets off outside the wall and bends back in. In a match: hold X, aim at a corner', go: r => fpFkCurl(r) },
     { mv: 'set-throw', sec: 'set', n: 'THROW-IN', game: true, gk: true, tip: 't-029: your throw-in - Z short, C long', go: r => fpSet(r, 'throw') },
     { mv: 'set-off', sec: 'set', n: 'OFFSIDE → FREE KICK', game: true, gk: true, tip: 't-024 / t-029: their striker is flagged offside - your free kick where he played it', go: r => fpSet(r, 'off') },
     { mv: 'head', sec: 'you', n: 'HEAD', game: true },
@@ -886,6 +887,19 @@
       r.out = r.noAuto ? null : r.out;                                          // (the call itself goes through restart: not an "out" yet)
       return F.done ? F.t - F.doneT < 6 : F.t < 30;
     } };
+  }
+  // s-fk-curl: the free kick as fpSet sets it up, then your taker curls it round the wall at the far corner himself
+  function fpFkCurl(r) {
+    fpSet(r, 'fk'); const step0 = r.fx.step; r.last = 'FREE KICK · ROUND THE WALL';
+    r.fx.step = (r, p, F) => {
+      const sp = m.setPiece;
+      if (sp && !F.took && sp.team === m.home && sp.setup && !sp.su && F.t > 0.6) {
+        F.took = true; const gx = sp.team.goalX, s = sp.team.side, b = m.ball;
+        m.aimPt = Object.assign(m.aimPt || {}, { x: gx + s * 0.5, y: 34 + (b.y < 34 ? 1 : -1) * 2.8 });   // (the far corner: the wall covers the near side)
+        m.spKick('shot', 0.66);
+      }
+      return step0(r, p, F);
+    };
   }
   // ---------- PRACTICE SCENARIOS (Luca 31 Oct 01:39: "for the test lab give more options for setup like scenarios in
   // which you can try passes dribbles etc"). The drills of the reference games' training modes: FIFA / EA FC's Skill

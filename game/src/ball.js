@@ -394,6 +394,7 @@ hc2Mix(Match, {
     if (k.p.keeper && k.p.hands && mode === 'lob') b.z = k.p.kickAnim === 'punt' ? 0.45 : 1.9;   // a throw leaves the raised hand, a punt the boot
     b.skid = true; b.rollV = 0.8 * speed; b.target = k.info.target || null; b.airT = 0; b.lob = !!k.info.loft; b.aimLob = !!k.info.aim;   // lob-mechanics: an open-play lob (its drop is a duel)
     if (k.info.curve) this.curveLaunch(b, k);                                     // t-011: the curving special pass (Test Lab only)
+    if (k.info.fkCurl) this.fkCurlLaunch(b, k);                                  // s-fk-curl: a direct free kick bent round the wall
     if (k.info.sp2) this.spPassLaunch(b, k);                                      // the LV1 special passes (sppass.js, Test Lab only)
     b.last = k.p.team; b.lastP = k.p; k.p.cool = 0.3; b.tried = null; b.crossBy = k.info.cross ? k.p : null;   // (t-012: the runners attack a cross until someone touches it)
     if (k.info.tap) this.tapSfx(); else if (k.p.hands && k.p.kickAnim === 'punt') SFX.kick(0.55); else if (k.p.hands) SFX.pass(); else if (k.info.shot) SFX.kick(k.info.power || 0.6); else if (mode === 'lob') SFX.kick(0.4); else SFX.pass();
@@ -506,6 +507,41 @@ hc2Mix(Match, {
     const a = S.th * S.s, c = Math.cos(a), s = Math.sin(a), lx = ux * c - uy * s, ly = ux * s + uy * c;   // the line turned by th to side s
     b.vx = lx * S.speed; b.vy = ly * S.speed; b.vz = S.vz; b.rollV = 0.8 * S.speed; b.cv = -S.k * S.s;
     this.curveFx(k, S);                                                         // the look (specials.js)
+  },
+  // s-fk-curl (part 2 of the curled set pieces, 1 Nov). How real football does it: the wall stands on 9.15 m covering
+  // one side of the goal (Law 13), the keeper the other; the free-kick taker (Beckham, Pirlo, Messi) sets the ball off
+  // outside the end man of the wall and bends it back in, so it is past the wall before it turns for the corner. FIFA /
+  // EA FC and PES do the same with a curl dial. Here: aim for a corner (as now) and the shot sets off to that side, wide
+  // enough to clear every man in the wall by FK_CURL.clear (or over his head), and its spin brings it back to the
+  // spot you aimed at on the goal line. Aimed down the middle, or nobody in the way, or nothing that works: straight, as before.
+  fkCurlLaunch(b, k) {
+    const gx = k.p.team.goalX, sv = len(b.vx, b.vy); if (!sv) return;
+    const lx = gx - b.x, ty = b.y + b.vy / b.vx * lx; if (!isFinite(ty) || Math.abs(lx) < 5) return;   // where the straight shot crosses the goal line
+    const d = len(lx, ty - b.y), ux = lx / d, uy = (ty - b.y) / d;
+    const wall = k.p.team.opp.players.filter(o => !o.sentOff && !o.keeper).map(o => ({ a: (o.x - b.x) * ux + (o.y - b.y) * uy, l: (o.y - b.y) * ux - (o.x - b.x) * uy }))
+      .filter(o => o.a > 6.5 && o.a < 12 && Math.abs(o.l) < 4);   // (the wall on 9.15 m, not the markers on the line)
+    this.fkCurlLast = null;
+    if (!wall.length || Math.abs(ty - 34) < FK_CURL.mid) return;
+    const sd = -Math.sign((34 - b.y) * ux - (gx - b.x) * uy) || 1;               // set off away from the wall (it covers the goal's middle): + = left of the line, as curveRun turns
+    const P = curveProfile(sv, b.vz, false);
+    for (const deg of FK_CURL.ang) {
+      const th = deg * Math.PI / 180, kk = curveK(P, th, sd, false, d, null), r = curveRun(P, th, kk, sd, false, d, wall);
+      if (!r || Math.hypot(r.x - d, r.y) > 0.5) continue;
+      const ok = wall.every((o, i) => { const q = r.at[i]; return !q || q.z > 1.95 || (q.y - o.l) * sd > FK_CURL.clear; });
+      if (!ok) continue;
+      const a = th * sd, c = Math.cos(a), sn = Math.sin(a);
+      b.vx = (ux * c - uy * sn) * sv; b.vy = (ux * sn + uy * c) * sv; b.cv = -kk * sd;
+      this.fkCurlLast = { deg, k: kk, s: sd, d, bend: r.bend };
+      return;
+    }
+  },
+  // s-fk-curl: a real wall holds its line and jumps on the spot as the kick is struck; it doesn't step across to meet
+  // the ball (in the game they did: each man moved ~0.9 m into the shot's path before it reached him, so nothing ever
+  // got round them). So the men in the wall stay where they stood until the ball is past them or FK_CURL.hold is up.
+  fkWallHold(dt) {
+    const W = this.fkWall, b = this.ball; W.t += dt;
+    if (W.t > FK_CURL.hold || (b.owner && W.t > 0.5) || (this.setPiece && this.setPiece !== W.sp) || len(b.x - W.x, b.y - W.y) > W.d + 1.5) { this.fkWall = null; return; }
+    for (const M of W.men) { const q = M.q; if (q.sentOff) continue; q.x = M.x; q.y = M.y; q.vx = q.vy = 0; }
   },
   // v0.8.5 (Luca): HOLD the lob for a high ball where you point - the longer you hold, the further and higher (12-50 m)
   powerLob(p, dir, c) {
@@ -648,7 +684,11 @@ hc2Mix(Match, {
     const ty = clamp(34 + aimY * 2.8 + err, 27, 41);
     const spd = (16 + power * 16) * SHOT_K;
     const vz = 0.9 + power * 3.6 + (power > 0.88 ? (power - 0.88) * 40 : 0) + rnd(-0.3, 0.4);  // too much power: over the bar
-    this.kick(p, gx + p.team.side * 2, ty, spd, vz, 0.13, { shot: true, power });
+    const fk = FK_CURL.on && this.setPiece && this.setPiece.kind === 'FREE KICK' && this.setPiece.taker === p;   // s-fk-curl: round the wall
+    if (fk) { const b = this.ball, ux = (gx - b.x) / (len(gx - b.x, 34 - b.y) || 1), uy = (34 - b.y) / (len(gx - b.x, 34 - b.y) || 1);   // (the wall: their men on 9.15 m across the line to goal)
+      const men = p.team.opp.players.filter(o => !o.sentOff && !o.keeper && Math.abs((o.x - b.x) * ux + (o.y - b.y) * uy - 9.15) < 1.5 && Math.abs((o.y - b.y) * ux - (o.x - b.x) * uy) < 2.5).map(q => ({ q, x: q.x, y: q.y }));
+      this.fkWall = men.length ? { men, t: 0, x: b.x, y: b.y, d: 9.15, sp: this.setPiece } : null; }
+    this.kick(p, gx + p.team.side * 2, ty, spd, vz, 0.13, { shot: true, power, fkCurl: fk });
   },
   // where the loose ball will be over the next 3 seconds (for receivers and chasers). t-005: plus `land`, where a ball
   // in the air first comes down (the landing ring; every step is checked, not only the 1-in-3 kept for the path)
@@ -761,6 +801,7 @@ hc2Mix(Match, {
     return { ...lobSolve(Math.max(4, d - (driven ? 0.5 : pow != null ? 1 : 2)), apex, spin, quick), spin };   // (quick: t-005's charge arc)
   },
   ballPhysics(dt) {
+    if (this.fkWall) this.fkWallHold(dt);                                         // s-fk-curl: the wall stands its ground while the free kick goes by
     const b = this.ball, gp = gpOn(), net = netOn();                            // t-025: the net (NET_FX, every match) apart from t-013's woodwork (GOAL_PHYS, Lab)
     if (net) this.netStep(dt);                                                  // t-013: the mesh rings on after the ball has gone
     if (b.owner && b.owner.hands) return;
