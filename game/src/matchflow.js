@@ -237,7 +237,9 @@ hc2Mix(Match, {
     this.aimPt = this.defaultAim(sp.kind, sp.team, tk, U.ball.x, U.ball.y);
     if (sp.kind !== 'THROW-IN') tk.face = dirIndex(this.aimPt.x - tk.x, this.aimPt.y - tk.y);
     if (this.hasHuman(sp.team)) { this.slot(sp.team).human = tk; const k = keyset();
-      this.say(sp.kind, sp.kind === 'THROW-IN' ? `${k.move} AIM  ${k.pass} SHORT  ${k.lob} LONG` : `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`, 2.4); }
+      this.say(sp.kind, sp.kind === 'THROW-IN' ? `${k.move} AIM  ${k.pass} SHORT  ${k.lob} LONG`
+        : sp.kind === 'CORNER' && SP_CURL.on ? `${k.lob} IN-SWING  ${k.through} OUT-SWING  ${k.shoot} DRIVEN  ${k.pass} SHORT`   // s-curled-setpieces (Luca 1 Nov: "bind it to the proper wasd buttons"): the keys of YOUR set (WASD: L / I / K / J)
+        : `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`, 2.4); }
     return true;
   },
   // goal kick: below - placed under the dead ball's wipe, then a short jog-in (t-029), PACE setup.gk
@@ -376,11 +378,13 @@ hc2Mix(Match, {
       p.face = dirIndex(A.x - p.x, A.y - p.y);
       const atGoal = Math.abs(A.x - gx) < 3 && Math.abs(A.y - 34) < 5;
       if (sp.kind !== 'PENALTY' && I.pressed('pass')) return this.spKick('ground');
-      if (sp.kind !== 'PENALTY' && (I.pressed('lob') || I.pressed('through'))) return this.spKick('lob');
+      const sw = sp.kind === 'CORNER' || sp.kind === 'FREE KICK';                // s-curled-setpieces: LOB = in-swinger, THROUGH = out-swinger, SHOOT = driven
+      if (sp.kind !== 'PENALTY' && I.pressed('lob')) return this.spKick('lob', 0.7, sw ? 'in' : null);
+      if (sp.kind !== 'PENALTY' && I.pressed('through')) return this.spKick('lob', 0.7, sw ? 'out' : null);
       if (sp.kind === 'THROW-IN') { if (I.pressed('shoot')) return this.spKick('lob'); return true; }
       if (sp.gate) { if (!I.held('shoot')) sp.gate = false; return true; }   // (t-029: the SHOOT that skipped the setup)
       if (I.held('shoot')) S.charge = S.charge < 0 ? 0 : Math.min(1, S.charge + dt / paceK().chargeT);
-      if (I.released('shoot') && S.charge >= 0) { const c = S.charge; S.charge = -1; return this.spKick(atGoal || sp.kind === 'PENALTY' ? 'shot' : 'lob', c); }
+      if (I.released('shoot') && S.charge >= 0) { const c = S.charge; S.charge = -1; return atGoal || sp.kind === 'PENALTY' ? this.spKick('shot', c) : this.spKick('lob', c, (sp.kind === 'CORNER' || sp.kind === 'FREE KICK') ? 'driven' : null); }
       return true;
     }
     if (sp.t < (sp.setup ? paceK().setup.aiAfter : paceK().aiTake)) return true;   // (t-029: after a setup he has already placed it - a short breath)                                      // AI takes a breath, then takes it (t-004: ARCADE quickly)
@@ -391,17 +395,28 @@ hc2Mix(Match, {
     if (sp.kind === 'CORNER' && paceK().arcade && ARCADE.corner.whip) {             // (ARCADE corners are chances: the man with the most room, 30 Oct)
       const box = mates.filter(q => Math.abs(q.x - gx) < 16), room = q => Math.min(...sp.team.opp.players.filter(o => !o.sentOff).map(o => len(o.x - q.x, o.y - q.y)));
       const t = box.sort((u, v) => room(v) - room(u))[Math.random() < ARCADE.corner.best ? 0 : Math.floor(Math.random() * box.length)] || box[0] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob'); }
-    if (sp.kind === 'CORNER') { const box = mates.filter(q => Math.abs(q.x - gx) < 16); const t = box[Math.floor(Math.random() * box.length)] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob'); }
+    if (sp.kind === 'CORNER') { const box = mates.filter(q => Math.abs(q.x - gx) < 16); const t = box[Math.floor(Math.random() * box.length)] || mates[0]; Object.assign(A, { x: t.x, y: t.y }); return this.spKick('lob', 0.7, this.spSwing(sp)); }
     if (sp.kind === 'GOAL KICK') { const up = mates.filter(q => Math.abs(q.x - p.x) > 25).sort(() => Math.random() - 0.5)[0] || mates[0]; Object.assign(A, { x: up.x, y: up.y }); return this.spKick('lob'); }
     const best = this.bestOption(p);
-    if (best) { Object.assign(A, { x: best.q.x, y: best.q.y }); return this.spKick(sp.kind === 'THROW-IN' ? 'lob' : best.mode === 'lob' ? 'lob' : 'ground'); }
+    if (best) { Object.assign(A, { x: best.q.x, y: best.q.y }); const lob = sp.kind === 'THROW-IN' || best.mode === 'lob';
+      return this.spKick(lob ? 'lob' : 'ground', 0.7, lob && sp.kind === 'FREE KICK' && Math.abs(gx - A.x) < 20 ? this.spSwing(sp) : null); }   // (a free kick crossed into their box swings too)
     return this.spKick('ground');
   },
   spTarget() {                                                                   // the team-mate a set-piece ball would find (nearest the cursor, 7 m)
     const sp = this.setPiece, A = this.aimPt; if (!sp || !A) return null;
     return sp.team.players.filter(q => q !== sp.taker && !q.sentOff && len(q.x - A.x, q.y - A.y) < 7).sort((a, c) => len(a.x - A.x, a.y - A.y) - len(c.x - A.x, c.y - A.y))[0] || null;
   },
-  spKick(mode, power = 0.7) {
+  // s-curled-setpieces (1 Nov, the lob/chip plan's "later" step, docs/lob-chip.md: "corners and free kicks get the spin
+  // too (in-swinging, floated, driven)"). How real football does it: most Premier League corners are in-swingers (they
+  // bend towards goal, so a touch or the wind puts it in and the keeper can't come for it easily); out-swingers bend
+  // away from him onto a runner's head; a driven one is low and fast to the near post. FIFA / EA FC and PES give you
+  // the same three. So: LOB = in-swinger, THROUGH = out-swinger, SHOOT (not at goal) = driven; PASS still plays it
+  // short. The computer mixes them about as real teams do (SP_CURL.ai). ARCADE's whipped corners are left as they were.
+  spSwing(sp) {
+    const W = SP_CURL.ai, r = Math.random();
+    return sp.kind === 'CORNER' ? (r < W.in ? 'in' : r < W.in + W.out ? 'out' : 'driven') : (r < W.fkIn ? 'in' : 'out');
+  },
+  spKick(mode, power = 0.7, swing = null) {
     const sp = this.setPiece, p = sp.taker, A = this.aimPt;
     const target = this.spTarget();
     sp.kicked = true; if (sp.kind === 'CORNER') this.cornerAt = this.time.now; for (const q of this.all) { q.spot = null; if (q.up) q.up.t = this.time.now; }   // (smarter-ai: a keeper up for the corner attacks it from now)
@@ -411,7 +426,9 @@ hc2Mix(Match, {
     else if (mode === 'lob' && sp.kind === 'CORNER' && paceK().arcade && ARCADE.corner.whip) {   // ARCADE corners are chances (30 Oct): whipped in, never into the keeper's six-yard box
       const C = ARCADE.corner, gx = sp.team.goalX, s = sp.team.side, d = clamp(Math.abs(gx - A.x), C.minD, C.maxD);
       this.kick(p, gx - s * d, clamp(A.y, 34 - 9, 34 + 9), 0, 0, 0.14, { target, cross: 'whip' }); }
-    else this.kick(p, A.x, A.y, 0, 0, 0.14, { mode, target });
+    else if (mode === 'lob' && swing === 'driven' && SP_CURL.on) {                // driven: low and fast, arriving at head height
+      const d = len(A.x - p.x, A.y - p.y); this.kick(p, A.x, A.y, 0, 0, 0.14, { mode, target, cross: 'whip', drive: { tz: SP_CURL.drivenZ, T: SP_CURL.drivenT[0] + d / SP_CURL.drivenT[1] } }); }
+    else this.kick(p, A.x, A.y, 0, 0, 0.14, { mode, target, setCurl: mode === 'lob' && SP_CURL.on && (swing === 'in' || swing === 'out') ? swing : null });
     if (target && sp.team === this.home) { this.nextHuman = target; this.passRing = { p: target, t: 1.0 }; }
     return false;
   },

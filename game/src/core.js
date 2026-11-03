@@ -69,6 +69,11 @@ const SP_WIN = 0.25;                     // s after SPECIAL in which a pass butt
 // the straight line) tried, smallest first, and the default bend when nobody is in the way; kMax = the most curvature
 // (1/m) a solve may ask for; trail / cam = the look (s)
 const CURVE = { tau: 1.6, clear: 2.8, ang: [14, 18, 22, 26, 30, 34, 38], angFree: 20, kMax: 0.35, trail: 2.2, cam: 1.1 };
+// s-curled-setpieces (matchflow.js spSwing / spKick, ball.js spCurlLaunch): on = corners and lofted free kicks swing;
+// ai = how the computer mixes its corners (in-swinger / out-swinger, the rest driven) and its crossed free kicks
+// (in-swinger, else out-swinger); minD = shorter than this it goes straight; driven = the height it arrives at (m) and
+// its flight time (s: [base, + 1 s per this many m])
+const SP_CURL = { on: true, ai: { in: 0.55, out: 0.25, fkIn: 0.65 }, minD: 10, drivenZ: 1.3, drivenT: [0.2, 25] };
 // s-fk-curl (ball.js fkCurlLaunch): a direct free kick bends round the wall. clear = how far (m) it passes the end man
 // (a body blocks a ball within ~0.9 m); mid = aimed this close to the middle of the goal (m) it goes straight; ang =
 // the launch angles off the line tried, smallest first (degrees); hold = the most seconds the wall stands still (fkWallHold)
