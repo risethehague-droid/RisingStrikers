@@ -826,11 +826,11 @@ hc2Mix(Match, {
         { k: 'bug', l: 'THAT\'S A BUG', key: '1', act: () => this.bwMark(x, 'bug') },
         { k: 'fine', l: 'LOOKS FINE', key: '2', act: () => this.bwMark(x, 'fine') },
         { k: 'unsure', l: 'NOT SURE', key: '3', act: () => this.bwMark(x, 'unsure') },
-        { k: 'back', l: '◀ BACK', key: 'ESC', act: () => { U.page = 'list'; U.i = Math.max(0, L.indexOf(x)); } }];
+        { k: 'back', l: '◀ BACK', key: 'BKSP', act: () => { U.page = 'list'; U.i = Math.max(0, L.indexOf(x)); } }];
     }
     return [...L.map((x, j) => ({ k: 'i' + j, x, l: `${x.old ? 'EARLIER · ' : ''}${x.min}' ${x.kind === 'flag' ? String(x.note || x.title).slice(0, 28).toUpperCase() : x.title}`, tag: x.review ? BW_VERDICT[x.review.verdict] : x.kind === 'flag' ? 'FLAG' : BW_ERR.has(x.code) ? 'ERROR' : x.isNew ? 'NEW' : '',   // (t-006: your flags say FLAG; t-021: errors say ERROR)
       act: () => { U.page = 'one'; U.sel = x; U.i = 0; x.isNew = false; } })),
-      { k: 'close', l: '◀ BACK', key: 'ESC', act: () => this.bwClose() }];
+      { k: 'close', l: '◀ BACK', key: 'BKSP', act: () => this.bwClose() }];
   },
   bwDraw() {
     const U = this.bwUI; if (!U) return;
@@ -859,13 +859,13 @@ hc2Mix(Match, {
         <p>${rv ? `YOU SAID: ${BW_VERDICT[rv.verdict]}${rv.note ? ' · ' + rv.note.replace(/[<>&]/g, '') : ''} · ` : ''}${saved}</p>
         <input id="bwnote" maxlength="200" placeholder="NOTE (OPTIONAL) - WHAT LOOKS WRONG?" value="${rv && rv.note ? rv.note.replace(/["<>&]/g, '') : ''}">
       </div><div class="menu">${items.map((it, j) => `<button type="button" data-j="${j}" class="${j === U.i ? 'on' : ''}">${it.l}<kbd>${it.key || ''}</kbd></button>`).join('')}</div></div>
-      <small>WATCH IT, THEN MARK IT · &#8593;&#8595; PICK · ENTER: OK · ESC: BACK</small>`;
+      <small>WATCH IT, THEN MARK IT · &#8593;&#8595; PICK · ENTER: OK · BACKSPACE: BACK</small>`;
       const inp = el.querySelector('#bwnote'); if (inp) inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') inp.blur(); });
     } else {
       el.innerHTML = `<h2>BUG WATCH</h2><div class="bw"><div class="card"><p>THE GAME WATCHES ITS OWN FOOTAGE WHILE IT PLAYS. WHEN SOMETHING BREAKS A RULE (AN ERROR, A GOAL NOT GIVEN, A BALL THROUGH THE KEEPER...) IT KEEPS THE CLIP. REAL BUGS COME FIRST; ANIMATION FLICKER IS ONLY COUNTED.</p>
         <p class="n">${L.length ? `${L.length} CLIP${L.length > 1 ? 'S' : ''} · ${todo} TO CHECK` : 'NOTHING CAUGHT YET - GOOD SIGN.'}${BW_ON ? '' : ' · BUG WATCH IS OFF (OPTIONS)'}</p></div>
         <div class="menu">${items.map((it, j) => `<button type="button" data-j="${j}" class="${j === U.i ? 'on' : ''}">${it.l}${it.tag ? `<em class="${it.tag.replace(' ', '')}">${it.tag}</em>` : it.key ? `<kbd>${it.key}</kbd>` : ''}</button>`).join('')}</div></div>
-        <small>&#8593;&#8595; PICK · ENTER: OPEN · ESC: BACK</small>`;
+        <small>&#8593;&#8595; PICK · ENTER: OPEN · BACKSPACE: BACK</small>`;
     }
     el.querySelectorAll('.menu button').forEach(b => b.onclick = () => { U.i = +b.dataset.j; this.bwAct(); });
     const on = el.querySelector('.menu button.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });

@@ -390,14 +390,14 @@ hc2Mix(Match, {
       ['1 BAR', SP_NAMES[0]], ['2 BARS', SP_NAMES[1]], ['3 BARS', SP_NAMES[2]],
       [`${k.special} THEN ${k.pass} / ${k.through} / ${k.lob}`, 'SPECIAL PASS (1 BAR): TORNADO DRILL · BURROW BLAST · ANGEL GLIDE'],   // (Luca's OK, 1 Nov: the LV1 special passes in matches)
       [`${k.ud} + ${k.shoot}`, 'AIM HIGH / LOW'], [`${k.pass} / ${k.shoot}`, 'BALL IN THE AIR: HEADER · VOLLEY · DIVING HEADER'],
-      [`SHIFT + ${k.shoot}`, 'HIGH BALL NEAR GOAL: OVERHEAD KICK'], ['T', 'SP METER LOOK'], ['M', 'SOUND ON / OFF'], ['F', 'FLAG A PROBLEM: THE LAST 8 S + YOUR NOTE'], ['ENTER', 'PAUSE']]).map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join('')}</table>`;
+      [`SHIFT + ${k.shoot}`, 'HIGH BALL NEAR GOAL: OVERHEAD KICK'], ['T', 'SP METER LOOK'], ['M', 'SOUND ON / OFF'], ['F', 'FLAG A PROBLEM: THE LAST 8 S + YOUR NOTE'], ['ENTER / BKSP', 'PAUSE · BACKSPACE = BACK IN MENUS']]).map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join('')}</table>`;
     // (menu-training, Luca 31 Oct: "make sure the option menu pops up cleanly"): one panel that pops in when it opens or
     // changes page (not on every arrow press), OPTIONS in two columns so it fits the screen without scrolling
     const pop = P.pop; P.pop = false;
     el.innerHTML = `<div class="pnl${pop ? ' in' : ''}"><h2>${P.page === 'opts' ? 'OPTIONS' : P.page === 'moves' ? 'THE MOVES' : 'PAUSED'}</h2>
       <div class="sc">${this.home.name} ${this.home.score} - ${this.away.score} ${this.away.name} · ${this.halfLabel()} ${String(Math.floor(this.clock / 60)).padStart(2, '0')}'</div>${moves}
       <div class="menu${P.page === 'opts' ? ' two' : ''}">${items.map((it, j) => `<button type="button" data-j="${j}" class="${j === P.i ? 'on' : ''}${it.k === 'quit' ? ' quit' : ''}">${it.l}${it.key ? `<kbd>${it.key}</kbd>` : ''}</button>`).join('')}</div>
-      <small>&#8593;&#8595; PICK · ENTER: OK · ESC: ${P.page === 'main' ? 'RESUME' : 'BACK'}</small></div>`;
+      <small>&#8593;&#8595; PICK · ENTER: OK · BACKSPACE: ${P.page === 'main' ? 'RESUME' : 'BACK'}</small></div>`;
     el.querySelectorAll('.menu button').forEach(b => b.onclick = () => { P.i = +b.dataset.j; this.pauseAct(); });
   },
   pauseAct() { const P = this.pm, it = this.pauseItems()[P.i]; if (!it) return; if (it.k !== 'quit') P.quit = false; SFX.click(); it.act(); if (this.pm && !this.sheet && !this.replay && !this.bwUI) this.drawPause(); },
