@@ -129,6 +129,9 @@ Tests use Node with Playwright and Chromium, run headless; time is stepped by ha
 ## Pull requests
 
 - One topic per pull request, small enough to review in 10 minutes.
+- **The master blueprint** (`docs/blueprint/`, Luca 3 Nov: the reference for the final version on the new animation
+  rig): a PR that adds, changes or removes a mechanic, control, animation, rule or mode updates its line there (status,
+  PR number, Luca's decision). Claude-made ideas Luca didn't ask for go only in `docs/blueprint/10-claude-ideas.md`.
 - In the description:
   - what changed and why (link the card)
   - how to try it: what to click, which Test Lab test
