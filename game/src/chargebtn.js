@@ -220,7 +220,7 @@ const chgOn = () => window.HC2_KEYS === 'charge' && !Input.skip;
         const team = S === this ? this.hTeam() : this[S.hSide], C = team && team.chg, p = S.human;
         if (!C && S === this && p && this.ball.owner === p && !p.keeper && !this.setPiece && level0.call(this.meterOf(team)) >= 1) {   // (a new player: what SPACE does, once there's a bar)
           const n = level0.call(this.meterOf(team));
-          H.setText(`SPACE: CHARGE YOUR SPECIAL (${n} BAR${n > 1 ? 'S' : ''} · TAP UP TO ${n}x)`).setAlpha(0.75).setVisible(true);
+          H.setText(window.HC2_TOUCH ? `TAP CHARGE FOR YOUR SPECIAL (${n} BAR${n > 1 ? 'S' : ''} · UP TO ${n}x)` : `SPACE: CHARGE YOUR SPECIAL (${n} BAR${n > 1 ? 'S' : ''} · TAP UP TO ${n}x)`)   // (phone controls: name the button).setAlpha(0.75).setVisible(true);
         }
         if (!C || !p || p.sentOff) continue;
         const lv = C.lv, u = clamp(C.fillT / CHG.fill, 0, 1), col = RIG_COL[lv - 1], ky = 0.36;
@@ -244,7 +244,8 @@ const chgOn = () => window.HC2_KEYS === 'charge' && !Input.skip;
         if (lv >= 3) { E.lineStyle(14, col, (0.22 + 0.16 * pulse) * fade).strokeRect(7, 7, VIEW_W - 14, VIEW_H - 14); }
         if (S === this) {                                                           // (your own buttons; a second human reads his at the bottom too, so only the home one)
           const nm = SP_NAMES[lv - 1];
-          H.setText(`J ${nm} (LV${lv}) · K / I / L SPECIAL PASS (1 BAR)\nSHIFT + RUN AT HIM: DRIBBLE · SPACE: ${lv < 3 ? 'MORE POWER' : 'MAX'}`).setAlpha(fade).setVisible(true);
+          H.setText(window.HC2_TOUCH ? `SHOOT: ${nm} (LV${lv}) · PASS / THROUGH / LOB: SPECIAL PASS\nSPRINT AT HIM: DRIBBLE · CHARGE: ${lv < 3 ? 'MORE POWER' : 'MAX'}`
+            : `J ${nm} (LV${lv}) · K / I / L SPECIAL PASS (1 BAR)\nSHIFT + RUN AT HIM: DRIBBLE · SPACE: ${lv < 3 ? 'MORE POWER' : 'MAX'}`).setAlpha(fade).setVisible(true);
         }
       }
     },

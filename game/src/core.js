@@ -40,7 +40,11 @@
 // Phaser 3. World units are metres on the pitch (x along, y across, z up); the stadium art is pre-projected,
 // so wx()/wy() turn metres into world pixels exactly like the art scripts do.
 'use strict';
-const VIEW_W = 1152, VIEW_H = 648;                 // v0.8.5 (Luca: more of the pitch, to see the pass options) - was 960 x 540
+// PHONE CONTROLS (Luca, 3 Nov 2026: "optimize the sizing" for the phone version): a phone shrinks the 1152 x 648 view
+// to fit a small screen, so players, ball, score and SP bars came out tiny. Phones draw the old 960 x 540 view instead:
+// everything 20% bigger, a little less pitch (PC keeps v0.8.5's wider view). #phoneview forces it (tests).
+const PHONE_VIEW = typeof window !== 'undefined' && (/(^|#|&)phoneview\b/.test(location.hash) || matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+const VIEW_W = PHONE_VIEW ? 960 : 1152, VIEW_H = PHONE_VIEW ? 540 : 648;   // v0.8.5 (Luca: more of the pitch, to see the pass options) - was 960 x 540
 const PEN_W = 960, PEN_H = 540;                    // the penalty scene keeps its 960 x 540 layout (its camera zooms it up)
 const PITCH_L = 105, PITCH_W = 68, PX_X = 48, PX_Y = 38, PX_H = 60, S_FAR = 0.87, S_NEAR = 1.13, RUNOFF_Y = 3.5;
 const GOAL_Y0 = 34 - 3.66, GOAL_Y1 = 34 + 3.66, BAR_Z = 2.44;
