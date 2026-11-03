@@ -60,7 +60,7 @@ game uses today (from `game/assets/manifest.json`, v0.20.0) so none is lost. Tic
 | RIG-58 | blasted (knocked flat by a special) | GK-30, MV-23 | P0 | ☐ |
 | RIG-59 | korg (organises), kroar, beaten / pkdefeat, pkcele | GK-44 | P2 | ☐ |
 | RIG-60 | penalty keeper: pready, pdistract (mind games), pdive, pdiveH (high) | MO-20 | P1 | ☐ |
-| RIG-61 | special-save auras + counter ring + SAVED / PUSHED AWAY / BEATEN pop-ups | GK-28..32 | P0 | ☐ |
+| RIG-61 | special-save auras + counter ring + SAVED / PUSHED AWAY / BEATEN pop-ups. Pop-up animations (Luca, 3 Nov, PR #113 `gkcanim.js`, temporary): SAVED = GLOVE CLAP (gloves clap on the strip, name wobbles), PUSHED AWAY = SWAT (fist punches up, letters bounce), BEATEN = SMASH (ball through, strip splits, letters fall). Redo them on the new rig | GK-28..32 | P0 | ☐ |
 
 ## D. Referee and others
 
