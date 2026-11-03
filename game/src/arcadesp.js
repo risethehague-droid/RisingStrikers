@@ -243,7 +243,8 @@ hc2Mix(Match, {
     if (this.aspOn() && p && this.ball.owner === p) {
       const toGoal = len(p.team.goalX - p.x, 34 - p.y), front = this.aspFront(p);
       // AUTO (by position): far from goal with a man in front = the special dribble (the preview has both ways)
-      if (toGoal > ASP.dribble.far && front && !this.aspOneTwo(p)) return this.aspDribble(p, this.isHuman(p) && !this.demo ? this.inpOf(p.team).axis : null);
+      // (chargebtn.js, Luca 3 Nov: on the SPACE-charge keys J is always the shot; the dribble has its own way there)
+      if (toGoal > ASP.dribble.far && front && !this.chgShot && !this.aspOneTwo(p)) return this.aspDribble(p, this.isHuman(p) && !this.demo ? this.inpOf(p.team).axis : null);
       const partner = this.meterOf(p.team).level() >= 2 ? this.aspOneTwo(p) : null;
       const lv = this.meterOf(p.team).level(), ok = special0.call(this, p);
       if (ok && partner) this.aspCombo(p, partner, Math.min(lv, 3), '12');
