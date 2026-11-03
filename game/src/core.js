@@ -60,7 +60,10 @@ const MAGNUS_K = 0.0058, SPIN_TAU = 5, CHIP_SPIN = 55;   // lift accel = MAGNUS_
 // it look cool [...] don't add these new passes to the game just yet, only test lab"). SPECIAL held + PASS / THROUGH / LOB
 // with a bar in the bank = the bending version (specials.js curvePass, ball.js curveStep / curveSolve). OFF in matches;
 // the Test Lab turns it on (lab.js). let: the Lab sets it.
-let CURVE_PASS = false;
+// Luca's OK on HQ (q-curve-pass, 1 Nov, with the default controls): ON in matches. The chord plays the LV1 special
+// passes (sppass.js: TORNADO DRILL / BURROW BLAST / ANGEL GLIDE); the t-011 curlers stay FREE PLAY buttons.
+let CURVE_PASS = true;
+const SP_WIN = 0.25;                     // s after SPECIAL in which a pass button makes it the special pass (Luca's default pick)
 // the spin: tau = how fast it wears off (s; the bend is strongest off the boot, then straightens as the ball slows);
 // clear = how far (m) the curve keeps from a defender standing on the straight line; ang = the launch angles (degrees off
 // the straight line) tried, smallest first, and the default bend when nobody is in the way; kMax = the most curvature

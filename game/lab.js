@@ -545,7 +545,7 @@
     const S = FP_CURVE[mode], p = r.human, q = m.home.players[8], o = m.away.players[3];
     fpCast(r, [q, o]); put(p, S.from[0], S.from[1], 0); atFeet(p); put(q, S.mate[0], S.mate[1], 0); put(o, S.opp[0], S.opp[1], 4);
     r.bots.set(q, cpRun(S.mate[2] || 0, S.mate[3] || 0));
-    Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0, spPassLast: null });
+    Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spWin: null, spPassLast: null });
     const N = lv2 ? SPP_NAMES[SPP_KIND[mode]] : S.n, bars = lv2 ? SPP.bars : 1;
     if (lv2) m.meters[0].e = Math.max(SPP.bars, Math.floor(m.meters[0].e)); else if (m.meters[0].e < 1) m.meters[0].e = 1;   // it costs a bar: the button fills one first
     r.last = `${N} · ${bars === 1 ? 'a bar' : bars + ' bars'} of SP in the bank`;
@@ -2097,7 +2097,7 @@
         put(K, o.from[0], o.from[1], 0); atFeet(K);
         for (const [q, x, y, vx, vy] of mates) { put(q, x, y, 0); r.bots.set(q, cpRun(vx, vy)); }
         for (const [q, x, y, read] of opps) { put(q, x, y, 4); if (read) r.bots.set(q, cpRead); }
-        Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0, spPassLast: null });
+        Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spWin: null, spPassLast: null });
         m.meters[0].e = o.sp ?? 1; SPP_ON = !!o.spp;                          // (the CP tests show the t-011 curlers; PS the new passes)
         Object.assign(r, { human: K, kicker: K, o, rcv: mates[0][0], opps: opps.map(x => x[0]), sp0: m.meters[0].e, bend: 0, minD: 1e9 });
       },
