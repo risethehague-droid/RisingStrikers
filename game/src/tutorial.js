@@ -293,7 +293,7 @@ body.tut #panel,body.tut #msfx-open{display:none!important} body.tut #game{right
     let h = '';
     if (T.phase === 'menu') {
       const at = P.at && PARTS.findIndex(x => x.id === P.at.part), cont = at >= 0 && P.at.i > 0;
-      h = `<div class="tc"><div class="tt"><span>HC2 FOOTBALL</span><span>ESC = BACK TO THE GAME</span></div>
+      h = `<div class="tc"><div class="tt"><span>HC2 FOOTBALL</span><span>BACKSPACE = BACK TO THE GAME</span></div>
         <h2>TUTORIAL</h2><div class="ts">Try every move once, one step at a time. Skip anything, any time.</div><div class="tr" style="flex-direction:column">
         ${cont ? `<button type="button" class="big go" id="tut-m-first" data-act="cont">CONTINUE ▶<em>${esc(PARTS[at].short)} · step ${P.at.i + 1} of ${PARTS[at].steps.length}</em></button>` : ''}
         ${PARTS.map((x, j) => `<button type="button" class="big${!cont && j === (P.done && P.done.basics ? 1 : 0) ? ' go' : ''}"${!cont && j === (P.done && P.done.basics ? 1 : 0) ? ' id="tut-m-first"' : ''} data-act="part" data-p="${j}">${esc(x.n)} ${P.done && P.done[x.id] ? '<span class="tdone">✓ DONE</span>' : ''}<em>${esc(x.blurb)} ${x.steps.length} steps · about ${x.mins} min</em></button>`).join('')}
@@ -311,7 +311,7 @@ body.tut #panel,body.tut #msfx-open{display:none!important} body.tut #game{right
         : T.phase === 'demo' ? '<div class="tm watch">WATCH… (then it\'s your turn)</div>' : T.phase === 'shown' ? '<div class="tm watch">YOUR TURN NEXT…</div>'
         : T.warnT != null ? `<div class="tm warn">This step only uses ${esc(s.keys(k).map(x => x[0]).join(' + '))}. Other keys are off for now.</div>`
         : T.S.nudge ? '<div class="tm watch">Stuck? Press SHOW ME to watch it, or RESET to start the step again.</div>' : '';
-      h = `<div class="tc"><div class="tt"><span>${esc(PARTS[T.part].short)} · STEP ${T.i + 1} / ${N}</span><span>ESC = MENU</span></div>
+      h = `<div class="tc"><div class="tt"><span>${esc(PARTS[T.part].short)} · STEP ${T.i + 1} / ${N}</span><span>BACKSPACE = MENU</span></div>
         <div class="tb">${PARTS[T.part].steps.map((x, j) => `<i class="${j < T.i || (j === T.i && T.phase === 'ok') ? 'td' : j === T.i ? 'tcur' : ''}"></i>`).join('')}</div>
         <h2>${esc(s.n)}</h2>${msg}<div class="ts">${esc(s.say(k))}</div>
         <div class="tk">${s.keys(k).map(([cap, what]) => `<span><kbd>${esc(cap)}</kbd>${esc(what)}</span>`).join('')}</div>${tip ? `<div class="ttip">${esc(tip)}</div>` : ''}
