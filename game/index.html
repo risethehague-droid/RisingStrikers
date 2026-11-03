@@ -66,27 +66,49 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 @keyframes hc2fade{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){#start .pop,#start .pop .panel{animation:none}}
 @media (max-height:560px){#start .card{padding:12px;gap:8px}#start .modes{gap:7px}#start .modes button{padding:9px 12px}#start #play{padding:11px}}
+/* PHONE CONTROLS (Luca, 3 Nov 2026: "develop the phone version ... most importantly the buttons, make them say what they
+   do ... totally imagine the button layout again"; plan: claude.ai/artifact/UwaaC2rJDxDmzW2C5EphcH). The pitch moves left
+   and the buttons sit in a dark strip on the right (most phones are wider than 16:9, so that strip was empty), every
+   button names its action and the words change with the moment (io.js setupTouch). Built on the NEW BUTTON MECHANIC
+   (chargebtn.js): CHARGE = the SPACE bar. */
+:root{--strip:clamp(132px,calc(100vw - 100dvh * 1.7778),230px)}
+body.touchui #game{right:calc(var(--strip) + env(safe-area-inset-right,0px))}
 #touch{position:fixed;inset:0;z-index:4;touch-action:none;pointer-events:none}
 #touch[hidden]{display:none}
+#tstrip{position:absolute;top:0;bottom:0;right:0;width:calc(var(--strip) + env(safe-area-inset-right,0px));background:linear-gradient(90deg,#16131a,#221d26);pointer-events:none}
 #stickzone{position:absolute;left:0;top:0;bottom:0;width:50%;pointer-events:auto;touch-action:none}
-#stick{position:absolute;left:24px;bottom:24px;top:auto;width:140px;height:140px;border-radius:50%;border:3px solid rgba(244,240,228,.55);
-  background:rgba(12,10,14,.25);pointer-events:none;opacity:.6}
+#stick{position:absolute;left:24px;bottom:24px;top:auto;width:140px;height:140px;border-radius:50%;border:3px dashed rgba(244,240,228,.6);
+  background:rgba(12,10,14,.25);pointer-events:none;opacity:.55}
+#stick::after{content:"";position:absolute;inset:14px;border-radius:50%;border:3px solid rgba(244,240,228,.7)}
 #stick.on{opacity:1}
-#knob{position:absolute;left:44px;top:44px;width:52px;height:52px;border-radius:50%;background:rgba(244,240,228,.8);border:3px solid var(--ink)}
-.btns{position:absolute;right:18px;bottom:18px;width:230px;height:220px;pointer-events:none}
-.btns button{position:absolute;width:72px;height:72px;border-radius:50%;border:3px solid var(--ink);font:12px "Press Start 2P",monospace;
-  color:var(--ink);pointer-events:auto;touch-action:none;box-shadow:3px 3px 0 var(--ink);padding:0}
+#stick.sprint{border-color:var(--yellow);border-style:solid;box-shadow:0 0 14px rgba(255,222,30,.7)}
+#knob{position:absolute;left:44px;top:44px;width:52px;height:52px;border-radius:50%;background:rgba(244,240,228,.85);border:3px solid var(--ink);z-index:1}
+#stickhint{position:absolute;left:0;right:0;top:-18px;text-align:center;font:7px "Press Start 2P",monospace;color:var(--paper);text-shadow:1px 1px 0 var(--ink);white-space:nowrap}
+#stick.sprint #stickhint{color:var(--yellow)}
+.btns{position:absolute;right:calc(8px + env(safe-area-inset-right,0px));bottom:max(8px,env(safe-area-inset-bottom,0px));width:220px;height:290px;pointer-events:none}
+.btns button{position:absolute;border-radius:50%;border:3px solid var(--ink);font:9px/1.35 "Press Start 2P",monospace;color:var(--ink);pointer-events:auto;touch-action:none;
+  box-shadow:3px 3px 0 var(--ink);padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;transition:background .12s,opacity .12s}
+.btns button small{font:6px/1.2 "Press Start 2P",monospace;opacity:.85;margin-top:3px;min-height:7px}
 .btns button.down{transform:translate(3px,3px);box-shadow:none}
-.b-shoot{right:0;bottom:56px;background:var(--pink);color:#fff!important}
-.b-pass{right:76px;bottom:0;background:var(--yellow)}
-.b-lob{right:76px;bottom:112px;background:var(--cyan)}
-.b-thr{right:150px;bottom:56px;background:var(--paper)}
-.b-spr{right:150px!important;bottom:150px!important;width:58px!important;height:58px!important;font-size:8px!important;background:var(--paper)}
-.b-pause{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:auto!important;height:auto!important;border-radius:6px!important;padding:8px 12px!important;background:var(--paper)}
+.btns button.off{opacity:.3}
+.btns button.gold{background:#ffb81e!important;color:var(--ink)!important;box-shadow:0 0 0 4px rgba(255,255,255,.18),3px 3px 0 var(--ink)}
+.b-shoot{width:86px;height:86px;right:4px;bottom:14px;background:var(--pink);color:#fff!important;font-size:10px!important}
+.b-pass{width:74px;height:74px;right:96px;bottom:4px;background:var(--yellow)}
+.b-thr{width:66px;height:66px;right:108px;bottom:90px;background:var(--paper);font-size:7px!important}
+.b-lob{width:64px;height:64px;right:14px;bottom:112px;background:var(--cyan)}
+.b-drib{width:62px;height:62px;right:110px;bottom:184px;background:var(--paper);font-size:7px!important}
+.b-sp{width:70px;height:70px;right:30px;bottom:192px;background:#ff7a1e;color:#fff!important}
+.b-sp i{position:absolute;inset:-9px;border-radius:50%;pointer-events:none;
+  background:conic-gradient(#ffb81e calc(var(--bars,0) * 120deg),rgba(58,46,26,.9) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 6px),#000 calc(100% - 5px));mask:radial-gradient(farthest-side,transparent calc(100% - 6px),#000 calc(100% - 5px))}
+.b-sp.charged{animation:hc2chg .55s ease-in-out infinite alternate}
+@keyframes hc2chg{to{box-shadow:0 0 18px 6px #ffb81e,3px 3px 0 var(--ink)}}
+.pips{display:flex;gap:3px;margin-top:3px}.pips u{width:9px;height:5px;background:#3a2e1a;border:1px solid var(--ink)}.pips u.on{background:#fff}
+.b-pause{position:absolute;right:calc(10px + env(safe-area-inset-right,0px));top:max(10px,env(safe-area-inset-top,0px));border-radius:6px;padding:8px 10px;background:var(--paper);
+  font:8px "Press Start 2P",monospace;color:var(--ink);border:3px solid var(--ink);box-shadow:2px 2px 0 var(--ink);pointer-events:auto;touch-action:none}
 .top{position:absolute;inset:0;pointer-events:none}
-.b-sp{right:0!important;bottom:150px!important;width:58px!important;height:58px!important;font-size:9px!important;background:#ff7a1e;color:#fff!important}
-.btns{right:max(18px,env(safe-area-inset-right,0px))!important;bottom:max(18px,env(safe-area-inset-bottom,0px))!important}
 #stickzone{left:env(safe-area-inset-left,0px)}
+@media (prefers-reduced-motion:reduce){.b-sp.charged{animation:none}}
+@media (max-height:340px){.btns{transform:scale(.88);transform-origin:100% 100%}}
 #rotate{display:none}
 @media (orientation:portrait) and (pointer:coarse){
   #rotate{display:flex;position:fixed;inset:0;z-index:9;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;
@@ -188,17 +210,18 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 
 <div id="rotate" role="status"><i>&#128241;</i>TURN YOUR PHONE SIDEWAYS<br>TO PLAY</div>
 <div id="touch" hidden>
-  <div id="stickzone"><div id="stick"><div id="knob"></div></div></div>
+  <div id="tstrip"></div>
+  <div id="stickzone"><div id="stick"><div id="knob"></div><span id="stickhint">MOVE &middot; PUSH TO EDGE = SPRINT</span></div></div>
   <div class="top">
-    <button class="b-pause" data-act="start" style="pointer-events:auto" aria-label="Pause">II</button>
+    <button class="b-pause" data-act="start" aria-label="Pause">II PAUSE</button>
   </div>
   <div class="btns">
-    <button class="b-shoot" data-act="shoot" aria-label="Shoot">B</button>
-    <button class="b-pass" data-act="pass" aria-label="Pass">A</button>
-    <button class="b-lob" data-act="lob" aria-label="Lob or switch">Y</button>
-    <button class="b-thr" data-act="through" aria-label="Through ball">X</button>
-    <button class="b-spr" data-act="sprint" aria-label="Sprint">RUN</button>
-    <button class="b-sp" data-act="special" aria-label="Special move">SP</button>
+    <button class="b-sp" data-act="special" data-k="sp"><i></i><span class="l">CHARGE</span><small></small><span class="pips" hidden><u></u><u></u><u></u></span></button>
+    <button class="b-drib" data-act="sdribble switch" data-k="drib"><span class="l">DRIBBLE</span><small></small></button>
+    <button class="b-lob" data-act="lob" data-k="lob"><span class="l">LOB</span><small></small></button>
+    <button class="b-thr" data-act="through" data-k="thr"><span class="l">THROUGH</span><small></small></button>
+    <button class="b-pass" data-act="pass" data-k="pass"><span class="l">PASS</span><small></small></button>
+    <button class="b-shoot" data-act="shoot" data-k="shoot"><span class="l">SHOOT</span><small></small></button>
   </div>
 </div>
 
@@ -244,6 +267,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
       btn.addEventListener('click', () => setKeys(k)); krow.appendChild(btn);
     }
     setKeys(keys);
+    // PHONE CONTROLS (3 Nov): the touch buttons are built on the NEW BUTTON MECHANIC (CHARGE, then SHOOT / PASS / THROUGH /
+    // LOB play the special), so a phone always plays on it; the KEYS pick names keyboard keys, so it's hidden there
+    if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) { setKeys('charge'); krow.style.display = 'none';
+      khelp.innerHTML = 'LEFT THUMB: THE STICK MOVES, PUSH IT TO THE EDGE TO SPRINT &middot; RIGHT THUMB: EACH BUTTON SAYS WHAT IT DOES, AND THE WORDS CHANGE WITH THE MOMENT &middot; CHARGE: TAP 1, 2 OR 3 TIMES (LV1-3), THEN SHOOT / PASS / THROUGH / LOB PLAY THE SPECIAL &middot; SPRINT AT A DEFENDER WHILE CHARGED = SPECIAL DRIBBLE'; }
     // penalty style: BASE (secret zones), WILD (power + stretch, slow-mo), TECHNICAL (free aim + meter, chips, reads)
     const PENS = { base: 'BASE', wild: 'WILD', tech: 'TECHNICAL' };
     let pen = 'base';

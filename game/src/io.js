@@ -7,8 +7,10 @@
 const KEYSETS = {
   arrows: { move: 'ARROWS', pass: 'Z', shoot: 'X', lob: 'C', through: 'V', special: 'B', ud: 'UP/DOWN' },
   wasd: { move: 'WASD', pass: 'J', shoot: 'K', lob: 'L', through: 'I', special: 'U', ud: 'W/S' },
+  // PHONE CONTROLS (3 Nov): on a phone every hint names the on-screen button, never a keyboard key
+  touch: { move: 'STICK', pass: 'PASS', shoot: 'SHOOT', lob: 'LOB', through: 'THROUGH', special: 'CHARGE', ud: 'STICK', sw: 'SWITCH', drib: 'DRIBBLE' },
 };
-const keyset = () => KEYSETS[window.HC2_KEYS] || KEYSETS.arrows;
+const keyset = () => (window.HC2_TOUCH ? KEYSETS.touch : KEYSETS[window.HC2_KEYS]) || KEYSETS.arrows;
 // ---------- SOUND: tiny 16-bit-console style effects made in code (Web Audio, no files): kicks, whistle, net, post,
 // catches and a crowd that bed + roars. Starts on the first key / click (browsers need that), M mutes (remembered).
 // Luca, 31 Oct 2026 ("develop a sound effect for all new moves and interactions"): a VOLUME too (vol 0-1, remembered;
@@ -122,7 +124,9 @@ const Input = {
     const t = this.touch;
     if (len(t.x, t.y) > 0.25) { ax += t.x; ay += t.y; }
     for (const a in t.btn) c[a] = c[a] || t.btn[a];
-    const ts = !!t.btn.shoot; if (ts && !this.touchShoot) this.mashN++; this.touchShoot = ts;                  // (t-034: and the touch SHOOT button's)
+    // (phone controls: a quick tap can go down and up between two frames, as a key can; it still counts once)
+    const tp = t.tap || {}; for (const a in tp) c[a] = true; t.tap = {};
+    const ts = !!(t.btn.shoot || tp.shoot); if (ts && !this.touchShoot) this.mashN++; this.touchShoot = ts;                  // (t-034: and the touch SHOOT button's)
     const l = len(ax, ay);
     this.axis = l > 0.2 ? { x: ax / Math.max(1, l), y: ay / Math.max(1, l) } : { x: 0, y: 0 };
     this.cur = c;
@@ -215,18 +219,27 @@ class Load extends Phaser.Scene {
 }
 
 // ------------------------------------------------------------------ touch controls (phones / tablets)
+// PHONE CONTROLS (Luca, 3 Nov 2026: "develop the phone version ... most importantly the buttons, make them say what they
+// do ... totally imagine the button layout again"). Every button names its action and the words follow the moment: with
+// the ball, defending, charged (LV1-3), a ball dropping to you, your keeper's save, set pieces, penalties and the menus.
+// The buttons drive the NEW BUTTON MECHANIC (chargebtn.js; the page puts phones on it): CHARGE = SPACE, DRIBBLE = O on
+// the ball and C (switch player) off it. Sprint is the stick pushed to its edge (one button fewer, as eFootball / FIFA
+// Mobile's auto-sprint), so "charged + sprinting at a defender = the special dribble" still works with one thumb.
 function setupTouch() {
   const ui = document.getElementById('touch'); if (!ui) return;
   const coarse = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   if (!coarse) return;
-  ui.hidden = false; window.HC2_TOUCH = true;
+  ui.hidden = false; window.HC2_TOUCH = true; document.body.classList.add('touchui');
+  setTimeout(() => dispatchEvent(new Event('resize')), 0);
+  // (the game's hints read "ENTER / PASS: ..." - ENTER is a keyboard key; on a phone the button alone)
+  if (window.Phaser) { const T = Phaser.GameObjects.Text.prototype, st0 = T.setText; T.setText = function (v) { return st0.call(this, typeof v === 'string' ? v.replace(/ENTER \/ /g, '') : v); }; }                     // (the strip took some width: boot.js re-fits the zoom)
   const stick = document.getElementById('stick'), knob = document.getElementById('knob');
   let sid = null, ox = 0, oy = 0;
-  const R = 56;
+  const R = 56, SPRINT_AT = 0.9;                                                 // (the knob this far out of R = sprint)
   const zone = document.getElementById('stickzone');
   zone.addEventListener('pointerdown', e => {
     sid = e.pointerId; zone.setPointerCapture(sid); ox = e.clientX; oy = e.clientY;
-    stick.style.left = (ox - 70) + 'px'; stick.style.top = (oy - 70) + 'px'; stick.classList.add('on');
+    stick.style.left = (ox - 70) + 'px'; stick.style.top = (oy - 70) + 'px'; stick.style.bottom = 'auto'; stick.classList.add('on');
   });
   zone.addEventListener('pointermove', e => {
     if (e.pointerId !== sid) return;
@@ -234,13 +247,77 @@ function setupTouch() {
     if (l > R) { dx = dx / l * R; dy = dy / l * R; }
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     Input.touch.x = dx / R; Input.touch.y = dy / R;
+    const run = l >= R * SPRINT_AT; Input.touch.btn.sprint = run; stick.classList.toggle('sprint', run);
   });
-  const end = e => { if (e.pointerId !== sid) return; sid = null; Input.touch.x = Input.touch.y = 0; knob.style.transform = ''; stick.classList.remove('on'); };
+  const end = e => { if (e.pointerId !== sid) return; sid = null; Input.touch.x = Input.touch.y = 0; Input.touch.btn.sprint = false; knob.style.transform = ''; stick.classList.remove('on', 'sprint'); };
   zone.addEventListener('pointerup', end); zone.addEventListener('pointercancel', end);
   document.querySelectorAll('#touch [data-act]').forEach(btn => {
-    const a = btn.dataset.act;
-    btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.setPointerCapture(e.pointerId); Input.touch.btn[a] = true; btn.classList.add('down'); });
-    const up = () => { Input.touch.btn[a] = false; btn.classList.remove('down'); };
+    const acts = btn.dataset.act.split(' ');                                       // (DRIBBLE holds two: sdribble on the ball, switch off it)
+    const set = v => { for (const a of acts) { Input.touch.btn[a] = v; if (v) (Input.touch.tap || (Input.touch.tap = {}))[a] = true; } };
+    btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.setPointerCapture(e.pointerId); set(true); btn.classList.add('down'); try { navigator.vibrate && navigator.vibrate(8); } catch (err) {} });
+    const up = () => { set(false); btn.classList.remove('down'); };
     btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
+    btn.addEventListener('contextmenu', e => e.preventDefault());
   });
+  const B = {};
+  for (const k of ['shoot', 'pass', 'thr', 'lob', 'sp', 'drib']) {
+    const el = document.querySelector(`#touch [data-k="${k}"]`);
+    if (el) B[k] = { el, l: el.querySelector('.l'), s: el.querySelector('small') };
+  }
+  const pips = document.querySelector('#touch .b-sp .pips');
+  let last = '';
+  setInterval(() => {                                                            // (10 a second: cheap, and only touches the page when the words change)
+    const V = touchLabels(); if (!V) return;
+    const key = JSON.stringify(V); if (key === last) return; last = key;
+    for (const k in B) {
+      const v = V[k] || ['', ''], o = B[k];
+      if (o.l) o.l.innerHTML = v[0] || '&nbsp;';
+      if (o.s) o.s.textContent = v[1] || '';
+      o.el.classList.toggle('off', !v[0] || !!v[2]);
+      o.el.classList.toggle('gold', !!V.gold && ['shoot', 'pass', 'thr', 'lob', 'drib'].includes(k) && !v[2]);
+      o.el.setAttribute('aria-label', (v[0] || 'unused').replace(/<br>/g, ' '));
+    }
+    if (B.sp) { B.sp.el.style.setProperty('--bars', V.bars || 0); B.sp.el.classList.toggle('charged', !!V.lv); }
+    if (pips) { pips.hidden = !V.lv; pips.querySelectorAll('u').forEach((u, i) => u.classList.toggle('on', i < (V.lv || 0))); }
+  }, 100);
+}
+// what each touch button says right now: { shoot: [word, small line, dimmed?], ..., gold, lv, bars }. Every word is what
+// that button really does in that moment (actions.js / chargebtn.js / matchflow.js / penalties.js), nothing more.
+function touchLabels() {
+  const G = window.__game; let m = null;
+  try { m = G && G.scene.getScene('match'); } catch (e) { m = null; }
+  const OFF = ['', '', true], menu = { shoot: ['SKIP', ''], pass: ['OK', ''], thr: ['THROUGH', '', true], lob: ['LOB', '', true], sp: ['CHARGE', '', true], drib: ['DRIBBLE', '', true], bars: 0 };
+  if (!m || !m.sys || !m.sys.isActive()) return menu;
+  if (m.penaltyMode) return { shoot: ['SHOOT', 'HOLD=AIM'], pass: ['PASS', '', true], thr: ['THROUGH', '', true], lob: ['CHIP', 'KEEPER: WAVE'], sp: ['CHARGE', '', true], drib: ['DRIBBLE', '', true], bars: 0 };
+  if (m.toss) return Object.assign({}, menu, { pass: ['FLIP', ''], thr: ['THROUGH', '', true] });   // (matchflow.js: PASS flips, SHOOT skips, the stick calls it)
+  if (m.pre || m.paused || m.replay || m.intro || m.cupScreen || m.ceremony || m.sheet || m.over || m.ht) return menu;
+  const team = m.hTeam ? m.hTeam() : m.home, p = m.human, b = m.ball; if (!team || !p || !b) return menu;
+  const mt = m.meterOf ? m.meterOf(team) : null, bars = mt ? Math.min(3, Math.floor(mt.e || 0)) : 0;
+  const chg = window.HC2_KEYS === 'charge', C = chg && team.chg, owns = b.owner === p;
+  const barsTxt = bars ? `${bars} BAR${bars > 1 ? 'S' : ''}` : 'NO BARS';
+  const sp = m.setPiece;
+  if (sp && !sp.kicked && sp.team === team) {                                    // your set piece (matchflow.js spKick)
+    const V = { sp: ['CHARGE', '', true], drib: ['DRIBBLE', '', true], bars };
+    if (sp.kind === 'PENALTY') return Object.assign(V, { shoot: ['SHOOT', 'HOLD=POWER'], pass: ['PASS', '', true], thr: ['THROUGH', '', true], lob: ['LOB', '', true] });
+    if (sp.kind === 'THROW-IN') return Object.assign(V, { shoot: ['LONG<br>THROW', ''], pass: ['THROW', ''], thr: ['LONG<br>THROW', ''], lob: ['LONG<br>THROW', ''] });
+    const far = sp.kind === 'CORNER' ? 'CROSS' : 'LOB';
+    return Object.assign(V, { shoot: ['SHOOT', 'HOLD=POWER'], pass: ['SHORT', ''], thr: [far, ''], lob: [far, ''] });
+  }
+  if (C && owns && !p.keeper) {                                                  // charged: the specials, at your level
+    const lv = C.lv || 1;
+    return { shoot: ['SUPER<br>SHOT', `LV${lv} · ${lv} BAR${lv > 1 ? 'S' : ''}`], pass: ['SUPER<br>PASS', '1 BAR'], thr: ['SUPER<br>THROUGH', '1 BAR'], lob: ['SUPER<br>LOB', '1 BAR'],
+      sp: [`LV${lv}`, lv < Math.min(3, bars) ? 'TAP=UP' : 'MAX'], drib: ['SUPER<br>DRIBBLE', ''], gold: true, lv, bars };
+  }
+  if (owns) {                                                                    // with the ball
+    const keeper = p.keeper;
+    return { shoot: [keeper ? 'KICK' : 'SHOOT', 'HOLD=POWER'], pass: ['PASS', ''], thr: ['THROUGH', ''], lob: ['LOB', 'HOLD=AIM'],
+      sp: chg && !keeper ? ['CHARGE', bars ? 'TAP 1-3x' : 'NO BARS', !bars] : ['SPECIAL', barsTxt, keeper || !bars], drib: chg && !keeper ? ['DRIBBLE', bars ? '1 BAR' : '', !bars] : ['DRIBBLE', '', true], bars };
+  }
+  const gkSave = m.saveAsk && m.saveAsk.team === team;
+  if (gkSave) return { shoot: ['SLIDE', '', true], pass: ['TACKLE', '', true], thr: ['THROUGH', '', true], lob: ['SWITCH', '', true], sp: ['SUPER<br>SAVE', 'TAP AGAIN=UP'], drib: ['SWITCH', '', true], bars };
+  if (m.airSp) return { shoot: ['VOLLEY', 'HOLD=POWER'], pass: ['HEADER', ''], thr: ['THROUGH', '', true], lob: ['LOB', '', true], sp: ['SUPER<br>VOLLEY', C ? `LV${C.lv}` : 'LV1'], drib: ['SWITCH', ''], bars };
+  if (!b.owner || b.owner.team === team) {                                       // loose ball / a team-mate has it
+    return { shoot: ['SHOOT', ''], pass: ['PASS', ''], thr: ['THROUGH', '', true], lob: chg ? ['LOB', '', true] : ['SWITCH', ''], sp: chg ? ['CHARGE', bars ? 'TAP 1-3x' : 'NO BARS', !bars] : ['SPECIAL', barsTxt, true], drib: chg ? ['SWITCH', ''] : ['DRIBBLE', '', true], bars };
+  }
+  return { shoot: ['SLIDE', ''], pass: ['TACKLE', ''], thr: ['THROUGH', '', true], lob: chg ? ['LOB', '', true] : ['SWITCH', ''], sp: ['CHARGE', '', true], drib: chg ? ['SWITCH', ''] : ['DRIBBLE', '', true], bars };
 }
