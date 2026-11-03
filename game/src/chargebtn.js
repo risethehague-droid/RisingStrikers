@@ -154,6 +154,10 @@ const chgOn = () => window.HC2_KEYS === 'charge' && !Input.skip;
       this.inp = this.chgView(src, owns, team);
       try { human0.call(this, dt, side, ...a); } finally { this.inp = s; }
       if (!owns && space && !p.keeper && !(mt.e < e0)) this.chgTap(team, p);       // (off the ball: the aerial special got first go at SPACE)
+      // Luca, 3 Nov 13:26 "the aerial special isn't releasing right": SPACE pressed a moment BEFORE the dropping ball's
+      // window opened (the natural timing - you press as it comes) only started a charge, and nothing fired when the
+      // ball got there. Now a charge you're holding RELEASES by itself as the window opens: the aerial special at your level.
+      if (!owns && !p.keeper && team.chg && this.airSp && !(mt.e < e0) && !p.busy() && this.ball.owner !== p) this.airSpecial(p);
     },
     // the aerial special (a ball dropping to you, or the aerial battle): at your charge level, LV1 if you're not charged
     airSpecial(p, aimAI) {
