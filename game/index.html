@@ -225,10 +225,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     // controls: both key sets always work; the pick decides which one the hints name (remembered on this browser)
     const KEYS = {
       wasd: ['WASD + J K L I', 'WASD MOVE &middot; J PASS / CHALLENGE &middot; K (OR SPACE) SHOOT, HOLD FOR POWER, W/S TO AIM / SLIDE TACKLE &middot; L LOB / SWITCH &middot; I THROUGH BALL &middot; LEFT SHIFT SPRINT (USES ENERGY) &middot; U SPECIAL (SPENDS YOUR SP BARS) &middot; T METER LOOK &middot; ENTER PAUSE &middot; F FLAG A PROBLEM (KEEPS THE LAST 8 S + YOUR NOTE)<br>BALL IN THE AIR: J / K TO HEAD IT, K ON A LOW BALL = VOLLEY OR DIVING HEADER, SHIFT + K ON A HIGH BALL NEAR GOAL (OR K WITH YOUR BACK TO GOAL) = OVERHEAD KICK &middot; SET PIECES: WASD AIM, J PASS, L LOB, HOLD K TO SHOOT &middot; L: TAP = LOB TO A TEAM-MATE, HOLD = HIGH BALL WHERE YOU POINT &middot; PAUSE (ENTER): MENU, L LAST GOAL, J HIGHLIGHTS, REPLAY (LAST 10 S): PAUSE, SLOW-MO 0.5X / 0.25X, FRAME BY FRAME'],
+      // NEW BUTTON MECHANIC (Luca, 3 Nov: src/chargebtn.js): SPACE charges LV1-3, then J / K / I / L = that action's special
+      charge: ['NEW: SPACE CHARGE', 'WASD MOVE &middot; SHIFT SPRINT &middot; C SWITCH PLAYER &middot; SPACE CHARGE YOUR SPECIAL (TAP 1, 2 OR 3 TIMES = LV1 / LV2 / LV3, UP TO YOUR BARS) &middot; J KICK (HOLD FOR POWER) / SLIDE &middot; K PASS / CHALLENGE &middot; I THROUGH BALL &middot; L LOB &middot; O SPECIAL DRIBBLE &middot; ENTER PAUSE &middot; F FLAG A PROBLEM<br>CHARGED: J = SPECIAL SHOT AT YOUR LEVEL, K / I / L = SPECIAL PASS (1 BAR), SHIFT + RUN AT A DEFENDER = SPECIAL DRIBBLE &middot; THE CHARGE LASTS 3 S, BARS GO ONLY WHEN YOU FIRE &middot; BALL DROPPING TO YOU: SPACE = SPECIAL VOLLEY / HEADER &middot; YOUR KEEPER: SPACE = SPECIAL SAVE, TAP AGAIN FOR MORE'],
       arrows: ['ARROWS + Z X C V', 'ARROWS MOVE &middot; Z PASS / CHALLENGE &middot; X SHOOT (HOLD FOR POWER, UP/DOWN TO AIM) / SLIDE TACKLE &middot; C LOB / SWITCH &middot; V THROUGH BALL &middot; SHIFT SPRINT (USES ENERGY) &middot; B SPECIAL (SPENDS YOUR SP BARS) &middot; T METER LOOK &middot; ENTER PAUSE &middot; F FLAG A PROBLEM (KEEPS THE LAST 8 S + YOUR NOTE)<br>BALL IN THE AIR: Z / X TO HEAD IT, X ON A LOW BALL = VOLLEY OR DIVING HEADER, SHIFT + X ON A HIGH BALL NEAR GOAL (OR X WITH YOUR BACK TO GOAL) = OVERHEAD KICK &middot; SET PIECES: ARROWS AIM, Z PASS, C LOB, HOLD X TO SHOOT &middot; C: TAP = LOB TO A TEAM-MATE, HOLD = HIGH BALL WHERE YOU POINT &middot; PAUSE (ENTER): MENU, C LAST GOAL, Z HIGHLIGHTS, REPLAY (LAST 10 S): PAUSE, SLOW-MO 0.5X / 0.25X, FRAME BY FRAME'],
     };
     let keys = 'wasd';
     try { const k = localStorage.getItem('hc2-keys'); if (KEYS[k]) keys = k; } catch (e) {}
+    // (EXPERIMENTAL starts on the new keys once, so Luca lands on them; his pick after that is kept)
+    try { if (window.HC2_CHANNEL === 'experimental' && !localStorage.getItem('hc2-charge-seen')) { keys = 'charge'; localStorage.setItem('hc2-charge-seen', '1'); } } catch (e) {}
     const krow = document.getElementById('pick-keys'), khelp = document.getElementById('keyhelp');
     const setKeys = k => {
       keys = k; window.HC2_KEYS = k; khelp.innerHTML = KEYS[k][1];
@@ -409,5 +413,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 <script src="src/watch.js"></script>
 <script src="src/resume.js"></script>
 <script src="src/movesfx.js"></script>
+<script src="src/chargebtn.js"></script>
 <script src="src/tutorial.js"></script>
 <script src="src/boot.js"></script>

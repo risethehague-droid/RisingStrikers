@@ -383,13 +383,14 @@ hc2Mix(Match, {
   drawPause() {
     const P = this.pm; if (!P) return; const el = this.flowEl('pause'), items = this.pauseItems(); P.i = clamp(P.i, 0, items.length - 1);
     const k = keyset();
-    const moves = P.page !== 'moves' ? '' : `<table class="mv">${[
+    const moves = P.page !== 'moves' ? '' : `<table class="mv">${(typeof chgOn === 'function' && chgOn() ? chgMoveRows() : [   // (chargebtn.js: the NEW SPACE-charge keys have their own list)
+
       [k.move, 'MOVE'], ['SHIFT', 'SPRINT (USES ENERGY)'], [k.pass, 'PASS · CHALLENGE (WITHOUT THE BALL)'], [k.shoot, 'SHOOT, HOLD FOR POWER · SLIDE TACKLE'],
       [k.lob, 'LOB / CROSS · SWITCH PLAYER'], [k.through, 'THROUGH BALL'], [k.special, 'SPECIAL: SPENDS YOUR FULL SP BARS'],
       ['1 BAR', SP_NAMES[0]], ['2 BARS', SP_NAMES[1]], ['3 BARS', SP_NAMES[2]],
       [`${k.special} THEN ${k.pass} / ${k.through} / ${k.lob}`, 'SPECIAL PASS (1 BAR): TORNADO DRILL · BURROW BLAST · ANGEL GLIDE'],   // (Luca's OK, 1 Nov: the LV1 special passes in matches)
       [`${k.ud} + ${k.shoot}`, 'AIM HIGH / LOW'], [`${k.pass} / ${k.shoot}`, 'BALL IN THE AIR: HEADER · VOLLEY · DIVING HEADER'],
-      [`SHIFT + ${k.shoot}`, 'HIGH BALL NEAR GOAL: OVERHEAD KICK'], ['T', 'SP METER LOOK'], ['M', 'SOUND ON / OFF'], ['F', 'FLAG A PROBLEM: THE LAST 8 S + YOUR NOTE'], ['ENTER', 'PAUSE']].map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join('')}</table>`;
+      [`SHIFT + ${k.shoot}`, 'HIGH BALL NEAR GOAL: OVERHEAD KICK'], ['T', 'SP METER LOOK'], ['M', 'SOUND ON / OFF'], ['F', 'FLAG A PROBLEM: THE LAST 8 S + YOUR NOTE'], ['ENTER', 'PAUSE']]).map(([a, b]) => `<tr><th>${a}</th><td>${b}</td></tr>`).join('')}</table>`;
     // (menu-training, Luca 31 Oct: "make sure the option menu pops up cleanly"): one panel that pops in when it opens or
     // changes page (not on every arrow press), OPTIONS in two columns so it fits the screen without scrolling
     const pop = P.pop; P.pop = false;

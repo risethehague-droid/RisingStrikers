@@ -398,6 +398,7 @@
     ['drib', 'DRIBBLING · a defender squares up to you'], ['gk', 'THEIR KEEPER · a shot or a ball at him, he does it'], ['def', 'DEFENDING · a dribbler comes at you'],
     ['set', 'SET PIECES · both teams, the setup runs, then you take it'], ['you', 'BALL TO YOU · then you press the key'],
     ['calls', 'MOVE CALLS · every special\'s name pop-up (movecall.js)'],
+    ['charge', 'NEW BUTTONS · SPACE CHARGE, then the key (chargebtn.js: these switch FREE PLAY to the new keys)'],
   ];
   const FP_MOVES = [
     { mv: 'pass', sec: 'pass', n: 'PASS', game: true },
@@ -500,6 +501,14 @@
     { mv: 'head', sec: 'you', n: 'HEAD', game: true },
     { mv: 'waist', sec: 'you', n: 'WAIST', game: true },
     { mv: 'feet', sec: 'you', n: 'FEET', game: true },
+    // chargebtn.js NEW BUTTON MECHANIC (Luca, 3 Nov): played through the real keys (SPACE taps, then J / K / I / L / SHIFT)
+    { mv: 'chg-sp1', sec: 'charge', n: 'SPACE x1 + J · LV1', hot: true, tip: 'NEW KEYS: 3 bars in the bank, SPACE once = LV1, J = BLAZE SHOT - only 1 bar spent', go: r => fpChg(r, 'shot', 1) },
+    { mv: 'chg-sp2', sec: 'charge', n: 'SPACE x2 + J · LV2', hot: true, tip: 'NEW KEYS: SPACE twice = LV2, J = THUNDER SHOT - 2 bars spent, 1 kept', go: r => fpChg(r, 'shot', 2) },
+    { mv: 'chg-sp3', sec: 'charge', n: 'SPACE x3 + J · LV3', hot: true, tip: 'NEW KEYS: SPACE three times = LV3, J = RISING PHOENIX', go: r => fpChg(r, 'shot', 3) },
+    { mv: 'chg-drill', sec: 'charge', n: 'SPACE + K · DRILL', hot: true, tip: 'NEW KEYS: SPACE, then K = TORNADO DRILL (1 bar)', go: r => fpChg(r, 'pass', 1) },
+    { mv: 'chg-burrow', sec: 'charge', n: 'SPACE + I · BURROW', hot: true, tip: 'NEW KEYS: SPACE, then I = BURROW BLAST (1 bar)', go: r => fpChg(r, 'through', 1) },
+    { mv: 'chg-angel', sec: 'charge', n: 'SPACE + L · ANGEL', hot: true, tip: 'NEW KEYS: SPACE, then L = ANGEL GLIDE (1 bar)', go: r => fpChg(r, 'lob', 1) },
+    { mv: 'chg-drib', sec: 'charge', n: 'SPACE + SHIFT · DRIBBLE', hot: true, tip: 'NEW KEYS: SPACE, then sprint (SHIFT) at the defender = the special dribble by itself (1 bar)', go: r => fpChg(r, 'drib', 1) },
     { mv: 'mcall', sec: 'calls', n: 'EVERY NAME', hot: true, tip: 'Luca 31 Oct: every special\'s name pops up in its own element\'s lettering - this plays them all in a row (the real moves show theirs when you do them)', go: fpMoveCalls },
   ];
   const FP_BY = Object.fromEntries(FP_MOVES.map(x => [x.mv, x]));
@@ -631,6 +640,33 @@
       const L = m.skdLast; if (!L || L.kept == null) return F.t < 4;
       r.last = `${S.n} · ${L.kept ? 'ball still yours' : 'LOST it'} · ${L.dist.toFixed(1)} m on${L.past != null ? `, ${L.past.toFixed(1)} m past their #${L.o.num}` : ''} in ${((L.t1 - L.t0) / 1000).toFixed(2)} s · SP ${L.sp0.toFixed(1)} -> ${L.sp1.toFixed(1)}`;
       return F.t < (F.end = F.end || F.t + 0.8);
+    } };
+  }
+
+  // ---- NEW BUTTONS (chargebtn.js, Luca 3 Nov): the real keys, pressed by the Lab - SPACE tapped lv times, then the key
+  // (J kick / K pass / I through / L lob), or SHIFT held running at their man. Switches FREE PLAY to the new keys.
+  const FP_CHG_KEY = { shot: 'shoot', pass: 'pass', through: 'through', lob: 'lob' };
+  function fpChg(r, what, lv) {
+    window.HC2_KEYS = 'charge';
+    const p = r.human, q = m.home.players[8], o = m.away.players[3], shot = what === 'shot', drib = what === 'drib';
+    if (shot) { fpCast(r, []); put(p, 82, 34, 0); atFeet(p); }
+    else if (drib) { fpCast(r, [o]); put(p, 50, 34, 0); atFeet(p); put(o, 55, 34.2, 4); }
+    else { const S = FP_CURVE[what === 'pass' ? 'ground' : what]; fpCast(r, [q, o]); put(p, S.from[0], S.from[1], 0); atFeet(p); put(q, S.mate[0], S.mate[1], 0); put(o, S.opp[0], S.opp[1], 4); r.bots.set(q, cpRun(S.mate[2] || 0, S.mate[3] || 0)); }
+    m.meters[0].e = 3; m.home.chg = null; m.home.chgEat = null; m.spPassLast = null; m.skdLast = null;
+    Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
+    const nm = shot ? SP_NAMES[lv - 1] : drib ? 'SPECIAL DRIBBLE' : SPP_NAMES[SPP_KIND[what === 'pass' ? 'ground' : what]];
+    r.last = `SPACE x${lv} then ${shot ? 'J' : drib ? 'SHIFT' : { pass: 'K', through: 'I', lob: 'L' }[what]} · ${nm} · 3 bars in the bank`;
+    r.fx = { step(r, p, F) {
+      const B = Input.touch.btn, t0 = 0.4, gap = 0.16, tk = t0 + gap * lv + 0.35, b = m.ball;
+      B.special = false; for (const k in FP_CHG_KEY) B[FP_CHG_KEY[k]] = false;
+      for (let i = 0; i < lv; i++) if (F.t >= t0 + gap * i && F.t < t0 + gap * i + 0.05) B.special = true;   // (a tap: down for a few frames, then up)
+      if (drib) { if (F.t >= tk && !p.skd && !F.done) { B.sprint = true; Input.touch.x = 1; } else { B.sprint = false; Input.touch.x = 0; } if (p.skd) F.done = true; }
+      else if (F.t >= tk && F.t < tk + 0.05) B[FP_CHG_KEY[what]] = true;
+      if (F.t < tk + 0.1) { F.lv = m.home.chg ? m.home.chg.lv : F.lv; return true; }
+      F.sp = Math.max(F.sp || 0, b.special || 0);
+      r.last = `SPACE x${lv} · charged LV${F.lv || 0} · ${nm} · ${shot ? `ball LV${F.sp}` : drib ? (p.skd || m.skdLast ? 'dribble played' : 'no dribble') : (m.spPassLast ? 'special pass played' : 'not played')} · SP left ${m.meters[0].e.toFixed(1)}`;
+      if (F.t > tk + 3) { Object.assign(Input.touch, { x: 0, y: 0, btn: {} }); return false; }
+      return true;
     } };
   }
 
