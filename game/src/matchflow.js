@@ -237,7 +237,9 @@ hc2Mix(Match, {
     this.aimPt = this.defaultAim(sp.kind, sp.team, tk, U.ball.x, U.ball.y);
     if (sp.kind !== 'THROW-IN') tk.face = dirIndex(this.aimPt.x - tk.x, this.aimPt.y - tk.y);
     if (this.hasHuman(sp.team)) { this.slot(sp.team).human = tk; const k = keyset();
-      this.say(sp.kind, sp.kind === 'THROW-IN' ? `${k.move} AIM  ${k.pass} SHORT  ${k.lob} LONG` : `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`, 2.4); }
+      this.say(sp.kind, sp.kind === 'THROW-IN' ? `${k.move} AIM  ${k.pass} SHORT  ${k.lob} LONG`
+        : sp.kind === 'CORNER' && SP_CURL.on ? `${k.lob} IN-SWING  ${k.through} OUT-SWING  ${k.shoot} DRIVEN  ${k.pass} SHORT`   // s-curled-setpieces (Luca 1 Nov: "bind it to the proper wasd buttons"): the keys of YOUR set (WASD: L / I / K / J)
+        : `${k.move} AIM  ${k.pass} PASS  ${k.lob} CROSS  ${k.shoot} SHOOT (HOLD)`, 2.4); }
     return true;
   },
   // goal kick: below - placed under the dead ball's wipe, then a short jog-in (t-029), PACE setup.gk
