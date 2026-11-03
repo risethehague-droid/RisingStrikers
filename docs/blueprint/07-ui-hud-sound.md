@@ -8,13 +8,13 @@ Legend: see [README](README.md).
 | --- | --- | --- | --- | --- | --- |
 | UI-01 | **SP meter** | one per team (top left / right), 3 bars, each its power colour (fire / electric / aura); full = RISE UP! (flaming letters + arrow) | C✓ (v0.7.0) | P0 | ✅ |
 | UI-02 | Meter look BASIC / WILD (T) | BASIC = clean 3-cell gauge; WILD = PixelLab frame, flames grow per level | C✓ | P2 | ✅ |
-| UI-03 | **Charge level display** for SPACE LV1 / 2 / 3 (on the player + the meter) | L (CTL-23) | P0 | 📝 |
+| UI-03 | **Charge level display**: "CHARGE LVn" over the player + a bottom line with what each key does; "SPACE: CHARGE YOUR SPECIAL" hint when you could | L (CTL-23), C✓ | P0 | 🧪 PR #111 |
 | UI-04 | **Radar** | ball = white dot, black edge, pulsing pink ring; away human gets a yellow box | C✓ | P0 | ✅ |
 | UI-05 | **The "you" arrow** | 3x, outlined, pops on a switch, red / blue by kit; optional direction pointer | C✓ | P0 | ✅ |
 | UI-06 | **Pass preview** | thin cyan ring + arrow on the mate a pass goes to right now (edge arrow if off screen); never flickers | C✓ | P0 | ✅ |
 | UI-07 | **Set-piece help** | FIFA-style panel above the radar listing YOUR set-piece keys until it's taken; H hides | L ("like in fifa") | P1 | ✅ (keys must follow the new layout) |
 | UI-08 | Clock, score, added-time board | | C✓ | P0 | ✅ |
-| UI-09 | "NOT ENOUGH BARS" / "SP METER EMPTY" flashes | C draft | P0 | 📝 |
+| UI-09 | "NOT ENOUGH BARS" flash | C✓ | P0 | 🧪 PR #111 |
 
 ## B. Pop-ups and names
 
@@ -65,7 +65,7 @@ Legend: see [README](README.md).
 | --- | --- | --- | --- | --- |
 | UI-60 | 16-bit style effects made in code: kicks, passes, headers, catches, whistle, net, post clang, crowd (murmur, ooh, roar) | C✓ | P0 | ✅ |
 | UI-61 | **Every special its own element sound** + keeper saves, 1 V 1 heartbeat, corners, replays, menu | L ("develop a sound effect for all new moves and interactions") | P1 | ✅ |
-| UI-62 | Charge LV1 / 2 / 3 rising sounds | C draft (CTL-23) | P0 | 📝 |
+| UI-62 | Charge LV1 / 2 / 3 rising sounds | C✓ (CTL-23) | P0 | 🧪 PR #111 |
 | UI-63 | SOUND volume OFF / 25-100%, M mute, - / =; SOUND BOARD in the Lab | C✓ | P1 | ✅ |
 | UI-64 | Real recorded sounds instead of synth? (offered 22 Oct, never answered) | — | P? | ❓ Q-UI-1 |
 | UI-65 | Music | nobody has asked for in-game music yet (the promo has a chiptune) | — | ❓ Q-UI-2 |

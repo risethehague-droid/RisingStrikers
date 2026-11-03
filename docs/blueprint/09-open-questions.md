@@ -5,15 +5,14 @@ into the item's line, mark it **L**, and delete the question here.
 
 ## Must answer before the rebuild's controls are final (P0)
 
+Answered 3 Nov 12:30 (Luca OK'd the charge spec, PR #111): charge details, defending on K / J, the dribble (automatic: charged + SHIFT at a defender).
+
 | ID | Question | Claude's default if he says "you pick" | Item |
 | --- | --- | --- | --- |
-| Q-CTL-2 | OK the charge details? Taps within 0.4 s, can't charge past your bars ("NOT ENOUGH BARS"), ~0.3 s fill, lasts 3 s then fades free, no cancel key, LVn costs n bars, bars spent only when it fires | as written (plan v3) | CTL-25..29 |
 | Q-CTL-3 | What do LV2 / LV3 do for **pass (K), through (I), lob (L) and the dribble**? Today only LV1 versions exist; charged higher they play LV1 and cost 1 bar. And where do combos fit? | keep LV1 only until Luca designs them | CTL-24, MV-34, MV-38 |
-| Q-CTL-1 | Defending: **K = standing challenge, J = slide** (same keys as pass / kick)? | yes | CTL-10 |
 | Q-CTL-4 | Corner keys in the new layout (PR #105 used L in-swing, I out-swing, hold K driven, J short when K was the shot) | L in-swing, I out-swing, hold J driven, K short | CTL-35, RU-25 |
 | Q-CTL-5 | Gamepad map for the new layout (charge on a shoulder button?) | ask when a pad is tested | CTL-46 |
 | Q-CTL-6 | Second player's keys (2 players on one keyboard, penalty battle) when WASD + right hand is player 1 | arrows + numpad | MO-20, MO-61 |
-| Q-CTL-7 | Special dribble: **always dribble (A)** or **double-tap SHIFT (B)**? Both get built to try | decide after playing | CTL-11, CTL-12 |
 
 ## Design picks waiting (P1)
 

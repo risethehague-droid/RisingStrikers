@@ -45,7 +45,7 @@ keeper must never be walkable-round.
 | GK-30 | **The CLASH** (special shot v special save): ball holds on his gloves ~0.6 s, sparks, slow-mo, "POWER AGAINST POWER", then by power: HELD / BOUNCES OFF / HANDS BLOWN AWAY (goal) / THE BODY (blasted in with it). Same level = saved, higher = saved, lower = a chance ((save/shot)³) | L ("the keeper can cover the whole goal ... but a special shot can still go through the hands if it's stronger, or bounce off") | P0 | ✅ | blasted |
 | GK-31 | **Keeper COUNTER**: press = the save CHARGES (ring at his feet closes in as the ball comes), FIRES at the contact with a quick pop-up: SAVED / PUSHED AWAY / BEATEN (letters blown off) | L (1 Nov 21:46) | P0 | ✅ v0.20.0 | — |
 | GK-32 | **Names pop up ONLY for special saves** (the ones that spend a bar) | L (1 Nov 22:17) | P0 | ✅ | — |
-| GK-33 | Your keeper: SPACE = the save at LV1, extra taps raise it (new layout) | L / C draft | P0 | 📝 CTL-33 | — |
+| GK-33 | Your keeper: SPACE = the save at LV1, each later tap = one more level / bar, up to LV3 | L OK 3 Nov | P0 | 🧪 PR #111 (CTL-33) | — |
 | GK-34 | The computer's keeper answers your special by difficulty (easy 30% ... rise 75%) | C✓ (fair finishing) | P0 | ✅ | — |
 | GK-35 | A save that's ready is cancelled the moment anyone else gets the ball; not for penalties | C✓ | P1 | ✅ | — |
 

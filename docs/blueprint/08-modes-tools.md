@@ -37,8 +37,8 @@ Legend: see [README](README.md).
 ## D. Options (start OPTIONS + pause OPTIONS)
 
 Difficulty, pace, camera, team AI NEW / CLASSIC, formation, offside ON / OFF, lob aim AUTO / RING, pointer ON / OFF,
-meter look, sound volume, Bug Watch ON / OFF, keys hint set. Each must survive the rebuild (P1, ✅). New: CONTROLS
-NEW / CLASSIC switch while the new layout is being tried (C draft, 📝).
+meter look, sound volume, Bug Watch ON / OFF, keys hint set. Each must survive the rebuild (P1, ✅). New: KEYS option
+"NEW: SPACE CHARGE" (PR #111, 🧪 EXPERIMENTAL).
 
 ## E. Multiplayer and sharing
 

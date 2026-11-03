@@ -30,11 +30,7 @@ These fill in the HOW of something Luca asked for. They become **C✓** when he 
 
 | ID | Draft | For | Item |
 | --- | --- | --- | --- |
-| CI-30 | Charge timings: 0.4 s between taps, 0.3 s fill, 3 s hold, no cancel, LVn = n bars, NOT ENOUGH BARS | his SPACE levels | CTL-25..29, Q-CTL-2 |
-| CI-31 | Charge look: LV1 ring, LV2 taller aura + sparks, LV3 full glow + pulse + screen-edge tint, rising sound per level | "each stage clearly more ... keep it clean" | CTL-23, RIG-40 |
-| CI-32 | Keeper: SPACE alone = LV1 save, extra taps raise it | his keeper counter + SPACE | CTL-33 |
-| CI-33 | Defending on K (challenge) and J (slide) | his new layout | CTL-10 |
-| CI-34 | A CONTROLS NEW / CLASSIC switch on the start screen while the new layout is tried | trying his layout | 08 D |
+| CI-30..34 | Charge timings, charge look, keeper taps, defending on K / J, the NEW / CLASSIC keys switch | **Luca OK'd 3 Nov 12:30** → now C✓ in 01-controls (PR #111) | CTL-10..33 |
 | CI-35 | Phone layout details (strip on the right, labels that change, sprint at the stick's edge, 15% closer camera, HUD 1.4x) | his phone ask | MO-71 |
 
 ## New ideas (not proposed to Luca yet)

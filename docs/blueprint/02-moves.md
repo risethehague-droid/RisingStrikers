@@ -23,9 +23,9 @@ Legend: see [README](README.md). Keys are named in the NEW layout (J kick, K pas
 | --- | --- | --- | --- | --- | --- | --- |
 | MV-10 | **Dribble** | ball rides just ahead of the boot, touched in rhythm with the stride, smooth arcs; sprint pushes it further; sprinting does NOT protect the ball | C✓ (v0.8.1) + F (#57) | P0 | ✅ | run, sprint |
 | MV-11 | Shielding + stepping round a man in the way | | C✓ (#20) | P1 | ✅ | run |
-| MV-15 | **Special dribble** (1 bar): short slow-mo, after-images, bursts 2.5-4 m past the man, he's left spinning ~1 s; the computer uses it too (max 1 / 25 s) | F (arcade-specials.md, ARCADE) | P0 | ✅ ARCADE; trigger → CTL-11 / CTL-12 | sdribble |
-| MV-16 | **RAINBOW FLICK** (rainbow trail on the ball), used with a man square in front | L ask, 31 Oct | P1 | 🧪 Lab only (SKILL_DRIB) | needs own anim |
-| MV-17 | **SHADOW STEP**: he ends up BEHIND the man, dark shadow with faded purple | L ("more like he ends up behind the guy, make the shadow darker add some faded purple") | P1 | 🧪 Lab only | needs own anim |
+| MV-15 | **Special dribble** (1 bar): short slow-mo, after-images, bursts 2.5-4 m past the man, he's left spinning ~1 s; the computer uses it too (max 1 / 25 s) | F (arcade-specials.md, ARCADE) | P0 | ✅ ARCADE; new trigger = charged + SHIFT at a defender (CTL-11, 🧪 #111) | sdribble |
+| MV-16 | **RAINBOW FLICK** (rainbow trail on the ball), used with a man square in front | L ask, 31 Oct | P0 | 🧪 the charged-SHIFT dribble in PR #111 (1 bar) | needs own anim |
+| MV-17 | **SHADOW STEP**: he ends up BEHIND the man, dark shadow with faded purple | L ("more like he ends up behind the guy, make the shadow darker add some faded purple") | P0 | 🧪 the charged-SHIFT dribble in PR #111 (1 bar) | needs own anim |
 
 ## C. Special shots (power system, Luca 23 Oct 04:09)
 
