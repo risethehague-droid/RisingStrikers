@@ -311,13 +311,13 @@ function touchLabels() {
   if (owns) {                                                                    // with the ball
     const keeper = p.keeper;
     return { shoot: [keeper ? 'KICK' : 'SHOOT', 'HOLD=POWER'], pass: ['PASS', ''], thr: ['THROUGH', ''], lob: ['LOB', 'HOLD=AIM'],
-      sp: chg && !keeper ? ['CHARGE', bars ? 'TAP 1-3x' : 'NO BARS', !bars] : ['SPECIAL', barsTxt, keeper || !bars], drib: chg && !keeper ? ['DRIBBLE', bars ? '1 BAR' : '', !bars] : ['DRIBBLE', '', true], bars };
+      sp: chg && !keeper ? ['CHARGE', bars > 1 ? `TAP 1-${bars}x` : bars ? 'TAP 1x' : 'NO BARS', !bars] : ['SPECIAL', barsTxt, keeper || !bars], drib: chg && !keeper ? ['DRIBBLE', bars ? '1 BAR' : '', !bars] : ['DRIBBLE', '', true], bars };
   }
   const gkSave = m.saveAsk && m.saveAsk.team === team;
   if (gkSave) return { shoot: ['SLIDE', '', true], pass: ['TACKLE', '', true], thr: ['THROUGH', '', true], lob: ['SWITCH', '', true], sp: ['SUPER<br>SAVE', 'TAP AGAIN=UP'], drib: ['SWITCH', '', true], bars };
   if (m.airSp) return { shoot: ['VOLLEY', 'HOLD=POWER'], pass: ['HEADER', ''], thr: ['THROUGH', '', true], lob: ['LOB', '', true], sp: ['SUPER<br>VOLLEY', C ? `LV${C.lv}` : 'LV1'], drib: ['SWITCH', ''], bars };
   if (!b.owner || b.owner.team === team) {                                       // loose ball / a team-mate has it
-    return { shoot: ['SHOOT', ''], pass: ['PASS', ''], thr: ['THROUGH', '', true], lob: chg ? ['LOB', '', true] : ['SWITCH', ''], sp: chg ? ['CHARGE', bars ? 'TAP 1-3x' : 'NO BARS', !bars] : ['SPECIAL', barsTxt, true], drib: chg ? ['SWITCH', ''] : ['DRIBBLE', '', true], bars };
+    return { shoot: ['SHOOT', ''], pass: ['PASS', ''], thr: ['THROUGH', '', true], lob: chg ? ['LOB', '', true] : ['SWITCH', ''], sp: chg ? ['CHARGE', bars > 1 ? `TAP 1-${bars}x` : bars ? 'TAP 1x' : 'NO BARS', !bars] : ['SPECIAL', barsTxt, true], drib: chg ? ['SWITCH', ''] : ['DRIBBLE', '', true], bars };
   }
   return { shoot: ['SLIDE', ''], pass: ['TACKLE', ''], thr: ['THROUGH', '', true], lob: chg ? ['LOB', '', true] : ['SWITCH', ''], sp: ['CHARGE', '', true], drib: chg ? ['SWITCH', ''] : ['DRIBBLE', '', true], bars };
 }
