@@ -1,4 +1,4 @@
-// HELP OUT HAGUE CUP II - web game v0.19.0 (Luca OK'd PRs #73, #94, #96, 1 Nov: ROLE-BASED AI step 6 - each team its own formation card, OPTIONS > FORMATION > TEAM'S OWN, shots back up (#94); FAIR FINISHING - an LV3 that beats the keeper goes in, Hard is scoreable (#96); Test Lab only: the 1 V 1 moment preview, slow-mo from 8 m (#73))
+// HELP OUT HAGUE CUP II - web game v0.20.0 (Luca OK'd PRs #95, #98, #100, #101, #103, #104, #106, #107, #108, 3 Nov: THE TUTORIAL (#95); special passes in matches (#101); the 1 V 1 moment in matches (#104); free kicks bend round the wall (#106); set-piece help panel (#107); keeper counter + quick save pop-ups, names only on special saves (#108); aerial special plants for the strike (#100); Hard retune (#103); soak replays exactly (#98))
 // HELP OUT HAGUE CUP II - web game v0.17.0 (Luca OK'd PRs #70, #81, #83-#87, 31 Oct: MOVE CALL - every special's name (keeper saves too) pops up in its element's lettering (#85); REPLAY THE WHOLE MATCH from the pause menu (scrub, 10 s jumps, next goal, last 10 s) (#83); MOVE SOUNDS - an element sound for every special, keeper saves, 1 V 1, corners, replay, menu, plus a SOUND volume in OPTIONS (#87); INSTA FLAG right after a goal keeps the goal in its clip (#81); role cards for every player, identical play (#84, role-AI step 1); Test Lab only: LV1 SPECIAL PASSES TORNADO DRILL, BURROW BLAST, ANGEL GLIDE (#70) and the RL exploit tests (#86, role-AI step 0))
 // HELP OUT HAGUE CUP II - web game v0.16.0 (Luca OK'd PRs #69, #76-#79, 31 Oct: CORNERS BACK ON ARCADE, whipped in as real chances (#69, the co-designer); SITUATIONAL KEEPER SAVES in matches - sky snatch, flying stretch, top-corner stretch, low scramble, starfish wall, more flair by level (#76, gkstyle.js); the SPECIAL SAVE covers the whole goal, an aura glow, no full-screen cut-in (#77); PRACTICE SCENARIOS in the Test Lab's FREE PLAY, 20 drills + build your own (#78, Lab only); a cleaner centred menu with TRAINING, OPTIONS / HOW TO PLAY pop-ups, CONTINUE and LEAVE GAME (#79))
 // HELP OUT HAGUE CUP II - web game v0.15.3 (Luca OK'd PR #61, 30 Oct: t-042 small fixes - a TV close-up on the aerial battle (world.js AERIAL_CAM), the dive-catch ball stays in his gloves through the get-up (ball.js gkHandBall), the curve pass's maths much faster (ball.js curveSolve))
@@ -518,7 +518,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.19.0';
+const GAME_VER = 'v0.20.0';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)
