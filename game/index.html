@@ -153,6 +153,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     <div class="pick" id="pick-cam" role="group" aria-label="Camera distance"><span>CAMERA</span></div>
     <div class="pick" id="pick-pace" role="group" aria-label="Pace"><span>PACE</span></div>
     <div class="pick" id="pick-lobaim" role="group" aria-label="Lob aim"><span>LOB AIM</span></div>
+    <div class="pick" id="pick-v1" role="group" aria-label="1 V 1 moment"><span>1 V 1 MOMENT</span></div>
     <div class="pick" id="pick-vol" role="group" aria-label="Sound volume"><span>SOUND</span></div>
     <small>SAVED ON THIS BROWSER &middot; MOST OF THESE ARE IN THE PAUSE MENU TOO</small>
     <button class="close" type="button" data-close>DONE &#10003;</button>
@@ -275,6 +276,12 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     const setLa = k => { la = k; for (const b of lrow.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k)); try { localStorage.setItem('hc2-lobaim', k); } catch (e) {} if (typeof setLobAim === 'function') setLobAim(k); };
     for (const k of Object.keys(LAIMS)) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = LAIMS[k]; btn.addEventListener('click', () => setLa(k)); lrow.appendChild(btn); }
     setLa(la);
+    // 1 V 1 MOMENT (card s-1v1-in-matches, 1 Nov): through on goal, only the keeper left - the slow-mo duel (oneone.js) in matches. ON by default
+    const v1row = document.getElementById('pick-v1'), V1S = { on: 'ON', off: 'OFF' };
+    let v1k = 'on'; try { if (localStorage.getItem('hc2-1v1') === 'off') v1k = 'off'; } catch (e) {}
+    const setV1 = k => { v1k = k; for (const b of v1row.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k)); if (typeof setV1Match === 'function') setV1Match(k === 'on'); else try { localStorage.setItem('hc2-1v1', k); } catch (e) {} };
+    for (const k of Object.keys(V1S)) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = V1S[k]; btn.addEventListener('click', () => setV1(k)); v1row.appendChild(btn); }
+    setV1(v1k);
     // MOVE SOUNDS (Luca, 31 Oct: "develop a sound effect for all new moves and interactions"): the volume, OFF = muted;
     // in a match M mutes, - / = change it, and PAUSE > OPTIONS has it too
     const vrow = document.getElementById('pick-vol'), VOLS = [['0', 'OFF'], ['0.25', '25%'], ['0.5', '50%'], ['0.75', '75%'], ['1', '100%']];
