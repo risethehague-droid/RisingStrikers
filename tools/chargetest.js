@@ -29,7 +29,7 @@ const ONLY = E.ONLY ? E.ONLY.split(',') : Object.keys(WANT);
   }
   // the two one-press SPACE moments, from the Lab's own tests with the new keys on: SM10 (a shot at YOUR keeper: SPACE
   // when SAVE? is up = LV1, a second tap = LV2) and PW12 (a cross drops to you: SPACE = the aerial special, LV1 uncharged)
-  if (!E.ONLY) for (const [id, want] of [['SM10', 'save'], ['PW12', 'air']]) {
+  if (!E.ONLY) for (const [id, want] of [['SM10', 'save'], ['PW12', 'air'], ['PW12', 'early']]) {
     const res = await page.evaluate(([id, want]) => { const m = window.__hc2, g = m.game, L = window.__lab, api = L.api;
       window.HC2_KEYS = 'charge'; const gi = L.groups.findIndex(G => G.tests.some(t => t.id === id)); api.goTo(gi, L.groups[gi].tests.findIndex(t => t.id === id));
       let set = false, tap = 0, tapT = 0, maxSave = 0, sp = 0, t = 0;
@@ -37,11 +37,12 @@ const ONLY = E.ONLY ? E.ONLY.split(',') : Object.keys(WANT);
         if (!set && t > 0.3) { set = true; m.meters[0].e = 3; }
         if (want === 'save') { if (m.saveAsk && tap === 0) { Input.downs.add('Space'); tap = 1; tapT = t; } else if (tap === 1 && t - tapT > 0.12) { Input.downs.add('Space'); tap = 2; }
           maxSave = Math.max(maxSave, m.home.players[0].spSave || 0); }
-        else { if (m.airSp && !tap) { Input.downs.add('Space'); tap = 1; } sp = Math.max(sp, m.ball.special || 0); } }
+        else if (want === 'air') { if (m.airSp && !tap) { Input.downs.add('Space'); tap = 1; } sp = Math.max(sp, m.ball.special || 0); }
+        else { const b = m.ball; if (!tap && !b.owner && b.lastP && b.lastP !== m.human && len(b.x - m.human.x, b.y - m.human.y) < 9) { Input.downs.add('Space'); tap = 1; } sp = Math.max(sp, b.special || 0); } }   // (early: SPACE as the cross comes, before the window - the charge releases when it opens)
       return { want, maxSave, sp, e: m.meters[0].e, last: L.run && L.run.last }; }, [id, want]);
     const ok = want === 'save' ? res.maxSave === 2 && Math.abs(res.e - 1) < 0.01 : res.sp === 1 && Math.abs(res.e - 1) < 0.01;
     if (!ok) bad++;
-    console.log(`${ok ? 'ok  ' : 'FAIL'} ${id.padEnd(11)} ${want === 'save' ? `keeper save LV${res.maxSave} (SPACE, then SPACE)` : `aerial special LV${res.sp} (SPACE, not charged; 2 bars in the bank)`} · SP ${res.e.toFixed(2)}`);
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${(id + (want === 'early' ? ' early' : '')).padEnd(11)} ${want === 'save' ? `keeper save LV${res.maxSave} (SPACE, then SPACE)` : `aerial special LV${res.sp} (${want === 'early' ? 'SPACE as it comes: the charge releases' : 'SPACE, not charged'}; 2 bars in the bank)`} · SP ${res.e.toFixed(2)}`);
   }
   console.log('errors', JSON.stringify(errs.slice(0, 5)));
   await br.close(); process.exit(bad || errs.length ? 1 : 0);
