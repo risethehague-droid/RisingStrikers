@@ -76,13 +76,13 @@ const AI_MOVES = [
       const s = b.all.filter(o => o !== b && o.risk < 0.2 && o.score > b.score - 1.2).sort((u, v) => v.score - u.score)[0]; if (!s) return null;
       return { value: 1.6 + b.score * 0.4 - (c.pressed ? b.risk * 1.5 : 0) + 0.2 - 0.3 * c.S.direct, want: c.pressed ? 0.8 : 0.25 * c.M.protect, how: s }; },   // (just above the risky ball)
     play: (m, p, s) => { m.doPass(p, s.dir, s.mode, s.q); } },
-  { id: 'curve',                                                                 // t-011 the curving pass round the man in the lane (CURVE_PASS: Test Lab only)
+  { id: 'curve',                                                                 // t-011 the special pass round the man in the lane (CURVE_PASS: on in matches since Luca's OK, 1 Nov)
     available: (m, p) => CURVE_PASS && m.meterOf(p.team).level() >= 1,
     look: (m, p, c) => { const b = c.pass(); if (!b) return null;
       const o = b.all.filter(x => x.mode !== 'lob' && x.lane > 0.6 && x.risk - x.lane < 0.3).sort((u, v) => (v.score + v.lane * 1.6) - (u.score + u.lane * 1.6))[0];
       if (!o || o.score + o.lane * 1.6 < 0.8) return null;
       return { value: 1.8 + (o.score + o.lane * 1.6) * 0.4, want: 0.45 * c.K.sp * (1 + 0.5 * c.S.specials), how: o }; },
-    play: (m, p, o) => m.curvePass(p, o.mode, o.dir) },
+    play: (m, p, o) => m.spPass(p, o.mode, o.dir) || m.curvePass(p, o.mode, o.dir) },   // (the computer plays the same LV1 special passes you do; the curler only with SPP_ON off)
   { id: 'carry',                                                                 // smarter-ai (clip 7): pressed, the ball is to a marked man and nothing's safe - keep it, shield it, go on
     available: (m, p, c) => c.pressed,
     look: (m, p, c) => { const b = c.pass(); return b && b.marked && b.risk > SAFE.KEEP && c.fd > 1.6 ? { value: 1.6 + b.score * 0.4 - b.risk * 1.5 + 0.1, want: 1 } : null; },   // (just above the risky ball)

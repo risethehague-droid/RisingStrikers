@@ -62,6 +62,10 @@ class Referee {
     }
 })();
 
+// t-046: the per-match memories resetMatchState clears (each one is set by its system the first time it's needed)
+const MATCH_MEMORY = ['acLast', 'aerFx', 'aerialN', 'aiLastHolder', 'aiLastOwner', 'aimPt', 'airLast', 'aspOwn', 'aspOwnT', 'aspPasses',
+  'clashLast', 'cornerAt', 'coverN', 'curPop', 'gkSpLast', 'gsLast', 'nfxLast', 'offLast', 'read', 'spName',
+  'demoOver', 'mcN', 'gpT', 'noBarLast', 'noBarN', 'htSubsDone'];
 hc2Mix(Match, {
 
   // ---------- restarts
@@ -447,9 +451,16 @@ hc2Mix(Match, {
     if (this.cutIn) this.cutInEnd(); if (this.rise) { this.rise.c.destroy(); this.rise = null; }
     Object.assign(this, { hitStop: 0, slowMo: 0, flashT: 0, trailT: 0, trailSp: 0, trailHot: 0, saveAsk: null, cutInQ: null,   // effects / prompts in flight
       dead: null, offSide: null, offGK: null, offFlag: null, penaltyKick: false, goalAt: 0, lastScorer: null,                    // the rules' memory
-      nextHuman: null, passRing: null, passAim: null, passStick: null, spHeld: 0, charge: -1, lobCharge: -1, lobAim: null, headBuf: 0, airSp: null, airCh: null,   // your half-made moves
+      nextHuman: null, passRing: null, passAim: null, passStick: null, spWin: null, charge: -1, lobCharge: -1, lobAim: null, headBuf: 0, airSp: null, airCh: null,   // your half-made moves
       aerial: null, aerialClock: 0, aerialAt: undefined, duelAt: undefined, aerialKick: undefined, aerialLast: undefined, spAerialSeen: undefined,   // the aerial battle / grass duel cooldowns
       savedFor: undefined, ghost: null, camX: undefined, camY: undefined, kickCapN: null });   // (ghost: the demo's stand-in "you" held the last match's team)
+    // t-046 (QA 31 Oct: still not a clean slate): the 'last time this happened' memories the systems keep on the Match. A
+    // match on its own starts with none of them; after another match they held its times and players, and checks like
+    // `now - cornerAt > 2 s` or 'the last two passes were a combo' then went the other way. Found by diffing the Match
+    // between a set-up played alone and played second on the page. (The camera's spCam object is kept: camTarget may hold it.)
+    for (const k of MATCH_MEMORY) delete this[k];
+    this.lastRoll = 0; this.path = null;                                          // (these two a fresh page starts with)
+    if (this.rami) Object.assign(this.rami, { line: null, t: 0, prio: 0, cool: {}, quiet: 0 });   // (Rami's 9 s line cooldowns: last match's lines don't mute this one's)
   },
   resetHalfTime() { this.lost = 0; this.added = null; this.timeUp = null; if (this.addedTxt) this.addedTxt.setVisible(false); },
   announceAdded() {

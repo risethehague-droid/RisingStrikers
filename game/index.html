@@ -135,6 +135,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
       <button id="resumebtn" type="button" hidden>CONTINUE &#9654;</button>
       <button id="play" type="button">PLAY <span>&#9654;</span></button>
       <button id="cupbtn" type="button">HAGUE CUP <span>&#9654;</span></button>
+      <button id="tutbtn" type="button">TUTORIAL <em id="tutnew">NEW HERE? START HERE</em> <span>&#9654;</span></button>
       <button id="trainbtn" type="button">TRAINING <span>&#9654;</span></button>
       <button id="battle" type="button">1V1 PENALTY BATTLE <span>&#9654;</span></button>
       <button id="watchbtn" type="button">WATCH: CPU V CPU <span>&#9654;</span></button>
@@ -153,6 +154,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     <div class="pick" id="pick-cam" role="group" aria-label="Camera distance"><span>CAMERA</span></div>
     <div class="pick" id="pick-pace" role="group" aria-label="Pace"><span>PACE</span></div>
     <div class="pick" id="pick-lobaim" role="group" aria-label="Lob aim"><span>LOB AIM</span></div>
+    <div class="pick" id="pick-v1" role="group" aria-label="1 V 1 moment"><span>1 V 1 MOMENT</span></div>
     <div class="pick" id="pick-vol" role="group" aria-label="Sound volume"><span>SOUND</span></div>
     <small>SAVED ON THIS BROWSER &middot; MOST OF THESE ARE IN THE PAUSE MENU TOO</small>
     <button class="close" type="button" data-close>DONE &#10003;</button>
@@ -163,6 +165,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     <small>THE TEST LAB: PRACTISE ANY MOVE, NO MATCH, NO CLOCK</small>
     <div class="list">
       <a id="lab-free" target="_blank" rel="noopener"><button type="button" tabindex="-1">FREE PLAY <em>YOU, THE BALL + A KEEPER &middot; EVERY MOVE ON A BUTTON</em></button></a>
+      <a id="lab-tut" target="_blank" rel="noopener"><button type="button" tabindex="-1">TUTORIAL <em>THE BASICS, THEN THE ADVANCED MOVES &middot; ONE STEP AT A TIME</em></button></a>
       <a id="lab-all" target="_blank" rel="noopener"><button type="button" tabindex="-1">TEST LAB <em>EVERY TEST, GROUP BY GROUP</em></button></a>
     </div>
     <small id="lab-note">OPENS IN A NEW TAB</small>
@@ -275,6 +278,12 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     const setLa = k => { la = k; for (const b of lrow.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k)); try { localStorage.setItem('hc2-lobaim', k); } catch (e) {} if (typeof setLobAim === 'function') setLobAim(k); };
     for (const k of Object.keys(LAIMS)) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = LAIMS[k]; btn.addEventListener('click', () => setLa(k)); lrow.appendChild(btn); }
     setLa(la);
+    // 1 V 1 MOMENT (card s-1v1-in-matches, 1 Nov): through on goal, only the keeper left - the slow-mo duel (oneone.js) in matches. ON by default
+    const v1row = document.getElementById('pick-v1'), V1S = { on: 'ON', off: 'OFF' };
+    let v1k = 'on'; try { if (localStorage.getItem('hc2-1v1') === 'off') v1k = 'off'; } catch (e) {}
+    const setV1 = k => { v1k = k; for (const b of v1row.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.k === k)); if (typeof setV1Match === 'function') setV1Match(k === 'on'); else try { localStorage.setItem('hc2-1v1', k); } catch (e) {} };
+    for (const k of Object.keys(V1S)) { const btn = document.createElement('button'); btn.type = 'button'; btn.dataset.k = k; btn.textContent = V1S[k]; btn.addEventListener('click', () => setV1(k)); v1row.appendChild(btn); }
+    setV1(v1k);
     // MOVE SOUNDS (Luca, 31 Oct: "develop a sound effect for all new moves and interactions"): the volume, OFF = muted;
     // in a match M mutes, - / = change it, and PAUSE > OPTIONS has it too
     const vrow = document.getElementById('pick-vol'), VOLS = [['0', 'OFF'], ['0.25', '25%'], ['0.5', '50%'], ['0.75', '75%'], ['1', '100%']];
@@ -317,12 +326,19 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     const LAB_URL = 'https://claude.ai/artifact/Goa4b8PepGxbqv9877pPCV';
     const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
     const labHref = id => window.HC2_PREVIEW ? '#lab' + (id ? '-' + id : '') : local ? 'lab.html' + (id ? '#' + id : '') : LAB_URL + (id ? '#' + id : '');
-    for (const [el, id] of [['lab-free', 'FP1'], ['lab-all', '']]) {
+    for (const [el, id] of [['lab-free', 'FP1'], ['lab-tut', 'TUT'], ['lab-all', '']]) {
       const a = document.getElementById(el); a.href = labHref(id);
       if (window.HC2_PREVIEW) a.target = '_self';                                  // (the preview swaps to its Lab in place)
     }
     if (window.HC2_PREVIEW) document.getElementById('lab-note').textContent = 'THIS PREVIEW\'S OWN TEST LAB';
     document.getElementById('trainbtn').addEventListener('click', e => openPop('pop-train', e.currentTarget));
+    // THE TUTORIAL (Luca, 31 Oct: "a simple tutorial in which you can try the basics and then the advanced stuff before you
+    // play, make it optional to skip or return back to"): src/tutorial.js, played in the Test Lab page (#TUT), like
+    // TRAINING's links. It's never forced on you: the button says NEW HERE? until you've done PART 1 (hc2-tut in this browser).
+    { const tb = document.getElementById('tutbtn'), tn = document.getElementById('tutnew'); let td = {};
+      try { td = (JSON.parse(localStorage.getItem('hc2-tut') || 'null') || {}).done || {}; } catch (e) {}
+      if (td.basics && td.adv) tn.textContent = '\u2713 DONE \u00b7 TRY AGAIN ANY TIME'; else if (td.basics) tn.textContent = 'PART 2: THE ADVANCED MOVES'; else if (resb.hidden === false) tn.textContent = 'LEARN EVERY MOVE';
+      tb.addEventListener('click', () => { const h = labHref('TUT'); if (window.HC2_PREVIEW) location.hash = h; else if (local) location.href = h; else window.open(h, '_blank', 'noopener'); }); }
     // VERSION SWITCH (Luca, 31 Oct: "a new version you can select in game called experimental"): MAIN is the official
     // game (only Luca-OK'd work); EXPERIMENTAL gets every new change as soon as it's built (may be buggy). channel.js says
     // which one this page is. On the public link both live side by side (/ and /experimental/), so it switches in place;
@@ -387,8 +403,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
 <script src="src/skilldrib.js"></script>
 <script src="src/ui.js"></script>
 <script src="src/movecall.js"></script>
+<script src="src/sphelp.js"></script>
+<script src="src/gkcounter.js"></script>
 <script src="src/replay.js"></script>
 <script src="src/watch.js"></script>
 <script src="src/resume.js"></script>
 <script src="src/movesfx.js"></script>
+<script src="src/tutorial.js"></script>
 <script src="src/boot.js"></script>

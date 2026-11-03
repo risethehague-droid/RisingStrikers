@@ -421,8 +421,8 @@
     { mv: 'sp1', sec: 'shoot', n: 'LV1 BLAZE', game: true, hot: true },
     { mv: 'sp2', sec: 'shoot', n: 'LV2 THUNDER', game: true, hot: true },
     { mv: 'sp3', sec: 'shoot', n: 'LV3 PHOENIX', game: true, hot: true },
-    { mv: 'v1-watch', sec: 'shoot', n: '1 V 1 · WATCH IT', hot: true, tip: 'PREVIEW (Luca 30 Oct): through on goal, only the keeper to beat - speed lines close in, time slows more the closer he gets and nearly stops as he strikes it, both glow in their team colours. Your striker runs in and shoots by himself', go: r => fp1v1(r, true) },
-    { mv: 'v1-play', sec: 'shoot', n: '1 V 1 · YOU PLAY IT', hot: true, tip: 'PREVIEW (Luca 30 Oct): the same break, their centre-back chasing - you run at the keeper (arrows) and finish it (X shot, C chip, B special)', go: r => fp1v1(r, false) },
+    { mv: 'v1-watch', sec: 'shoot', n: '1 V 1 · WATCH IT', hot: true, game: true, tip: 'IN MATCHES since PR #104 (OPTIONS > 1 V 1 MOMENT). Luca 30 Oct: through on goal, only the keeper to beat - speed lines close in, time slows more the closer he gets and nearly stops as he strikes it, both glow in their team colours. Your striker runs in and shoots by himself', go: r => fp1v1(r, true) },
+    { mv: 'v1-play', sec: 'shoot', n: '1 V 1 · YOU PLAY IT', hot: true, game: true, tip: 'IN MATCHES since PR #104. Luca 30 Oct: the same break, their centre-back chasing - you run at the keeper (arrows) and finish it (X shot, C chip, B special)', go: r => fp1v1(r, false) },
     { mv: 'v1-arrows', sec: 'shoot', n: '1 V 1 · ARROWS · WATCH IT', hot: true, tip: 'PREVIEW v3 (Luca 31 Oct): the same 1 V 1, with RISE arrows pointing in at the duel instead of speed lines', go: r => fp1v1(r, true, 'arrows') },
     { mv: 'v1-arrows-play', sec: 'shoot', n: '1 V 1 · ARROWS · YOU PLAY IT', hot: true, tip: 'PREVIEW v3: the arrows look, you play it (arrows, X shot)', go: r => fp1v1(r, false, 'arrows') },
     { mv: 'air-head', sec: 'air', n: 'HEADER', game: true },
@@ -477,6 +477,11 @@
     { mv: 'gk-cover-lob', sec: 'gk', n: 'COVER · LOB OVER HIM', gk: true, game: true, hot: true, tip: 'gk-cover (Luca 31 Oct): he is 9 m off his line with his LV2 special save on, your lob drops in under the bar - he must still save it (he dashes back with the aura)', go: r => fpCover(r, 'lob') },
     { mv: 'gk-cover-late', sec: 'gk', n: 'COVER · PRESSED LATE', gk: true, game: true, hot: true, tip: 'gk-cover: a hard low shot past him into the corner, his special save switched on only after it is past him - he must still save it at the line', go: r => fpCover(r, 'late') },
     { mv: 'gk-cover-wide', sec: 'gk', n: 'COVER · CAUGHT OUT WIDE', gk: true, game: true, hot: true, tip: 'gk-cover: he has come out to the wing, you shoot at the open goal, his special save on - he covers the whole goal', go: r => fpCover(r, 'wide') },
+    // gkcounter.js (Luca 1 Nov: the special save charges like a counter, fires when the ball is at his hands, quick pop-ups)
+    { mv: 'gkc-save', sec: 'gk', n: 'COUNTER · SAVED', gk: true, game: true, hot: true, tip: 'gkcounter.js: his LV2 special save charges as your shot comes (the ring closes in), fires at his gloves: the quick SAVED pop-up', go: r => fpCounter(r, 'save') },
+    { mv: 'gkc-hand', sec: 'gk', n: 'COUNTER · A HAND TO IT', gk: true, game: true, hot: true, tip: 'gkcounter.js: his LV1 save v your power shot - he only pushes it away: the pop-up jolts, PUSHED AWAY', go: r => fpCounter(r, 'hand') },
+    { mv: 'gkc-beaten', sec: 'gk', n: 'COUNTER · BEATEN', gk: true, game: true, hot: true, tip: 'gkcounter.js: your LV2 special v his LV1 save, the shot wins - his hands are blown away, the pop-up cracks and its letters fly off', go: r => fpCounter(r, 'beaten') },
+    { mv: 'gkc-pops', sec: 'calls', n: 'KEEPER COUNTER POP-UPS', hot: true, tip: 'gkcounter.js: the three quick special-save pop-ups in a row (saved, a hand to it, beaten) at each level', go: fpCounterPops },
     { mv: 'def-slide', sec: 'def', n: 'SLIDE TACKLE', game: true, tip: 't-018: he comes at you with the ball; you slide in (the shoot key)', go: r => fpDuel(r, 'slide') },
     { mv: 'def-stand', sec: 'def', n: 'STANDING TACKLE', game: true, tip: 't-018: the challenge (the pass key) as he reaches you', go: r => fpDuel(r, 'stand') },
     { mv: 'def-jockey', sec: 'def', n: 'JOCKEY', game: true, tip: 'side-on, backing off as he dribbles at you', go: r => fpDuel(r, 'jockey') },
@@ -486,6 +491,7 @@
     { mv: 'set-corner-out', sec: 'set', n: 'CORNER · OUT-SWINGER', gk: true, tip: 's-curled-setpieces: it bends away from the keeper onto the runner - in a match: THROUGH (V)', go: r => fpSwing(r, 'out') },
     { mv: 'set-corner-driven', sec: 'set', n: 'CORNER · DRIVEN', gk: true, tip: 's-curled-setpieces: low and fast to the near post - in a match: SHOOT (X) aimed in the box', go: r => fpSwing(r, 'driven') },
     { mv: 'set-fk', sec: 'set', n: 'FREE KICK + WALL', game: true, gk: true, tip: 't-029: your free kick 23 m out - their wall forms on 9.15 m, then you take it', go: r => fpSet(r, 'fk') },
+    { mv: 'set-fk-curl', sec: 'set', n: 'FREE KICK · ROUND THE WALL', gk: true, tip: 's-fk-curl (LAB ONLY until Luca OKs it; in EXPERIMENTAL): your free kick 22 m out, aimed at the far corner - it sets off outside the wall and bends back in. In a match: hold X, aim at a corner', go: r => fpFkCurl(r) },
     { mv: 'set-throw', sec: 'set', n: 'THROW-IN', game: true, gk: true, tip: 't-029: your throw-in - Z short, C long', go: r => fpSet(r, 'throw') },
     { mv: 'set-off', sec: 'set', n: 'OFFSIDE → FREE KICK', game: true, gk: true, tip: 't-024 / t-029: their striker is flagged offside - your free kick where he played it', go: r => fpSet(r, 'off') },
     { mv: 'head', sec: 'you', n: 'HEAD', game: true },
@@ -544,11 +550,42 @@
       if (F.i !== i) { F.i = i; m.moveCall(names[i], `${MOVE_THEME[names[i]].toUpperCase()} · ${i + 1} / ${names.length}`); r.last = `MOVE CALLS · ${names[i]}`; }
       return true; } };
   }
+  // gkcounter.js: the counter's three outcomes in a real moment (forced, so the button always shows the one it names)
+  function fpCounter(r, k) {
+    m.gkcLast = null;
+    if (k === 'beaten') {                                                       // a clash the shot wins: through his hands
+      const gk = r.gk; fpSpot(r, 86, 33); fpKeeper(gk, LINE_X, 34); Object.assign(m, { clashLast: null, gkSpLast: null });
+      r.last = 'COUNTER · BEATEN · your LV2 special v his LV1 save';
+      r.fx = { step(r, p, F) {
+        const b = m.ball;
+        if (!F.shot) { if (F.t < 0.6) return true; F.shot = true; m.meters[0].e = 2; m.special(p); if (m.pending && m.pending.p === p) m.pending.ty = 35.6; return true; }
+        if (!F.l) { if (b.owner || m.pending || b.lastP !== p) return F.t < 5; F.l = true; gk.spSave = 1; m.saveFx(gk); m.clashForce = 'hands'; }
+        if (m.gkcLast) m.clashForce = null;
+        r.last = `COUNTER · BEATEN · ${m.gkcLast ? m.gkcLast.out.toUpperCase() : 'charging…'}${b.inNet ? ' · GOAL' : ''}`;
+        return F.t < 7;
+      } };
+      return;
+    }
+    const lv = k === 'hand' ? 1 : 2, R = Math.random;
+    fpShotAt(r, `COUNTER · ${k === 'hand' ? 'A HAND TO IT' : 'SAVED'}`, { spot: [89, 33], y: GOAL_Y1 - 0.35, z: 2.15, speed: k === 'hand' ? 29 : 25, power: k === 'hand' ? 0.95 : 0.6, T: 5,
+      launch: (r, gk) => { m.ball.saveable = m.home; if (k === 'hand') m.ball.power = 0.95; gk.spSave = lv; m.saveFx(gk);
+        if (k === 'hand') { const c0 = m.clash; m.clash = function (g) { m.clash = c0; Math.random = () => 0.1; try { return c0.call(m, g); } finally { Math.random = R; } }; } },   // (the LV1 v power shot coin: a hand to it)
+      read: (r, F, gk) => m.gkcLast ? `COUNTER FIRED · ${m.gkcLast.name} · ${m.gkcLast.out.toUpperCase()}` : gk.spSave ? 'charging… (the ring closes in)' : fpGk(r, F, gk) });
+    fpKeeper(r.gk, LINE_X, 34);
+  }
+  function fpCounterPops(r) {                                                   // the three pop-ups at each level, in a row
+    const L = [[1, 'save'], [2, 'save'], [3, 'save'], [1, 'hand'], [2, 'beaten'], [3, 'beaten']], gk = m.away.players[0];
+    r.last = 'KEEPER COUNTER POP-UPS';
+    r.fx = { step(r, p, F) {
+      const i = Math.floor(F.t / 1.1); if (i >= L.length) return false;
+      if (F.i !== i) { F.i = i; const [lv, out] = L[i]; m.gkcPop(gk, lv, out, out === 'beaten' ? SP_NAMES[1] : ''); r.last = `KEEPER COUNTER · ${SAVE_NAMES[lv - 1]} · ${out.toUpperCase()}`; }
+      return true; } };
+  }
   function fpCurve(r, mode, lv2) {                                               // (lv2: the new LV1 special pass instead: sppass.js)
     const S = FP_CURVE[mode], p = r.human, q = m.home.players[8], o = m.away.players[3];
     fpCast(r, [q, o]); put(p, S.from[0], S.from[1], 0); atFeet(p); put(q, S.mate[0], S.mate[1], 0); put(o, S.opp[0], S.opp[1], 4);
     r.bots.set(q, cpRun(S.mate[2] || 0, S.mate[3] || 0));
-    Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0, spPassLast: null });
+    Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spWin: null, spPassLast: null });
     const N = lv2 ? SPP_NAMES[SPP_KIND[mode]] : S.n, bars = lv2 ? SPP.bars : 1;
     if (lv2) m.meters[0].e = Math.max(SPP.bars, Math.floor(m.meters[0].e)); else if (m.meters[0].e < 1) m.meters[0].e = 1;   // it costs a bar: the button fills one first
     r.last = `${N} · ${bars === 1 ? 'a bar' : bars + ' bars'} of SP in the bank`;
@@ -865,6 +902,19 @@
         F.took = true; const gx = sp.team.goalX, s = sp.team.side, near = sp.taker.y < 34 ? -1 : 1;
         Object.assign(m.aimPt, swing === 'driven' ? { x: gx - s * 5.5, y: 34 + near * 3 } : { x: gx - s * 11, y: 34 });
         m.spKick('lob', 0.7, swing);
+      }
+      return step0(r, p, F);
+    };
+  }
+  // s-fk-curl: the free kick as fpSet sets it up, then your taker curls it round the wall at the far corner himself
+  function fpFkCurl(r) {
+    fpSet(r, 'fk'); const step0 = r.fx.step; r.last = 'FREE KICK · ROUND THE WALL';
+    r.fx.step = (r, p, F) => {
+      const sp = m.setPiece;
+      if (sp && !F.took && sp.team === m.home && sp.setup && !sp.su && F.t > 0.6) {
+        F.took = true; const gx = sp.team.goalX, s = sp.team.side, b = m.ball;
+        m.aimPt = Object.assign(m.aimPt || {}, { x: gx + s * 0.5, y: 34 + (b.y < 34 ? 1 : -1) * 2.8 });   // (the far corner: the wall covers the near side)
+        m.spKick('shot', 0.66);
       }
       return step0(r, p, F);
     };
@@ -2115,7 +2165,7 @@
         put(K, o.from[0], o.from[1], 0); atFeet(K);
         for (const [q, x, y, vx, vy] of mates) { put(q, x, y, 0); r.bots.set(q, cpRun(vx, vy)); }
         for (const [q, x, y, read] of opps) { put(q, x, y, 4); if (read) r.bots.set(q, cpRead); }
-        Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spHeld: 0, spPassLast: null });
+        Object.assign(m, { lobAim: null, lobAimLast: null, curveLast: null, cvFx: null, camTarget: null, lobCharge: -1, spWin: null, spPassLast: null });
         m.meters[0].e = o.sp ?? 1; SPP_ON = !!o.spp;                          // (the CP tests show the t-011 curlers; PS the new passes)
         Object.assign(r, { human: K, kicker: K, o, rcv: mates[0][0], opps: opps.map(x => x[0]), sp0: m.meters[0].e, bend: 0, minD: 1e9 });
       },
@@ -3087,11 +3137,12 @@
         const b = m.ball, you = r.human;
         if (m.airSp) r.popup = true;
         // the Lab presses as the ball reaches him: inside 1.3 m of him or under the height it was put in at
-        if (m.airSp && !r.pressed && (len(b.x - you.x, b.y - you.y) < 1.3 || (b.vz < 0 && b.z < o.z + 0.15))) { r.pressed = true; m.airSpecial(you); }
+        if (m.airSp && !r.pressed && (len(b.x - you.x, b.y - you.y) < 1.3 || (b.vz < 0 && b.z < o.z + 0.15))) { r.pressed = true; if (o.run) Object.assign(you, { vx: o.run[0], vy: o.run[1], speed: len(o.run[0], o.run[1]), sprinting: true }); m.airSpecial(you); }   // (o.run: QA 1 Nov, he presses it at a full run)
+        if (r.pressed && m.pending && m.pending.p === you) r.kd = len(b.x - you.x, b.y - you.y);   // the ball's distance from him, up to the contact frame
         if (r.shotT == null) { if (!b.owner && r.fired && b.lastP === r.shooter) r.shotT = r.t; else return null; }
         if (m.pending && m.pending.p === you) return null;                       // his strike is on its way
         if (r.pressed && r.hitFr == null && b.lastP === you) r.hitFr = you.rig ? m.rigAt(you, you.rig.n, you.rig.t, you.rig.d, you.rig).fr : you.spr.frame ? you.spr.frame.name : '?';   // the frame up as the ball leaves his boot
-        const A = m.airLast, head = !r.pressed ? 'NO SPECIAL · ' : `${A ? A.name + ' (' + A.n + ')' : '?'} · contact frame ${r.hitFr || '?'}${A && A.f >= 0 && r.hitFr && r.hitFr.endsWith('-' + A.f) ? ' ✓' : ''} · `;
+        const A = m.airLast, head = !r.pressed ? 'NO SPECIAL · ' : `${A ? A.name + ' (' + A.n + ')' : '?'} · contact frame ${r.hitFr || '?'}${A && A.f >= 0 && r.hitFr && r.hitFr.endsWith('-' + A.f) ? ' ✓' : ''}${r.kd != null ? ` · ball ${r.kd.toFixed(2)} m from him at contact` : ''} · `;
         if (b.inNet) return { o: head + 'GOAL', hold: 1.2 };
         if (b.owner === r.gk) return { o: head + 'SAVED' };
         if (r.ev('PARRIED') || r.ev('SAVED!') || r.ev('TIPPED')) return { o: head + 'SAVED', hold: 1 };
@@ -3689,6 +3740,50 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
       tkTest('TK6', 'the computer, an open goal from 5 m', 'the computer\'s striker on the ball 5 m out, their keeper stranded 14 m out: it taps it in', { from: [100, 31], gk: [91, 40], face: 0, cpu: true }),
     ];
   }
+  // ---------- THE TUTORIAL (src/tutorial.js, Luca 31 Oct: "a simple tutorial in which you can try the basics and then the
+  // advanced stuff before you play"): its steps set the pitch up with these helpers - the same ones FREE PLAY's moves use
+  function tutApi() {
+    const on = () => m.all.filter(p => !p.sentOff), add = q => { cast(on().concat([q])); return q; };
+    const A = {
+      get m() { return m; }, LAB, STEP, put, atFeet, receive, cpRun, sit, dribbleTo, freePlay, fpTick,
+      fpSet: (r, kind) => fpSet(r, kind),
+      base(r, o) {                                                               // a clean pitch: you on your own (+ their keeper)
+        csClean(); if (m.cutIn) m.cutInEnd(); m.cutInQ = null; if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null;
+        Object.assign(m, { aerial: null, lobAim: null, slowMo: 0, camTarget: null, cvFx: null, clashLast: null, gkSpLast: null, acLast: null, airCh: null, headBuf: 0,
+          setPiece: null, pending: null, diving: null, freeze: 0, hitStop: 0, path: null, passRing: null, nextHuman: null, charge: -1, lobCharge: -1, spHeld: 0,
+          penaltyKick: false, dead: null, saveAsk: null, spPassLast: null, curveLast: null, skdLast: null });
+        m.msg.setText(''); m.sub.setText(''); window.__labPace = null;
+        fpBase(r); Object.assign(r, { out: null, resetAt: 0, held: 0, why: null, air: null, marks: [], noAuto: true });
+        const p = r.human; if (p.busy()) p.setState('idle', 0); Object.assign(p, { stun: 0, cool: 0, sdrib: null, skd: null, injury: null });
+        m.ball.inNet = false; for (const mt of m.meters || []) mt.e = 0;
+        const gk = m.home.players[0]; gk.spSave = 0;
+        if (o && o.gk) fpKeeper(r.gk); else cast([p]);
+        return p;
+      },
+      mate: (r, i) => add(m.home.players[i]), opp: (r, i) => add(m.away.players[i]),
+      ballLast(c) { m.ball.last = c.team; m.ball.lastP = c; },
+      spot: (r, x, y) => fpSpot(r, x, y),
+      bars(n) { m.meters[0].e = n; },
+      got: q => m.ball.owner === q,
+      lost: (r, S, secs) => (S.kicked && S.t - S.kickT > secs && !m.ball.owner) || (S.kicked && m.ball.owner && m.ball.owner.team !== r.human.team) || r.out ? { fail: 'Missed! Try again.' } : null,
+      fouled: (r, S) => r.events.slice(S.e0 || 0).some(e => /FOUL|FREE KICK|YELLOW|PENALTY/i.test(e)),
+      special(r, lv) { const k = m.pending, b = m.ball; return !!((k && k.p === r.human && (k.info.special || 0) >= lv) || ((b.special || 0) >= lv && b.lastP === r.human)); },
+      spPassSet(r, mode) {                                                       // as FREE PLAY's TORNADO DRILL / BURROW BLAST / ANGEL GLIDE buttons, you press the keys
+        const S = FP_CURVE[mode], p = A.base(r, { gk: false }), q = A.mate(r, 8), o = A.opp(r, 3);
+        put(p, S.from[0], S.from[1], 0); atFeet(p); put(q, S.mate[0], S.mate[1], 0); put(o, S.opp[0], S.opp[1], 4);
+        r.bots.set(q, cpRun(S.mate[2] || 0, S.mate[3] || 0)); m.meters[0].e = Math.max(1, SPP.bars);
+      },
+      spPassed: kind => !!(m.spPassLast && m.spPassLast.kind === kind),
+      saveSet(r, S) {                                                            // SM10's set-up: their striker shoots at YOUR keeper, you press SPECIAL
+        A.base(r, { gk: false }); const s = A.opp(r, 9), gk = A.mate(r, 0), me = A.mate(r, 5);
+        put(s, 17.5, 34, 4); atFeet(s); put(gk, PITCH_L - LINE_X, 31, 0); put(me, 40, 20, 4);
+        Object.assign(gk, { guard: 1, gkS: null, gkMode: '', claiming: false, saveKind: '', leap: 0, gkN: null, rushT: 0, spSave: 0, rig: null, hands: false, walk: undefined, hold: 0 });
+        m.meters[0].e = 1; m.meters[1].e = 0; r.human = me; m.human = me;
+        r.fx = { step(r, p, F) { if (!F.shot && F.t >= 1.3) { F.shot = true; m.doShot(s, 0.82, 1); } return F.t < 9; } };
+      },
+    };
+    return A;
+  }
   function buildTests() {
     const G = [];
     const add = (id, name, blurb, tests) => G.push({ id, name, blurb, tests });
@@ -3820,6 +3915,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('AS', 't-014 · AERIAL SPECIALS BY THE ARC', 'Two per level, picked by how the ball arrives: LV1 AIR BLAZE (chest-high drop) / TIDE CUTTER (low driven cross), LV2 SKY THUNDER (over his head) / CYCLONE HEEL (behind the shoulder), LV3 PHOENIX (very high) / METEOR DRIVE (sky-high loop). The Lab presses SPECIAL as it reaches you.', [
       asTest('AS1', 'LV1 · a chest-high drop → AIR BLAZE', 'comet volley', { lv: 1, from: [99, 6], z: 1.3, T: 1.35 }),
       asTest('AS2', 'LV1 · a low driven cross → TIDE CUTTER', 'knee-slide side volley (the low popup window)', { lv: 1, from: [100, 14], z: 0.6, T: 0.75 }),
+      asTest('AS7', 'LV1 AIR BLAZE at a full run', 'QA 1 Nov: he presses it sprinting back the other way (7 m/s, away from the goal he shoots at); he plants for the strike, so it still meets the ball', { lv: 1, from: [99, 6], z: 1.3, T: 1.35, run: [-6, 4] }),
+      asTest('AS8', 'LV1 TIDE CUTTER at a full run', 'the same with the low driven cross', { lv: 1, from: [100, 14], z: 0.6, T: 0.75, run: [-5, 5] }),
       asTest('AS3', 'LV2 · dropping over his head → SKY THUNDER', 'overhead kick', { lv: 2, from: [99, 6], z: 2.2, T: 1.5 }),
       asTest('AS4', 'LV2 · behind the shoulder → CYCLONE HEEL', 'spinning heel kick: the ball comes from behind him', { lv: 2, from: [80, 22], z: 1.4, T: 1.0 }),
       asTest('AS5', 'LV3 · a very high ball → PHOENIX', 'the leap and dive', { lv: 3, from: [99, 6], z: 1.8, T: 1.5 }),
@@ -3834,6 +3931,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('BW', 't-021 · BUG WATCH CHECKS', 'Each new Bug Watch check tripped on purpose (the Lab breaks the game for it: a frozen clock, a ball shot through a keeper who can\'t touch it, a man who won\'t move...). BW9: normal play, where none of them may trip. Nothing here is saved as a clip.', bwTests());
     add('CL', 'BUG WATCH · CLIPS', 'Clips the bug watch kept (they load from the Lab\'s database on claude.ai), real bugs first. 1 = the game was right · 2 = it\'s a bug.', [{ id: 'CL0', group: 'CL', name: 'no clips here yet', sub: 'the bug watch hasn\'t sent any clips to the Lab yet', kind: 'clip', doc: null,
       setup(r) { cast([]); r.fired = true; r.human = m.home.players[9]; }, check() { return { o: 'NOTHING TO WATCH YET' }; } }]);   // (t-021: a human to draw the cursor on - with none the Lab threw in drawCursor, on main too)
+    if (typeof TUTORIAL !== 'undefined') add('TUT', 'TUTORIAL', 'The guided tutorial from the game\'s menu (src/tutorial.js): PART 1 the basics, PART 2 the advanced moves, one action per step. #TUT opens it.', [TUTORIAL.test(tutApi())]);
     return G;
   }
 
@@ -3841,6 +3939,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   function current() { return LAB.groups[LAB.g].tests[LAB.i]; }
   function start(fresh) {
     const sc = current(), prev = LAB.run;
+    if (LAB.tut && sc.group !== 'TUT') LAB.tut.leave();                         // (out of the tutorial: its card goes, the Lab panel comes back)
     const replays = prev && prev.sc === sc ? prev.replays + 1 : 0;
     const seed = fresh ? (Math.random() * 4294967296) >>> 0 : (prev && prev.sc === sc ? prev.seed : hash(sc.id));   // R = the same dice again
     const r = LAB.run = { sc, t: 0, events: [], result: null, endT: 0, frozen: false, you: !!sc.you, bots: new Map(), seed, fresh: !!fresh, replays,
@@ -4274,7 +4373,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
   // (Luca + the co-designer, 24 Oct: "Try it in the Test Lab" on every Needs OK card) a link ending in a test's id opens
   // that test and starts it: …#CH1, also #lab-CH1 (from a PR preview page), or a whole group: #CH. Ids ignore case.
   function fromHash() {
-    const id = decodeURIComponent((location.hash || '').slice(1)).replace(/^lab-?/i, '').toLowerCase(); if (!id) return false;
+    const id = decodeURIComponent((location.hash || '').slice(1)).replace(/^lab-?/i, '').toLowerCase().replace(/^tut-?(basics|adv)$/, 'tut'); if (!id) return false;   // (#TUT-basics / #TUT-adv: the tutorial, at that part)
     for (let g = 0; g < LAB.groups.length; g++) { const i = LAB.groups[g].tests.findIndex(t => t.id.toLowerCase() === id); if (i >= 0) { LAB.g = g; LAB.i = i; return true; } }
     const g = LAB.groups.findIndex(x => x.id.toLowerCase() === id); if (g >= 0) { LAB.g = g; LAB.i = 0; return true; }
     return false;
@@ -4284,6 +4383,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     addEventListener('keydown', e => {
       if (!LAB.active || e.repeat) return;
       const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (LAB.tut) { LAB.tut.key(e); return; }                                   // the tutorial (src/tutorial.js): its own keys; the game still reads its own
       const k = e.key.toLowerCase();
       const free = LAB.run && LAB.run.sc.kind === 'free';
       if (free && e.isTrusted && (k === 'b' || k === 'u')) return;                  // B / U = SPECIAL in the game (the BACK button still works)

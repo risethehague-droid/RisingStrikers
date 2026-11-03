@@ -3,7 +3,7 @@
 // (split out of game.js in v0.9.5 - load order and lanes: src/README.md)
 
 // t-043: what each human carries, per side (asSide swaps these between the match and this.hOther)
-const HUMAN_SLOT = ['hSide', 'inp', 'human', 'nextHuman', 'charge', 'lobCharge', 'lobAim', 'aimY', 'spHeld', 'airSp', 'headBuf', 'headKind', 'passStick', 'passAim', 'airCh'];
+const HUMAN_SLOT = ['hSide', 'inp', 'human', 'nextHuman', 'charge', 'lobCharge', 'lobAim', 'aimY', 'spWin', 'airSp', 'headBuf', 'headKind', 'passStick', 'passAim', 'airCh'];
 
 // ---------------------------------------------------------------- Match methods: actions
 hc2Mix(Match, {
@@ -34,7 +34,7 @@ hc2Mix(Match, {
   // asks isHuman(p) / humanOf(team) / slot(team) / inpOf(team) instead of comparing with this.human and Input.
   twoHumans(src) {
     this.hOther = src ? { hSide: 'away', inp: src, human: this.away.players[9], nextHuman: null, charge: -1, lobCharge: -1, lobAim: null,
-      aimY: 0, spHeld: 0, airSp: null, headBuf: 0, headKind: null, passStick: null, passAim: null, airCh: null } : null;
+      aimY: 0, spWin: null, airSp: null, headBuf: 0, headKind: null, passStick: null, passAim: null, airCh: null } : null;
     if (!src) Input.skip = null;
   },
   hTeam() { return this[this.hSide || 'home']; },                              // the side whose human is on the match right now
@@ -54,20 +54,22 @@ hc2Mix(Match, {
     this.controlHuman(dt, this.hTeam());
     if (this.hOther) { const t = this[this.hOther.hSide]; this.asSide(t, () => this.controlHuman(dt, t)); }
   },
-  // t-011 (Luca: "add a special lvl 1 pass that curves [...] only test lab"): with CURVE_PASS on, hold SPECIAL and press
-  // PASS / THROUGH / LOB = the curving special pass (specials.js curvePass); no bar in the bank = that button's normal pass
-  // (the press falls through). So the chord can be made, SPECIAL on its own then fires the special shot when you LET GO
-  // (not on the press), and only if no pass was made while it was held. Returns true when it took the frame.
+  // t-011 (Luca: "add a special lvl 1 pass that curves [...] only test lab"): with CURVE_PASS on, SPECIAL + PASS / THROUGH
+  // / LOB = the special pass (sppass.js spPass, or the t-011 curler when SPP_ON is off); no bar in the bank = that button's
+  // normal pass (the press falls through). Controls (Luca's OK on HQ, q-curve-pass, 1 Nov: the default pick): SPECIAL
+  // opens a short window (SP_WIN); a pass button pressed inside it plays the special pass, otherwise the special shot
+  // fires as the window closes, as it always did (a quarter of a second later). Losing the ball in the window ends it.
+  // (Before: the shot fired when you LET GO of SPECIAL, and only if no pass was made while it was held.) Returns true
+  // when it took the frame.
   curveInput(p, owns, dir) {
-    if (!owns || p.keeper) { this.spHeld = 0; return false; }
-    if (this.inp.pressed('special')) this.spHeld = 1;
-    if (this.spHeld && this.inp.held('special')) {
-      const md = this.inp.pressed('pass') ? 'ground' : this.inp.pressed('through') ? 'through' : this.inp.pressed('lob') ? 'lob' : null;
-      if (md) { this.spHeld = 2; if (this.spPass(p, md, dir) || this.curvePass(p, md, dir)) return true; }   // (2+ bars: the LV1 special pass, sppass.js; 1 bar: the curler)
-    } else if (this.spHeld && this.inp.released('special')) {
-      const solo = this.spHeld === 1; this.spHeld = 0;
-      if (solo) { if (this.special(p)) return true; this.say('', 'SP METER EMPTY', 0.6); }
-    } else this.spHeld = 0;
+    if (!owns || p.keeper) { this.spWin = null; return false; }
+    const now = this.time.now;
+    if (this.inp.pressed('special') && !this.spWin) { this.spWin = { p, t: now }; return true; }
+    const W = this.spWin; if (!W) return false;
+    if (W.p !== p) { this.spWin = null; return false; }
+    const md = this.inp.pressed('pass') ? 'ground' : this.inp.pressed('through') ? 'through' : this.inp.pressed('lob') ? 'lob' : null;
+    if (md) { this.spWin = null; return !!(this.spPass(p, md, dir) || this.curvePass(p, md, dir)); }   // (no bar: false, so that button's own pass is played)
+    if (now - W.t >= SP_WIN * 1000) { this.spWin = null; if (this.special(p)) return true; this.say('', 'SP METER EMPTY', 0.6); }
     return false;
   },
   controlHuman(dt, side) {                                                      // (t-043: side = the team this human plays for; home by default)

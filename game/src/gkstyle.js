@@ -172,7 +172,7 @@ hc2Mix(Match, {
     if (g.tier >= 2) this.rigPop('sparkle', X, Y, D, { s: [0.6, 1.6], ms: 380, tint: GS_TINT[g.n] });
     if (g.tier >= 3) { this.rigPop('ring', X, Y, D, { s: [0.5, 2.4], ms: 420, tint: GS_TINT[g.n] }); this.cameras.main.shake(140, 0.005); }
     if (T.stop[g.tier]) this.hitStop = Math.max(this.hitStop || 0, T.stop[g.tier]);
-    if (g.tier >= T.name && !this.replay) this.say('', `${GS_NAMES[g.n]}${held ? '!' : ''}`, 0.8);
+    // (no name on screen: normal saves have no names, Luca 1 Nov 22:17 - GS_NAMES stay for the Test Lab's readouts only)
     if (this.gsLast) this.gsLast.res = res;
   },
   gsGlove(k) {                                                                  // his glove on this frame, on screen (the snatch's table, else GK_HANDS)
