@@ -236,7 +236,7 @@ const chgOn = () => window.HC2_KEYS === 'charge' && !Input.skip;
           for (let i = 0; i < n; i++) { const ang = (i / n) * Math.PI * 2 + now * 1.3, ph = (now * (lv >= 3 ? 2.2 : 1.6) + i * 0.37) % 1;
             const lx = X + Math.cos(ang) * rr, ly = Y + Math.sin(ang) * rr * ky, y0 = ly - ph * hgt, y1 = y0 - h * (lv >= 3 ? 0.28 : 0.18);
             G.lineStyle(lv >= 3 ? 4 : 3, ph < 0.35 ? 0xffffff : col, (1 - ph) * 0.9 * fade).lineBetween(lx, y0, lx, y1); } }
-        T.setText(u >= 1 ? `CHARGE LV${lv}` : 'CHARGING...').setColor('#' + col.toString(16).padStart(6, '0')).setPosition(X, Y - h - 8).setDepth(wy(p.y) + 1).setAlpha(fade).setVisible(true);
+        T.setText(u >= 1 ? `CHARGE LV${lv}` : 'CHARGING...').setColor('#' + col.toString(16).padStart(6, '0')).setPosition(X, Y - ((p.spr && p.spr.displayHeight) || 160) * 0.92).setDepth(wy(p.y) + 1).setAlpha(fade).setVisible(true);
         if (lv >= 3) { E.lineStyle(14, col, (0.22 + 0.16 * pulse) * fade).strokeRect(7, 7, VIEW_W - 14, VIEW_H - 14); }
         if (S === this) {                                                           // (your own buttons; a second human reads his at the bottom too, so only the home one)
           const nm = SP_NAMES[lv - 1];
