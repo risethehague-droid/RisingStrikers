@@ -3069,11 +3069,12 @@
         const b = m.ball, you = r.human;
         if (m.airSp) r.popup = true;
         // the Lab presses as the ball reaches him: inside 1.3 m of him or under the height it was put in at
-        if (m.airSp && !r.pressed && (len(b.x - you.x, b.y - you.y) < 1.3 || (b.vz < 0 && b.z < o.z + 0.15))) { r.pressed = true; m.airSpecial(you); }
+        if (m.airSp && !r.pressed && (len(b.x - you.x, b.y - you.y) < 1.3 || (b.vz < 0 && b.z < o.z + 0.15))) { r.pressed = true; if (o.run) Object.assign(you, { vx: o.run[0], vy: o.run[1], speed: len(o.run[0], o.run[1]), sprinting: true }); m.airSpecial(you); }   // (o.run: QA 1 Nov, he presses it at a full run)
+        if (r.pressed && m.pending && m.pending.p === you) r.kd = len(b.x - you.x, b.y - you.y);   // the ball's distance from him, up to the contact frame
         if (r.shotT == null) { if (!b.owner && r.fired && b.lastP === r.shooter) r.shotT = r.t; else return null; }
         if (m.pending && m.pending.p === you) return null;                       // his strike is on its way
         if (r.pressed && r.hitFr == null && b.lastP === you) r.hitFr = you.rig ? m.rigAt(you, you.rig.n, you.rig.t, you.rig.d, you.rig).fr : you.spr.frame ? you.spr.frame.name : '?';   // the frame up as the ball leaves his boot
-        const A = m.airLast, head = !r.pressed ? 'NO SPECIAL · ' : `${A ? A.name + ' (' + A.n + ')' : '?'} · contact frame ${r.hitFr || '?'}${A && A.f >= 0 && r.hitFr && r.hitFr.endsWith('-' + A.f) ? ' ✓' : ''} · `;
+        const A = m.airLast, head = !r.pressed ? 'NO SPECIAL · ' : `${A ? A.name + ' (' + A.n + ')' : '?'} · contact frame ${r.hitFr || '?'}${A && A.f >= 0 && r.hitFr && r.hitFr.endsWith('-' + A.f) ? ' ✓' : ''}${r.kd != null ? ` · ball ${r.kd.toFixed(2)} m from him at contact` : ''} · `;
         if (b.inNet) return { o: head + 'GOAL', hold: 1.2 };
         if (b.owner === r.gk) return { o: head + 'SAVED' };
         if (r.ev('PARRIED') || r.ev('SAVED!') || r.ev('TIPPED')) return { o: head + 'SAVED', hold: 1 };
@@ -3802,6 +3803,8 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('AS', 't-014 · AERIAL SPECIALS BY THE ARC', 'Two per level, picked by how the ball arrives: LV1 AIR BLAZE (chest-high drop) / TIDE CUTTER (low driven cross), LV2 SKY THUNDER (over his head) / CYCLONE HEEL (behind the shoulder), LV3 PHOENIX (very high) / METEOR DRIVE (sky-high loop). The Lab presses SPECIAL as it reaches you.', [
       asTest('AS1', 'LV1 · a chest-high drop → AIR BLAZE', 'comet volley', { lv: 1, from: [99, 6], z: 1.3, T: 1.35 }),
       asTest('AS2', 'LV1 · a low driven cross → TIDE CUTTER', 'knee-slide side volley (the low popup window)', { lv: 1, from: [100, 14], z: 0.6, T: 0.75 }),
+      asTest('AS7', 'LV1 AIR BLAZE at a full run', 'QA 1 Nov: he presses it sprinting back the other way (7 m/s, away from the goal he shoots at); he plants for the strike, so it still meets the ball', { lv: 1, from: [99, 6], z: 1.3, T: 1.35, run: [-6, 4] }),
+      asTest('AS8', 'LV1 TIDE CUTTER at a full run', 'the same with the low driven cross', { lv: 1, from: [100, 14], z: 0.6, T: 0.75, run: [-5, 5] }),
       asTest('AS3', 'LV2 · dropping over his head → SKY THUNDER', 'overhead kick', { lv: 2, from: [99, 6], z: 2.2, T: 1.5 }),
       asTest('AS4', 'LV2 · behind the shoulder → CYCLONE HEEL', 'spinning heel kick: the ball comes from behind him', { lv: 2, from: [80, 22], z: 1.4, T: 1.0 }),
       asTest('AS5', 'LV3 · a very high ball → PHOENIX', 'the leap and dive', { lv: 3, from: [99, 6], z: 1.8, T: 1.5 }),
