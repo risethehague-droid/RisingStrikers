@@ -371,16 +371,17 @@ i.tg.in{background:var(--good);color:var(--ink)} i.tg.lab{background:var(--pink)
 <!-- t-038: ALL TESTS fits any screen (the list scrolls), has a search box and sections, and every test in a group opens
      from it (▸). lab.js menu() builds it. -->
 <div id="menu" hidden role="dialog" aria-modal="true" aria-labelledby="menu-h"><div class="card">
-  <div class="mh"><h2 id="menu-h">ALL TESTS</h2><button type="button" id="menu-x" aria-label="Close the list">&#10005; ESC</button></div>
+  <div class="mh"><h2 id="menu-h">ALL TESTS</h2><button type="button" id="menu-x" aria-label="Close the list">&#10005; CLOSE</button></div>
   <input id="menu-q" type="search" autocomplete="off" spellcheck="false" placeholder="search: keeper, lob, t-031, GH3 ..." aria-label="Search the tests">
   <div id="menu-body"></div>
-  <p id="menu-foot">Click a group to open its first test, &#9656; to see all its tests. Numbered groups: press 1-9, 0. Enter opens the first match. Esc closes.</p>
+  <p id="menu-foot">Click a group to open its first test, &#9656; to see all its tests. Numbered groups: press 1-9, 0. Enter opens the first match. Backspace (or Esc) closes.</p>
 </div></div>
 <div id="flash" aria-hidden="true"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
 <script src="src/core.js"></script>
 <script src="src/io.js"></script>
+<script src="src/backbtn.js"></script>
 <script src="src/player.js"></script>
 <script src="src/match.js"></script>
 <script src="src/world.js"></script>
