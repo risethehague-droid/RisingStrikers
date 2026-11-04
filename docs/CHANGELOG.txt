@@ -1,3 +1,20 @@
+HC2 WEB GAME - v0.20.0 (3 Nov) - TUTORIAL + SPECIAL PASSES IN MATCHES + 1 V 1 + SET PIECES + KEEPER COUNTER (PRs #95, #98, #100, #101, #103, #104, #106-#108, Luca's OK)
+- THE TUTORIAL (#95, tutorial.js): TUTORIAL on the start screen (and in TRAINING). PART 1 the basics, PART 2 the
+  advanced moves, skip / back / come back any time. Each step only listens to its own keys (a stray key can't spend
+  your bar), RESET (E) on every step, SHOW ME, a "Stuck?" nudge.
+- SPECIAL PASSES IN MATCHES (#101): with a bar, SPECIAL then within 0.25 s PASS = TORNADO DRILL, THROUGH = BURROW
+  BLAST, LOB = ANGEL GLIDE. No pass button = the special shot as before. The computer uses them too.
+- THE 1 V 1 MOMENT IN MATCHES (#104, oneone.js): through on goal with only the keeper left, the slow-down and glow.
+- FREE KICKS BEND ROUND THE WALL (#106): aim a free kick at a corner and it sets off outside the wall and bends back
+  in. The wall now holds its line instead of stepping into the shot.
+- SET-PIECE HELP (#107, sphelp.js): a panel above the radar lists the buttons for YOUR set piece until it's taken;
+  H hides it.
+- KEEPER COUNTER (#108, gkcounter.js): the special save charges on the press and fires at his gloves with a quick
+  pop-up (SAVED / PUSHED AWAY / BEATEN). Normal saves get no names any more (Luca, 1 Nov).
+- AERIAL SPECIAL PLANTS FOR THE STRIKE (#100): never misses the ball at a full run.
+- HARD RETUNE (#103): Hard sits between Normal and Rise Warrior again.
+- Tools: soak matches replay exactly on their own (#98, t-046), plus the AI pass timing fix in rain / snow.
+
 HC2 WEB GAME - v0.19.0 (1 Nov) - EACH TEAM ITS OWN FORMATION + FAIR FINISHING (PRs #73, #94, #96, Luca's OK)
 - EACH TEAM ITS OWN FORMATION (#94, role-AI step 6, roles.js TEAM_SHAPE): every side carries its own formation card
   (all 4-4-2 for now, waiting for Luca's picks). OPTIONS > FORMATION cycles 4-4-2 / 4-2-3-1 / 4-3-3 / TEAM'S OWN.

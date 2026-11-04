@@ -1,4 +1,4 @@
-// HELP OUT HAGUE CUP II - web game v0.19.0 (Luca OK'd PRs #73, #94, #96, 1 Nov: ROLE-BASED AI step 6 - each team its own formation card, OPTIONS > FORMATION > TEAM'S OWN, shots back up (#94); FAIR FINISHING - an LV3 that beats the keeper goes in, Hard is scoreable (#96); Test Lab only: the 1 V 1 moment preview, slow-mo from 8 m (#73))
+// HELP OUT HAGUE CUP II - web game v0.20.0 (Luca OK'd PRs #95, #98, #100, #101, #103, #104, #106, #107, #108, 3 Nov: THE TUTORIAL (#95); special passes in matches (#101); the 1 V 1 moment in matches (#104); free kicks bend round the wall (#106); set-piece help panel (#107); keeper counter + quick save pop-ups, names only on special saves (#108); aerial special plants for the strike (#100); Hard retune (#103); soak replays exactly (#98))
 // HELP OUT HAGUE CUP II - web game v0.17.0 (Luca OK'd PRs #70, #81, #83-#87, 31 Oct: MOVE CALL - every special's name (keeper saves too) pops up in its element's lettering (#85); REPLAY THE WHOLE MATCH from the pause menu (scrub, 10 s jumps, next goal, last 10 s) (#83); MOVE SOUNDS - an element sound for every special, keeper saves, 1 V 1, corners, replay, menu, plus a SOUND volume in OPTIONS (#87); INSTA FLAG right after a goal keeps the goal in its clip (#81); role cards for every player, identical play (#84, role-AI step 1); Test Lab only: LV1 SPECIAL PASSES TORNADO DRILL, BURROW BLAST, ANGEL GLIDE (#70) and the RL exploit tests (#86, role-AI step 0))
 // HELP OUT HAGUE CUP II - web game v0.16.0 (Luca OK'd PRs #69, #76-#79, 31 Oct: CORNERS BACK ON ARCADE, whipped in as real chances (#69, the co-designer); SITUATIONAL KEEPER SAVES in matches - sky snatch, flying stretch, top-corner stretch, low scramble, starfish wall, more flair by level (#76, gkstyle.js); the SPECIAL SAVE covers the whole goal, an aura glow, no full-screen cut-in (#77); PRACTICE SCENARIOS in the Test Lab's FREE PLAY, 20 drills + build your own (#78, Lab only); a cleaner centred menu with TRAINING, OPTIONS / HOW TO PLAY pop-ups, CONTINUE and LEAVE GAME (#79))
 // HELP OUT HAGUE CUP II - web game v0.15.3 (Luca OK'd PR #61, 30 Oct: t-042 small fixes - a TV close-up on the aerial battle (world.js AERIAL_CAM), the dive-catch ball stays in his gloves through the get-up (ball.js gkHandBall), the curve pass's maths much faster (ball.js curveSolve))
@@ -60,12 +60,19 @@ const MAGNUS_K = 0.0058, SPIN_TAU = 5, CHIP_SPIN = 55;   // lift accel = MAGNUS_
 // it look cool [...] don't add these new passes to the game just yet, only test lab"). SPECIAL held + PASS / THROUGH / LOB
 // with a bar in the bank = the bending version (specials.js curvePass, ball.js curveStep / curveSolve). OFF in matches;
 // the Test Lab turns it on (lab.js). let: the Lab sets it.
-let CURVE_PASS = false;
+// Luca's OK on HQ (q-curve-pass, 1 Nov, with the default controls): ON in matches. The chord plays the LV1 special
+// passes (sppass.js: TORNADO DRILL / BURROW BLAST / ANGEL GLIDE); the t-011 curlers stay FREE PLAY buttons.
+let CURVE_PASS = true;
+const SP_WIN = 0.25;                     // s after SPECIAL in which a pass button makes it the special pass (Luca's default pick)
 // the spin: tau = how fast it wears off (s; the bend is strongest off the boot, then straightens as the ball slows);
 // clear = how far (m) the curve keeps from a defender standing on the straight line; ang = the launch angles (degrees off
 // the straight line) tried, smallest first, and the default bend when nobody is in the way; kMax = the most curvature
 // (1/m) a solve may ask for; trail / cam = the look (s)
 const CURVE = { tau: 1.6, clear: 2.8, ang: [14, 18, 22, 26, 30, 34, 38], angFree: 20, kMax: 0.35, trail: 2.2, cam: 1.1 };
+// s-fk-curl (ball.js fkCurlLaunch): a direct free kick bends round the wall. clear = how far (m) it passes the end man
+// (a body blocks a ball within ~0.9 m); mid = aimed this close to the middle of the goal (m) it goes straight; ang =
+// the launch angles off the line tried, smallest first (degrees); hold = the most seconds the wall stands still (fkWallHold)
+const FK_CURL = { on: true, clear: 1.2, mid: 0.8, ang: [4, 6, 8, 10, 12, 14, 16, 18], hold: 0.8 };
 // t-005 (lob step 1, readability): the ball's shadow shrinks as it climbs - full size on the grass, SHADOW_MIN of it from
 // SHADOW_Z metres up (docs/lob-chip.md: "100% to about 60% between 0 and 6 m"); the ball-shadow sprite scaled, nothing drawn
 const SHADOW_MIN = 0.62, SHADOW_Z = 6;
@@ -511,7 +518,7 @@ const len = (x, y) => Math.hypot(x, y);
 const dirIndex = (vx, vy) => ((Math.round(-Math.atan2(vy, vx) / (Math.PI / 4)) % 8) + 8) % 8;
 const dirVec = i => { const a = -i * Math.PI / 4; return { x: Math.cos(a), y: Math.sin(a) }; };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const GAME_VER = 'v0.19.0';
+const GAME_VER = 'v0.20.0';
 
 // v0.9.5 split: Match's methods live in the area files; each file adds its group with hc2Mix (the same as writing them
 // in the class body: non-enumerable, writable, configurable, strict)

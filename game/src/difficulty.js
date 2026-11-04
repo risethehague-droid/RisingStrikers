@@ -22,7 +22,11 @@ let DIFF_TRAITS = {                                                             
   // fair-finishing (Luca 31 Oct: "i tried to play hard mode and i didnt score once"): the keeper trait came down (hard k
   // 1.38 -> 1.2, rise 1.9 -> 1.6) - Hard's keeper stopped ~4 in 5 well-placed shots from 12-20 m (tools/finish.js),
   // Rise's nearly all of them once it had a bar. Their keeper is still a level above yours; the rest of the level is unchanged.
-  hard: { r: 1.6, a: 1.6, d: 1.25, k: 1.2 },                                       // v0.9.3 (Luca picked "one notch up"): v0.9.2's Hard + a little; the new edges v you do the rest
+  // difficulty retune (Luca 1 Nov: Hard felt too hard): with the role AI (v0.18-0.19) Hard had slid past Rise - a run at
+  // goal reached their box 9% of the time on Hard, 13% on Rise, 28% on Normal (tools/proxy093.js run, 240 tries). Its
+  // reactions and marking came down a notch (r 1.6 -> 1.4, d 1.25 -> 1.15) and its edges v you too (DIFF_YOU.hard): 19%,
+  // between the two again. Its keeper and its attack are unchanged.
+  hard: { r: 1.4, a: 1.6, d: 1.15, k: 1.2 },                                       // v0.9.3 (Luca picked "one notch up"): v0.9.2's Hard + a little; the new edges v you do the rest
   rise: { r: 2.2, a: 2.15, d: 1.85, k: 1.6 } };                                     // v0.9.3: a step past that
 // traits -> the knobs inside the AI (1 = unchanged). v0.9.3: the caps opened up so traits past 1.6 still count
 function diffKnobs(t) {
@@ -61,7 +65,7 @@ const DIFF_YOU = {
   base:   { tk: 1, yb: 0.08, sh: 0, blk: 1, mine: 1, cmt: 1, sl: 0.45, cov: 7, dbl: 0, st: 1, ans: 0.8, ansN: 1 },           // = v0.9.2 at every level
   easy:   { tk: 1.2, yb: 0.10, sh: 0, blk: 0.9, mine: 1, cmt: 0.8, sl: 0.4, cov: 7, dbl: 0, st: 1, ans: 0.3, ansN: 0.25 },
   normal: { tk: 0.85, yb: 0.07, sh: 0.03, blk: 1.1, mine: 1, cmt: 1.05, sl: 0.5, cov: 6, dbl: 0, st: 1, ans: 0.45, ansN: 0.45 },
-  hard:   { tk: 0.3, yb: 0.02, sh: 0.1, blk: 1.5, mine: 0.85, cmt: 1.5, sl: 0.65, cov: 3.2, dbl: 1.0, st: 0.9, ans: 0.6, ansN: 0.4 },
+  hard:   { tk: 0.5, yb: 0.04, sh: 0.07, blk: 1.35, mine: 0.9, cmt: 1.35, sl: 0.6, cov: 4.2, dbl: 0.6, st: 0.9, ans: 0.6, ansN: 0.4 },   // (retune 1 Nov: was tk 0.3, yb 0.02, sh 0.1, blk 1.5, mine 0.85, cmt 1.5, sl 0.65, cov 3.2, dbl 1.0)
   rise:   { tk: -0.4, yb: 0, sh: 0.2, blk: 2.2, mine: 0.65, cmt: 2.2, sl: 0.85, cov: 1.6, dbl: 2.4, st: 0.75, ans: 0.75, ansN: 0.55 } };   // (tk below 0: it tackles you BETTER than its own kind)
 const DIFF_K = {}; function diffK(l) { return DIFF_K[l] || (DIFF_K[l] = diffKnobs(DIFF_TRAITS[l] || DIFF_TRAITS.base)); }
 
