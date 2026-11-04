@@ -21,11 +21,21 @@ W_RGB = np.array([2, 4, 3], np.int32)
 WIN_WIDE = (32, 56, 224, 216)        # kit_build.py's 192 px window: feet on row 143, same centre, no origin needed
 WIN_TALL = (0, 32, 256, 216)         # the aerial specials' window (batch 16): the combo's leap goes above row 56
 # move -> (window, PixelLab frames kept). Frame 0 is PixelLab's reference pose (standing): dropped.
-MOVES = {'combo': (WIN_TALL, range(1, 9)),       # the leaping scissor volley (combo strike)
+MOVES_ALL = {'combo': (WIN_TALL, range(1, 9)),       # the leaping scissor volley (combo strike)
          'combo2': (WIN_WIDE, range(1, 9)),      # the partner's flick (combo set-up)
-         'sdribble': (WIN_WIDE, range(1, 9))}    # the special dribble: the spin into the burst
+         'sdribble': (WIN_WIDE, range(1, 9)),    # the special dribble: the spin into the burst
+         # batch 23 (the co-designer, 31 Oct: jostling for a high ball, jostle.js)
+         'jshove': (WIN_WIDE, range(1, 9)),      # both hands out: the striker shoves his marker off the spot
+         'jhold': (WIN_WIDE, range(1, 9)),       # the defender's arm-bar, side-on
+         'jlean': (WIN_WIDE, range(1, 9))}       # shoulder in, braced (east / north-east from the jlean2 re-roll)
+# (batch 23: only the moves in this batch's folder - the batch 22 ones are already in the atlases)
+MOVES = {k: v for k, v in MOVES_ALL.items() if os.path.isdir(f'{BATCH}/{k}')}
 # the contact frame (index into the kept frames) - where the combo's boot meets the ball / the flick's foot is up
 CONTACT = {'combo': 3, 'combo2': 3}
+# batch 23 (jostling, 2 Nov): MOVES=jshove,jhold,jlean KEY=b23 python3 kit_add.py ../game <batch dir> - other batches
+# of standing moves in the normal window, frames 1-8, with their own frame-name prefix
+if os.environ.get('MOVES'): MOVES = {m: (WIN_WIDE, range(1, 9)) for m in os.environ['MOVES'].split(',')}
+KEY = os.environ.get('KEY', 'b22')
 
 
 def snap(im):
@@ -96,7 +106,7 @@ for kit in ['IS-home'] + list(KITS):
     frames = list(old.items())
     for name, lst in new.items():
         if name in K['anims']: sys.exit(f'{kit} already has {name}: this tool only adds')
-        keys = [f'b22-{name}-{i}' for i in range(len(lst))]; K['anims'][name] = keys
+        keys = [f'{KEY}-{name}-{i}' for i in range(len(lst))]; K['anims'][name] = keys
         for k, im in zip(keys, lst): frames.append((k, im if kit == 'IS-home' else paint(im, name.rsplit('-', 1)[1], KITS[kit])))
     h = pack(frames, kit)
     org = K.setdefault('origins', {})

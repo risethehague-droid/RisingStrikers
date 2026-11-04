@@ -437,6 +437,7 @@
     { mv: 'air-sp3', sec: 'air', n: 'AIR LV3', game: true, hot: true, air: true },
     { mv: 'cross', sec: 'air', n: 'CROSS IN · you attack it', game: true, wide: true, tip: 'a team-mate crosses from the byline to you: X header / volley, Shift + X overhead, B an aerial special', go: fpCross },
     { mv: 'battle-h', sec: 'air', n: 'AERIAL BATTLE · HEADER', game: true, hot: true, wide: true, tip: 't-034 (v0.13.0): a cross into their box with their centre-back on you - HEADER v HEADER, MASH SPACE: win = a header at goal + he goes down, lose = he clears it', go: r => fpBattle(r, false) },
+    { mv: 'jostle', sec: 'air', n: 'JOSTLE FOR THE SPOT', game: true, hot: true, wide: true, tip: 'the co-designer (31 Oct): a cross from the wing, their centre-back on you - your man shoves and holds for the spot (batch 23 moves); HOLD SHIFT to push harder (more foul risk). Who wins the spot meets it cleanly; only a true 50/50 is the MASH', go: fpJostle },
     { mv: 'battle-v', sec: 'air', n: 'AERIAL BATTLE · VOLLEY', game: true, hot: true, wide: true, tip: 't-034 (v0.13.0): a driven waist-high cross with their man on you - VOLLEY v VOLLEY, MASH SPACE', go: r => fpBattle(r, true) },
     { mv: 'gk-lowl', sec: 'gk', n: 'LOW DIVE CATCH ◀', game: true, gk: true, tip: 't-031: a low shot 2.4 m to his left - he dives, grabs it, lands and gets up holding it',
       go: r => fpShotAt(r, 'LOW DIVE CATCH (his left)', { spot: [91, 35], dy: 2.4, speed: 19, u: 0 }) },
@@ -663,6 +664,31 @@
         r.last = 'CROSS · YOUR TURN: X header / volley · Shift + X overhead · B aerial special'; return true; }
       if (b.lastP && b.lastP !== c && !F.met) { F.met = true; r.last = `CROSS · ${b.lastP === p ? 'you met it' : b.lastP.keeper ? 'the keeper took it' : 'cleared'}`; }
       return F.t < 4;
+    } };
+  }
+
+  // JOSTLING (the co-designer, 31 Oct: "Strikers should be trying to shove in front of defenders just like in real
+  // football, using their arms"): a floated cross from the wing to you with their centre-back right on you. Your man
+  // jostles by himself; HOLD SPRINT (Shift) to push harder - more of the spot, more foul risk. The line says who won the
+  // spot: you meet it cleanly, he heads it away, a true 50/50 is the MASH, or the ref blows for the push.
+  function fpJostle(r) {
+    const p = r.human, c = m.home.players[7], d = m.away.players[3], at = [93, 30];
+    fpCast(r, [c, d]); put(p, at[0] - 1.2, at[1] + 0.6, 0); put(d, at[0] - 0.4, at[1] + 0.1, 4);
+    put(c, 90, 62); faceTo(c, at[0], at[1]); atFeet(c); fpKeeper(r.gk, LINE_X, 33);
+    Object.assign(m, { aerial: null, aerialLast: null, aerialAt: -1e9, aerialKick: null, aerFx: null, slowMo: 0, camTarget: null, jostle: null });
+    r.last = 'JOSTLE · a cross is coming: HOLD SHIFT to push for the spot';
+    r.fx = { step(r, p, F) {
+      const b = m.ball;
+      if (!F.c) { if (F.t < 0.8) return true; F.c = true; const a = aimAir(b.x, b.y, at[0], at[1], 2.0, 1.45);
+        m.kick(c, at[0], at[1], a.speed, a.vz, 0.13, { target: p, cross: 'lab' }); r.last = 'JOSTLE · fight for the spot (HOLD SHIFT)'; return true; }
+      if (m.jostle) F.j = m.jostle.J;
+      if (m.aerial) F.mash = true;
+      if (!F.v && b.recv && b.recv.k === b.spT) { F.v = b.recv.kind; }
+      if (m.foulScene || m.setPiece) F.foul = true;
+      if (!F.done && (F.foul || (b.lastP && b.lastP !== c) || F.t > 4)) { F.done = true;
+        r.last = 'JOSTLE · ' + (F.foul ? 'FOUL: the ref blew for the push' : F.mash ? 'a true 50/50: the MASH' : F.v === 'clean' ? 'you won the spot: a clean ball'
+          : F.v === 'lost' ? 'he won the spot: headed away' : 'the race decided it') + (F.j != null ? ` (jostle ${F.j > 0 ? '+' : ''}${F.j.toFixed(2)})` : ''); }
+      return F.t < 6;
     } };
   }
 
