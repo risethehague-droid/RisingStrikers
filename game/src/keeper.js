@@ -125,6 +125,17 @@ const GK_WALKOUT = {
   v: 1.9,             // walking pace (m/s): the kcarry walk / the hold pose with a bob
   time: [2.0, 3.4],   // walking at most this long (s), then a breath and the throw / roll / punt
 };
+// keeper-threat (the co-designer, 30 Oct: "Improve threat logic for keeper AI. If player accidentally kicks the ball from
+// midfield the keeper uses their special save. Fix that."): the one rule for spending a special save (gkThreat). A real
+// keeper reads the flight and only goes full stretch for a shot that needs it; a long ball is just gathered.
+const GK_THREAT = {
+  look: 6,           // s: how far ahead he reads the flight [2.5: a long kick was judged mid-air, far from his goal]
+  over: 3.2,         // m: over his head where it passes him - a special save can't meet it (specials.js gkSpOnTarget)
+  dive: 0.63,        // s: with more time than this he runs first, then dives (a dive alone tops out here: keeperCover)
+  run: 6.5,          // ...at this speed (his moveTo for a shot)
+  snap: 0.06,        // s: this little time after his read: he can't set for it, however near him it is...
+  soft: 14,          // ...unless it reaches him under this (m/s, ~50 km/h): gkHoldChance holds that ~9 times in 10
+};
 function gkMoveAnim(k, kind, down) {
   const A = MAN.kits[k.kit].anims, sides = [k.team.side > 0 ? 'E' : 'W', DIRS[k.face], 'S'];
   for (const n0 of GK_MOVES[kind] || ['DIVE']) {
@@ -143,7 +154,7 @@ hc2Mix(Match, {
   // No dice: whether he saves it is decided when the ball meets (or misses) his body and gloves (pickups).
   planSave(gk) {
     const b = this.ball, c = { ...b }, h = 1 / 120, px = gk.x, pen = this.penShot();   // (t-035: read before the old penalty flag is cleared below)
-    let t = 0; while (t < 2.5) { const ox = c.x; ballStep(c, h, false); t += h; if ((ox - px) * (c.x - px) <= 0) break; }
+    let t = 0; while (t < GK_THREAT.look) { const ox = c.x; ballStep(c, h, false); t += h; if ((ox - px) * (c.x - px) <= 0) break; }
     const sp = len(b.vx, b.vy, b.vz);
     const KK = this.dk(gk.team); let react = rnd(0.12, 0.2) + sp / 400 + KK.gkReact, y = c.y + rnd(-1, 1) * (0.1 + sp / 100) * KK.gkRead;   // (v0.9.2: the keeper's read by level)
     if (b.special) { react += 0.05 + b.special * 0.06; y += rnd(-1, 1) * b.special * 0.45; }   // v0.7: a special is hard to read
@@ -151,15 +162,31 @@ hc2Mix(Match, {
       this.penaltyKick = false; const guess = [-1, 0, 1][Math.floor(Math.random() * 3)]; y = 34 + guess * 2.6; react = 0;
     }
     const g = { ...c }, gx = gk.team.ownGoalX;                                  // off target is judged at the goal line (a dipping shot)
-    for (let u = 0; u < 1.5 && (g.x - gx) * gk.team.side > 0; u += h) ballStep(g, h, false);
-    const off = g.y < GOAL_Y0 - 0.3 || g.y > GOAL_Y1 + 0.3 || g.z > BAR_Z + 0.25;
+    for (let u = 0; u < GK_THREAT.look && (g.x - gx) * gk.team.side > 0; u += h) ballStep(g, h, false);
+    const short = (g.x - gx) * gk.team.side > 0, off = short || g.y < GOAL_Y0 - 0.3 || g.y > GOAL_Y1 + 0.3 || g.z > BAR_Z + 0.25;   // (keeper-threat: short = it never gets there)
     // t-007 (more corners): a hard shot only just wide or over - he doesn't take the chance, he goes for it and turns it
     // round the post / over the bar (about 5 in 6, within ~2.5 m of the frame): a corner instead of a goal kick
     const close = off && sp > 13 && g.y > GOAL_Y0 - 2.5 && g.y < GOAL_Y1 + 2.5 && g.z < BAR_Z + 1.0 && Math.random() < 0.85;
     // t-007 ("the gk should try catch more if the kick is weaker"): one dice for the whole shot, u; whether he holds it
     // is u against gkHoldChance when the ball meets his gloves (by its pace there, his level and the kind of save)
-    b.save = { gk, y, z: c.z, t: t + 0.6, t0: t, react, act: null, off, close, dy: Math.abs(c.y - gk.y), cover: this.keeperCover(t - react, c.z), sp, u: Math.random() };
+    b.save = { gk, y, z: c.z, t: t + 0.6, t0: t, react, act: null, off, close, dy: Math.abs(c.y - gk.y), cover: this.keeperCover(t - react, c.z), sp, vk: len(c.vx, c.vy, c.vz), short, u: Math.random() };
     if (!off && !pen) this.gkCount(gk.team.opp, 'onT');                         // t-035: a penalty is not a shot, so not on target either (on target <= shots)
+  },
+  // keeper-threat: would this ball really beat him? Read from planSave's flight (no dice: the same for both keepers, and
+  // the level only shows through his reaction, gkReact). Nothing to save: it stops short, goes wide or over the bar, or
+  // it's over his head where it passes him. A special in its range: yes, it can't be held. Anything else: only if he
+  // can't get there (his dive, plus the run a long flight gives him - the dive alone was capped at ~4 m, so a long ball
+  // with him out of position read as "beaten" with two seconds to spare), or it's on him with no time to set.
+  // Returns { real, why }: why is what the Test Lab shows.
+  gkThreat(gk) {
+    const b = this.ball, s = b.save, T = GK_THREAT; if (!s || s.gk !== gk) return { real: false, why: 'no shot' };
+    if (s.off) return { real: false, why: s.short ? 'stops short' : 'off target' };
+    if (s.z > T.over) return { real: false, why: 'over him' };
+    if (b.special && (b.spF ?? 1) > 0.85) return { real: true, why: 'special' };  // (out of its range it's just a hard shot: ballStep)
+    const time = s.t0 - s.react, reach = s.cover + T.run * Math.max(0, time - T.dive);
+    if (s.dy > reach * paceK().gkCover) return { real: true, why: 'out of reach' };   // (arcade-2: ARCADE answers a little sooner)
+    if (time < T.snap && s.vk > T.soft) return { real: true, why: 'no time' };
+    return { real: false, why: 'his ball' };
   },
   // t-007: match counts for the soak (tools/soak.js: shots on target, saves held v parried) - counting only, no dice
   gkCount(team, key) { if (!team || !this.stat) return; const S = this.stat(team); S[key] = (S[key] || 0) + 1; },
@@ -308,6 +335,7 @@ hc2Mix(Match, {
         else if (ady < 0.9 && z < 1.7 && left < 0.32) { sv.act = 'block'; this.gkBlock(k); return; }   // t-017: from close, at him, no time to set: a wall
         else if (ady < 0.45) sv.act = 'set';
         else if (ady < 1.3 && left > 0.4) sv.act = 'step';
+        else if (left > GK_THREAT.dive) { k.moveTo(k.x, sv.y, GK_THREAT.run, dt); return; }   // keeper-threat: a long ball: he runs across first (he dived at once and lay on the grass as it arrived)
         else {
           if (this.gsLate && this.gsLate(k, ady, left)) { k.steer(0, 0, dt); return; }   // (gkstyle.js: a full-length dive waits, set, so he flies as it arrives - not decided yet)
           sv.act = 'dive';

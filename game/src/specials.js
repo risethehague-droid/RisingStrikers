@@ -561,7 +561,7 @@ hc2Mix(Match, {
   saveCall(def) {
     const mt = this.meterOf(def), gk = def.players[0]; if (!gk || gk.sentOff) return;
     gk.spSave = 0;
-    if (mt.level() < 1) return;
+    if (mt.level() < 1 || !this.gkThreat(gk).real) return;                        // (keeper-threat: keeper.js - a special out of its range, wide or short keeps the bars)
     if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75 }; this.say('', `SPECIAL SAVE! PRESS ${keyset().special}`, 0.75); return; }
     const ans = this.dkY(def).ans ?? 0.8;                                       // fair-finishing: by level v you (difficulty.js DIFF_YOU.ans; base = the old 0.8)
     if (Math.random() < (paceK().gkAnswer > 0.6 ? Math.min(0.95, ans + 0.15) : ans)) { gk.spSave = mt.spend(); this.saveFx(gk); }   // (arcade-2: ARCADE answers more)
@@ -624,11 +624,11 @@ hc2Mix(Match, {
   // can spend its bars on a keeper special save - a sure stop. You: the SAVE prompt (only with a bar in the bank). The
   // computer: only on a shot its keeper wouldn't reach, about half the time. Defenders never get one (keepers only).
   shotSaveCall(def, shooters, pen) {
-    const b = this.ball, s = b.save, mt = this.meterOf(def), gk = def.players[0];
-    if (!gk || gk.sentOff || pen || b.special || !s || s.gk !== gk || s.off || gk.spSave || mt.level() < 1) return;
+    const b = this.ball, mt = this.meterOf(def), gk = def.players[0];
+    if (!gk || gk.sentOff || pen || b.special || gk.spSave || mt.level() < 1 || !this.gkThreat(gk).real) return;   // (keeper-threat: keeper.js - you and the computer alike)
     b.saveable = shooters;
     if (this.hasHuman(def) && !this.demo) { this.saveAsk = { team: def, t: 0.75, normal: true }; this.say('', `SPECIAL SAVE? PRESS ${keyset().special}`, 0.75); return; }
-    const P = paceK(); if (s.dy > s.cover * P.gkCover && Math.random() < P.gkAnswer * this.dk(def).gkSave * (this.dkY(def).ansN ?? 1)) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it (arcade-2: ARCADE answers more, and a little sooner: a keeper's move against every big shot)
+    if (Math.random() < paceK().gkAnswer * this.dk(def).gkSave * (this.dkY(def).ansN ?? 1)) { gk.spSave = mt.spend(); this.saveFx(gk); }   // he'd be beaten: answer it (arcade-2: ARCADE answers more, and a little sooner: a keeper's move against every big shot)
   },
   // the clash at the keeper: true = saved, 'hand' = he only gets a hand to it (t-007: it goes out), 'clash' = a special v
   // his special save: the ball is held on his gloves now and power decides when that ends (t-028, clashStart .. clashEnd)
