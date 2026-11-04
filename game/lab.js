@@ -2606,6 +2606,28 @@
     for (const p of m.all) if (!p.sentOff && !p.keeper && p !== m.ball.owner) { const z = m.aiZone(p, p.team); put(p, z.x, z.y, p.team === m.home ? 0 : 4); }
     for (const k of [m.home.players[0], m.away.players[0]]) if (!k.sentOff) { const T = m.gkPlan(k, STEP); put(k, T.x, T.y, k.team === m.home ? 0 : 4); }
   }
+  // role-ai step 6b · THE KEEPER'S STYLE (roles.js GK_KIND, a team card's gk). The same ball both times: your #3 plays
+  // it over / through their high line into the space 7-9 m behind their last man for your striker. KS1 their keeper is a
+  // SWEEPER KEEPER (higher behind his line, comes for it from further out), KS2 a KEEPER (stays deeper). Watch who gets
+  // there first. The real team AI on both sides.
+  function ksTest(id, st) {
+    const H = () => m.home.players;
+    return { id, group: 'KS', gkStyle: st, name: `${st === 'sweeper' ? 'SWEEPER KEEPER' : 'KEEPER'}: the ball over their line`, realAi: true,
+      sub: `their keeper plays ${st === 'sweeper' ? 'SWEEPER KEEPER (higher, comes for balls behind his defence from further out)' : 'KEEPER (deeper, stays home)'}. Your #3 lofts it over their line into the space 7-9 m behind their last man for your striker: who gets there first?`,
+      setup(r) { aiFull(r, { poss: true, att: 10 }); const c = H()[2]; put(c, 52 + LAB.rand() * 2, 30 + LAB.rand() * 8, 0); atFeet(c); fwPlace(true);
+        r.c = c; r.k = m.away.players[0]; r.human = H()[6]; r.cf = H().filter(p => p.role === 'CF').sort((u, v) => v.x - u.x)[0];
+        r.bots.set(c, (p, dt) => { if (m.ball.owner !== p || p.busy() || r.ball) { p.steer(0, 0, dt); return; }
+          if (r.t > 0.6) { r.ball = { t: r.t, kh: PITCH_L - r.k.x }; const last = Math.max(...m.away.players.filter(q => !q.keeper && !q.sentOff).map(q => q.x)), tx = Math.min(PITCH_L - 12, last + 7 + LAB.rand() * 2); r.ball.line = PITCH_L - last; const ty = 34 + (LAB.rand() - 0.5) * 6, d = len(tx - p.x, ty - p.y); r.ball.line = PITCH_L - last; m.powerLob(p, { x: (tx - p.x) / d, y: (ty - p.y) / d }, clamp((d - 12) / (LOB_MAX - 12), 0, 1)); return; }   // (lofted over their line, 7-9 m behind their last man)
+          p.steer(0, 0, dt); }); },
+      check(r) { const b = m.ball, k = r.k;
+        if (!r.ball) return r.t > 3 ? { o: 'NO BALL PLAYED' } : null;
+        const kh = PITCH_L - k.x, tag = `their keeper ${r.ball.kh.toFixed(1)} m off his line when it was played, their last man ${r.ball.line.toFixed(1)} m`;
+        if (b.owner && b.owner !== r.c) { const q = b.owner, who = q === k ? `THEIR KEEPER SWEPT IT ${kh.toFixed(1)} m out` : q.team === m.home ? `YOUR ${aiWho(q)} GOT IT (keeper ${kh.toFixed(1)} m out)` : `their ${aiWho(q).replace(/^their /, '')} cut it out`;
+          return { o: `${who} at ${r.t.toFixed(1)} s · ${tag}` }; }
+        if (k.gkMode === 'SWEEP' || k.gkMode === 'SMOTHER') r.came = true;
+        if (!b.owner && b.last === m.away && b.lastP === k) return { o: `THEIR KEEPER SWEPT IT (kicked / headed clear) ${kh.toFixed(1)} m out at ${r.t.toFixed(1)} s · ${tag}` };
+        return r.t > 7 ? { o: `NOBODY HAD IT after 7 s${r.came ? ' (the keeper came for it)' : ''} · ${tag}` } : null; } };
+  }
   function fwTests() {
     const H = () => m.home.players, A = () => m.away.players;
     return [
@@ -3869,6 +3891,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     add('WG', 't-012 · WING PLAY', 'The real team AI on both sides: a winger goes down the flank and crosses, team-mates run near post / far post / the spot / the edge, the man who meets it heads it, volleys it or (SP banked) goes for an aerial special.', wgTests());
     add('AI', 'smarter-ai · THE TEAM BRAIN', 'The real team AI on both sides (smarter-ai stage 2, docs/smarter-ai.md): a support man who keeps his job, one presser + one cover, no lob into a marked man, chasing late (and the keeper up for the last corner), the four example styles, Rise Warrior reading your flank, the 1-2 (open and covered).', aiTests());
     add('RL', 'role-ai step 0 · EXPLOITS (ROLES & LINE)', 'A human\'s moves against the real team AI and keeper (docs/role-ai-plan.md): E1 the chip over a keeper off his line, E2 the ball over a line that doesn\'t drop, E3 dragging a centre-back out, E4 the square pass past a charging keeper, E5 walking round him (closed, kept), E6 the counter down the flank their full-back left. Each line: WORKED or STOPPED, their back line and the keeper at that moment. tools/rlrates.js runs each 20 times for the rates.', rlTests());
+    add('KS', "role-ai step 6b · THE KEEPER'S STYLE", 'Each team card has a keeper style (roles.js GK_KIND): KEEPER (as before) or SWEEPER KEEPER, who stands higher behind his line with the ball far away and comes for balls behind his defence from further out. The same ball over their line: KS1 against a sweeper keeper, KS2 against a keeper. Near goal both are the same keeper.', [ksTest('KS1', 'sweeper'), ksTest('KS2', 'keeper')]);
     add('FW', 'role-ai step 5 · THE FORWARDS', 'The strikers by role (roles.js FWD): the first line of the press on their back men (F1), the target man coming short and holding it up (F2). Real team AI on both sides; your side plays the formation in OPTIONS > FORMATION (4-4-2: #9 target man, #10 advanced forward; 4-3-3: a poacher).', fwTests());
     add('AR', 't-020 · ARCADE GETS INTENSE', 'ARCADE only (these tests play it; CLASSIC is untouched): the ball comes back off invisible boards along the bylines instead of going out for a goal kick / corner (t-026: the touchlines are throw-ins again) - lively, popping up - and the team AI attacks those rebounds in the air; the SP meter fills faster plus a little for the big moments; quick restarts after a goal.', arTests());
     add('SX', 'ARCADE SPECIALS (co-designer, 28 Oct)', 'ARCADE only: the special dribble (its own button N / O / pad LT, or SPECIAL far from goal), combo specials (the 1-2 and the lob + volley, 2 or 3 bars, two portraits), the team signature names, the computer\'s dribble.', sxTests());
@@ -3948,6 +3971,7 @@ In 4 short lines for the game's designer (who has ADHD - plain words, no jargon)
     if (m.aerial && m.camTarget === m.aerial.cam) m.camTarget = null; Object.assign(m, { aerial: null, lobAim: null, slowMo: 0 }); Object.assign(Input.touch, { x: 0, y: 0, btn: {} });
     if (LAB.undo) { for (const f of LAB.undo) f(); LAB.undo = null; }            // t-021: the BW cases break the game on purpose - put it back
     window.__labWatch = window.__bwNoStore = window.__labClock = false;         // (Bug Watch watches only in the BW cases)
+    window.GK_STYLE_FORCE = sc.gkStyle || null;                                 // role-ai step 6b: the KS tests set their keeper's style; everything else plays the team cards
     window.__styles = window.__readOn = null; m.read = null;                    // (smarter-ai: the AI tests' style cards and Rise Warrior's read stay in those tests)
     window.HC2_NO_OFFSIDE = !(sc.group === 'OF' || sc.realAi);                 // t-024: offside in the OF group and the real-AI tests (the rest are half-team moments)
     Object.assign(m, { offSide: null, offFlag: null, offLast: null, offGK: null, passAim: null });

@@ -395,7 +395,7 @@ hc2Mix(Match, {
     const defs = own.players.filter(p => !p.keeper && !p.sentOff), atk = opp.players.filter(p => !p.keeper && !p.sentOff);
     const lastH = defs.length ? Math.min(...defs.map(p => H(p.x))) : 30;          // his defensive line (the deepest outfield man)
     const carrier = b.owner && b.owner.team === opp ? b.owner : null, ours = b.owner && b.owner.team === own;
-    const KD = this.dk(own), kv = 6.6 * KD.gkSpd, react = 0.15 + KD.gkReact;
+    const KD = this.dk(own), kv = 6.6 * KD.gkSpd, react = 0.15 + KD.gkReact, ST = GK_KIND[gkStyleOf(own)];   // (step 6b: keeper / sweeper keeper)
     // BACK: a high ball dropping behind him while he's off his line. t-005 (lob step 1): a lob only once he has READ it
     // (gkRead, by level) - he turned the frame it passed 1.6 m, or went for its landing spot 0.07 s after the kick
     const unread = this.gkUnread(k);
@@ -408,12 +408,12 @@ hc2Mix(Match, {
       const toGoal = b.vx * -side > -1 || len(b.vx, b.vy) < 2;                       // (not a ball running away from his goal)
       for (const pt of this.path) {
         if (pt.z > 1.0 || !toGoal) continue;
-        const ph = H(pt.x); if (ph < -0.5 || ph > 26 || Math.abs(pt.y - 34) > 22) continue;
+        const ph = H(pt.x); if (ph < -0.5 || ph > ST.sweepTo || Math.abs(pt.y - 34) > 22) continue;
         const me = react + len(pt.x - k.x, pt.y - k.y) / kv;
         if (me > pt.t + 0.05) continue;                                            // he can't be there in time for this point
         const them = Math.min(9, ...atk.map(o => 0.12 + len(pt.x - o.x, pt.y - o.y) / SPRINT));
         const mates = Math.min(9, ...defs.map(o => 0.12 + len(pt.x - o.x, pt.y - o.y) / SPRINT));
-        if (me < them - 0.12 && (mates > me + 0.3 || ph < 5.5)) { const out = ph > 16.5 || Math.abs(pt.y - 34) > 20.2;
+        if (me < them - ST.margin && (mates > me + 0.3 || ph < 5.5)) { const out = ph > 16.5 || Math.abs(pt.y - 34) > 20.2;
           return { mode: k.gkMode === 'SWEEP' || k.gkMode === 'SMOTHER' ? k.gkMode : out ? 'SWEEP' : 'SMOTHER', x: pt.x, y: pt.y, v: kv }; }   // (the label sticks while he goes for it)
         break;                                                                     // (the first point he reaches decides it)
       }
@@ -489,8 +489,8 @@ hc2Mix(Match, {
     const lead = theirPass ? GK_HOME.passLead : 0, pbx = b.x + b.vx * lead, pby = b.y + b.vy * lead, pbd = len(pbx - gx, pby - 34);
     const depth = clamp(1.2 + (theirPass ? pbd : bd) * 0.14, 1.2, 5.2);
     const g = bh > 0.8 ? this.gkBisector(theirPass ? pbx : b.x, theirPass ? pby : b.y, gx, side, depth) : { x: gx + side * 1.0, y: b.y < 34 ? GOAL_Y0 + 0.6 : GOAL_Y1 - 0.6 };   // (ball by the byline: his near post)
-    let sh = clamp(lastH - 18, 8, 17) + (ours && bh > 60 ? 3 : 0);                // how far up he walks with the ball far away
-    sh = Math.min(sh, Math.max(6, lastH - 6), 21);                                 // (always behind his last man)
+    let sh = clamp(lastH - ST.gap, ST.min, ST.max) + (ours && bh > 60 ? 3 : 0);    // how far up he walks with the ball far away (step 6b: by his style)
+    sh = Math.min(sh, Math.max(6, lastH - 6), ST.max + 4);                                 // (always behind his last man)
     const w = clamp((bh - 30) / 22, 0, 1), sy = 34 + (b.y - 34) * 0.18;
     if (KD.gkPos > 0 && (!k.gkN || this.time.now > k.gkN.t)) k.gkN = { x: rnd(-1, 1) * KD.gkPos, y: rnd(-1, 1) * KD.gkPos * 0.7, t: this.time.now + rnd(1500, 3000) };   // v0.9.2: a weaker keeper stands a bit off
     const nx = KD.gkPos > 0 && k.gkN ? k.gkN.x : 0, ny = KD.gkPos > 0 && k.gkN ? k.gkN.y : 0;
